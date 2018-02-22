@@ -3,8 +3,8 @@
 using std::vector;
 
 struct NotesModule : Module {
-	enum ParamIds {
-		VERT_WHEEL,
+    enum ParamIds {
+        VERT_WHEEL,
         HORZ_WHEEL,
 
         RESET_BUTTON,
@@ -21,21 +21,21 @@ struct NotesModule : Module {
         PART_BUTTON,
         REST_BUTTON,
 
-		NUM_PARAMS
-	};
+        NUM_PARAMS
+    };
 
-	enum InputIds {
-		CLOCK_INPUT,
+    enum InputIds {
+        CLOCK_INPUT,
         RESET_INPUT,
         V_OCT_INPUT,
         REC_IN_INPUT,
         REPEAT_INPUT,
         PROG_INPUT,
-		NUM_INPUTS
-	};
+        NUM_INPUTS
+    };
 
-	enum OutputIds {
-		CV_1_OUTPUT,
+    enum OutputIds {
+        CV_1_OUTPUT,
         CV_2_OUTPUT,
         CV_3_OUTPUT,
         CV_4_OUTPUT,
@@ -44,11 +44,11 @@ struct NotesModule : Module {
         GATE_3_OUTPUT,
         GATE_4_OUTPUT,
         NUM_OUTPUTS
-	};
+    };
 
-	enum LightIds {
-		NUM_LIGHTS      // no lights
-	};
+    enum LightIds {
+        NUM_LIGHTS      // no lights
+    };
 
     enum class Horz_Mode {
         Select,         // horz wheel chooses note
@@ -94,7 +94,7 @@ struct NotesModule : Module {
         int effectIndex;
     };
 
-	vector<Note> notes[8];        // zero value indicates rest
+    vector<Note> notes[8];        // zero value indicates rest
     vector<Effects> effects;
 
     int currentIndex = 0;
@@ -106,12 +106,12 @@ struct NotesModule : Module {
     bool clockDown = false;
 
     NotesModule() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {}
-	void step() override;
+    void step() override;
 
-	// For more advanced Module features, read Rack's engine.hpp header file
-	// - toJson, fromJson: serialization of internal data
-	// - onSampleRateChange: event triggered by a change of sample rate
-	// - onReset, onRandomize, onCreate, onDelete: implements special behavior when user clicks these from the context menu
+    // For more advanced Module features, read Rack's engine.hpp header file
+    // - toJson, fromJson: serialization of internal data
+    // - onSampleRateChange: event triggered by a change of sample rate
+    // - onReset, onRandomize, onCreate, onDelete: implements special behavior when user clicks these from the context menu
 };
 
 /* wheels have a pair of slits between an always on LED and a pair of photo diodes
@@ -128,14 +128,14 @@ struct NotesModule : Module {
 */
 
 void NotesModule::step() {
-	float pitch = params[PITCH_PARAM].value;
+    float pitch = params[PITCH_PARAM].value;
     if ((int) notes.size() > editIndex) {
         notes[editIndex] = pitch;
     }
     if ((int) notes.size() > currentIndex) {
         pitch = notes[currentIndex];
     }
-	pitch += inputs[V_OCT_INPUT].value;
+    pitch += inputs[V_OCT_INPUT].value;
     outputs[CV_1_OUTPUT].value = pitch;
 
     if (clockDown && inputs[CLOCK_INPUT].value > CLOCK_UP_THRESHOLD) {
@@ -156,21 +156,21 @@ struct NotesDisplay : TransparentWidget {
 };
 
 NotesModuleWidget::NotesModuleWidget() {
-	auto module = new NotesModule();
-	setModule(module);
-	box.size = Vec(6 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT);
+    auto module = new NotesModule();
+    setModule(module);
+    box.size = Vec(6 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT);
 
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/NotesModule.svg")));
-		addChild(panel);
-	}
+    {
+        SVGPanel *panel = new SVGPanel();
+        panel->box.size = box.size;
+        panel->setBackground(SVG::load(assetPlugin(plugin, "res/NotesModule.svg")));
+        addChild(panel);
+    }
 
-	addChild(createScrew<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+    addChild(createScrew<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+    addChild(createScrew<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+    addChild(createScrew<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+    addChild(createScrew<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
     NotesDisplay *display = new NotesDisplay();
     display->module = module;
@@ -178,11 +178,11 @@ NotesModuleWidget::NotesModuleWidget() {
     display->box.size = Vec(box.size.x, 140);
     addChild(display);
 
-	addParam(createParam<Davies1900hBlackKnob>(Vec(28, 87), module, NotesModule::PITCH_PARAM, -3.0, 3.0, 0.0));
+    addParam(createParam<Davies1900hBlackKnob>(Vec(28, 87), module, NotesModule::PITCH_PARAM, -3.0, 3.0, 0.0));
 
-	addInput(createInput<PJ301MPort>(Vec(33, 186), module, NotesModule::CLOCK_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(33, 186), module, NotesModule::CLOCK_INPUT));
 
-	addOutput(createOutput<PJ301MPort>(Vec(33, 275), module, NotesModule::CV_1_OUTPUT));
+    addOutput(createOutput<PJ301MPort>(Vec(33, 275), module, NotesModule::CV_1_OUTPUT));
     addOutput(createOutput<PJ301MPort>(Vec(63, 275), module, NotesModule::GATE_1_OUTPUT));
 
 }
