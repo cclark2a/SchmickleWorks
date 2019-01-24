@@ -101,8 +101,8 @@ struct NoteTakerDisplay : TransparentWidget {
     NoteTaker* module;
 };
 
-struct NoteTakerWheel : Knob, FramebufferWidget {
-    NoteTakerWheel() {
+struct HorizontalWheel : Knob, FramebufferWidget {
+    HorizontalWheel() {
         box.size.x = 100;
         box.size.y = 12;
     }
@@ -110,26 +110,33 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     // frame varies from 0 to 1 to rotate the wheel
     void drawGear(NVGcontext *vg, float frame) {
         nvgShapeAntiAlias(vg, 1);
+        int topcolor = 0xdf;
         nvgBeginPath(vg);
-        nvgMoveTo(vg, 20, box.size.y);
-        nvgLineTo(vg, 0, box.size.y);
-        nvgLineTo(vg, 0, 0);
-        nvgLineTo(vg, box.size.x, 0);
+        nvgRect(vg, 0, 0, box.size.x, box.size.y);
+        nvgFillColor(vg, nvgRGB(topcolor, topcolor, topcolor));
+        nvgFill(vg);
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, 0, box.size.y / 2);
+        nvgLineTo(vg, box.size.x / 2, box.size.y);
+        nvgLineTo(vg, box.size.x, box.size.y / 2);
         nvgLineTo(vg, box.size.x, box.size.y);
-        nvgLineTo(vg, box.size.x - 20, box.size.y);
+        nvgLineTo(vg, 0, box.size.y);
+        nvgFillColor(vg, nvgRGB(0xaf, 0xaf, 0xaf));
+        nvgFill(vg);
+        nvgBeginPath(vg);
+        nvgRect(vg, 0, 0, box.size.x, box.size.y);
         nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
-        nvgStrokeWidth(vg, 2);
+        float frameWidth = 1;
+        nvgStrokeWidth(vg, frameWidth);
 	    nvgStroke(vg);
-        nvgStrokeWidth(vg, .5f);
-        nvgScissor(vg, 0, 0, box.size.x, box.size.y * 2);
+        nvgScissor(vg, frameWidth / 2, frameWidth / 2, box.size.x - frameWidth, box.size.y * 2);
         const int segments = 40;
-        const float depth = 4;  // tooth depth
+        const float depth = 2;  // tooth depth
         const float radius = box.size.x * 2 / 3;
         const float height = box.size.y / 2;
         const float slant = 3;
         float endTIx = 0, endTIy = 0, endTOx = 0, endTOy = 0, endBIy = 0, endBOy = 0;
         nvgTranslate(vg, box.size.x / 2, -radius / slant + 10);
-        nvgBeginPath(vg);
         for (int i = segments / 8 - 3; i <= 3 * segments / 8 + 3; ++i) {
             float angle = (i + frame * 2) * 2 * M_PI / segments;
             float ax = cosf(angle), ay = sinf(angle);
@@ -146,53 +153,74 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
             if (!startTIx && !startTIy) {
                 continue;
             }
-            if (i > segments / 8 && i < 3 * segments / 8) {
-                continue;
-            }
+            float offcenter = abs(segments / 4 - i - frame * 2) / (float) segments; // <= .25
+            int facecolor = 0xF0 - (int) (0x17F * offcenter);
             if (i & 1) {
+                // back face of inset tooth
+                nvgBeginPath(vg);
                 nvgMoveTo(vg, startTIx, startTIy);
                 nvgLineTo(vg, endTIx, endTIy);
-                nvgLineTo(vg, endTOx, endTOy);
-                // start here: erase frame where wheel sticks out
-                nvgLineTo(vg, );
-                float clipSx = startTIx, clipSy = startBIy;
-                float clipEx = endTIx, clipEy = endBIy;
-                float diff = clipSx - startTOx;
-                float slopex = clipEx - clipSx, slopey = clipEy - clipSy;
-                if (diff > 0) {
-                    clipSx = startTOx;
-                    clipSy -= slopey * diff / slopex;
-                }
-                diff = clipEx - endTOx;
-                if (diff < 0) {
-                   clipEx = endTOx;
-                   clipEy -= slopey * diff / slopex;
-                }
-                nvgMoveTo(vg, clipSx, clipSy);
-                nvgLineTo(vg, clipEx, clipEy);
+                nvgLineTo(vg, endTIx, endBIy);
+                nvgLineTo(vg, startTIx, startBIy);
+                // closest to center is brightest
+                nvgFillColor(vg, nvgRGB(facecolor, facecolor, facecolor));
+	            nvgFill(vg);
             } else {
+                // front face of outset tooth
+                nvgBeginPath(vg);
                 nvgMoveTo(vg, startTOx, startTOy);
                 nvgLineTo(vg, endTOx, endTOy);
-                nvgLineTo(vg, endTIx, endTIy);
-                nvgMoveTo(vg, startTOx, startTOy);
-                nvgLineTo(vg, startTOx, startBOy);
-                nvgMoveTo(vg, endTOx, endTOy);
                 nvgLineTo(vg, endTOx, endBOy);
+                nvgLineTo(vg, startTOx, startBOy);
+                nvgFillColor(vg, nvgRGB(facecolor, facecolor, facecolor));
+	            nvgFill(vg);
+                int edgecolor = 0x80 + (int) (0x1FF * offcenter);
                 if (startTIx > startTOx) {
+                    // edge on right
+                    nvgBeginPath(vg);
                     nvgMoveTo(vg, startTIx, startTIy);
                     nvgLineTo(vg, startTIx, startBIy);
                     nvgLineTo(vg, startTOx, startBOy);
+                    nvgLineTo(vg, startTOx, startTOy);
+                    nvgFillColor(vg, nvgRGB(edgecolor, edgecolor, edgecolor));
+	                nvgFill(vg);
                 }
                 if (endTIx < endTOx) {
+                    // edge on left
+                    nvgBeginPath(vg);
                     nvgMoveTo(vg, endTIx, endTIy);
                     nvgLineTo(vg, endTIx, endBIy);
                     nvgLineTo(vg, endTOx, endBOy);
+                    nvgLineTo(vg, endTOx, endTOy);
+                    nvgFillColor(vg, nvgRGB(edgecolor, edgecolor, edgecolor));
+	                nvgFill(vg);
                 }
-                nvgMoveTo(vg, startTOx, startBOy);
-                nvgLineTo(vg, endTOx, endBOy);
-
+            }
         }
+        endTIx = endTIy = 0;
+        // accumulate top of outset tooth
+        nvgBeginPath(vg);
+        for (int i = segments / 8 - 3; i <= 3 * segments / 8 + 3; ++i) {
+            float angle = (i + frame * 2) * 2 * M_PI / segments;
+            float ax = cosf(angle), ay = sinf(angle);
+            float scaleI = radius - depth;
+            float scaleO = radius + depth;
+            float startTIx = endTIx, startTIy = endTIy;
+            endTIx = ax * scaleI; endTIy = ay * scaleI / slant;
+            float startTOx = endTOx, startTOy = endTOy;
+            endTOx = ax * scaleO; endTOy = ay * scaleO / slant;
+            if (i & 1) {
+                continue;
+            }
+            nvgMoveTo(vg, startTIx, startTIy);
+            nvgLineTo(vg, startTOx, startTOy);
+            nvgLineTo(vg, endTOx, endTOy);
+            nvgLineTo(vg, endTIx, endTIy);
+        }
+        nvgFillColor(vg, nvgRGB(topcolor, topcolor, topcolor));
 	    nvgFill(vg);
+        endTIx = endTIy = 0;
+        // accumulate edge lines
         nvgBeginPath(vg);
         for (int i = segments / 8 - 3; i <= 3 * segments / 8 + 3; ++i) {
             float angle = (i + frame * 2) * 2 * M_PI / segments;
@@ -251,6 +279,8 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
                 nvgLineTo(vg, endTOx, endBOy);
             }
         }
+        nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
+        nvgStrokeWidth(vg, .5f);
 	    nvgStroke(vg);
     }
 
@@ -260,9 +290,27 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     }
 
     void onMouseDown(EventMouseDown &e) override {
-       printf("called\n");
+       printf("onMouseDown %s\n", name());
        fflush(stdout);
 	   FramebufferWidget::onMouseDown(e);
+    }
+
+    void onMouseUp(EventMouseUp &e) override {
+       printf("onMouseUp %s\n", name());
+       fflush(stdout);
+	   FramebufferWidget::onMouseUp(e);
+    }
+
+    void onMouseMove(EventMouseMove &e) override {
+       printf("onMouseUp %s\n", name());
+       fflush(stdout);
+	   FramebufferWidget::onMouseMove(e);
+    }
+
+    void onScroll(EventScroll &e) override {
+       printf("onScroll %s\n", name());
+       fflush(stdout);
+	   FramebufferWidget::onScroll(e);
     }
 
     void step() override {
@@ -275,6 +323,23 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     void onChange(EventChange &e) override {
         dirty = true;
 	    Knob::onChange(e);
+    }
+
+    virtual const char* name() {
+        return "horizontal";
+    }
+};
+
+struct VerticalWheel : HorizontalWheel {
+
+    void draw(NVGcontext *vg) override {
+        nvgTranslate(vg, 0, box.size.x);
+        nvgRotate(vg, -M_PI / 2);
+        HorizontalWheel::draw(vg);
+    }
+
+    const char* name() override {
+        return "vertical";
     }
 };
 
@@ -292,12 +357,15 @@ struct NoteTakerWidget : ModuleWidget {
         display->box.pos = Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2);
         display->box.size = Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9);
         addChild(display);
-        ParamWidget* wheel = ParamWidget::create<NoteTakerWheel>(
-                Vec(RACK_GRID_WIDTH * 7 - 50,
-                    RACK_GRID_WIDTH * 11.5f),
-                module, NoteTaker::PITCH_SLIDER,
-                -3.0, 3.0, 0.0);
-		addParam(wheel);
+        ParamWidget* horizontalWheel = ParamWidget::create<HorizontalWheel>(
+                Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f),
+                module, NoteTaker::DURATION_SLIDER, -3.0, 3.0, 0.0);
+		addParam(horizontalWheel);
+        ParamWidget* verticalWheel = ParamWidget::create<VerticalWheel>(
+                Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 50),
+                module, NoteTaker::PITCH_SLIDER, -3.0, 3.0, 0.0);
+		addParam(verticalWheel);
+
 #if 0
         addParam(ParamWidget::create<BefacoSlidePot>(Vec(display->box.pos.x + display->box.size.x / 2,
                 display->box.pos.y + display->box.size.y + 10), module, NoteTaker::DURATION_SLIDER,
