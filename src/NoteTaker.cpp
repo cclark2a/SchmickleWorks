@@ -25,9 +25,9 @@ const uint8_t midiCVMask = 0xF0;
 const uint8_t midiNoteOff = 0x80;
 const uint8_t midiNoteOn = 0x90;
 const uint8_t midiKeyPressure = 0xA0;
-const uint8_t midiControl = 0xB0;
-const uint8_t midiPatch = 0xC0;
-const uint8_t midiOverallPressure = 0xD0;
+const uint8_t midiControlChange = 0xB0;
+const uint8_t midiProgramChange = 0xC0;
+const uint8_t midiChannelPressure = 0xD0;
 const uint8_t midiPitchWheel = 0xE0;
 const uint8_t midiSystem = 0xF0;
 
@@ -39,30 +39,49 @@ const uint8_t channel4 = 3;
 const uint8_t stdKeyPressure = 0x64;
 const int stdTimePerQuarterNote = 0x60;
 
+// 
 enum DisplayType : uint8_t {
-    NOTE_TYPE,
-    REST_TYPE,
-    HEADER,
+    NOTE_OFF,          // not drawn, but kept for saving as midi
+    NOTE_ON,
+    KEY_PRESSURE,
+    CONTROL_CHANGE,
+    PROGRAM_CHANGE,
+    CHANNEL_PRESSURE,
+    PITCH_WHEEL,
+    MIDI_SYSTEM,       // data that doesn't fit in DisplayNote pointed to be index into midi file
+    MIDI_HEADER,
     KEY_SIGNATURE,
     TIME_SIGNATURE,
-    TEMPO,
-    META,               // not implemented yet; placeholder for data bigger than DisplayNote
+    MIDI_TEMPO,
+    REST_TYPE,
     NUM_TYPES
 };
 
+// midi is awkward to parse at run time to draw notes since the duration is some
+// where in the future stream. It is not trival (or maybe not possible) to walk
+// backwards to find the note on given the position of the note off
+        
+// better to have a structured array of notes that more closely resembles the
+// data we want to draw
 struct DisplayNote {
-    int startTime;
-    int duration;
+    int startTime;                  // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
+    int duration;                   // MIDI time
     DisplayType type;
+    int channel;                    // set to -1 if type doesn't have channel
     int data[4];
 
     int pitch() const {
-        assertValid(NOTE_TYPE);
-        return data[0];
+        assertValid(NOTE_ON);
+        return data[0];             // using MIDI note assignment
+    }
+
+    void setPitch(int pitch) {
+        data[0] = pitch;
+        assertValid(type == NOTE_ON ? NOTE_ON : NOTE_OFF);
     }
 
     int format() const {
-        assertValid(HEADER);
+        assertValid(MIDI_HEADER);
         return data[0];
     }
 
@@ -76,11 +95,6 @@ struct DisplayNote {
         return data[0];
     }
 
-    int channel() const {
-        assertValid(NOTE_TYPE == type ? NOTE_TYPE : REST_TYPE);
-        return data[1];
-    }
-
     int denominator() const {
         assertValid(TIME_SIGNATURE);
         return data[1];
@@ -92,8 +106,13 @@ struct DisplayNote {
     }
 
     int onVelocity() const {
-        assertValid(NOTE_TYPE);
+        assertValid(NOTE_ON);
         return data[2];
+    }
+
+    void setOnVelocity(int velocity) {
+        data[2] = velocity;
+        assertValid(NOTE_ON);
     }
 
     int clocksPerClick() const {
@@ -107,73 +126,99 @@ struct DisplayNote {
     }
 
     int offVelocity() const {
-        assertValid(NOTE_TYPE);
+        assertValid(NOTE_ON);
         return data[3];
     }
 
+    void setOffVelocity(int velocity) {
+        data[3] = velocity;
+        assertValid(type == NOTE_ON ? NOTE_ON : NOTE_OFF);
+    }
+
     void assertValid(DisplayType t) const {
-        assert(type == t);
+        if (type != t) {
+            debug("type %d != t %d\n", type, t);
+            assert(type == t);
+        }
         return assert(isValid());
     }
 
     bool isValid() const {
         switch (type) {
-            case NOTE_TYPE:
+            case NOTE_OFF:
+            case NOTE_ON:
                 if (0 > data[0] || data[0] > 127) {
-                    printf("invalid note pitch %d\n", data[0]);
+                    debug("invalid note pitch %d\n", data[0]);
                     return false;
                 }
-                if (0 > data[1] || data[1] > 15) {
-                    printf("invalid note channel %d\n", data[1]);
+                if (0 > channel || channel > 15) {
+                    debug("invalid note channel %d\n", channel);
                     return false;
                 }
-                if (0 > data[2] || data[2] > 127) {
-                    printf("invalid on note pressure %d\n", data[2]);
+                if (NOTE_ON == type && (0 > data[2] || data[2] > 127)) {
+                    debug("invalid on note pressure %d\n", data[2]);
                     return false;
                 }
                 if (0 > data[3] || data[3] > 127) {
-                    printf("invalid off note pressure %d\n", data[3]);
+                    debug("invalid off note pressure %d\n", data[3]);
                     return false;
                 }
             break;
             case REST_TYPE:
                 if (0 > data[0] || data[0] > 127) {  // todo: should be more restrictive
-                    printf("invalid rest pitch %d\n", data[0]);
+                    debug("invalid rest pitch %d\n", data[0]);
                     return false;
                 }
                 if (0 > data[1] || data[1] > 15) {
-                    printf("invalid rest channel %d\n", data[1]);
+                    debug("invalid rest channel %d\n", data[1]);
                     return false;
                 }
             break;
-            case HEADER:
+            case MIDI_HEADER:
                 if (0 > data[0] || data[0] > 2) {
-                    printf("invalid midi format %d\n", data[0]);
+                    debug("invalid midi format %d\n", data[0]);
                     return false;
                 }
                 if (1 != data[1] && (!data[0] || 0 > data[1])) {
-                    printf("invalid midi tracks %d (format=%d)\n", data[1], data[0]);
+                    debug("invalid midi tracks %d (format=%d)\n", data[1], data[0]);
                     return false;
                 }
                 if (1 > data[2]) {
-                    printf("invalid beats per quarter note %d\n", data[2]);
+                    debug("invalid beats per quarter note %d\n", data[2]);
                     return false;
                 }
             break;
             case KEY_SIGNATURE:
                 if (-7 <= data[0] || data[0] <= 7) {
-                    printf("invalid key %d\n", data[0]);
+                    debug("invalid key %d\n", data[0]);
                     return false;
                 }
                 if (0 != data[1] && 1 != data[1]) {
-                    printf("invalid minor %d\n", data[1]);
+                    debug("invalid minor %d\n", data[1]);
                     return false;
                 }
             break;
-            case TIME_SIGNATURE:
-                // to do
-                break;
+            case TIME_SIGNATURE: {
+                // although midi doesn't prohibit weird time signatures, look for
+                // common ones to help validate that the file is parsed correctly
+                // allowed: 2/2 n/4 (n = 2 3 4 5 7 9 11) m/8 (m = 3 5 6 7 9 11 12)
+                int num = data[0];
+                int denom = data[1];
+                if ((denom == 1 && num != 2)  // allow 2/2
+                        || (denom == 2 && (num < 2 || num > 11 || (num > 5 && !(num & 1))))
+                        || (denom == 3 && (num < 3 || num > 12 || num == 4 || num == 8))) {
+                    debug("invalid time signature %d/%d\n", data[0], data[1]);
+                    return false;
+                }
+                if (data[2] != 24) {
+                    debug("invalid clocks/click %d\n", data[2]);
+                }
+                if (data[3] != 8) {
+                    debug("invalid 32nds/quarter ntoe %d\n", data[3]);
+                }
+                } break;
             default:
+                debug("to do: validate %d\n", type);
                 assert(0);
                 return false;
         }
@@ -218,13 +263,6 @@ struct NoteTaker : Module {
 
 	NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
         createDefaultAsMidi();
-        // start here
-        // midi is awkward to parse at run time to draw notes since the duration is some
-        // where in the future stream. It is not trival (or maybe not possible) to walk
-        // backwards to find the note on given the position of the note off
-        
-        // better to have a structured array of notes that more closely resembles the
-        // data we want to draw
         parseMidi();
     }
 
@@ -313,40 +351,355 @@ struct NoteTaker : Module {
         return true;
     }
 
+    bool midi_check7bits(const vector<uint8_t>::iterator& iter) const {
+        if (iter == midi.end()) {
+            debug("unexpected end of file 1\n");
+            return false;
+        }
+        if (*iter & 0x80) {
+            debug("unexpected high bit set 1\n");
+            return false;
+        }
+        return true;
+    }
+
+    bool midi_delta(vector<uint8_t>::iterator& iter, int* result) const {
+        int delta;
+        if (!midi_size8(iter, &delta)) {
+            return false;
+        }
+        *result += delta;
+        return true;
+    }
+
+    bool midi_size8(vector<uint8_t>::iterator& iter, int* result) const {
+        *result = 0;
+        do {
+            uint8_t byte = *iter++;
+            *result += byte & 0x7F;
+            if (0 == (byte & 0x80)) {
+                break;
+            }
+            if (iter == midi.end()) {
+                return false;
+            }
+            *result <<= 7;
+        } while (true);
+        return true;
+    }
+
+    bool midi_size24(vector<uint8_t>::iterator& iter, int* result) const {
+        *result = 0;
+        for (int i = 0; i < 3; ++i) {
+            if (iter == midi.end()) {
+                return false;
+            }
+            *result |= *iter++;
+            *result <<= 8;
+        }
+        return true;
+    }
+
+    bool midi_size32(vector<uint8_t>::iterator& iter, int* result) const {
+        *result = 0;
+        for (int i = 0; i < 4; ++i) {
+            if (iter == midi.end()) {
+                return false;
+            }
+            *result |= *iter++;
+            *result <<= 8;
+        }
+        return true;
+    }
+
     void parseMidi() {
+        int midiTime = 0;
         if (midi.size() < 14) {
-            printf("MIDI file too small size=%llu\n", midi.size());
+            debug("MIDI file too small size=%llu\n", midi.size());
             return;
         }
         auto iter = midi.begin();
         if (!match_midi(iter, MThd)) {
-            printf("expect MIDI header, got %c%c%c%c (0x%02x%02x%02x%02x)\n", 
+            debug("expect MIDI header, got %c%c%c%c (0x%02x%02x%02x%02x)\n", 
                     midi[0], midi[1], midi[2], midi[3],
                     midi[0], midi[1], midi[2], midi[3]);
             return;
         }
-        if (!match_midi(iter, MThd_data)) {
-            printf("expect MIDI header size == 6, got (0x%02x%02x%02x%02x)\n", 
+        if (!match_midi(iter, MThd_length)) {
+            debug("expect MIDI header size == 6, got (0x%02x%02x%02x%02x)\n", 
                     midi[4], midi[5], midi[6], midi[7]);
             return;
         }
-        DisplayNote headerData;
-        headerData.type = HEADER;
-        headerData.startTime = 0;
-        headerData.duration = 0;
+        DisplayNote displayNote;
+        displayNote.type = MIDI_HEADER;
+        displayNote.startTime = 0;
+        displayNote.duration = 0;
         for (int i = 0; i < 3; ++i) {
-            read_midi16(iter, &headerData.data[i]);
+            read_midi16(iter, &displayNote.data[i]);
         }
-        if (!headerData.isValid()) {
+        if (!displayNote.isValid()) {
             return;
         }
-        displayNotes.push_back(headerData);
-        // start here
+        displayNotes.push_back(displayNote);
+        auto trk = iter;
+        if (!match_midi(iter, MTrk)) {
+            debug("expect MIDI track, got %c%c%c%c (0x%02x%02x%02x%02x)\n", 
+                    trk[0], trk[1], trk[2], trk[3],
+                    trk[0], trk[1], trk[2], trk[3]);
+            return;
+        }
+        int trackLength;
+        if (!midi_size32(iter, &trackLength)) {
+            return;
+        }
+        // parse track header before parsing channel voice messages
+        while (iter != midi.end()) {
+            if (!midi_delta(iter, &midiTime)) {
+                return;
+            }
+            if (0 == (*iter & 0x80)) {
+                debug("expected high bit set on channel voice message: %02x\n", *iter);
+                return;
+            }
+            displayNote.startTime = midiTime;
+            displayNote.duration = -1;  // not known yet
+            displayNote.type = (DisplayType) ((*iter >> 4) & 0x7);
+            displayNote.channel = *iter++ & 0x0F;
+            switch(displayNote.type) {
+                case NOTE_OFF: {
+                    if (!midi_check7bits(iter)) {
+                        return;
+                    }
+                    int pitch = *iter++;
+                    displayNote.setPitch(pitch);
+                    if (!midi_check7bits(iter)) {
+                        return;
+                    }
+                    int velocity = *iter++;
+                    displayNote.setOffVelocity(velocity);
+                    bool found = false;
+                    for (auto ri = displayNotes.rbegin(); ri != displayNotes.rend(); ++ri) {
+                        if (ri->type != NOTE_ON) {
+                            continue;
+                        }
+                        if (ri->duration != -1) {
+                            continue;
+                        }
+                        if (displayNote.channel != ri->channel) {
+                            continue;
+                        }
+                        if (pitch != ri->pitch()) {
+                            continue;
+                        }
+                        if (midiTime <= ri->startTime) {
+                            debug("unexpected note duration start=%d end=%d\n",
+                                    ri->startTime, midiTime);
+                        }
+                        ri->duration = midiTime - ri->startTime;
+                        ri->setOffVelocity(velocity);
+                        found = true;
+                        break;
+                    }
+                    if (!found) {
+                        debug("note: note off channel=%d pitch=%d not found\n",
+                                displayNote.channel, pitch);
+                    }
+
+                } break;
+                case NOTE_ON:
+                    if (!midi_check7bits(iter)) {
+                        return;
+                    }
+                    displayNote.setPitch(*iter++);
+                    if (!midi_check7bits(iter)) {
+                        return;
+                    }
+                    displayNote.setOnVelocity(*iter++);
+                break;
+                case KEY_PRESSURE:
+                case CONTROL_CHANGE:
+                case PITCH_WHEEL:
+                    for (int i = 0; i < 2; i++) {
+                        if (!midi_check7bits(iter)) {
+                            return;
+                        }
+                        displayNote.data[i] = *iter++;
+                    }
+                break;
+                case PROGRAM_CHANGE:
+                case CHANNEL_PRESSURE:
+                    if (!midi_check7bits(iter)) {
+                        return;
+                    }
+                    displayNote.data[0] = *iter++;
+                break;
+                case MIDI_SYSTEM:
+                    switch (displayNote.channel) {
+                        case 0x0:  // system exclusive
+                            displayNote.data[0] = iter - midi.begin();  // offset of message start
+                            while (++iter != midi.end() && 0 == (*iter & 0x80))
+                                ;
+                            displayNote.data[1] = iter - midi.begin();  // offset of message end
+                            if (0xF7 != *iter++) {
+                                debug("expected system exclusive terminator %02x\n", *iter);
+                            }
+                            break;
+                        case 0x1: // undefined
+                            break;
+                        case 0x2: // song position pointer
+                            for (int i = 0; i < 2; i++) {
+                                if (!midi_check7bits(iter)) {
+                                    return;
+                                }
+                                displayNote.data[i] = *iter++;
+                            }
+                            break;
+                        case 0x3: // song select
+                            if (!midi_check7bits(iter)) {
+                                return;
+                            }
+                            displayNote.data[0] = *iter++;
+                        break;
+                        case 0x4: // undefined
+                        case 0x5: // undefined
+                        case 0x6: // tune request
+                        break;
+                        case 0x7: // end of exclusive
+                            debug("end without beginning\n");
+                        break;
+                        case 0xF: // meta event
+                            if (!midi_check7bits(iter)) {
+                                return;
+                            }
+                            displayNote.data[0] = *iter;
+                            if (!midi_size8(iter, &displayNote.data[1])) {
+                                debug("expected meta event length\n");
+                                return;
+                            }
+                            switch (displayNote.data[0]) {
+                                case 0x00:  // sequence number: 
+                                            // http://midi.teragonaudio.com/tech/midifile/seq.htm                                   
+                                    if (2 == displayNote.data[1]) { // two bytes for # follow
+                                        for (int i = 2; i < 4; i++) {
+                                            if (!midi_check7bits(iter)) {
+                                                return;
+                                            }
+                                            displayNote.data[i] = *iter++;
+                                        }
+                                    } else if (0 != displayNote.data[1]) {
+                                        debug("expected sequence number length of 0 or 2: %d\n",
+                                                displayNote.data[1]);
+                                        return;
+                                    }
+                                break;
+                                case 0x01: // text event
+                                case 0x02: // copyright notice
+                                case 0x03: // sequence/track name
+                                case 0x04: // instument name
+                                case 0x05: // lyric
+                                case 0x06: // marker
+                                case 0x07: { // cue point
+                                    displayNote.data[2] = iter - midi.begin();
+                                    if (midi.end() - iter < displayNote.data[1]) {
+                                        debug("meta text length %d exceeds file:\n", 
+                                                displayNote.data[1]);
+                                    }
+                                    std::advance(iter, displayNote.data[1]);
+                                } break;
+                                case 0x20: // channel prefix
+                                    if (1 != displayNote.data[1]) {
+                                        debug("expected channel prefix length == 1 %d\n",
+                                                displayNote.data[1]);
+                                        return;
+                                    }
+                                    if (!midi_check7bits(iter)) {
+                                        return;
+                                    }
+                                    displayNote.data[2] = *iter++;
+                                break;
+                                case 0x2F: // end of track (required)
+                                    if (0 != displayNote.data[1]) {
+                                        debug("expected end of track length == 0 %d\n",
+                                                displayNote.data[1]);
+                                        return;
+                                    }
+                                break;
+                                case 0x51:  // set tempo
+                                    displayNote.type = MIDI_TEMPO;
+                                    if (3 != displayNote.data[1]) {
+                                        debug("expected set tempo length == 3 %d\n",
+                                                displayNote.data[1]);
+                                        return;
+                                    }
+                                    if (!midi_size24(iter, &displayNote.data[2])) {
+                                        return;
+                                    }
+                                break;
+                                case 0x54: // SMPTE offset
+                                    if (5 != displayNote.data[1]) {
+                                        debug("expected SMPTE offset length == 5 %d\n",
+                                                displayNote.data[1]);
+                                        return;
+                                    }
+                                    displayNote.data[2] = iter - midi.begin();
+                                    std::advance(iter, displayNote.data[1]);
+                                break;
+                                case 0x58: // time signature
+                                    displayNote.type = TIME_SIGNATURE;
+                                    for (int i = 0; i < 4; ++i) {
+                                        if (!midi_check7bits(iter)) {
+                                            return;
+                                        }
+                                        displayNote.data[i] = *iter++;
+                                    }
+                                    if (!displayNote.isValid()) {
+                                        return;
+                                    }
+                                break;
+                                case 0x59:  // key signature
+                                    displayNote.type = KEY_SIGNATURE;
+                                    for (int i = 0; i < 2; ++i) {
+                                        if (!midi_check7bits(iter)) {
+                                            return;
+                                        }
+                                        displayNote.data[i] = *iter++;
+                                    }
+                                    if (!displayNote.isValid()) {
+                                        return;
+                                    }
+                                break;
+                                case 0x7F: // sequencer specific meta event
+                                    displayNote.data[2] = iter - midi.begin();
+                                    if (midi.end() - iter < displayNote.data[1]) {
+                                        debug("meta text length %d exceeds file:\n", 
+                                                displayNote.data[1]);
+                                    }
+                                    std::advance(iter, displayNote.data[1]);
+                                break;
+                                default:
+                                    debug("unexpected meta: 0x%02x\n", displayNote.data[0]);
+                            }
+
+                        break;
+                        default:    
+                            debug("unexpected real time message 0x%02x\n",
+                                    0xF0 | displayNote.channel);
+                            return;
+                    }
+                break;
+                default:
+                    debug("unexpected byte %d\n", *iter);
+                    return;
+            }
+            debug("push %d time %d channel %d\n", displayNote.type, displayNote.startTime,
+                    displayNote.channel);
+            displayNotes.push_back(displayNote);
+        }
     }
 
     void read_midi16(vector<uint8_t>::iterator& iter, int* store) {
-        *store = *iter << 8;
-        *store |= *iter;
+        *store = *iter++ << 8;
+        *store |= *iter++;
     }
 
 	void step() override;
@@ -401,7 +754,11 @@ void NoteTaker::step() {
 	lights[BLINK_LIGHT].value = (blinkPhase < 0.5f) ? 1.0f : 0.0f;
 }
 
+
 struct NoteTakerDisplay : TransparentWidget {
+    NoteTakerDisplay() {
+        font = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
+    }
 
     void draw(NVGcontext *vg) override {
         // draw staff
@@ -411,42 +768,63 @@ struct NoteTakerDisplay : TransparentWidget {
 	    nvgStrokeColor(vg, nvgRGB(0, 0, 0));
 	    nvgStroke(vg);
     	nvgBeginPath(vg);
+        nvgMoveTo(vg, 2, 15);
+        nvgLineTo(vg, 2, 70);
+        nvgStrokeWidth(vg, 0.5);
+        nvgStroke(vg);
+    	nvgBeginPath(vg);
         for (int staff = 15; staff <= 50; staff += 35) {
             for (int y = staff; y <= staff + 20; y += 5) { 
-	            nvgMoveTo(vg, 1, y);
+	            nvgMoveTo(vg, 2, y);
 	            nvgLineTo(vg, box.size.x - 1, y);
             }
         }
-        nvgStrokeWidth(vg, 0.5);
 	    nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
 	    nvgStroke(vg);
+        nvgFontFaceId(vg, font->handle);
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+        nvgFontSize(vg, 38);
+        nvgText(vg, 4, 35, "G", NULL);
+        nvgFontSize(vg, 32);
+        nvgText(vg, 4, 67, "?", NULL);
+        nvgFontSize(vg, 36);
 
         // draw notes
+        // start here
+        // equal spaced notes on staff != equal movement in scale
+        // need to map midi note value to staff position somehow
         for (unsigned i = module->displayFirst; i < module->displayNotes.size(); ++i) {
             const DisplayNote& note = module->displayNotes[i];
             switch (note.type) {
-                case NOTE_TYPE:
-
+                case NOTE_OFF:
+                break;
+                case NOTE_ON:
+                    debug("draw note %d %d\n", note.startTime, note.pitch());
+                    nvgText(vg, 32 + note.startTime / 4, 115 - note.pitch(), "q", NULL);
                 break;
                 case REST_TYPE:
-
+                    debug("draw rest %d %d\n", note.startTime, note.pitch());
+                    nvgText(vg, 32 + note.startTime / 4, note.pitch(), "Q", NULL);
                 break;
-                case HEADER:
+                case MIDI_HEADER:
                 break;
                 case KEY_SIGNATURE:
-
+                    // to do
                 break;
                 case TIME_SIGNATURE:
-
+                    debug("draw time signature %d %d\n", note.startTime, note.pitch());
+                    nvgText(vg, note.startTime, note.pitch(), "c", NULL);
                 break;
-                case TEMPO:
+                case MIDI_TEMPO:
                 break;
                 default:
+                    debug("to do: add type %d\n", note.type);
                     assert(0); // incomplete
             }
         }
     }
 
+	std::shared_ptr<Font> font;
     NoteTaker* module;
 };
 
@@ -638,7 +1016,7 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     void onMouseDown(EventMouseDown &e) override {
        e.target = this;
        e.consumed = true;
-       printf("onMouseDown %s\n", name());
+       debug("onMouseDown %s\n", name());
        fflush(stdout);
 	   FramebufferWidget::onMouseDown(e);
     }
@@ -646,7 +1024,7 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     void onMouseUp(EventMouseUp &e) override {
        e.target = this;
        e.consumed = true;
-       printf("onMouseUp %s\n", name());
+       debug("onMouseUp %s\n", name());
        fflush(stdout);
 	   FramebufferWidget::onMouseUp(e);
     }
@@ -654,20 +1032,20 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     void onMouseMove(EventMouseMove &e) override {
        e.target = this;
        e.consumed = true;
-       printf("onMouseMove %s\n", name());
+       debug("onMouseMove %s\n", name());
        fflush(stdout);
 	   FramebufferWidget::onMouseMove(e);
     }
 
     void onScroll(EventScroll &e) override {
        e.consumed = true;
-       printf("onScroll %s\n", name());
+       debug("onScroll %s\n", name());
        fflush(stdout);
 	   FramebufferWidget::onScroll(e);
     }
 
     void onDragMove(EventDragMove& e) override {
-       printf("onDragMove %g,%g value=%g %s\n", e.mouseRel.x, e.mouseRel.y, value, name());
+       debug("onDragMove %g,%g value=%g %s\n", e.mouseRel.x, e.mouseRel.y, value, name());
        if (isHorizontal) {
           std::swap(e.mouseRel.x, e.mouseRel.y);
        } else {
