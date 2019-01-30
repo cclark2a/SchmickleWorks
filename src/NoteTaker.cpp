@@ -1,4 +1,5 @@
 #include "SchmickleWorks.hpp"
+#include "dsp/digital.hpp"
 
 using std::vector;
 
@@ -41,6 +42,7 @@ const int stdTimePerQuarterNote = 0x60;
 
 // 
 enum DisplayType : uint8_t {
+// enums below match MIDI channel voice message high nybble order
     NOTE_OFF,          // not drawn, but kept for saving as midi
     NOTE_ON,
     KEY_PRESSURE,
@@ -49,13 +51,24 @@ enum DisplayType : uint8_t {
     CHANNEL_PRESSURE,
     PITCH_WHEEL,
     MIDI_SYSTEM,       // data that doesn't fit in DisplayNote pointed to be index into midi file
+// any order OK
     MIDI_HEADER,
     KEY_SIGNATURE,
     TIME_SIGNATURE,
     MIDI_TEMPO,
     REST_TYPE,
+    TRACK_END,
     NUM_TYPES
 };
+
+static_assert(((NOTE_OFF << 4) | 0x80) == midiNoteOff);
+static_assert(((NOTE_ON << 4) | 0x80) == midiNoteOn);
+static_assert(((KEY_PRESSURE << 4) | 0x80) == midiKeyPressure);
+static_assert(((CONTROL_CHANGE << 4) | 0x80) == midiControlChange);
+static_assert(((PROGRAM_CHANGE << 4) | 0x80) == midiProgramChange);
+static_assert(((CHANNEL_PRESSURE << 4) | 0x80) == midiChannelPressure);
+static_assert(((PITCH_WHEEL << 4) | 0x80) == midiPitchWheel);
+static_assert(((MIDI_SYSTEM << 4) | 0x80) == midiSystem);
 
 // midi is awkward to parse at run time to draw notes since the duration is some
 // where in the future stream. It is not trival (or maybe not possible) to walk
@@ -64,11 +77,13 @@ enum DisplayType : uint8_t {
 // better to have a structured array of notes that more closely resembles the
 // data we want to draw
 struct DisplayNote {
-    int startTime;                  // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
-    int duration;                   // MIDI time
+    int channel;        // set to -1 if type doesn't have channel
+    int startTime;      // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
+    int duration;       // MIDI time
+    int data[4];        // type-specific values
     DisplayType type;
-    int channel;                    // set to -1 if type doesn't have channel
-    int data[4];
+    bool cvOn;          // true if note is providing cv out      
+    bool gateOn;        // true if note is providing gate/trigger out
 
     int pitch() const {
         assertValid(NOTE_ON);
@@ -201,11 +216,11 @@ struct DisplayNote {
             case TIME_SIGNATURE: {
                 // although midi doesn't prohibit weird time signatures, look for
                 // common ones to help validate that the file is parsed correctly
-                // allowed: 2/2 n/4 (n = 2 3 4 5 7 9 11) m/8 (m = 3 5 6 7 9 11 12)
+                // allowed: 2/2 n/4 (n = 2 3 4 5 6 7 9 11) m/8 (m = 3 5 6 7 9 11 12)
                 int num = data[0];
                 int denom = data[1];
                 if ((denom == 1 && num != 2)  // allow 2/2
-                        || (denom == 2 && (num < 2 || num > 11 || (num > 5 && !(num & 1))))
+                        || (denom == 2 && (num < 2 || num > 11 || (num > 7 && !(num & 1))))
                         || (denom == 3 && (num < 3 || num > 12 || num == 4 || num == 8))) {
                     debug("invalid time signature %d/%d\n", data[0], data[1]);
                     return false;
@@ -229,6 +244,7 @@ struct DisplayNote {
 
 struct NoteTaker : Module {
 	enum ParamIds {
+        RUN_PARAM,
 		PITCH_PARAM,
         PITCH_SLIDER,
         DURATION_SLIDER,
@@ -239,27 +255,33 @@ struct NoteTaker : Module {
 		NUM_INPUTS
 	};
 	enum OutputIds {
-		SINE_OUTPUT,
         PITCH_OUTPUT,
         GATE_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-		BLINK_LIGHT,
+		RUNNING_LIGHT,
 		NUM_LIGHTS
 	};
+    bool running = true;
+    SchmittTrigger runningTrigger;
+
     struct TimeNote {
         float time;  // 1 == quarter note
         int note;
     };
 
 	float phase = 0.0;
-	float blinkPhase = 0.0;
 
     vector<uint8_t> midi;
-    vector<uint8_t>* target;
+    vector<uint8_t>* target;  // used only during constructing midi, to compute track length
     vector<DisplayNote> displayNotes;
+    vector<DisplayNote*> activeNotes;
     unsigned displayFirst = 0;
+    unsigned displayStep = 0;
+    float elapsedSeconds = 0;
+    DisplayNote* lastPitchOut = nullptr;
+    bool stepOnce = false;
 
 	NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
         createDefaultAsMidi();
@@ -321,21 +343,21 @@ struct NoteTaker : Module {
         int lastTime = 0;
         for (auto n : notes) {
             if (lastNote >= 0) {
-                add_delta(n.time, &lastTime, 1);
+                add_delta(n.time - 0.5f, &lastTime, 1);
                 add_one(midiNoteOff + channel1);
                 add_one(c4 + lastNote);
                 add_one(stdKeyPressure);
             }
+            add_delta(n.time, &lastTime, 0);
             if (n.note >= 0) {
-                add_delta(n.time, &lastTime, 0);
                 add_one(midiNoteOn + channel1);
                 add_one(c4 + n.note);
                 add_one(stdKeyPressure);
+            } else {
+                add_array(MTrk_end);
             }
             lastNote = n.note;
         }
-        add_size8(0);  // track end delta time
-        add_array(MTrk_end);
         target = &midi;
         add_size32(temp.size());
         add_array(temp);
@@ -431,9 +453,10 @@ struct NoteTaker : Module {
             return;
         }
         DisplayNote displayNote;
-        displayNote.type = MIDI_HEADER;
         displayNote.startTime = 0;
         displayNote.duration = 0;
+        displayNote.type = MIDI_HEADER;
+        displayNote.channel = -1;
         for (int i = 0; i < 3; ++i) {
             read_midi16(iter, &displayNote.data[i]);
         }
@@ -442,6 +465,7 @@ struct NoteTaker : Module {
         }
         displayNotes.push_back(displayNote);
         auto trk = iter;
+        // parse track header before parsing channel voice messages
         if (!match_midi(iter, MTrk)) {
             debug("expect MIDI track, got %c%c%c%c (0x%02x%02x%02x%02x)\n", 
                     trk[0], trk[1], trk[2], trk[3],
@@ -452,7 +476,6 @@ struct NoteTaker : Module {
         if (!midi_size32(iter, &trackLength)) {
             return;
         }
-        // parse track header before parsing channel voice messages
         while (iter != midi.end()) {
             if (!midi_delta(iter, &midiTime)) {
                 return;
@@ -465,6 +488,7 @@ struct NoteTaker : Module {
             displayNote.duration = -1;  // not known yet
             displayNote.type = (DisplayType) ((*iter >> 4) & 0x7);
             displayNote.channel = *iter++ & 0x0F;
+            memset(displayNote.data, 0, sizeof(displayNote.data));
             switch(displayNote.type) {
                 case NOTE_OFF: {
                     if (!midi_check7bits(iter)) {
@@ -571,7 +595,7 @@ struct NoteTaker : Module {
                             if (!midi_check7bits(iter)) {
                                 return;
                             }
-                            displayNote.data[0] = *iter;
+                            displayNote.data[0] = *iter++;
                             if (!midi_size8(iter, &displayNote.data[1])) {
                                 debug("expected meta event length\n");
                                 return;
@@ -618,6 +642,7 @@ struct NoteTaker : Module {
                                     displayNote.data[2] = *iter++;
                                 break;
                                 case 0x2F: // end of track (required)
+                                    displayNote.type = TRACK_END;
                                     if (0 != displayNote.data[1]) {
                                         debug("expected end of track length == 0 %d\n",
                                                 displayNote.data[1]);
@@ -702,7 +727,39 @@ struct NoteTaker : Module {
         *store |= *iter++;
     }
 
+    void backupOne();
 	void step() override;
+
+    void wheelBump(bool isHorizontal, bool positive) {
+        debug("wheel bump  h=%d p=%d\n", isHorizontal, positive);
+        if (isHorizontal) {
+            if (!running) {
+                if (positive) {
+                    backupOne();
+                } else {
+                    running = true;
+                    stepOnce = true;
+                }
+            }
+        } else {
+            for (unsigned index = 0; index < activeNotes.size(); ++index) {
+                DisplayNote* note = activeNotes[index];
+                if (NOTE_ON == note->type) {
+                    int pitch = note->pitch();
+                    if (positive && pitch > 0) {
+                        note->setPitch(pitch - 1);
+                    } else if (!positive && pitch < 127) {
+                        note->setPitch(pitch + 1);
+                    }
+                    if (note->cvOn) {
+	                    float pitch = params[PITCH_PARAM].value;
+	                    pitch += inputs[PITCH_INPUT].value;
+                        outputs[PITCH_OUTPUT].value = pitch + note->pitch() / 12.f;
+                    }
+                }
+            }
+        }
+    }
 
 	// For more advanced Module features, read Rack's engine.hpp header file
 	// - toJson, fromJson: serialization of internal data
@@ -710,50 +767,168 @@ struct NoteTaker : Module {
 	// - onReset, onRandomize, onCreate, onDelete: implements special behavior when user clicks these from the context menu
 };
 
-
-void NoteTaker::step() {
-	// Implement a simple sine oscillator
-	float deltaTime = engineGetSampleTime();
-
-	// Compute the frequency from the pitch parameter and input
-	float pitch = params[PITCH_PARAM].value;
-	pitch += inputs[PITCH_INPUT].value;
-
-    bool gate = fmodf(blinkPhase, 0.25) > 0.125;
-    outputs[GATE_OUTPUT].value = gate ? 5 : 0;
-
-    // hack to reuse blinkPhase to change pitch
-    if (blinkPhase < 0.25) {
-        ;
-    } else if (blinkPhase < 0.5) {
-        pitch += 4/12.f;
-    } else if (blinkPhase < 0.75) {
-        pitch += 7/12.f;
-    } else {
-        pitch += 11/12.f;
+void NoteTaker::backupOne() {
+    int midiTime = stdTimePerQuarterNote * elapsedSeconds * 2;
+    unsigned currentStep = displayStep;
+    // move to first step prior to current time
+    while (displayStep > 0 && displayNotes[displayStep].startTime > midiTime) {
+        --displayStep;
     }
-	pitch = clamp(pitch, -4.0f, 4.0f);
-    outputs[PITCH_OUTPUT].value = pitch;
-
-	// The default pitch is C4
-	float freq = 261.626f * powf(2.0f, pitch);
-
-	// Accumulate the phase
-	phase += freq * deltaTime;
-	if (phase >= 1.0f)
-		phase -= 1.0f;
-
-	// Compute the sine output
-	float sine = sinf(2.0f * M_PI * phase);
-	outputs[SINE_OUTPUT].value = 5.0f * sine;
-
-	// Blink light at 1Hz
-	blinkPhase += deltaTime;
-	if (blinkPhase >= 1.0f)
-		blinkPhase -= 1.0f;
-	lights[BLINK_LIGHT].value = (blinkPhase < 0.5f) ? 1.0f : 0.0f;
+    // move to first note if not on one already
+    while (displayStep > 0 && NOTE_ON != displayNotes[displayStep].type) {
+        --displayStep;
+    }
+    DisplayNote* backNote = &displayNotes[displayStep];
+    midiTime = backNote->startTime;
+    if (displayStep < currentStep) {
+        for (unsigned index = 0; index < activeNotes.size(); ) {
+            DisplayNote* note = activeNotes[index];
+            if (note->gateOn && NOTE_ON == note->type && note->startTime > midiTime) {
+                note->gateOn = false;
+                outputs[GATE_OUTPUT].value = 0;
+            }
+            if (note->startTime > midiTime) {
+                activeNotes.erase(activeNotes.begin() + index);
+            } else {
+                ++index;
+            }
+        }
+    }
+    while (displayStep < displayNotes.size() && displayNotes[displayStep].startTime <= midiTime) {
+        DisplayNote* note = &displayNotes[displayStep];
+        if (NOTE_ON == note->type) {
+            if (0) debug("%g %d add to active time=%d pitch=%d\n", elapsedSeconds, midiTime,
+                    note->startTime, note->pitch());
+            note->gateOn = true;
+            outputs[GATE_OUTPUT].value = 5;
+            activeNotes.push_back(note);
+        }
+        ++displayStep;
+    }
+    for (unsigned index = 0; index < activeNotes.size(); ++index) {
+        DisplayNote* note = activeNotes[index];
+        if (NOTE_ON == note->type) {
+            if (lastPitchOut) {
+                lastPitchOut->cvOn = false;
+            }
+            note->cvOn = true;
+            lastPitchOut = note;
+	        float pitch = params[PITCH_PARAM].value;
+	        pitch += inputs[PITCH_INPUT].value;
+            outputs[PITCH_OUTPUT].value = pitch + note->pitch() / 12.f;
+        }
+    }
 }
 
+void NoteTaker::step() {
+	if (runningTrigger.process(params[RUN_PARAM].value)) {
+		running = !running;
+	}
+    // read data from display notes to determine pitch
+    // note on event start changes cv and sets gate high
+    // note on event duration sets gate low
+    if (running) {
+	    float deltaTime = engineGetSampleTime();
+
+	    // Compute the frequency from the pitch parameter and input
+	    float pitch = params[PITCH_PARAM].value;
+	    pitch += inputs[PITCH_INPUT].value;
+
+        elapsedSeconds += deltaTime;
+        // to do: use info in midi header, time signature, tempo to get this right
+        int midiTime = stdTimePerQuarterNote * elapsedSeconds * 2;
+        for (unsigned index = 0; index < activeNotes.size(); ) {
+            DisplayNote* note = activeNotes[index];
+            if (note->gateOn && NOTE_ON == note->type
+                    && note->startTime + note->duration == midiTime) {
+                if (0) debug("%g %d set gate to zero time=%d pitch=%d\n", elapsedSeconds, midiTime,
+                        note->startTime, note->pitch());
+                note->gateOn = false;
+                outputs[GATE_OUTPUT].value = 0;
+            }
+            if (note->startTime + note->duration < midiTime) {
+                if (0) debug("%g %d erase time=%d pitch=%d\n", elapsedSeconds, midiTime,
+                        note->startTime, note->pitch());
+                activeNotes.erase(activeNotes.begin() + index);
+            } else {
+                ++index;
+            }
+        }
+        while (displayStep < displayNotes.size() && displayNotes[displayStep].startTime <= midiTime) {
+            DisplayNote* note = &displayNotes[displayStep];
+            if (NOTE_ON == note->type) {
+                if (0) debug("%g %d add to active time=%d pitch=%d\n", elapsedSeconds, midiTime,
+                        note->startTime, note->pitch());
+                note->gateOn = true;
+                outputs[GATE_OUTPUT].value = 5;
+                activeNotes.push_back(note);
+                if (stepOnce) {
+                    running = false;
+                    stepOnce = false;
+                }
+            }
+            ++displayStep;
+        }
+        static float debugLast = 0;
+        for (unsigned index = 0; index < activeNotes.size(); ++index) {
+            DisplayNote* note = activeNotes[index];
+            if (NOTE_ON == note->type) {
+                if (elapsedSeconds - .25f > debugLast) {
+                    if (0) debug("%g %d set pitch %g %g\n", elapsedSeconds, midiTime,
+                            pitch, note->pitch() / 12.f);
+                    debugLast = elapsedSeconds;
+                }
+                if (lastPitchOut) {
+                    lastPitchOut->cvOn = false;
+                }
+                note->cvOn = true;
+                lastPitchOut = note;
+                outputs[PITCH_OUTPUT].value = pitch + note->pitch() / 12.f;
+            }
+        }
+        if (displayStep == displayNotes.size() && activeNotes.empty()) {
+            if (0) debug("%g %d reset elapsed seconds\n", elapsedSeconds, midiTime);
+            elapsedSeconds = 0;  // to do : don't repeat unconditionally?
+            debugLast = 0;
+            displayStep = 0;
+        }
+    }
+    lights[RUNNING_LIGHT].value = running;
+}
+
+// map midi note for C major to drawable position
+enum Accidental : uint8_t {
+    NO_ACCIDENTAL,
+    SHARP_ACCIDENTAL,
+    FLAT_ACCIDENTAL,
+    NATURAL_ACCIDENTAL,
+};
+
+struct StaffNote {
+    uint8_t position;  // 0 == G9, 38 == middle C (C4), 74 == C-1
+    uint8_t accidental; // 0 none, 1 sharp, 2 flat, 3 natural
+};
+
+const uint8_t TREBLE_TOP = 28;  // smaller values need additional staff lines and/or 8/15va
+const uint8_t MIDDLE_C = 39;
+const uint8_t BASS_BOTTOM = 50; // larger values need additional staff lines and/or 8/15vb
+
+// C major only, for now
+// Given a MIDI pitch 0 - 127, looks up staff line position and presence of accidental (# only for now)
+static StaffNote pitchMap[] = {
+//     C        C#       D        D#       E        F        F#       G        G#       A        A#       B
+    {74, 0}, {74, 1}, {73, 0}, {73, 1}, {72, 0}, {71, 0}, {71, 1}, {70, 0}, {70, 1}, {69, 0}, {69, 1}, {68, 0}, // C-1
+    {67, 0}, {67, 1}, {66, 0}, {66, 1}, {65, 0}, {64, 0}, {64, 1}, {63, 0}, {63, 1}, {62, 0}, {62, 1}, {61, 0}, // C0
+    {60, 0}, {60, 1}, {59, 0}, {59, 1}, {58, 0}, {57, 0}, {57, 1}, {56, 0}, {56, 1}, {55, 0}, {55, 1}, {54, 0}, // C1
+    {53, 0}, {53, 1}, {52, 0}, {52, 1}, {51, 0}, {50, 0}, {50, 1}, {49, 0}, {49, 1}, {48, 0}, {48, 1}, {47, 0}, // C2
+    {46, 0}, {46, 1}, {45, 0}, {45, 1}, {44, 0}, {43, 0}, {43, 1}, {42, 0}, {42, 1}, {41, 0}, {41, 1}, {40, 0}, // C3
+    {39, 0}, {39, 1}, {38, 0}, {38, 1}, {37, 0}, {36, 0}, {36, 1}, {35, 0}, {35, 1}, {34, 0}, {34, 1}, {33, 0}, // C4 (middle)
+    {32, 0}, {32, 1}, {31, 0}, {31, 1}, {30, 0}, {29, 0}, {29, 1}, {28, 0}, {28, 1}, {27, 0}, {27, 1}, {26, 0}, // C5
+    {25, 0}, {25, 1}, {24, 0}, {24, 1}, {23, 0}, {22, 0}, {22, 1}, {21, 0}, {21, 1}, {20, 0}, {20, 1}, {19, 0}, // C6
+    {18, 0}, {18, 1}, {17, 0}, {17, 1}, {16, 0}, {15, 0}, {15, 1}, {14, 0}, {14, 1}, {13, 0}, {13, 1}, {12, 0}, // C7
+    {11, 0}, {11, 1}, {10, 0}, {10, 1}, { 9, 0}, { 8, 0}, { 8, 1}, { 7, 0}, { 7, 1}, { 6, 0}, { 6, 1}, { 5, 0}, // C8
+    { 4, 0}, { 4, 1}, { 3, 0}, { 3, 1}, { 2, 0}, { 1, 0}, { 1, 1}, { 0, 0}                                      // C9
+};
 
 struct NoteTakerDisplay : TransparentWidget {
     NoteTakerDisplay() {
@@ -768,13 +943,13 @@ struct NoteTakerDisplay : TransparentWidget {
 	    nvgStrokeColor(vg, nvgRGB(0, 0, 0));
 	    nvgStroke(vg);
     	nvgBeginPath(vg);
-        nvgMoveTo(vg, 2, 15);
-        nvgLineTo(vg, 2, 70);
+        nvgMoveTo(vg, 2, 36);
+        nvgLineTo(vg, 2, 96);
         nvgStrokeWidth(vg, 0.5);
         nvgStroke(vg);
     	nvgBeginPath(vg);
-        for (int staff = 15; staff <= 50; staff += 35) {
-            for (int y = staff; y <= staff + 20; y += 5) { 
+        for (int staff = 36; staff <= 72; staff += 36) {
+            for (int y = staff; y <= staff + 24; y += 6) { 
 	            nvgMoveTo(vg, 2, y);
 	            nvgLineTo(vg, box.size.x - 1, y);
             }
@@ -783,25 +958,53 @@ struct NoteTakerDisplay : TransparentWidget {
 	    nvgStroke(vg);
         nvgFontFaceId(vg, font->handle);
         nvgFillColor(vg, nvgRGB(0, 0, 0));
-        nvgFontSize(vg, 38);
-        nvgText(vg, 4, 35, "G", NULL);
-        nvgFontSize(vg, 32);
-        nvgText(vg, 4, 67, "?", NULL);
+        nvgFontSize(vg, 46);
+        nvgText(vg, 4, 60, "G", NULL);
         nvgFontSize(vg, 36);
+        nvgText(vg, 4, 92, "?", NULL);
+        nvgFontSize(vg, 42);
 
         // draw notes
-        // start here
-        // equal spaced notes on staff != equal movement in scale
-        // need to map midi note value to staff position somehow
         for (unsigned i = module->displayFirst; i < module->displayNotes.size(); ++i) {
             const DisplayNote& note = module->displayNotes[i];
             switch (note.type) {
                 case NOTE_OFF:
                 break;
-                case NOTE_ON:
-                    debug("draw note %d %d\n", note.startTime, note.pitch());
-                    nvgText(vg, 32 + note.startTime / 4, 115 - note.pitch(), "q", NULL);
-                break;
+                case NOTE_ON: {
+                    if (0) debug("draw note %d %d\n", note.startTime, note.pitch());
+                    int xPos = 32 + note.startTime / 4;
+                    if (note.cvOn) {
+    	                nvgBeginPath(vg);
+                        nvgRect(vg, xPos - 5, 0, 16, box.size.y);
+                        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
+                        nvgFill(vg);
+                        nvgFillColor(vg, nvgRGB(0, 0, 0));
+                    }
+                    StaffNote& pitch = pitchMap[note.pitch()];
+                    int yPos = pitch.position * 3 - 48; // middle C 60 positioned at 39 maps to 66
+                    if (pitch.position < TREBLE_TOP) {
+                        // to do: draw one or more lines above staff
+                    } else if (pitch.position > BASS_BOTTOM) {
+                        // to do: draw one or more lines below staff
+                    } else if (pitch.position == MIDDLE_C) {
+    	                nvgBeginPath(vg);
+                        nvgMoveTo(vg, xPos - 2, yPos - 3);
+                        nvgLineTo(vg, xPos + 8, yPos - 3);
+                        nvgStroke(vg);
+                    }
+                    switch (pitch.accidental) {
+                        case SHARP_ACCIDENTAL:
+                            nvgText(vg, xPos - 5, yPos, "B", NULL);
+                        break;
+                        case FLAT_ACCIDENTAL:
+                            nvgText(vg, xPos - 5, yPos, "b", NULL);
+                        break;
+                        case NATURAL_ACCIDENTAL:
+                            nvgText(vg, xPos - 5, yPos, "\u00BD", NULL);
+                        break;
+                    }
+                    nvgText(vg, xPos, yPos, "q", NULL);
+                } break;
                 case REST_TYPE:
                     debug("draw rest %d %d\n", note.startTime, note.pitch());
                     nvgText(vg, 32 + note.startTime / 4, note.pitch(), "Q", NULL);
@@ -817,6 +1020,8 @@ struct NoteTakerDisplay : TransparentWidget {
                 break;
                 case MIDI_TEMPO:
                 break;
+                case TRACK_END:
+                break;
                 default:
                     debug("to do: add type %d\n", note.type);
                     assert(0); // incomplete
@@ -829,6 +1034,10 @@ struct NoteTakerDisplay : TransparentWidget {
 };
 
 struct NoteTakerWheel : Knob, FramebufferWidget {
+
+    NoteTakerWheel() {
+        lastValue = value;
+    }
 
     // frame varies from 0 to 1 to rotate the wheel
     void drawGear(NVGcontext *vg, float frame) {
@@ -1013,6 +1222,7 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
         drawGear(vg, fmodf(v, 1));
     }
 
+#if 0
     void onMouseDown(EventMouseDown &e) override {
        e.target = this;
        e.consumed = true;
@@ -1036,22 +1246,27 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
        fflush(stdout);
 	   FramebufferWidget::onMouseMove(e);
     }
+#endif
 
     void onScroll(EventScroll &e) override {
-       e.consumed = true;
-       debug("onScroll %s\n", name());
-       fflush(stdout);
-	   FramebufferWidget::onScroll(e);
+        e.consumed = true;
+        debug("onScroll %s\n", name());
+        fflush(stdout);
+	    FramebufferWidget::onScroll(e);
     }
 
     void onDragMove(EventDragMove& e) override {
-       debug("onDragMove %g,%g value=%g %s\n", e.mouseRel.x, e.mouseRel.y, value, name());
-       if (isHorizontal) {
-          std::swap(e.mouseRel.x, e.mouseRel.y);
-       } else {
-          e.mouseRel.y = -e.mouseRel.y;
-       }
-       Knob::onDragMove(e);
+        if ((int) lastValue != (int) value) {
+            ((NoteTaker*) module)->wheelBump(isHorizontal, lastValue < value); 
+            lastValue = value;
+        }
+        if (0) debug("onDragMove %g,%g value=%g %s\n", e.mouseRel.x, e.mouseRel.y, value, name());
+        if (isHorizontal) {
+            std::swap(e.mouseRel.x, e.mouseRel.y);
+        } else {
+            e.mouseRel.y = -e.mouseRel.y;
+        }
+        Knob::onDragMove(e);
     }
 
     void step() override {
@@ -1068,6 +1283,7 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
 
     virtual const char* name() = 0;
     Vec size;
+    float lastValue;
     bool isHorizontal;
 };
 
@@ -1128,18 +1344,14 @@ struct NoteTakerWidget : ModuleWidget {
                 module, NoteTaker::PITCH_SLIDER, -100.0, 100.0, 0.0);
 		addParam(verticalWheel);
 
-#if 0
-        addParam(ParamWidget::create<BefacoSlidePot>(Vec(display->box.pos.x + display->box.size.x / 2,
-                display->box.pos.y + display->box.size.y + 10), module, NoteTaker::DURATION_SLIDER,
-                -3.0, 3.0, 0.0));
-#endif
 		addInput(Port::create<PJ301MPort>(Vec(16, 226), Port::INPUT, module, NoteTaker::PITCH_INPUT));
 		addOutput(Port::create<PJ301MPort>(Vec(50, 226), Port::OUTPUT, module, NoteTaker::PITCH_OUTPUT));
 
-		addOutput(Port::create<PJ301MPort>(Vec(16, 315), Port::OUTPUT, module, NoteTaker::SINE_OUTPUT));
 		addOutput(Port::create<PJ301MPort>(Vec(50, 315), Port::OUTPUT, module, NoteTaker::GATE_OUTPUT));
 
-		addChild(ModuleLightWidget::create<MediumLight<RedLight>>(Vec(141, 269), module, NoteTaker::BLINK_LIGHT));
+		addParam(ParamWidget::create<LEDButton>(Vec(160, 226), module, NoteTaker::RUN_PARAM, 0.0f, 1.0f, 0.0f));
+		addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(164.4f, 230.4f), module, NoteTaker::RUNNING_LIGHT));
+
 		addParam(ParamWidget::create<Davies1900hBlackKnob>(Vec(128, 317), module, 
                 NoteTaker::PITCH_PARAM, -3.0, 3.0, 0.0));
 	}
