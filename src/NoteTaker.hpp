@@ -5,14 +5,14 @@
 #include "dsp/digital.hpp"
 #include <float.h>
 
+using std::array;
 using std::vector;
 
 struct DurationButton;
+struct NoteTakerDisplay;
+struct NoteTakerWheel;
 
-const uint8_t channel1 = 0;
-const uint8_t channel2 = 1;
-const uint8_t channel3 = 2;
-const uint8_t channel4 = 3;
+constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
 
 struct NoteTaker : Module {
 	enum ParamIds {
@@ -54,31 +54,95 @@ struct NoteTaker : Module {
 		RUNNING_LIGHT,
 		NUM_LIGHTS
 	};
-    bool running = true;
     SchmittTrigger runningTrigger;
 
     float phase = 0.0;
 
     vector<uint8_t> midi;
-    vector<DisplayNote> displayNotes;
-    vector<DisplayNote*> activeNotes;
+    vector<DisplayNote> allNotes;
+    array<unsigned, channels> cvOut;
+    array<unsigned, channels> gateOut;     // index into allNotes of current gate out per channel
 	std::shared_ptr<Font> musicFont;
 	std::shared_ptr<Font> textFont;
+    NoteTakerDisplay* display = nullptr;
     DurationButton* durationButton = nullptr;
-    unsigned displayFirst = 0;
-    unsigned displayStep = 0;
+    NoteTakerWheel* horizontalWheel = nullptr;
+    NoteTakerWheel* verticalWheel = nullptr;
+    unsigned displayStart = 0;              // index into allNotes of first visible note
+    unsigned displayEnd = 0;
+    unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
+    unsigned selectEnd = 0;                 // one past last selected (if start == end, insert)
+    unsigned selectChannels = 0x0F;         // bit set for each active channel (all by default)
     float elapsedSeconds = 0;
-    DisplayNote* lastPitchOut = nullptr;
-    bool stepOnce = false;
+    bool running = true;
+    bool playingSelection = false;             // if set, provides feedback when editing notes
 
     NoteTaker();
-    void backupOne();
-	void step() override;
+    void debugDump() const;
+    int horizontalCount(const DisplayNote& note, int* index) const;
 
-    void buttonChange(bool isOn, int paramId) {
-        debug("isOn: %d paramId: %d\n", isOn, paramId);
+    unsigned firstOn() const {
+        for (unsigned index = 0; index < allNotes.size(); ++index) {
+            if (NOTE_ON == allNotes[index].type) {
+                return index;
+            }
+        }
+        return 0;
     }
 
-    void wheelBump(bool isHorizontal, bool positive);
+    unsigned lastAt(int midiTime) const {
+        assert(displayStart < allNotes.size());
+        const DisplayNote* note = &allNotes[displayStart];
+        do {
+            ++note;
+        } while (TRACK_END != note->type && note->startTime < midiTime);
+        return note - &allNotes[0];
+    }
 
+    bool lastNoteEnded(unsigned index, int midiTime) const {
+        assert(index < allNotes.size());
+        const DisplayNote& last = allNotes[index];
+        return last.startTime + last.duration <= midiTime;
+    }
+
+    DisplayNote* lastOn(unsigned index) {
+        assert(index < allNotes.size());
+        return this->lastOn(&allNotes[index]);
+    }
+
+    DisplayNote* lastOn(DisplayNote* note) {
+        do {
+            --note;
+            assert(note != &allNotes.front());
+        } while (NOTE_ON != note->type);
+        return note;
+    }
+
+    void outputNote(const DisplayNote& note);
+
+    void playSelection() {
+        elapsedSeconds = 0;
+        playingSelection = true;
+    }
+
+
+    void setExpiredGatesLow(int midiTime) {
+        for (unsigned channel = 0; channel < channels; ++channel) {
+            unsigned index = gateOut[channel];
+            if (!index) {
+                continue;
+            }
+            const DisplayNote& gateOnNote = allNotes[index];
+            assert(gateOnNote.channel == channel);
+            if (gateOnNote.startTime + gateOnNote.duration <= midiTime) {
+                gateOut[channel] = 0;
+                outputs[GATE1_OUTPUT + channel].value = 0;
+            }
+        }
+    }
+
+    void setWheelRange(const DisplayNote& );
+	void step() override;
+    void updateHorizontal();
+    void updateVertical();
 };

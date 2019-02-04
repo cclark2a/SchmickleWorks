@@ -20,27 +20,26 @@ void NoteTakerButton::onDragEnd(EventDragEnd &e) {
     debug("NoteTakerButton onDragEnd\n");
 	dirty = true;
     ledOn = !ledOn;
-    ((NoteTaker*) module)->buttonChange(ledOn, paramId);
 }
 
 void PartButton::draw(NVGcontext *vg) {
-        NoteTakerButton::draw(vg);
-        nvgFontFaceId(vg, ((NoteTaker*) module)->musicFont->handle);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
-        nvgFontSize(vg, 24);
-        nvgText(vg, 8 + af, 32 - af, "q", NULL);
-        nvgText(vg, 8 + af, 38 - af, "q", NULL);
-        nvgText(vg, 8 + af, 44 - af, "q", NULL);
-    }
+    NoteTakerButton::draw(vg);
+    nvgFontFaceId(vg, ((NoteTaker*) module)->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 8 + af, 32 - af, "q", NULL);
+    nvgText(vg, 8 + af, 38 - af, "q", NULL);
+    nvgText(vg, 8 + af, 44 - af, "q", NULL);
+}
 
 
 void RestButton::draw(NVGcontext *vg) {
-        NoteTakerButton::draw(vg);
-        nvgFontFaceId(vg, ((NoteTaker*) module)->musicFont->handle);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
-        nvgFontSize(vg, 48);
-        nvgText(vg, 8 + af, 46 - af, "Q", NULL);
-    }
+    NoteTakerButton::draw(vg);
+    nvgFontFaceId(vg, ((NoteTaker*) module)->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 48);
+    nvgText(vg, 8 + af, 46 - af, "Q", NULL);
+}
 
 void SelectButton::draw(NVGcontext *vg) {
     NoteTakerButton::draw(vg);

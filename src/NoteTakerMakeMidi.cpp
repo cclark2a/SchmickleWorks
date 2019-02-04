@@ -29,13 +29,13 @@ void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
     for (auto n : notes) {
         if (lastNote >= 0) {
             add_delta(n.time - 0.5f, &lastTime, 1);
-            add_one(midiNoteOff + channel1);
+            add_one(midiNoteOff + 0);  // channel 1
             add_one(c4 + lastNote);
             add_one(stdKeyPressure);
         }
-        add_delta(n.time, &lastTime, 0);
+        add_delta(n.time, &lastTime, 0);  // channel 1
         if (n.note >= 0) {
-            add_one(midiNoteOn + channel1);
+            add_one(midiNoteOn + 0);
             add_one(c4 + n.note);
             add_one(stdKeyPressure);
         } else {
@@ -54,4 +54,3 @@ void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
     debug("midi size: %d\n", midi.size());
     debug("%d %d %d %d\n", midi[s], midi[s + 1], midi[s + 2], midi[s + 3]);
 }
-

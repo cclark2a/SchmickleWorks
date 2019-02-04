@@ -65,15 +65,15 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     nvgFontSize(vg, 42);
 
     // draw notes
-    for (unsigned i = module->displayFirst; i < module->displayNotes.size(); ++i) {
-        const DisplayNote& note = module->displayNotes[i];
+    for (unsigned i = module->displayStart; i < module->displayEnd; ++i) {
+        const DisplayNote& note = module->allNotes[i];
         switch (note.type) {
             case NOTE_OFF:
             break;
             case NOTE_ON: {
                 if (0) debug("draw note %d %d\n", note.startTime, note.pitch());
                 int xPos = 32 + note.startTime / 4;
-                if (note.cvOn) {
+                if (module->cvOut[note.channel] == i) {
     	            nvgBeginPath(vg);
                     nvgRect(vg, xPos - 5, 0, 16, box.size.y);
                     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
@@ -104,16 +104,8 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
                     break;
                 }
                 const char noteSymbols[] = "seiqjhdwR";
-                const int durations[] = { 24, 48, 64, 96, 144, 192, 288, 384, 576 };
-                const int symbolCount = sizeof(noteSymbols) - 1;
-                static_assert(symbolCount == sizeof(durations) / sizeof(durations[0]));
-                int symbol = symbolCount - 1;
-                for (int i = 0; i < symbolCount; ++i) {
-                    if (note.duration <= durations[i]) {
-                        symbol = i;
-                        break;
-                    }
-                }
+                static_assert(sizeof(noteSymbols) - 1 == noteDurations.size());
+                unsigned symbol = DurationIndex(note.duration);
                 nvgText(vg, xPos, yPos, &noteSymbols[symbol], &noteSymbols[symbol + 1]);
             } break;
             case REST_TYPE:

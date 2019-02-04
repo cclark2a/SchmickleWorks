@@ -180,22 +180,14 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
 	nvgStroke(vg);
 }
 
-    void NoteTakerWheel::onDragMove(EventDragMove& e) {
-        if (FLT_MAX == lastValue) {
-            lastValue = value;
-            return;
-        }
-        if ((int) lastValue != (int) value) {
-            debug("lastValue=%g value=%g\n", lastValue, value);
-            ((NoteTaker*) module)->wheelBump(isHorizontal, lastValue < value); 
-            lastValue = value;
-        }
-        if (0) debug("onDragMove %g,%g value=%g %s\n", e.mouseRel.x, e.mouseRel.y, value, name());
-        if (isHorizontal) {
-            std::swap(e.mouseRel.x, e.mouseRel.y);
-        } else {
-            e.mouseRel.y = -e.mouseRel.y;
-        }
-        Knob::onDragMove(e);
-    }
+void HorizontalWheel::onDragMove(EventDragMove& e) {
+    ((NoteTaker*) module)->updateHorizontal();
+    std::swap(e.mouseRel.x, e.mouseRel.y);
+    e.mouseRel.y = -e.mouseRel.y;
+    Knob::onDragMove(e);
+}
 
+void VerticalWheel::onDragMove(EventDragMove& e) {
+    ((NoteTaker*) module)->updateVertical();
+    Knob::onDragMove(e);
+}

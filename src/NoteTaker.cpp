@@ -6,266 +6,265 @@
 #include "NoteTakerParseMidi.hpp"
 #include "NoteTakerWheel.hpp"
 
-using std::vector;
-
-NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
-    textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
-    NoteTakerMakeMidi maker;
-    maker.createDefaultAsMidi(midi);
-    auto iter = midi.begin();
-    for (int x = 0; x < 30; ++x) {
-        debug("%c 0x%02x\n", *iter, *iter);
-        iter++;
-    }
-    NoteTakerParseMidi parser(midi, displayNotes);
-    parser.parseMidi();
-}
-
-void NoteTaker::wheelBump(bool isHorizontal, bool positive) {
-    debug("wheel bump  h=%d p=%d\n", isHorizontal, positive);
-    if (isHorizontal) {
-        if (!running) {
-            if (positive) {
-                backupOne();
-            } else {
-                running = true;
-                stepOnce = true;
-            }
-        }
-    } else {
-        for (unsigned index = displayFirst; index < displayNotes.size(); ++index) {
-            DisplayNote& note = displayNotes[index];
-            if (NOTE_ON == note.type && note.cvOn) {
-                if (durationButton->ledOn) {
-                    int duration = note.duration;
-                    bool dotted = duration / 3 * 3 == duration;
-                    if (positive && duration > 0) {
-                        if (dotted) {   // remove the dot
-                            duration = duration * 2 / 3;
-                        } else {        // if undotted, go to 1/2 + dot
-                            duration = duration * 3 / 4;
-                        }
-                    } else if (!positive && duration < 127) {
-                            if (dotted) {  // remove dot and double
-                            duration = duration * 4 / 3;
-                            } else {       // if undotted, add dot
-                            duration = duration * 3 / 2;
-                            }
-                    }
-                } else {
-                    int pitch = note.pitch();
-                    if (positive && pitch > 0) {
-                        note.setPitch(pitch - 1);
-                    } else if (!positive && pitch < 127) {
-                        note.setPitch(pitch + 1);
-                    }
-	                float v_oct = inputs[V_OCT_INPUT].value;
-                    outputs[CV1_OUTPUT].value = v_oct + note.pitch() / 12.f;
-                }
-            }
-        }
-    }
-}
-
+// todo:
 	// For more advanced Module features, read Rack's engine.hpp header file
 	// - toJson, fromJson: serialization of internal data
 	// - onSampleRateChange: event triggered by a change of sample rate
 	// - onReset, onRandomize, onCreate, onDelete: implements special behavior when user clicks these from the context menu
 
-void NoteTaker::backupOne() {
-    unsigned currentStep = displayStep;
-    // move to first step prior to current time
-    debug("%d backupOne displayStep 1: %d\n", displayStep);
-    do {
-        while (displayStep > 0 && NOTE_ON != displayNotes[displayStep].type) {
-            --displayStep;
+NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+    gateOut.fill(0);
+    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
+    textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
+    NoteTakerMakeMidi maker;
+    maker.createDefaultAsMidi(midi);
+    NoteTakerParseMidi parser(midi, allNotes);
+    parser.parseMidi();
+}
+
+// to compute range for horizontal wheel when selecting notes
+int NoteTaker::horizontalCount(const DisplayNote& match, int* index) const {
+    int count = 0;
+    int lastTime = -1;
+    *index = -1;
+    this->debugDump();
+    debug("---");
+    match.debugDump();
+    for (auto& note : allNotes) {
+        if (&match == &note) {
+            *index = count;
         }
-        if (!displayStep || displayNotes[displayStep].cvOn) {
-            break;
+        if (!note.isSelectable(selectChannels)) {
+            note.debugDump();
+            debug("isSelect failed");
+            continue;
         }
-        --displayStep;
-    } while (true);
-    debug("backupOne displayStep 2: %d\n", displayStep);
-    while (displayStep > 0) {
-        --displayStep;
-        if (NOTE_ON == displayNotes[displayStep].type) {
-            break;
+        if (lastTime == note.startTime) {
+            continue;
         }
+        ++count;
+        lastTime = note.startTime;
     }
-    DisplayNote* backNote = &displayNotes[displayStep];
-    int priorMidiTime = backNote->startTime;
-    debug("backupOne displayStep 3: %d\n", displayStep);
-    debug("%d priorMidiTime\n", priorMidiTime);
-    while (displayStep > 0 && priorMidiTime == displayNotes[displayStep - 1].startTime) {
-        --displayStep;
-    }
-    if (displayStep == currentStep) {
-        fflush(stderr);
+    assert(-1 != *index);
+    return count;
+}
+
+void NoteTaker::updateHorizontal() {
+    if (running) {
         return;
     }
-    debug("%g backupOne displayStep 4: %d\n", elapsedSeconds, displayStep);
-    elapsedSeconds = priorMidiTime / (stdTimePerQuarterNote * 2.f);
-    debug("%g new elapsed seconds\n", elapsedSeconds);
-    for (unsigned index = 0; index < activeNotes.size(); ) {
-        DisplayNote* note = activeNotes[index];
-        if (note->gateOn && NOTE_ON == note->type && note->startTime > priorMidiTime) {
-            note->gateOn = false;
-            debug("backupOne zero gate: %d\n", index);
-            outputs[GATE1_OUTPUT].value = 0;
-        }
-        if (note->startTime > priorMidiTime) {
-            debug("backupOne erase: %d\n", index);
-            activeNotes.erase(activeNotes.begin() + index);
-        } else {
-            ++index;
-        }
-    }
-    unsigned step = displayStep;
-    while (step < displayNotes.size() && displayNotes[step].startTime <= priorMidiTime) {
-        DisplayNote* note = &displayNotes[step];
-        if (NOTE_ON == note->type) {
-            debug("backupOne gate on %d\n", step);
-            note->gateOn = true;
-            outputs[GATE1_OUTPUT].value = 5;
-            activeNotes.push_back(note);
-        }
-        ++step;
-    }
-    for (unsigned index = 0; index < activeNotes.size(); ++index) {
-        DisplayNote* note = activeNotes[index];
-        if (NOTE_ON == note->type) {
-            if (lastPitchOut) {
-                lastPitchOut->cvOn = false;
+    unsigned wheelValue = (unsigned) (int) horizontalWheel->value;
+    if (durationButton->ledOn) {
+        int diff = 0;
+        for (unsigned index = selectStart; index < selectEnd; ++index) {
+            DisplayNote& note = allNotes[index];
+            note.startTime += diff;
+            if (note.isSelectable(selectChannels)) {
+                assert(wheelValue < noteDurations.size());
+                note.setNote((int) wheelValue);
+                int duration = noteDurations[wheelValue];
+                diff += duration - note.duration;
+                note.duration = duration;
             }
-            note->cvOn = true;
-            lastPitchOut = note;
-	        float pitch = inputs[V_OCT_INPUT].value;
-            debug("backupOne set pitch startTime %d\n", note->startTime);
-            outputs[CV1_OUTPUT].value = pitch + note->pitch() / 12.f;
+        }
+        if (diff) {
+            for (unsigned index = selectEnd; index < allNotes.size(); ++index) {
+                DisplayNote& note = allNotes[index];
+                note.startTime += diff;
+            }
+        }
+    } else {
+    // value should range from 0 to max - 1, where max is number of starts for active channels
+        int count = (int) horizontalWheel->value;
+        int lastTime = -1;
+        for (auto& note : allNotes) {
+            if (!note.isSelectable(selectChannels)) {
+                continue;
+            }
+            if (count == 0) {
+                selectStart = &note - &allNotes.front();
+                break;
+            }
+            if (lastTime == note.startTime) {
+                continue;
+            }
+            --count;
+            lastTime = note.startTime;
+        }
+        selectEnd = selectStart;
+        do {
+            ++selectEnd;
+        } while (allNotes[selectStart].startTime == allNotes[selectEnd].startTime);
+    }
+    this->playSelection();
+}
+    
+void NoteTaker::updateVertical() {
+    array<DisplayNote*, channels> lastNote;
+    lastNote.fill(nullptr);
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        DisplayNote& note = allNotes[index];
+        if (note.isSelectable(selectChannels)) {
+            note.setPitch((int) verticalWheel->value);
+            lastNote[note.channel] = &note;
         }
     }
+    for (auto note : lastNote) {
+        if (nullptr == note) {
+            continue;
+        }
+        this->outputNote(*note);
+        this->playSelection();
+    }
+}
+
+void NoteTaker::outputNote(const DisplayNote& note) {
+    unsigned noteIndex = &note - &allNotes.front();
+    cvOut[note.channel] = noteIndex;
+    gateOut[note.channel] = noteIndex;
+    if (NOTE_ON == note.type) {
+        outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
+        assert(note.channel < channels);
+	    float v_oct = inputs[V_OCT_INPUT].value;
+        outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
+    } else {
+        assert(REST_TYPE == note.type);
+        outputs[GATE1_OUTPUT + note.channel].value = 0;
+    }
+}
+
+void NoteTaker::setWheelRange(const DisplayNote& note) {
+    // horizontal wheel range and value
+    if (durationButton->ledOn) {
+        // range is 0 to NoteTakerDisplay.durations.size(); find value in array values
+        horizontalWheel->setLimits(0, noteDurations.size());
+        horizontalWheel->setValue(note.note());
+    } else {
+        int index;
+        int count = this->horizontalCount(note, &index);
+        horizontalWheel->setLimits(0, count);
+        horizontalWheel->setValue(index);
+
+    }
+    // vertical wheel range 0 to 127 for midi pitch
+    verticalWheel->setValue(note.pitch());
+    debug("horz %g (%g %g)\n", horizontalWheel->value, horizontalWheel->minValue,
+            horizontalWheel->maxValue);
+    debug("vert %g (%g %g)\n", verticalWheel->value, verticalWheel->minValue,
+            verticalWheel->maxValue);
 }
 
 void NoteTaker::step() {
 	if (runningTrigger.process(params[RUN_BUTTON].value)) {
 		running = !running;
+        if (!running) {
+            this->setWheelRange(allNotes[selectStart]);
+            for (unsigned channel = 0; channel < channels; ++channel) {
+                gateOut[channel] = 0;
+                outputs[GATE1_OUTPUT + channel].value = 0;
+            }
+        }
+        lights[RUNNING_LIGHT].value = running;
 	}
     // read data from display notes to determine pitch
     // note on event start changes cv and sets gate high
     // note on event duration sets gate low
+	float deltaTime = engineGetSampleTime();
+    elapsedSeconds += deltaTime;
+    int midiTime = stdTimePerQuarterNote * elapsedSeconds * 2;
     if (running) {
-	    float deltaTime = engineGetSampleTime();
-
-	    // Compute the frequency from the pitch parameter and input
-	    float pitch = inputs[V_OCT_INPUT].value;
-
-        elapsedSeconds += deltaTime;
         // to do: use info in midi header, time signature, tempo to get this right
-        int midiTime = stdTimePerQuarterNote * elapsedSeconds * 2;
-        for (unsigned index = 0; index < activeNotes.size(); ) {
-            DisplayNote* note = activeNotes[index];
-            if (note->gateOn && NOTE_ON == note->type
-                    && note->startTime + note->duration == midiTime) {
-                if (0) debug("%g %d set gate to zero time=%d pitch=%d\n", elapsedSeconds, midiTime,
-                        note->startTime, note->pitch());
-                note->gateOn = false;
-                outputs[GATE1_OUTPUT].value = 0;
-            }
-            if (note->startTime + note->duration < midiTime) {
-                if (0) debug("%g %d erase time=%d pitch=%d\n", elapsedSeconds, midiTime,
-                        note->startTime, note->pitch());
-                activeNotes.erase(activeNotes.begin() + index);
-            } else {
-                ++index;
-            }
-        }
-        while (displayStep < displayNotes.size() && displayNotes[displayStep].startTime <= midiTime) {
-            DisplayNote* note = &displayNotes[displayStep];
-            if (NOTE_ON == note->type) {
-                if (0) debug("%g %d add to active time=%d pitch=%d\n", elapsedSeconds, midiTime,
-                        note->startTime, note->pitch());
-                note->gateOn = true;
-                outputs[GATE1_OUTPUT].value = 5;
-                activeNotes.push_back(note);
-                if (stepOnce) {
-                    running = false;
-                    stepOnce = false;
-                }
-            }
-            ++displayStep;
-        }
-        static float debugLast = 0;
-        for (unsigned index = 0; index < activeNotes.size(); ++index) {
-            DisplayNote* note = activeNotes[index];
-            if (NOTE_ON == note->type) {
-                if (elapsedSeconds - .25f > debugLast) {
-                    if (0) debug("%g %d set pitch %g %g\n", elapsedSeconds, midiTime,
-                            pitch, note->pitch() / 12.f);
-                    debugLast = elapsedSeconds;
-                }
-                if (lastPitchOut) {
-                    lastPitchOut->cvOn = false;
-                }
-                note->cvOn = true;
-                lastPitchOut = note;
-                outputs[CV1_OUTPUT].value = pitch + note->pitch() / 12.f;
-            }
-        }
-        if (displayStep == displayNotes.size() && activeNotes.empty()) {
-            if (0) debug("%g %d reset elapsed seconds\n", elapsedSeconds, midiTime);
+        this->setExpiredGatesLow(midiTime);
+        // if midi time exceeds displayEnd: scroll; reset displayStart, displayEnd
+        // if midi time exceeds last of allNotes: either reset to zero and repeat, or stop running
+        if (this->lastNoteEnded(displayEnd, midiTime)) {
             elapsedSeconds = 0;  // to do : don't repeat unconditionally?
-            debugLast = 0;
-            displayStep = 0;
+            midiTime = 0;
+            displayStart = this->firstOn();
+            if (!displayStart) { // no notes to play
+                running = false;
+                lights[RUNNING_LIGHT].value = false;
+                return;
+            }
+            displayEnd = 0;  // recompute display end
+        } else {
+            do {
+                const DisplayNote& note = allNotes[displayStart];
+                if (note.startTime + note.duration > midiTime || TRACK_END != note.type) {
+                    break;
+                }
+                ++displayStart;
+                displayEnd = 0;  // recompute display end
+            } while (true);
+        }
+        selectStart = INT_MAX;
+        selectEnd = 0;
+        if (!displayEnd) {
+            // todo: allow time range to display to be scaled from box width
+            // calc here must match NoteTakerDisplay::draw:75
+            displayEnd = this->lastAt(allNotes[displayStart].startTime + display->box.size.x * 4 - 32);
+        }
+        const DisplayNote* best = nullptr;
+        for (unsigned step = displayStart; step < displayEnd; ++step) {
+            const DisplayNote& note = allNotes[step];
+            if (note.isSelectable(selectChannels)) {
+                if (note.isBestSelectStart(&best, midiTime)) {
+                    selectStart = step;
+                }
+                if (note.isActive(midiTime)) {
+                    this->outputNote(note);
+                }
+            }
+        }
+        selectEnd = selectStart + 1;
+    } else if (playingSelection) { // not running, play note after selecting or editing
+        for (unsigned step = selectStart; step < selectEnd; ++step) {
+            const DisplayNote& note = allNotes[step];
+            if (note.isSelectable(selectChannels) && note.isActive(midiTime)) {
+                this->outputNote(note);
+            }
+        }
+        if (this->lastNoteEnded(selectEnd, midiTime)) {
+            playingSelection = false;
+            this->setExpiredGatesLow(INT_MAX);
         }
     }
-    lights[RUNNING_LIGHT].value = running;
 }
 
 struct NoteTakerWidget : ModuleWidget {
 	NoteTakerWidget(NoteTaker *module) : ModuleWidget(module) {
 		setPanel(SVG::load(assetPlugin(plugin, "res/NoteTaker.svg")));
 
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
-        NoteTakerDisplay *display = new NoteTakerDisplay();
-        display->module = (NoteTaker*) module;
-        display->box.pos = Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2);
-        display->box.size = Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9);
-        addChild(display);
-        ParamWidget* horizontalWheel = ParamWidget::create<HorizontalWheel>(
+        module->display = new NoteTakerDisplay(Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2), // pos
+                 Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9), module);  // size
+        addChild(module->display);
+        module->horizontalWheel = ParamWidget::create<HorizontalWheel>(
                 Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f),
                 module, NoteTaker::HORIZONTAL_WHEEL, 0.0, 100.0, 0.0);
-		addParam(horizontalWheel);
-        ParamWidget* verticalWheel = ParamWidget::create<VerticalWheel>(
+		addParam(module->horizontalWheel);
+        // vertical wheel is horizontal wheel (+x) rotated ccw (-y); value and limits are negated
+        module->verticalWheel = ParamWidget::create<VerticalWheel>(
                 Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 50),
                 module, NoteTaker::VERTICAL_WHEEL, 0.0, 127.0, 60.0);
-		addParam(verticalWheel);
+		addParam(module->verticalWheel);
 
 		addInput(Port::create<PJ301MPort>(Vec(140, 306), Port::INPUT, module, NoteTaker::V_OCT_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(172, 306), Port::INPUT, module, NoteTaker::CLOCK_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(204, 306), Port::INPUT, module, NoteTaker::RESET_INPUT));
 
-		addOutput(Port::create<PJ301MPort>(Vec(12, 306), Port::OUTPUT, module, NoteTaker::CV1_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(44, 306), Port::OUTPUT, module, NoteTaker::CV2_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(76, 306), Port::OUTPUT, module, NoteTaker::CV3_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(108, 306), Port::OUTPUT, module, NoteTaker::CV4_OUTPUT));
-
-		addOutput(Port::create<PJ301MPort>(Vec(12, 338), Port::OUTPUT, module, NoteTaker::GATE1_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(44, 338), Port::OUTPUT, module, NoteTaker::GATE2_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(76, 338), Port::OUTPUT, module, NoteTaker::GATE3_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(108, 338), Port::OUTPUT, module, NoteTaker::GATE4_OUTPUT));
+        for (int i = 0; i < 4; ++i) {
+		    addOutput(Port::create<PJ301MPort>(Vec(12 + i * 32, 306), Port::OUTPUT, module,
+                    NoteTaker::CV1_OUTPUT + i));
+		    addOutput(Port::create<PJ301MPort>(Vec(12 + i * 32, 338), Port::OUTPUT, module,
+                    NoteTaker::GATE1_OUTPUT + i));
+        }
 
 		addParam(ParamWidget::create<LEDButton>(Vec(200, 172), module, NoteTaker::RUN_BUTTON, 0.0f, 1.0f, 0.0f));
 		addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(204.4f, 176.4f), module, NoteTaker::RUNNING_LIGHT));
 
-        DurationButton* durationButton = ParamWidget::create<DurationButton>(Vec(30, 202),
+        module->durationButton = ParamWidget::create<DurationButton>(Vec(30, 202),
                 module, NoteTaker::DURATION_BUTTON, 0.0f, 1.0f, 0.0f);
-        ((NoteTaker*) module)->durationButton = durationButton;
-        addParam(durationButton);
+        addParam(module->durationButton);
         addParam(ParamWidget::create<InsertButton>(Vec(62, 202), module, NoteTaker::INSERT_BUTTON,
                 0.0f, 1.0f, 0.0f));
         addParam(ParamWidget::create<SelectButton>(Vec(94, 202), module, NoteTaker::EXTEND_BUTTON,
