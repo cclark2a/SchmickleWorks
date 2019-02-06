@@ -10,6 +10,7 @@ void DurationButton::draw(NVGcontext *vg) {
     nvgText(vg, 8 + af, 39 - af, "q", NULL);
     nvgText(vg, 14 + af, 39 - af, "h", NULL);
     if (showLabel) {
+        // to do : see if we want to add this sort of hint
         nvgFontFaceId(vg, ((NoteTaker*) module)->textFont->handle);
         nvgFontSize(vg, 18);
         nvgText(vg, 3 + af, 50 - af, "DUR", NULL);

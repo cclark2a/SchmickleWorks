@@ -42,15 +42,9 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         nvgLineTo(vg, 19 + af, 52 - af);
         nvgFillColor(vg, nvgRGB(0xCC, 0xCC, 0xCC));
         nvgFill(vg);
-        // draw LED
-        nvgBeginPath(vg);
-        nvgRect(vg, 4 + af, 8 - af, 11, 5);
-        nvgFillColor(vg, ledOn ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
-        nvgFill(vg);
     }
 
     void onDragStart(EventDragStart &e) override {
-        debug("NoteTakerButton onDragStart\n");
 	    EventAction eAction;
 	    onAction(eAction);
 	    dirty = true;
@@ -60,16 +54,44 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
     void onDragEnd(EventDragEnd &e) override;
 
     int af = 0;  // animation frame, 0 to 1
+};
+
+struct NoteTakerLEDButton : NoteTakerButton {
+
+    void draw(NVGcontext *vg) override {
+        NoteTakerButton::draw(vg);
+        this->drawLED(vg);
+    }
+
+    void drawLED(NVGcontext *vg) {
+        nvgBeginPath(vg);
+        nvgRect(vg, 4 + af, 8 - af, 11, 5);
+        nvgFillColor(vg, ledOn ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
+        nvgFill(vg);
+    }
+
     bool ledOn = false;
 };
 
-struct DurationButton : NoteTakerButton {
+// duration on/off -- turning on turns insert off
+// if select multiple
+// wheel left / right changes duration of all notes
+// wheel up / down tranposes selection
+struct DurationButton : NoteTakerLEDButton {
     void draw(NVGcontext *vg) override;
 
     bool showLabel = false;
 };
 
-struct InsertButton : NoteTakerButton {
+// insert/delete on/off -- turning on turns duration off
+// if multiple select  is off
+// horizontal moves selector between notes to all insertion positions
+// wheel up inserts note
+// wheel down deletes note to left or first note if there's nothing to the left
+// if multiple select is on, wheel down cuts selection
+// if horizontal moves selector, wheel down is disabled
+//                           wheel up pastes / duplicates selection
+struct InsertButton : NoteTakerLEDButton {
     void draw(NVGcontext *vg) override {
         NoteTakerButton::draw(vg);
         // replace this with a font character if one can be found
@@ -93,15 +115,23 @@ struct InsertButton : NoteTakerButton {
     }
 };
 
-struct SelectButton : NoteTakerButton {
+// select single or multiple
+// if multiple, insert off
+// wheel left / right extends selection
+// wheel up / down transposes selection
+struct SelectButton : NoteTakerLEDButton {
     void draw(NVGcontext *vg) override;
 };
 
-struct PartButton : NoteTakerButton {
+// wheel up / down chooses one channel or chooses all channels
+// wheel left / right ???
+struct PartButton : NoteTakerLEDButton {
     void draw(NVGcontext *vg) override;
 };
 
-
+// if selection, exchange note / reset
+// if insertion, insert/delete rest
+// if duration, horizontal changes rest size, vertical has no effect
 struct RestButton : NoteTakerButton {
     void draw(NVGcontext *vg) override;
 };

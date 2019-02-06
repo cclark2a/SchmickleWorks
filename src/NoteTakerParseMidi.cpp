@@ -8,11 +8,6 @@ void NoteTakerParseMidi::parseMidi() {
         return;
     }
     vector<uint8_t>::const_iterator iter = midi.begin();
-    for (int x = 0; x < 30; ++x) {
-        debug("%c 0x%02x\n", *iter, *iter);
-        iter++;
-    }
-    iter = midi.begin();
     if (!match_midi(iter, MThd)) {
         for (auto iter = MThd.begin(); iter != MThd.end(); ++iter) {
             debug("%c\n", *iter);
@@ -55,12 +50,10 @@ void NoteTakerParseMidi::parseMidi() {
         if (!midi_delta(iter, &midiTime)) {
             return;
         }
-        debug("midiTime: %d\n", midiTime);
         if (0 == (*iter & 0x80)) {
             debug("expected high bit set on channel voice message: %02x\n", *iter);
             return;
         }
-        debug("type: 0x%02x\n", *iter);
         displayNote.startTime = midiTime;
         displayNote.duration = -1;  // not known yet
         displayNote.type = (DisplayType) ((*iter >> 4) & 0x7);
@@ -293,8 +286,6 @@ void NoteTakerParseMidi::parseMidi() {
                 debug("unexpected byte %d\n", *iter);
                 return;
         }
-        debug("push %d time %d channel %d\n", displayNote.type, displayNote.startTime,
-                displayNote.channel);
         displayNotes.push_back(displayNote);
     }
 }

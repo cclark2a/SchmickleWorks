@@ -15,6 +15,14 @@ static constexpr uint8_t midiSystem = 0xF0;
 const uint8_t stdKeyPressure = 0x64;
 const int stdTimePerQuarterNote = 0x60;
 
+inline int SecondsToMidi(float seconds) {
+    return (int) (stdTimePerQuarterNote * seconds);
+}
+
+inline float MidiToSeconds(int midiTime) {
+    return (float) midiTime / stdTimePerQuarterNote;
+}
+
 using std::array;
 
 static constexpr array<uint8_t, 4> MThd = {0x4D, 0x54, 0x68, 0x64}; // MIDI file header
@@ -45,7 +53,7 @@ private:
     vector<uint8_t>* target;  // used only during constructing midi, to compute track length
 
     void add_delta(float time, int* lastTime, int end) {
-        int midiTime = (int) (time * stdTimePerQuarterNote) - end;
+        int midiTime = SecondsToMidi(time) - end;
         int delta = midiTime - *lastTime;
         assert(delta >= 0);
         add_size8(delta);  // time of first note
@@ -60,7 +68,6 @@ private:
         assert(size > 0);
         int shift = 24;
         do {
-            debug("size %d shift %d\n", size, shift);
             target->push_back((size >> shift) & 0xFF);
         } while ((shift -= 8) >= 0);
     }

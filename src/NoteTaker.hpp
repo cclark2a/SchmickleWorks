@@ -119,12 +119,7 @@ struct NoteTaker : Module {
     }
 
     void outputNote(const DisplayNote& note);
-
-    void playSelection() {
-        elapsedSeconds = 0;
-        playingSelection = true;
-    }
-
+    void playSelection();
 
     void setExpiredGatesLow(int midiTime) {
         for (unsigned channel = 0; channel < channels; ++channel) {
@@ -141,7 +136,38 @@ struct NoteTaker : Module {
         }
     }
 
-    void setWheelRange(const DisplayNote& );
+    bool setSelectEnd(unsigned end) {
+        if (end == selectStart) {
+            do {
+                ++end;
+            } while (allNotes[selectStart].startTime == allNotes[end].startTime);       
+        }
+        if (selectEnd == end) {
+            return false;
+        }
+        selectEnd = end;
+        if (selectStart > selectEnd) {
+            std::swap(selectStart, selectEnd);
+        }
+        this->setWheelRange();
+        return true;
+    }
+
+    bool setSelectStart(unsigned start) {
+        if (selectStart == start) {
+            return false;
+        }
+        selectEnd = selectStart = start;
+        if (!insertButton->ledOn) {
+            do {
+                ++selectEnd;
+            } while (allNotes[selectStart].startTime == allNotes[selectEnd].startTime);
+        }
+        this->setWheelRange();
+        return true;
+    }
+
+    void setWheelRange();
 	void step() override;
     void updateHorizontal();
     void updateVertical();

@@ -13,9 +13,6 @@ struct TimeNote {
 void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
     target = &midi;
     midi.insert(midi.end(), MThd.begin(), MThd.end());
-    for (auto iter  = midi.begin(); iter != midi.end(); ++iter) {
-        debug("%c\n", *iter);
-    }
     midi.insert(midi.end(), MThd_length.begin(), MThd_length.end());
     midi.insert(midi.end(), MThd_data.begin(), MThd_data.end());
     midi.insert(midi.end(), MTrk.begin(), MTrk.end());
@@ -44,13 +41,6 @@ void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
         lastNote = n.note;
     }
     target = &midi;
-    debug("temp size: %d\n", temp.size());
-    size_t s = midi.size();
-    debug("midi size: %d\n", midi.size());
     add_size32(temp.size());
-    debug("%d %d %d %d\n", midi[s], midi[s + 1], midi[s + 2], midi[s + 3]);
-    debug("midi size: %d\n", midi.size());
     midi.insert(midi.end(), temp.begin(), temp.end());
-    debug("midi size: %d\n", midi.size());
-    debug("%d %d %d %d\n", midi[s], midi[s + 1], midi[s + 2], midi[s + 3]);
 }
