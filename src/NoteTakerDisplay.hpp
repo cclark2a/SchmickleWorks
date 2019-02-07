@@ -11,6 +11,8 @@ struct NoteTakerDisplay : TransparentWidget {
         : module(m) {
         box.pos = pos;
         box.size = size;
+        musicFont = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
+        textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
     }
     
     void draw(NVGcontext *vg) override;
@@ -25,4 +27,6 @@ struct NoteTakerDisplay : TransparentWidget {
     }
 
     NoteTaker* module;
+	std::shared_ptr<Font> musicFont;
+	std::shared_ptr<Font> textFont;
 };

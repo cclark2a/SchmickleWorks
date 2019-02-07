@@ -13,8 +13,6 @@
 
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     gateOut.fill(0);
-    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
-    textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
     NoteTakerMakeMidi maker;
     maker.createDefaultAsMidi(midi);
     NoteTakerParseMidi parser(midi, allNotes);
@@ -185,6 +183,9 @@ void NoteTaker::setSelectStartAt(int midiTime, unsigned startIndex, unsigned end
 }
 
 void NoteTaker::setWheelRange() {
+    if (!insertButton) {
+        return;
+    }
     // horizontal wheel range and value
     int selectMin = insertButton->ledOn ? -1 : 0;
     int selectMax = this->horizontalCount();
@@ -224,6 +225,9 @@ void NoteTaker::setWheelRange() {
 }
 
 void NoteTaker::step() {
+    if (!display) {
+        return;
+    }   
 	if (runningTrigger.process(params[RUN_BUTTON].value)) {
 		running = !running;
         if (!running) {

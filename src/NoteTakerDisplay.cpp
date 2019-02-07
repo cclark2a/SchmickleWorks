@@ -57,7 +57,7 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     }
 	nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
 	nvgStroke(vg);
-    nvgFontFaceId(vg, module->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 46);
     nvgText(vg, 4, 60, "G", NULL);

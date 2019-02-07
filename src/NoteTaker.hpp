@@ -66,8 +66,6 @@ struct NoteTaker : Module {
     vector<DisplayNote> allNotes;
 //    array<unsigned, channels> cvOut;
     array<unsigned, channels> gateOut;     // index into allNotes of current gate out per channel
-	std::shared_ptr<Font> musicFont;
-	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
     DurationButton* durationButton = nullptr;
     InsertButton* insertButton = nullptr;
@@ -82,7 +80,7 @@ struct NoteTaker : Module {
     unsigned selectEnd = 0;                 // one past last selected (if start == end, insert)
     unsigned selectChannels = 0x0F;         // bit set for each active channel (all by default)
     float elapsedSeconds = 0;
-    bool running = true;
+    bool running = false;
     bool playingSelection = false;             // if set, provides feedback when editing notes
 
     NoteTaker();
