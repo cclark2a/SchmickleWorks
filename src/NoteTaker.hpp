@@ -18,6 +18,7 @@ struct NoteTakerDisplay;
 struct NoteTakerWheel;
 
 constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
+constexpr unsigned CV_OUTPUTS = 4;
 
 struct NoteTaker : Module {
 	enum ParamIds {
@@ -139,7 +140,9 @@ struct NoteTaker : Module {
             assert(gateOnNote.channel == channel);
             if (gateOnNote.startTime + gateOnNote.duration <= midiTime) {
                 gateOut[channel] = 0;
-                outputs[GATE1_OUTPUT + channel].value = 0;
+                if (channel < CV_OUTPUTS) {
+                    outputs[GATE1_OUTPUT + channel].value = 0;
+                }
             }
         }
     }

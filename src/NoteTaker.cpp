@@ -133,11 +133,10 @@ void NoteTaker::updateVertical() {
 
 void NoteTaker::outputNote(const DisplayNote& note) {
     unsigned noteIndex = &note - &allNotes.front();
-//    cvOut[note.channel] = noteIndex;
+    assert(note.channel < CV_OUTPUTS);
     gateOut[note.channel] = noteIndex;
     if (NOTE_ON == note.type) {
         outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
-        assert(note.channel < channels);
 	    float v_oct = inputs[V_OCT_INPUT].value;
         outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
     } else {
@@ -231,9 +230,11 @@ void NoteTaker::step() {
 	if (runningTrigger.process(params[RUN_BUTTON].value)) {
 		running = !running;
         if (!running) {
-            for (unsigned channel = 0; channel < channels; ++channel) {
-                gateOut[channel] = 0;
-                outputs[GATE1_OUTPUT + channel].value = 0;
+            for (unsigned index = 0; index < channels; ++index) {
+                gateOut[index] = 0;
+            }
+            for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
+                outputs[GATE1_OUTPUT + index].value = 0;
             }
         }
         lights[RUNNING_LIGHT].value = running;
