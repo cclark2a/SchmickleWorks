@@ -3,6 +3,7 @@
 #include "SchmickleWorks.hpp"
 #include "NoteTakerDisplayNote.hpp"
 #include "dsp/digital.hpp"
+#include <array>
 #include <float.h>
 
 using std::array;

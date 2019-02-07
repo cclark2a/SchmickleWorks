@@ -64,7 +64,7 @@ struct NoteTakerWidget : ModuleWidget {
         addParam(ParamWidget::create<NoteTakerButton>(Vec(190, 252), module, NoteTaker::BUTTON_12,
                 0.0f, 1.0f, 0.0f));
         module->running = true;
-        module->lights[RUNNING_LIGHT].value = running;
+        module->lights[NoteTaker::RUNNING_LIGHT].value = true;
 	}
 };
 

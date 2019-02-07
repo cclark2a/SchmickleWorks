@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SchmickleWorks.hpp"
+#include <array>
 
 struct NoteTaker;
 

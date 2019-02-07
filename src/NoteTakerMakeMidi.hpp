@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SchmickleWorks.hpp"
+#include <array>
 
 static constexpr uint8_t midiCVMask = 0xF0;
 static constexpr uint8_t midiNoteOff = 0x80;
