@@ -24,7 +24,7 @@ struct NoteTakerWidget : ModuleWidget {
 		addInput(Port::create<PJ301MPort>(Vec(172, 306), Port::INPUT, module, NoteTaker::CLOCK_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(204, 306), Port::INPUT, module, NoteTaker::RESET_INPUT));
 
-        for (int i = 0; i < CV_OUTPUTS; ++i) {
+        for (unsigned i = 0; i < CV_OUTPUTS; ++i) {
 		    addOutput(Port::create<PJ301MPort>(Vec(12 + i * 32, 306), Port::OUTPUT, module,
                     NoteTaker::CV1_OUTPUT + i));
 		    addOutput(Port::create<PJ301MPort>(Vec(12 + i * 32, 338), Port::OUTPUT, module,
