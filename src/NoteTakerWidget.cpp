@@ -37,14 +37,18 @@ struct NoteTakerWidget : ModuleWidget {
         module->durationButton = ParamWidget::create<DurationButton>(Vec(30, 202),
                 module, NoteTaker::DURATION_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->durationButton);
-        addParam(ParamWidget::create<InsertButton>(Vec(62, 202), module, NoteTaker::INSERT_BUTTON,
-                0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<SelectButton>(Vec(94, 202), module, NoteTaker::EXTEND_BUTTON,
-                0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<PartButton>(Vec(126, 202), module, NoteTaker::PART_BUTTON,
-                0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<RestButton>(Vec(158, 202), module, NoteTaker::REST_BUTTON,
-                0.0f, 1.0f, 0.0f));
+        module->insertButton = ParamWidget::create<InsertButton>(Vec(62, 202),
+                module, NoteTaker::INSERT_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->insertButton);
+        module->selectButton = ParamWidget::create<SelectButton>(Vec(94, 202),
+                module, NoteTaker::EXTEND_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->selectButton);
+        module->partButton = ParamWidget::create<PartButton>(Vec(126, 202),
+                module, NoteTaker::PART_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->partButton);
+        module->restButton = ParamWidget::create<RestButton>(Vec(158, 202),
+                module, NoteTaker::REST_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->restButton);
         addParam(ParamWidget::create<NoteTakerButton>(Vec(190, 202), module, NoteTaker::BUTTON_6,
                 0.0f, 1.0f, 0.0f));
         addParam(ParamWidget::create<NoteTakerButton>(Vec(30, 252), module, NoteTaker::BUTTON_7,

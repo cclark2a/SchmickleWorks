@@ -135,7 +135,7 @@ struct DisplayNote {
         if (best->isActive(midiTime)) {
             return false;
         }
-        if (startTime > best->startTime) {
+        if (startTime > best->startTime && startTime <= midiTime) {
             *bestPtr = this;
             return true;
         }

@@ -1,3 +1,4 @@
+#include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTaker.hpp"
 
@@ -64,6 +65,13 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     nvgText(vg, 4, 92, "?", NULL);
     nvgFontSize(vg, 42);
 
+    if (module->insertButton->ledOn && module->selectStart == 0) {
+    	nvgBeginPath(vg);
+        nvgRect(vg, 24, 0, 4, box.size.y);
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
+        nvgFill(vg);
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+    }
     // draw notes
     for (unsigned i = module->displayStart; i < module->displayEnd; ++i) {
         const DisplayNote& note = module->allNotes[i];
@@ -73,9 +81,13 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
             case NOTE_ON: {
                 if (0) debug("draw note %d %d\n", note.startTime, note.pitch());
                 int xPos = 32 + note.startTime / 4;
-                if (module->cvOut[note.channel] == i) {
+                if (module->selectStart == i) {
     	            nvgBeginPath(vg);
-                    nvgRect(vg, xPos - 5, 0, 16, box.size.y);
+                    if (module->insertButton->ledOn) {
+                        nvgRect(vg, xPos + 13, 0, 4, box.size.y);
+                    } else {
+                        nvgRect(vg, xPos - 5, 0, 16, box.size.y);
+                    }
                     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
                     nvgFill(vg);
                     nvgFillColor(vg, nvgRGB(0, 0, 0));

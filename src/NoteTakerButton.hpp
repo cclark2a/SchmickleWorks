@@ -2,6 +2,8 @@
 
 #include "SchmickleWorks.hpp"
 
+struct NoteTaker;
+
 struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
 
     void draw(NVGcontext *vg) override {
@@ -51,7 +53,13 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         af = af ? 0 : 1;
     }
 
-    void onDragEnd(EventDragEnd &e) override;
+    void onDragEnd(EventDragEnd &e) override {
+	    dirty = true;
+    }
+
+    NoteTaker* nModule() {
+        return (NoteTaker* ) module;
+    }
 
     int af = 0;  // animation frame, 0 to 1
 };
@@ -70,6 +78,8 @@ struct NoteTakerLEDButton : NoteTakerButton {
         nvgFill(vg);
     }
 
+    void onDragEnd(EventDragEnd &e) override;
+
     bool ledOn = false;
 };
 
@@ -79,6 +89,7 @@ struct NoteTakerLEDButton : NoteTakerButton {
 // wheel up / down tranposes selection
 struct DurationButton : NoteTakerLEDButton {
     void draw(NVGcontext *vg) override;
+    void onDragEnd(EventDragEnd &e) override;
 
     bool showLabel = false;
 };
@@ -93,7 +104,7 @@ struct DurationButton : NoteTakerLEDButton {
 //                           wheel up pastes / duplicates selection
 struct InsertButton : NoteTakerLEDButton {
     void draw(NVGcontext *vg) override {
-        NoteTakerButton::draw(vg);
+        NoteTakerLEDButton::draw(vg);
         // replace this with a font character if one can be found
         nvgTranslate(vg, af, 6 - af);
         nvgBeginPath(vg);
@@ -113,6 +124,8 @@ struct InsertButton : NoteTakerLEDButton {
         nvgStrokeWidth(vg, .5);
         nvgStroke(vg);
     }
+
+    void onDragEnd(EventDragEnd &e) override;
 };
 
 // select single or multiple
@@ -121,6 +134,7 @@ struct InsertButton : NoteTakerLEDButton {
 // wheel up / down transposes selection
 struct SelectButton : NoteTakerLEDButton {
     void draw(NVGcontext *vg) override;
+    void onDragEnd(EventDragEnd &e) override;
 };
 
 // wheel up / down chooses one channel or chooses all channels

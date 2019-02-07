@@ -9,6 +9,10 @@ using std::array;
 using std::vector;
 
 struct DurationButton;
+struct InsertButton;
+struct PartButton;
+struct RestButton;
+struct SelectButton;
 struct NoteTakerDisplay;
 struct NoteTakerWheel;
 
@@ -60,12 +64,16 @@ struct NoteTaker : Module {
 
     vector<uint8_t> midi;
     vector<DisplayNote> allNotes;
-    array<unsigned, channels> cvOut;
+//    array<unsigned, channels> cvOut;
     array<unsigned, channels> gateOut;     // index into allNotes of current gate out per channel
 	std::shared_ptr<Font> musicFont;
 	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
     DurationButton* durationButton = nullptr;
+    InsertButton* insertButton = nullptr;
+    PartButton* partButton = nullptr;
+    RestButton* restButton = nullptr;
+    SelectButton* selectButton = nullptr;
     NoteTakerWheel* horizontalWheel = nullptr;
     NoteTakerWheel* verticalWheel = nullptr;
     unsigned displayStart = 0;              // index into allNotes of first visible note
@@ -79,8 +87,6 @@ struct NoteTaker : Module {
 
     NoteTaker();
     void debugDump() const;
-    int horizontalCount(const DisplayNote& note, int* index) const;
-
     unsigned firstOn() const {
         for (unsigned index = 0; index < allNotes.size(); ++index) {
             if (NOTE_ON == allNotes[index].type) {
@@ -89,6 +95,8 @@ struct NoteTaker : Module {
         }
         return 0;
     }
+
+    int horizontalCount() const;
 
     unsigned lastAt(int midiTime) const {
         assert(displayStart < allNotes.size());
@@ -118,6 +126,7 @@ struct NoteTaker : Module {
         return note;
     }
 
+    int noteIndex(const DisplayNote& match) const;
     void outputNote(const DisplayNote& note);
     void playSelection();
 
@@ -153,20 +162,8 @@ struct NoteTaker : Module {
         return true;
     }
 
-    bool setSelectStart(unsigned start) {
-        if (selectStart == start) {
-            return false;
-        }
-        selectEnd = selectStart = start;
-        if (!insertButton->ledOn) {
-            do {
-                ++selectEnd;
-            } while (allNotes[selectStart].startTime == allNotes[selectEnd].startTime);
-        }
-        this->setWheelRange();
-        return true;
-    }
-
+    bool setSelectStart(unsigned start);
+    void setSelectStartAt(int midiTime, unsigned displayStart, unsigned displayEnd);
     void setWheelRange();
 	void step() override;
     void updateHorizontal();
