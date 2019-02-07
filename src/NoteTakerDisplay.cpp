@@ -116,7 +116,8 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
                     break;
                 }
                 const char noteSymbols[] = "seiqjhdwR";
-                static_assert(sizeof(noteSymbols) - 1 == noteDurations.size());
+                static_assert(sizeof(noteSymbols) - 1 == noteDurations.size(),
+                        "symbol duration mismatch");
                 unsigned symbol = DurationIndex(note.duration);
                 nvgText(vg, xPos, yPos, &noteSymbols[symbol], &noteSymbols[symbol + 1]);
             } break;
