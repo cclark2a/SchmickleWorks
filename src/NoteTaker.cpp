@@ -14,6 +14,8 @@
 
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     gateOut.fill(0);
+    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
+    textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
     NoteTakerMakeMidi maker;
     maker.createDefaultAsMidi(midi);
     NoteTakerParseMidi parser(midi, allNotes);
@@ -83,7 +85,7 @@ void NoteTaker::updateHorizontal() {
         }
     } else {
     // value should range from 0 to max - 1, where max is number of starts for active channels
-    // if insert mode, value ranges from 0 to max
+    // if insert mode, value ranges from -1 to max - 1
         int lastTime = -1;
         for (auto& note : allNotes) {
             if (!note.isSelectable(selectChannels)) {
@@ -114,6 +116,26 @@ void NoteTaker::updateHorizontal() {
     
 void NoteTaker::updateVertical() {
     // to do : if running, transpose all up/down
+    if (insertButton->ledOn) {
+        // -2: delete; -1: show delete; 0: show insert loc;  1: show insert; note 2: insert
+        switch ((int) verticalWheel->value) {
+            case -2:
+                if (!selectStart) {
+                    return;  // nothing to delete if insertion is at the start
+                }
+                allNotes.erase(allNotes.begin() + selectStart,
+                               allNotes.begin() + selectEnd);
+                verticalWheel->setValue(0);
+            break;
+            case 2:
+                vector<DisplayNote> span{allNotes.begin() + copyStart,
+                                     allNotes.begin() + copyEnd };
+                allNotes.insert(allNotes.begin() + selectStart, span.begin(), span.end());
+                verticalWheel->setValue(0);
+            break;
+        }
+        return;
+    }
     array<DisplayNote*, channels> lastNote;
     lastNote.fill(nullptr);
     for (unsigned index = selectStart; index < selectEnd; ++index) {
@@ -134,15 +156,25 @@ void NoteTaker::updateVertical() {
 
 void NoteTaker::outputNote(const DisplayNote& note) {
     unsigned noteIndex = &note - &allNotes.front();
-    assert(note.channel < CV_OUTPUTS);
-    gateOut[note.channel] = noteIndex;
+    assert((0xFF == note.channel && MIDI_HEADER == note.type) || note.channel < CV_OUTPUTS);
+    if (0xFF == note.channel) {
+        gateOut.fill(noteIndex);
+    } else {
+        gateOut[note.channel] = noteIndex;
+    }
     if (NOTE_ON == note.type) {
         outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
 	    float v_oct = inputs[V_OCT_INPUT].value;
         outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
     } else {
         assert((MIDI_HEADER == note.type && insertButton->ledOn) || REST_TYPE == note.type);
-        outputs[GATE1_OUTPUT + note.channel].value = 0;
+        if (0xFF == note.channel) {
+            for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
+                outputs[GATE1_OUTPUT + index].value = 0;
+            }
+        } else {
+            outputs[GATE1_OUTPUT + note.channel].value = 0;
+        }
     }
 }
 
@@ -191,7 +223,7 @@ void NoteTaker::setWheelRange() {
     int selectMax = this->horizontalCount();
     if (durationButton->ledOn) {
         // range is 0 to NoteTakerDisplay.durations.size(); find value in array values
-        horizontalWheel->setLimits(0, noteDurations.size());
+        horizontalWheel->setLimits(0, noteDurations.size() - 1);
     } else {
         horizontalWheel->setLimits(selectMin, selectMax);
     }
@@ -215,8 +247,14 @@ void NoteTaker::setWheelRange() {
         horizontalWheel->setValue(index);
     }
     // vertical wheel range 0 to 127 for midi pitch
-    if (MIDI_HEADER != note->type) {
-        verticalWheel->setValue(note->pitch());
+    if (insertButton->ledOn) {
+        verticalWheel->setLimits(-2, 2);
+        verticalWheel->setValue(0);
+    } else {
+        verticalWheel->setLimits(0, 127);
+        if (MIDI_HEADER != note->type) {
+            verticalWheel->setValue(note->pitch());
+        }
     }
     debug("horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
             horizontalWheel->maxValue);

@@ -62,12 +62,11 @@ struct NoteTaker : Module {
 	};
     SchmittTrigger runningTrigger;
 
-    float phase = 0.0;
-
     vector<uint8_t> midi;
     vector<DisplayNote> allNotes;
-//    array<unsigned, channels> cvOut;
     array<unsigned, channels> gateOut;     // index into allNotes of current gate out per channel
+	std::shared_ptr<Font> musicFont;
+	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
     DurationButton* durationButton = nullptr;
     InsertButton* insertButton = nullptr;
@@ -79,7 +78,9 @@ struct NoteTaker : Module {
     unsigned displayStart = 0;              // index into allNotes of first visible note
     unsigned displayEnd = 0;
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
-    unsigned selectEnd = 0;                 // one past last selected (if start == end, insert)
+    unsigned selectEnd = 0;                 // one past last selected
+    unsigned copyStart = 0;                 // copied from select when insert is activated
+    unsigned copyEnd = 0;
     unsigned selectChannels = 0x0F;         // bit set for each active channel (all by default)
     float elapsedSeconds = 0;
     bool running = false;
