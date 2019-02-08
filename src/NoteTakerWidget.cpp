@@ -73,4 +73,5 @@ struct NoteTakerWidget : ModuleWidget {
 // author name for categorization per plugin, module slug (should never
 // change), human-readable module name, and any number of tags
 // (found in `include/tags.hpp`) separated by commas.
-Model *modelNoteTaker = Model::create<NoteTaker, NoteTakerWidget>("NoteTaker", "NoteTakerWidget", "Note Taker", OSCILLATOR_TAG);
+Model *modelNoteTaker = Model::create<NoteTaker, NoteTakerWidget>("SchmickleWorks",
+        "NoteTakerWidget", "Note Taker", SEQUENCER_TAG);

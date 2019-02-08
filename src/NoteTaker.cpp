@@ -4,6 +4,7 @@
 #include "NoteTakerMakeMidi.hpp"
 #include "NoteTakerParseMidi.hpp"
 #include "NoteTakerWheel.hpp"
+#include <limits.h>
 
 // todo:
 	// For more advanced Module features, read Rack's engine.hpp header file
