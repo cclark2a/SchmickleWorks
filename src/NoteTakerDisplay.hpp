@@ -17,7 +17,6 @@ struct NoteTakerDisplay : TransparentWidget {
     
     void draw(NVGcontext* vg) override;
     void drawNote(NVGcontext* , const DisplayNote& , int offset, int alpha);
-    void drawPath(NVGcontext* , const int8_t [], size_t , int );
 
     static unsigned DurationIndex(int duration) {
         for (unsigned i = 0; i < noteDurations.size(); ++i) {

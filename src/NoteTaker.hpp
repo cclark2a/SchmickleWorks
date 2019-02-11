@@ -9,10 +9,12 @@
 using std::array;
 using std::vector;
 
+struct CutButton;
 struct DurationButton;
 struct InsertButton;
 struct PartButton;
 struct RestButton;
+struct RunEnterButton;
 struct SelectButton;
 struct NoteTakerDisplay;
 struct NoteTakerWheel;
@@ -22,13 +24,13 @@ constexpr unsigned CV_OUTPUTS = 4;
 
 struct NoteTaker : Module {
 	enum ParamIds {
-        RUN_BUTTON,
+        RUNENTER_BUTTON,
         DURATION_BUTTON,
         INSERT_BUTTON,
         EXTEND_BUTTON,
         PART_BUTTON,
         REST_BUTTON,
-        BUTTON_6,
+        CUT_BUTTON,
         BUTTON_7,
         BUTTON_8,
         BUTTON_9,
@@ -57,21 +59,22 @@ struct NoteTaker : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-		RUNNING_LIGHT,
 		NUM_LIGHTS
 	};
-    SchmittTrigger runningTrigger;
 
     vector<uint8_t> midi;
     vector<DisplayNote> allNotes;
+    vector<DisplayNote> clipboard;
     array<unsigned, channels> gateOut;     // index into allNotes of current gate out per channel
 	std::shared_ptr<Font> musicFont;
 	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
+    CutButton* cutButton = nullptr;
     DurationButton* durationButton = nullptr;
     InsertButton* insertButton = nullptr;
     PartButton* partButton = nullptr;
     RestButton* restButton = nullptr;
+    RunEnterButton* runEnterButton = nullptr;
     SelectButton* selectButton = nullptr;
     NoteTakerWheel* horizontalWheel = nullptr;
     NoteTakerWheel* verticalWheel = nullptr;
@@ -83,11 +86,20 @@ struct NoteTaker : Module {
     unsigned copyEnd = 0;
     unsigned selectChannels = 0x0F;         // bit set for each active channel (all by default)
     float elapsedSeconds = 0;
-    bool running = false;
     bool playingSelection = false;             // if set, provides feedback when editing notes
 
     NoteTaker();
+
+    void copyNotes() {
+        clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
+    }
+
     void debugDump() const;
+
+    void eraseNotes() {
+        allNotes.erase(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
+    }
+
     unsigned firstOn() const {
         for (unsigned index = 0; index < allNotes.size(); ++index) {
             if (NOTE_ON == allNotes[index].type) {
@@ -98,6 +110,7 @@ struct NoteTaker : Module {
     }
 
     int horizontalCount() const;
+    bool isEmpty() const;
 
     unsigned lastAt(int midiTime) const {
         assert(displayStart < allNotes.size());
@@ -171,4 +184,13 @@ struct NoteTaker : Module {
 	void step() override;
     void updateHorizontal();
     void updateVertical();
+
+    void zeroGates() {
+        for (unsigned index = 0; index < channels; ++index) {
+            gateOut[index] = 0;
+        }
+        for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
+            outputs[GATE1_OUTPUT + index].value = 0;
+        }
+    }
 };

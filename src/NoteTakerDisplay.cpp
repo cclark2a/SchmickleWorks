@@ -37,26 +37,6 @@ const StaffNote pitchMap[] = {
     { 4, 0}, { 4, 1}, { 3, 0}, { 3, 1}, { 2, 0}, { 1, 0}, { 1, 1}, { 0, 0}                                      // C9
 };
 
-// simple compressed paths are stored as (x, y).. where duplicated (x, y) values close the
-// contour and start a new one
-const int8_t downArrow[] =  { 0, 0,  4, 0,  4, 3,  0, 3,  0, 0,
-                              0, 4,  4, 4,  4, 6,  0, 6,  0, 4,
-                              0, 7,  4, 7,  4, 9,  0, 9,  0, 7,
-                             -1, 10, 5, 10, 2, 13, -1, 10 };
-const size_t downArrowSize = sizeof(downArrow);
-
-const int8_t upArrow[] =    {  0,  0,  4,  0,  4, -3,  0, -3,  0,  0,
-                               0, -4,  4, -4,  4, -6,  0, -6,  0, -4,
-                               0, -7,  4, -7,  4, -9,  0, -9,  0, -7,
-                              -1, -10, 5, -10, 2, -13, -1, -10 };
-const size_t upArrowSize = sizeof(upArrow);
-
-const int8_t xOut[] =       {  0, -1,  2, -3,   4, -3,   1,  0,
-                                       4,  3,   2,  3,   0,  1,
-                                      -2,  3,  -4,  3,  -1,  0,
-                                      -4, -3,  -2, -3,   0, -1 };
-const size_t xOutSize = sizeof(xOut);
-
 void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) {
     const StaffNote& pitch = pitchMap[note.pitch()];
     float yPos = pitch.position * 3 - 48.25; // middle C 60 positioned at 39 maps to 66
@@ -90,48 +70,21 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
     nvgFillColor(vg, nvgRGB(0, 0, 0));
 }
 
-void NoteTakerDisplay::drawPath(NVGcontext *vg, const int8_t data[], size_t size, int xPos) {
-    nvgSave(vg);
-    nvgScale(vg, 4, 4);
-    nvgTranslate(vg, xPos, 0);
-
-    int8_t firstX, firstY;
-    bool doMoveTo = true;
-    nvgBeginPath(vg);
-    for (size_t index = 0; index < size; index += 2) {
-        if (doMoveTo) {
-            firstX = data[index];
-            firstY = data[index + 1];
-            nvgMoveTo(vg, firstX, firstY);
-            doMoveTo = false;
-            continue;
-        }
-        if (firstX == data[index] && firstY == data[index + 1]) {
-            nvgClosePath(vg);
-            doMoveTo = true;
-            continue;
-        }
-        nvgLineTo(vg, data[index], data[index + 1]);
-    }
-
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
-    nvgFill(vg);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgRestore(vg);
-}
-
 void NoteTakerDisplay::draw(NVGcontext *vg) {
-    // draw staff
+    // draw bounds
+    // to do : clip to bounds
 	nvgStrokeWidth(vg, 1.0);
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, box.size.x, box.size.y);
 	nvgStrokeColor(vg, nvgRGB(0, 0, 0));
 	nvgStroke(vg);
+    // draw vertical line at end of staff lines
     nvgBeginPath(vg);
     nvgMoveTo(vg, 2, 36);
     nvgLineTo(vg, 2, 96);
     nvgStrokeWidth(vg, 0.5);
     nvgStroke(vg);
+    // draw staff lines
     nvgBeginPath(vg);
     for (int staff = 36; staff <= 72; staff += 36) {
         for (int y = staff; y <= staff + 24; y += 6) { 
@@ -141,6 +94,7 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     }
 	nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
 	nvgStroke(vg);
+     // draw treble and bass clefs
     nvgFontFaceId(vg, module->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 46);
@@ -148,14 +102,23 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     nvgFontSize(vg, 36);
     nvgText(vg, 4, 92, "?", NULL);
     nvgFontSize(vg, 42);
-
-    if (module->insertButton->ledOn && module->selectStart == 0) {
-    	nvgBeginPath(vg);
-        nvgRect(vg, 24, 0, 4, box.size.y);
-        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
-        nvgFill(vg);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
+    // draw selection rect
+    nvgBeginPath(vg);
+    const DisplayNote& selectStart = module->allNotes[module->selectStart];
+    int xStart = 32 + selectStart.startTime / 4;
+    if (module->selectButton->editStart()) {
+        if (module->selectStart == 0) {
+            nvgRect(vg, 24, 0, 4, box.size.y);
+        } else {
+            nvgRect(vg, xStart + 13, 0, 4, box.size.y);
+        }
+    } else {
+        const DisplayNote& selectEnd = module->allNotes[module->selectEnd];
+        int xEnd = 32 + selectEnd.startTime / 4;
+        nvgRect(vg, xStart - 5, 0, xEnd - xStart, box.size.y);
     }
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
+    nvgFill(vg);
     // draw notes
     for (unsigned i = module->displayStart; i < module->displayEnd; ++i) {
         const DisplayNote& note = module->allNotes[i];
@@ -163,36 +126,13 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
             case NOTE_OFF:
             break;
             case NOTE_ON: {
-                if (0) debug("draw note %d %d\n", note.startTime, note.pitch());
                 int xPos = 32 + note.startTime / 4;
-                if (module->selectStart == i) {
-    	            nvgBeginPath(vg);
-                    if (module->insertButton->ledOn) {
-                        switch ((int) module->verticalWheel->value) {
-                            case -1:
-                                this->drawPath(vg, downArrow, downArrowSize, xPos);
-                                this->drawPath(vg, xOut, xOutSize, xPos);
-                            break;
-                            case 0:
-                                nvgRect(vg, xPos + 13, 0, 4, box.size.y);
-                            break;
-                            case 1:
-                                this->drawNote(vg, note, xPos, 0x1f);
-                                this->drawPath(vg, upArrow, upArrowSize, xPos + 13);
-                            break;
-                        }
-                    } else {
-                        nvgRect(vg, xPos - 5, 0, 16, box.size.y);
-                    }
-                    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
-                    nvgFill(vg);
-                    nvgFillColor(vg, nvgRGB(0, 0, 0));
-                }
                 this->drawNote(vg, note, xPos, 0xFF);
             } break;
             case REST_TYPE:
                 // to do
                 debug("draw rest %d %d\n", note.startTime, note.pitch());
+                nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
                 nvgText(vg, 32 + note.startTime / 4, note.pitch(), "Q", NULL);
             break;
             case MIDI_HEADER:
@@ -202,7 +142,8 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
             break;
             case TIME_SIGNATURE:
                 debug("draw time signature %d %d\n", note.startTime, note.pitch());
-                nvgText(vg, note.startTime, note.pitch(), "c", NULL);
+                nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
+                nvgText(vg, 32 + note.startTime / 4, note.pitch(), "c", NULL);
             break;
             case MIDI_TEMPO:
             break;
