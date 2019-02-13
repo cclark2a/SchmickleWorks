@@ -123,8 +123,6 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     for (unsigned i = module->displayStart; i < module->displayEnd; ++i) {
         const DisplayNote& note = module->allNotes[i];
         switch (note.type) {
-            case NOTE_OFF:
-            break;
             case NOTE_ON: {
                 int xPos = 32 + note.startTime / 4;
                 this->drawNote(vg, note, xPos, 0xFF);

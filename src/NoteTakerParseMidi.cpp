@@ -1,3 +1,4 @@
+#include "NoteTakerDisplay.hpp"
 #include "NoteTakerParseMidi.hpp"
 #include "NoteTakerMakeMidi.hpp"
 
@@ -60,17 +61,15 @@ void NoteTakerParseMidi::parseMidi() {
         displayNote.channel = *iter++ & 0x0F;
         memset(displayNote.data, 0, sizeof(displayNote.data));
         switch(displayNote.type) {
-            case NOTE_OFF: {
+            case UNUSED: {  // midi note off
                 if (!midi_check7bits(iter)) {
                     return;
                 }
                 int pitch = *iter++;
-                displayNote.setPitch(pitch);
                 if (!midi_check7bits(iter)) {
                     return;
                 }
                 int velocity = *iter++;
-                displayNote.setOffVelocity(velocity);
                 bool found = false;
                 for (auto ri = displayNotes.rbegin(); ri != displayNotes.rend(); ++ri) {
                     if (ri->type != NOTE_ON) {
@@ -90,6 +89,7 @@ void NoteTakerParseMidi::parseMidi() {
                                 ri->startTime, midiTime);
                     }
                     ri->duration = midiTime - ri->startTime;
+                    ri->setNote(NoteTakerDisplay::DurationIndex(ri->duration));
                     ri->setOffVelocity(velocity);
                     found = true;
                     break;
@@ -98,7 +98,7 @@ void NoteTakerParseMidi::parseMidi() {
                     debug("note: note off channel=%d pitch=%d not found\n",
                             displayNote.channel, pitch);
                 }
-
+                continue;  // do not store note off
             } break;
             case NOTE_ON:
                 if (!midi_check7bits(iter)) {

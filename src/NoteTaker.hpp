@@ -14,7 +14,7 @@ struct DurationButton;
 struct InsertButton;
 struct PartButton;
 struct RestButton;
-struct RunEnterButton;
+struct RunButton;
 struct SelectButton;
 struct NoteTakerDisplay;
 struct NoteTakerWheel;
@@ -24,13 +24,13 @@ constexpr unsigned CV_OUTPUTS = 4;
 
 struct NoteTaker : Module {
 	enum ParamIds {
-        RUNENTER_BUTTON,
-        DURATION_BUTTON,
-        INSERT_BUTTON,
+        RUN_BUTTON,
         EXTEND_BUTTON,
-        PART_BUTTON,
-        REST_BUTTON,
+        INSERT_BUTTON,
         CUT_BUTTON,
+        REST_BUTTON,
+        PART_BUTTON,
+        BUTTON_6,
         BUTTON_7,
         BUTTON_8,
         BUTTON_9,
@@ -74,7 +74,7 @@ struct NoteTaker : Module {
     InsertButton* insertButton = nullptr;
     PartButton* partButton = nullptr;
     RestButton* restButton = nullptr;
-    RunEnterButton* runEnterButton = nullptr;
+    RunButton* runButton = nullptr;
     SelectButton* selectButton = nullptr;
     NoteTakerWheel* horizontalWheel = nullptr;
     NoteTakerWheel* verticalWheel = nullptr;
@@ -141,8 +141,10 @@ struct NoteTaker : Module {
     }
 
     int noteIndex(const DisplayNote& match) const;
+    int nthNoteIndex(int value) const;  // maps wheel value to index in allNotes
     void outputNote(const DisplayNote& note);
     void playSelection();
+    void setDisplayEnd();
 
     void setExpiredGatesLow(int midiTime) {
         for (unsigned channel = 0; channel < channels; ++channel) {
@@ -181,6 +183,15 @@ struct NoteTaker : Module {
     bool setSelectStart(unsigned start);
     void setSelectStartAt(int midiTime, unsigned displayStart, unsigned displayEnd);
     void setWheelRange();
+
+    void shiftNotes(unsigned start, int diff) {
+        for (unsigned index = start; index < allNotes.size(); ++index) {
+            DisplayNote& note = allNotes[index];
+            debug("shiftNotes index=%d diff=%d note=%s", index, diff, note.debugString().c_str());
+            note.startTime += diff;
+        }
+    }
+
 	void step() override;
     void updateHorizontal();
     void updateVertical();

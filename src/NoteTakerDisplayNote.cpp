@@ -2,7 +2,7 @@
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerMakeMidi.hpp"
 
-static_assert(((NOTE_OFF << 4) | 0x80) == midiNoteOff, "note off mismatch");
+static_assert(((UNUSED << 4) | 0x80) == midiNoteOff, "note off mismatch");
 static_assert(((NOTE_ON << 4) | 0x80) == midiNoteOn, "note on mismatch");
 static_assert(((KEY_PRESSURE << 4) | 0x80) == midiKeyPressure, "pressure mismatch");
 static_assert(((CONTROL_CHANGE << 4) | 0x80) == midiControlChange, "control mismatch");
@@ -13,7 +13,6 @@ static_assert(((MIDI_SYSTEM << 4) | 0x80) == midiSystem, "system mismatch");
 
 bool DisplayNote::isValid() const {
         switch (type) {
-            case NOTE_OFF:
             case NOTE_ON:
                 if (0 > data[0] || data[0] > 127) {
                     debug("invalid note pitch %d\n", data[0]);
@@ -23,11 +22,11 @@ bool DisplayNote::isValid() const {
                     debug("invalid note channel %d\n", channel);
                     return false;
                 }
-                if (NOTE_ON == type && (unsigned) data[1] >= noteDurations.size()) {
+                if ((unsigned) data[1] >= noteDurations.size()) {
                     debug("invalid on note index %d\n", data[1]);
                     return false;
                 }
-                if (NOTE_ON == type && (0 > data[2] || data[2] > 127)) {
+                if (0 > data[2] || data[2] > 127) {
                     debug("invalid on note pressure %d\n", data[2]);
                     return false;
                 }

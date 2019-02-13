@@ -4,7 +4,7 @@ struct DisplayTypeNames {
     DisplayType type;
     const char* name;
  } typeNames[] = {
-    { NOTE_OFF, "note off"},
+    { UNUSED, "note off"},
     { NOTE_ON, "note on"},
     { KEY_PRESSURE, "key pressure"},
     { CONTROL_CHANGE, "control change"},
@@ -20,13 +20,11 @@ struct DisplayTypeNames {
     { TRACK_END, "track end"},
 };
 
-void DisplayNote::debugDump() const {
-    std::string s = std::to_string(startTime) + " " + typeNames[type].name
+std::string DisplayNote::debugString() const {
+    std::string s;    
+    s += std::to_string(startTime) + " " + typeNames[type].name
             + " [" +  std::to_string(channel) + "] " + std::to_string(duration);
     switch (type) {
-        case NOTE_OFF:
-            s += " pitch=" + std::to_string(pitch());
-        break;
         case NOTE_ON:
             s += " pitch=" + std::to_string(pitch());
             s += " note=" + std::to_string(note());
@@ -50,7 +48,7 @@ void DisplayNote::debugDump() const {
             // to do
             break;
     }
-    debug("%s", s.c_str());
+    return s;
 }
 
 void NoteTaker::debugDump() const {
@@ -60,6 +58,14 @@ void NoteTaker::debugDump() const {
     }
     debug("notes: %d", allNotes.size());
     for (const auto& note : allNotes) {
-        note.debugDump();
+        std::string s;
+        if (&note == &allNotes[selectStart]) {
+            s += "< ";
+        }
+        if (&note == &allNotes[selectEnd]) {
+            s += "> ";
+        }
+        s += note.debugString();
+        debug("%s", s.c_str());
     }
 }

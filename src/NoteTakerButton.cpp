@@ -5,50 +5,61 @@
 
 void EditButton::onDragStart(EventDragStart &e) {
     NoteTaker* nt = nModule();
-    nt->runEnterButton->ledOn = false;
+    nt->runButton->ledOn = false;
     NoteTakerButton::onDragStart(e);
 }
 
 void InsertButton::onDragEnd(EventDragEnd &e) {
     NoteTaker* nt = nModule();
     SelectButton* selectButton = nt->selectButton;
-    if (!ledOn) {   // will be on
-        unsigned insertLoc;
-        selectButton->ledOn = false;
-        unsigned insertSize;
-        if (nt->isEmpty()) {
-        // todo: still need to figure out duration of note vs time of NOTE_OFF
-            insertLoc = nt->allNotes.size() - 1;
-            assert(TRACK_END == nt->allNotes[insertLoc].type);
-            DisplayNote midC = { 0, stdTimePerQuarterNote / 2,
-                    { 60, 0, stdKeyPressure, stdKeyPressure}, 0, NOTE_ON  };
-            midC.setNote(stdTimePerQuarterNote);
-            nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
-            midC.type = NOTE_OFF;
-            midC.startTime = stdTimePerQuarterNote;
-            nt->allNotes.insert(nt->allNotes.end() - 1, midC);
-            insertSize = 2;
-        } else {
-            unsigned iStart, iEnd;
-            if (selectButton->ledOn) {
-                iStart = selectButton->rangeStart;
-                iEnd = selectButton->rangeEnd;
-                insertLoc = nt->selectStart;
-            } else {
-                iStart = nt->selectStart;
-                iEnd = nt->selectEnd;
-                insertLoc = nt->selectEnd;
-            }
-            vector<DisplayNote> span{ nt->allNotes.begin() + iStart,
-                    nt->allNotes.begin() + iEnd };
-            nt->allNotes.insert(nt->allNotes.begin() + insertLoc,
-                     span.begin(), span.end());
-            insertSize = span.size();
+    unsigned insertLoc;
+    unsigned shiftLoc;
+    selectButton->ledOn = false;
+    unsigned insertSize;
+    int shiftTime;
+    if (nt->isEmpty()) {
+    // todo: still need to figure out duration of note vs time of NOTE_OFF in midi
+        insertLoc = nt->allNotes.size() - 1;
+        assert(TRACK_END == nt->allNotes[insertLoc].type);
+        DisplayNote midC = { 0, stdTimePerQuarterNote / 2,
+                { 60, 0, stdKeyPressure, stdKeyPressure}, 0, NOTE_ON  };
+        midC.setNote(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
+        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
+        insertSize = 1;
+        shiftTime = stdTimePerQuarterNote;
+        shiftLoc = insertLoc + 1;
+    } else {
+        unsigned iStart, iEnd;
+        if (SelectButton::copy_Select == selectButton->state) { // paste part of copy n paste
+            iStart = selectButton->rangeStart;
+            iEnd = selectButton->rangeEnd;
+            insertLoc = nt->selectStart;
+            shiftLoc = nt->selectStart + (iEnd - iStart);
+        } else if (!nt->selectStart) {  // insert left of first note
+            iStart = nt->nthNoteIndex(0);
+            iEnd = nt->selectEnd;
+            insertLoc = iStart;
+            shiftLoc = nt->selectEnd;
+        } else { // duplicate selection
+            iStart = nt->selectStart;
+            iEnd = nt->selectEnd;
+            insertLoc = nt->selectEnd;
+            shiftLoc = nt->selectEnd;
         }
-        nt->selectStart = insertStart = insertLoc;
-        nt->selectEnd = insertEnd = insertLoc + insertSize;
-        nt->setWheelRange();  // range is larger
+        vector<DisplayNote> span{ nt->allNotes.begin() + iStart, nt->allNotes.begin() + iEnd };
+        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, span.begin(), span.end());
+        insertSize = span.size();
+        shiftTime = span.back().startTime - span.front().startTime + span.back().duration * 2;
+        debug("iStart=%u iEnd=%u insertLoc=%u insertSize=%u shiftLoc=%d shiftTime=%d",
+                iStart, iEnd, insertLoc, insertSize, shiftLoc, shiftTime);
+        nt->debugDump();
     }
+    nt->shiftNotes(shiftLoc, shiftTime);
+    nt->selectStart = insertLoc;
+    nt->selectEnd = insertLoc + insertSize;
+    nt->setWheelRange();  // range is larger
+    nt->setDisplayEnd();
+    nt->playSelection();
     NoteTakerButton::onDragEnd(e);
 }
 
@@ -82,13 +93,19 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
     NoteTaker* nt = nModule();
     if (!ledOn) {  // will be on
         nt->insertButton->ledOn = false;
-        runEnterCount = 0;
-    } else {    // select off
-        nt->selectStart = rangeStart;
-        nt->selectEnd = rangeEnd;
-
+        state = off_Select == state && rangeStart == nt->selectStart
+                && rangeEnd == nt->selectEnd
+                ? copy_Select : single_Select;
+    } else if (single_Select == state) {    // select off
+        state = extend_Select;
+        ledOn = false;
+        af = 1;
+    } else if (extend_Select == state) {
+        state = off_Select;
+        rangeStart = nt->selectStart;
+        rangeEnd = nt->selectEnd;
     }
-    nt->setWheelRange();  // if on, set to horz from -1 to size
+    nt->setWheelRange();  // if single_Select == state, set to horz from -1 to size
     NoteTakerButton::onDragEnd(e);
 }
 
@@ -98,47 +115,26 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     if (selectButton->ledOn) {
         nt->copyNotes();
     }
+    int shiftTime = nt->allNotes[nt->selectStart].startTime - nt->allNotes[nt->selectEnd].startTime;
     nt->eraseNotes();
+    nt->selectEnd = nt->selectStart + 1;
+    nt->shiftNotes(nt->selectStart, shiftTime);
+    nt->setWheelRange();  // range is smaller
+    nt->setDisplayEnd();
     if (selectButton->editEnd()) {
-        nt->selectButton->runEnterCount = 0;  // set to no selection so paste point can be chosen
+        nt->selectButton->state = SelectButton::single_Select;  // set so paste point can be chosen
     }
     NoteTakerButton::onDragEnd(e);
 }
 
-bool RunEnterButton::enterMode() const {
-    const NoteTaker* nt = nModule();
-    return nt->insertButton->ledOn || nt->selectButton->ledOn;
+void RunButton::onDragEnd(EventDragEnd &e) {
+    if (ledOn) {    // will be off
+        nModule()->zeroGates();
+    }
+    NoteTakerButton::onDragEnd(e);
 }
 
-void RunEnterButton::onDragEnd(EventDragEnd &e) {
-    NoteTaker* nt = nModule();
-    if (this->enterMode()) {
-        InsertButton* insertButton = nt->insertButton;
-        SelectButton* selectButton = nt->selectButton;
-        if (insertButton->ledOn) {
-            assert(!selectButton->ledOn);
-            unsigned iStart = insertButton->insertStart;
-            vector<DisplayNote> span{nt->allNotes.begin() + iStart,
-                                        nt->allNotes.begin() + insertButton->insertEnd };
-            nt->allNotes.insert(nt->allNotes.begin() + iStart + span.size(),
-                    span.begin(), span.end());
-            insertButton->insertStart = iStart + span.size();
-            insertButton->insertEnd = insertButton->insertStart + span.size();
-            nt->setWheelRange();
-        } else if (selectButton->ledOn) {
-            if (!selectButton->runEnterCount) {
-                selectButton->rangeStart = nt->selectStart;
-                selectButton->rangeEnd = nt->selectStart + 1;
-            } else {
-                selectButton->rangeEnd = nt->selectEnd;
-            }
-            selectButton->runEnterCount++;
-            nt->setWheelRange();
-        }
-    } else {
-        if (ledOn) {    // will be off
-            nModule()->zeroGates();
-        }
-    }
+void DumpButton::onDragEnd(EventDragEnd& e) {
+    nModule()->debugDump();
     NoteTakerButton::onDragEnd(e);
 }

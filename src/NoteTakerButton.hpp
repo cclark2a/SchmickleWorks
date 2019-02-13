@@ -98,8 +98,18 @@ struct EditLEDButton : EditButton {
     void drawLED(NVGcontext *vg) {
         nvgBeginPath(vg);
         nvgRect(vg, 4 + af, 8 - af, 11, 5);
-        nvgFillColor(vg, ledOn ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
+        NVGcolor color = ledColor();
+        if (!ledOn) {
+            color.r /= 2;
+            color.g /= 2;
+            color.b /= 2;
+        }
+        nvgFillColor(vg, color);
         nvgFill(vg);
+    }
+
+    virtual NVGcolor ledColor() const {
+        return nvgRGB(0xF7, 0x37, 0x17);
     }
 
 };
@@ -109,9 +119,9 @@ struct EditLEDButton : EditButton {
 // to duplicate in place : select / horz / select / horz / insert
 // to copy and paste     : select / horz / select / horz / select (off) / select / horz / insert
 // to cut and paste      : select / horz / select / horz / cut    / horz / insert
-// to delete range       : select / horz / select / horz / cut    / select (off)
+// to delete range       : select / horz / select / horz / select (off) / cut   
 // to edit range         : select / horz / select / horz / select (off) / horz or vert
-// to insert multiple   : (select / horz / select / select (off)) / insert / insert / insert / ...
+// to insert multiple   : (select / horz) / insert / insert / insert / ...
 
 // insert adds a note or clipboard, wheels edit pitch / duration of working note
 //   and sets selection to note(s) added
@@ -134,9 +144,9 @@ struct EditLEDButton : EditButton {
 
 // insert adds new note to right of select, defaulting to selected note / cut buffer
 // insert turns off select
-struct InsertButton : EditLEDButton {
+struct InsertButton : EditButton {
     void draw(NVGcontext *vg) override {
-        EditLEDButton::draw(vg);
+        EditButton::draw(vg);
         // replace this with a font character if one can be found
         nvgTranslate(vg, af, 6 - af);
         nvgBeginPath(vg);
@@ -158,30 +168,41 @@ struct InsertButton : EditLEDButton {
     }
 
     void onDragEnd(EventDragEnd &e) override;
-
-    unsigned insertStart;  // to undo insertion if enter is not pressed
-    unsigned insertEnd;
 };
 
 // select button permits moving selection before, after, and between notes
-//   select turns off insert
-//   select off discards cut buffer
+//   select off disables clipboard
+//   select off / select on enables clipboard
 //   pressing run / enter locks start of selection, horz wheel extends selection
 //   wheel up / down transposes selection
 struct SelectButton : EditLEDButton {
+    enum State {
+        single_Select,
+        extend_Select,
+        off_Select,     // set when previous state was extend_Select
+        copy_Select,
+    };
+
     void draw(NVGcontext *vg) override;
-    bool editEnd() const { return ledOn && runEnterCount; }
-    bool editStart() const { return ledOn && !runEnterCount; }
+    bool editEnd() const { return ledOn && state == extend_Select; }
+    bool editStart() const { return ledOn && (state == single_Select || state == copy_Select); }
     void onDragEnd(EventDragEnd &e) override;
 
-    int runEnterCount = 0;
-    unsigned rangeStart;  // stored on enter press
+    NVGcolor ledColor() const override {
+        if (extend_Select == state) {
+            return nvgRGB(0x17, 0x37, 0xF7);
+        }
+        return EditLEDButton::ledColor();
+    }
+
+    State state = single_Select;
+    unsigned rangeStart;  // stored on off_Select state
     unsigned rangeEnd;
 };
 
+// stateful button that chooses if vertical wheel changes pitch or part
 // wheel up / down chooses one channel or chooses all channels
-// wheel left / right ???
-struct PartButton : EditButton {
+struct PartButton : EditLEDButton {
     void draw(NVGcontext *vg) override;
 };
 
@@ -194,7 +215,7 @@ struct RestButton : EditButton {
 
 // cut button, momentary (no led)
 //   cut with single select saves cut, deletes one note
-//   cut with extended select saves cut, deletes range, select select to single
+//   cut with extend select saves cut, deletes range, select select to single
 //   cut with select button off deletes current selection, does not modify clipboard
 //   select off discards clipboard
 //   if cut is saved in clipboard, insert adds clipboard as paste
@@ -223,7 +244,12 @@ struct CutButton : EditButton {
     void onDragEnd(EventDragEnd &e) override;
 };
 
-struct RunEnterButton : NoteTakerButton {
+// to do : consider allowing quick on/off to advance to next note in selection
+struct RunButton : NoteTakerButton {
+    RunButton() {
+        hasLed = true;
+    }
+
     // to do : make a button that depresses
     void draw(NVGcontext* vg) override {
         nvgBeginPath(vg);
@@ -236,17 +262,15 @@ struct RunEnterButton : NoteTakerButton {
         nvgFill(vg);
     }
 
-    bool enterMode() const;
-
-    void onDragStart(EventDragStart &e) override {
-        hasLed = !this->enterMode();
-        NoteTakerButton::onDragStart(e);
-    }
-
     bool running() const {
-        return ledOn && !this->enterMode();
+        return ledOn;
     }
 
     void onDragEnd(EventDragEnd &e) override;
+};
 
+// to do : remove 
+// temporary button to dump notes for debugging
+struct DumpButton : EditButton {
+    void onDragEnd(EventDragEnd &e) override;
 };

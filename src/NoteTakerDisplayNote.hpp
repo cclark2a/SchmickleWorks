@@ -6,7 +6,7 @@ constexpr unsigned channels = 16;   // midi channels; only 4 supported via outpu
 
 enum DisplayType : uint8_t {
 // enums below match MIDI channel voice message high nybble order
-    NOTE_OFF,          // not drawn, but kept for saving as midi
+    UNUSED,            // midi note off slot
     NOTE_ON,
     KEY_PRESSURE,
     CONTROL_CHANGE,
@@ -38,13 +38,13 @@ struct DisplayNote {
     DisplayType type;
 
     int pitch() const {
-        assertValid(type == NOTE_ON ? NOTE_ON : NOTE_OFF);
+        assertValid(NOTE_ON);
         return data[0];             // using MIDI note assignment
     }
 
     void setPitch(int pitch) {
         data[0] = pitch;
-        assertValid(type == NOTE_ON ? NOTE_ON : NOTE_OFF);
+        assertValid(NOTE_ON);
     }
 
     int format() const {
@@ -109,7 +109,7 @@ struct DisplayNote {
 
     void setOffVelocity(int velocity) {
         data[3] = velocity;
-        assertValid(type == NOTE_ON ? NOTE_ON : NOTE_OFF);
+        assertValid(NOTE_ON);
     }
 
     void assertValid(DisplayType t) const {
@@ -146,5 +146,5 @@ struct DisplayNote {
         return (NOTE_ON == type || REST_TYPE == type) && (selectChannels & (1 << channel));
     }
 
-    void debugDump() const;
+    std::string debugString() const;
 };

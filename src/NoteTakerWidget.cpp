@@ -34,37 +34,41 @@ struct NoteTakerWidget : ModuleWidget {
             NoteTaker::GATE1_OUTPUT + i));
         }
 
-        module->runEnterButton = ParamWidget::create<RunEnterButton>(Vec(200, 172),
-                 module, NoteTaker::RUNENTER_BUTTON, 0.0f, 1.0f, 0.0f);
-        addParam(module->runEnterButton);
+        module->runButton = ParamWidget::create<RunButton>(Vec(200, 172),
+                 module, NoteTaker::RUN_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->runButton);
+
+        module->selectButton = ParamWidget::create<SelectButton>(Vec(30, 202),
+                module, NoteTaker::EXTEND_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->selectButton);
         module->insertButton = ParamWidget::create<InsertButton>(Vec(62, 202),
                 module, NoteTaker::INSERT_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->insertButton);
-        module->selectButton = ParamWidget::create<SelectButton>(Vec(94, 202),
-                module, NoteTaker::EXTEND_BUTTON, 0.0f, 1.0f, 0.0f);
-        addParam(module->selectButton);
-        module->partButton = ParamWidget::create<PartButton>(Vec(126, 202),
-                module, NoteTaker::PART_BUTTON, 0.0f, 1.0f, 0.0f);
-        addParam(module->partButton);
-        module->restButton = ParamWidget::create<RestButton>(Vec(158, 202),
-                module, NoteTaker::REST_BUTTON, 0.0f, 1.0f, 0.0f);
-        addParam(module->restButton);
-        module->cutButton = ParamWidget::create<CutButton>(Vec(190, 202),
+        module->cutButton = ParamWidget::create<CutButton>(Vec(94, 202),
                 module, NoteTaker::CUT_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->cutButton);
-        addParam(ParamWidget::create<NoteTakerButton>(Vec(30, 252), module, NoteTaker::BUTTON_7,
+        module->restButton = ParamWidget::create<RestButton>(Vec(126, 202),
+                module, NoteTaker::REST_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->restButton);
+        module->partButton = ParamWidget::create<PartButton>(Vec(158, 202),
+                module, NoteTaker::PART_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->partButton);
+        addParam(ParamWidget::create<EditButton>(Vec(190, 202), module, NoteTaker::BUTTON_6,
                 0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<NoteTakerButton>(Vec(62, 252), module, NoteTaker::BUTTON_8,
+
+        addParam(ParamWidget::create<EditButton>(Vec(30, 252), module, NoteTaker::BUTTON_7,
                 0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<NoteTakerButton>(Vec(94, 252), module, NoteTaker::BUTTON_9,
+        addParam(ParamWidget::create<EditButton>(Vec(62, 252), module, NoteTaker::BUTTON_8,
                 0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<NoteTakerButton>(Vec(126, 252), module, NoteTaker::BUTTON_10,
+        addParam(ParamWidget::create<EditButton>(Vec(94, 252), module, NoteTaker::BUTTON_9,
                 0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<NoteTakerButton>(Vec(158, 252), module, NoteTaker::BUTTON_11,
+        addParam(ParamWidget::create<EditButton>(Vec(126, 252), module, NoteTaker::BUTTON_10,
                 0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<NoteTakerButton>(Vec(190, 252), module, NoteTaker::BUTTON_12,
+        addParam(ParamWidget::create<EditButton>(Vec(158, 252), module, NoteTaker::BUTTON_11,
                 0.0f, 1.0f, 0.0f));
-        module->runEnterButton->ledOn = true;  // start running after everything is set up
+        addParam(ParamWidget::create<DumpButton>(Vec(190, 252), module, NoteTaker::BUTTON_12,
+                0.0f, 1.0f, 0.0f));
+        module->runButton->ledOn = true;  // start running after everything is set up
     }
 };
 

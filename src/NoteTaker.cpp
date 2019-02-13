@@ -43,10 +43,34 @@ int NoteTaker::horizontalCount() const {
 bool NoteTaker::isEmpty() const {
     for (auto& note : allNotes) {
         if (note.isSelectable(selectChannels)) {
-            return true;
+            return false;
         }
     }
-    return false;
+    return true;
+}
+
+int NoteTaker::nthNoteIndex(int value) const {
+    int lastTime = -1;
+    for (auto& note : allNotes) {
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        if (value <= 0) {
+            if (value < 0) {
+                assert(selectButton->editStart());
+                return 0;
+            } else {
+                return &note - &allNotes.front();
+            }
+        }
+        if (lastTime == note.startTime) {
+            continue;
+        }
+        --value;
+        lastTime = note.startTime;
+    }
+    assert(0);
+    return -1;
 }
 
 int NoteTaker::noteIndex(const DisplayNote& match) const {
@@ -72,13 +96,13 @@ int NoteTaker::noteIndex(const DisplayNote& match) const {
 }
 
 void NoteTaker::updateHorizontal() {
-    if (runEnterButton->running()) {
+    if (runButton->running()) {
         // to do : while running, change tempo
         return;
     }
     int wheelValue = (int) horizontalWheel->value;
     bool noteChanged = false;
-    if (!selectButton->ledOn) {  // insertButton may be on or off
+    if (!selectButton->ledOn) {
         int diff = 0;
         for (unsigned index = selectStart; index < selectEnd; ++index) {
             DisplayNote& note = allNotes[index];
@@ -92,37 +116,16 @@ void NoteTaker::updateHorizontal() {
             }
         }
         if (diff) {
-            for (unsigned index = selectEnd; index < allNotes.size(); ++index) {
-                DisplayNote& note = allNotes[index];
-                note.startTime += diff;
-            }
+            this->shiftNotes(selectEnd, diff);
             noteChanged = true;
         }
     } else {
     // value should range from 0 to max - 1, where max is number of starts for active channels
     // if insert mode, value ranges from -1 to max - 1
-        int lastTime = -1;
-        for (auto& note : allNotes) {
-            if (!note.isSelectable(selectChannels)) {
-                continue;
-            }
-            if (wheelValue <= 0) {
-                unsigned index;
-                if (wheelValue < 0) {
-                    assert(selectButton->editStart());
-                    index = 0;
-                } else {
-                    index = &note - &allNotes.front();
-                }
-                noteChanged = selectButton->editEnd() ? setSelectEnd(index) : setSelectStart(index);
-                break;
-            }
-            if (lastTime == note.startTime) {
-                continue;
-            }
-            --wheelValue;
-            lastTime = note.startTime;
-        }
+        int index = this->nthNoteIndex(wheelValue);
+        assert(index >= 0);
+        noteChanged = selectButton->editEnd() ? this->setSelectEnd(index) :
+                this->setSelectStart(index);
     }
     if (noteChanged) {
         this->playSelection();
@@ -130,18 +133,38 @@ void NoteTaker::updateHorizontal() {
 }
     
 void NoteTaker::updateVertical() {
-    if (runEnterButton->running()) {
+    if (runButton->running()) {
         // to do : if running, transpose all up/down
         return;
     }
+    if (selectButton->ledOn) {
+        // to do : choose selectable part
+        return;
+    }
+    if (partButton->ledOn) {
+        // to do : move selection to chosen part
+        return;
+    }
+    // transpose selection
+    // to do : wheel max / min needs to consider max/min of all notes in selection
+    // loop below computes diff of first note, and adds diff to subsequent notes in select
     array<DisplayNote*, channels> lastNote;
     lastNote.fill(nullptr);
-    for (unsigned index = selectStart; index < selectEnd; ++index) {
+    int diff = 0;
+    for (unsigned index = selectStart ; index < selectEnd; ++index) {
         DisplayNote& note = allNotes[index];
-        if (note.isSelectable(selectChannels)) {
-            note.setPitch((int) verticalWheel->value);
-            lastNote[note.channel] = &note;
+        if (!note.isSelectable(selectChannels)) {
+            continue;
         }
+        int value;
+        if (!diff) {
+            value = (int) verticalWheel->value;
+            diff = value - note.pitch();
+        } else {
+            value = note.pitch() + diff;
+        }
+        note.setPitch(value);
+        lastNote[note.channel] = &note;
     }
     for (auto note : lastNote) {
         if (nullptr == note) {
@@ -179,6 +202,13 @@ void NoteTaker::outputNote(const DisplayNote& note) {
 void NoteTaker::playSelection() {
     elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime);
     playingSelection = true;
+}
+
+void NoteTaker::setDisplayEnd() {
+    // todo: allow time range to display to be scaled from box width
+    // calc here must match NoteTakerDisplay::draw:75
+    displayEnd = this->lastAt(allNotes[displayStart].startTime
+            + display->box.size.x * 4 - 32);
 }
 
 bool NoteTaker::setSelectStart(unsigned start) {
@@ -219,28 +249,38 @@ void NoteTaker::setWheelRange() {
     // horizontal wheel range and value
     int selectMin = selectButton->editStart() ? -1 : 0;
     int selectMax = this->horizontalCount();
-    if (!selectButton->ledOn) {  // insertButton may be on or off
+    if (!selectButton->ledOn) {
         // range is 0 to NoteTakerDisplay.durations.size(); find value in array values
         horizontalWheel->setLimits(0, noteDurations.size() - 1);
     } else {
         horizontalWheel->setLimits(selectMin, selectMax);
     }
     const DisplayNote* note = &allNotes[selectStart];
-    if (!selectButton->ledOn) {  // insertButton may be on or off
+    if (!selectButton->ledOn) {
         horizontalWheel->setValue(note->note());
     } else {
         int index = this->noteIndex(*note);
         if (index < selectMin || index >= selectMax) {
-            debug("! note type %d index %d selectMin %d", note->type, index, selectMin);
+            debug("! note type %d index %d selectMin %d selectMax %d",
+                    note->type, index, selectMin, selectMax);
         }
         assert(index >= selectMin);
         assert(index < selectMax);
         horizontalWheel->setValue(index);
     }
     // vertical wheel range 0 to 127 for midi pitch
-    verticalWheel->setLimits(0, 127);
-    if (MIDI_HEADER != note->type) {
-        verticalWheel->setValue(note->pitch());
+    if (partButton->ledOn || selectButton->ledOn) {
+        verticalWheel->setLimits(0, CV_OUTPUTS);
+        // only makes sense if there is a selectStart?
+        // to do : set speed so small number of entries moves OK
+        // to do : only do this if SelectButton::single_Select == selectButton->state ?
+        verticalWheel->setLimits(0, CV_OUTPUTS);
+        // to do : set vertical wheel value to selectStart channel
+    } else {
+        verticalWheel->setLimits(0, 127);
+        if (MIDI_HEADER != note->type) {
+            verticalWheel->setValue(note->pitch());
+        }
     }
     debug("horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
             horizontalWheel->maxValue);
@@ -249,30 +289,31 @@ void NoteTaker::setWheelRange() {
 }
 
 void NoteTaker::step() {
-    if (!display) {
+    if (!runButton || (!runButton->running() && !playingSelection)) {
         return;
-    }   
+    }
     // read data from display notes to determine pitch
     // note on event start changes cv and sets gate high
     // note on event duration sets gate low
 	float deltaTime = engineGetSampleTime();
     elapsedSeconds += deltaTime;
     int midiTime = SecondsToMidi(elapsedSeconds);
-    if (runEnterButton->running()) {
+    if (runButton->running()) {
         // to do: use info in midi header, time signature, tempo to get this right
         this->setExpiredGatesLow(midiTime);
         // if midi time exceeds displayEnd: scroll; reset displayStart, displayEnd
         // if midi time exceeds last of allNotes: either reset to zero and repeat,
         // or stop running
+        bool recomputeDisplayEnd = false;
         if (this->lastNoteEnded(displayEnd, midiTime)) {
             elapsedSeconds = 0;  // to do : don't repeat unconditionally?
             midiTime = 0;
             displayStart = this->firstOn();
             if (!displayStart) { // no notes to play
-                runEnterButton->ledOn = false;
+                runButton->ledOn = false;
                 return;
             }
-            displayEnd = 0;  // recompute display end
+            recomputeDisplayEnd = true;
         } else {
             do {
                 const DisplayNote& note = allNotes[displayStart];
@@ -280,14 +321,11 @@ void NoteTaker::step() {
                     break;
                 }
                 ++displayStart;
-                displayEnd = 0;  // recompute display end
+                recomputeDisplayEnd = true;
             } while (true);
         }
-        if (!displayEnd) {
-            // todo: allow time range to display to be scaled from box width
-            // calc here must match NoteTakerDisplay::draw:75
-            displayEnd = this->lastAt(allNotes[displayStart].startTime
-                    + display->box.size.x * 4 - 32);
+        if (recomputeDisplayEnd) {
+            this->setDisplayEnd();
         }
         this->setSelectStartAt(midiTime, displayStart, displayEnd);
     } else if (playingSelection) { // not running, play note after selecting or editing
