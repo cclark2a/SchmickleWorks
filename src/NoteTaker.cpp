@@ -50,25 +50,27 @@ bool NoteTaker::isEmpty() const {
 }
 
 int NoteTaker::nthNoteIndex(int value) const {
+    if (value < 0) {
+        assert(selectButton->editStart());
+        return 0;
+    }
+    int count = value;
     int lastTime = -1;
     for (auto& note : allNotes) {
         if (!note.isSelectable(selectChannels)) {
             continue;
         }
-        if (value <= 0) {
-            if (value < 0) {
-                assert(selectButton->editStart());
-                return 0;
-            } else {
-                return &note - &allNotes.front();
-            }
+        if (count <= 0) {
+            return &note - &allNotes.front();
         }
         if (lastTime == note.startTime) {
             continue;
         }
-        --value;
+        --count;
         lastTime = note.startTime;
     }
+    debug("nthNoteIndex value %d", value);
+    this->debugDump();
     assert(0);
     return -1;
 }
@@ -146,10 +148,7 @@ void NoteTaker::updateVertical() {
         return;
     }
     // transpose selection
-    // to do : wheel max / min needs to consider max/min of all notes in selection
     // loop below computes diff of first note, and adds diff to subsequent notes in select
-    array<DisplayNote*, channels> lastNote;
-    lastNote.fill(nullptr);
     int diff = 0;
     for (unsigned index = selectStart ; index < selectEnd; ++index) {
         DisplayNote& note = allNotes[index];
@@ -160,19 +159,15 @@ void NoteTaker::updateVertical() {
         if (!diff) {
             value = (int) verticalWheel->value;
             diff = value - note.pitch();
+            if (!diff) {
+                return;
+            }
         } else {
-            value = note.pitch() + diff;
+            value = std::max(0, std::min(127, note.pitch() + diff));
         }
         note.setPitch(value);
-        lastNote[note.channel] = &note;
     }
-    for (auto note : lastNote) {
-        if (nullptr == note) {
-            continue;
-        }
-        this->outputNote(*note);
-        this->playSelection();
-    }
+    this->playSelection();
 }
 
 void NoteTaker::outputNote(const DisplayNote& note) {

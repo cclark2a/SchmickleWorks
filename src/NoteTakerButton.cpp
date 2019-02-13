@@ -96,9 +96,9 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
         state = off_Select == state && rangeStart == nt->selectStart
                 && rangeEnd == nt->selectEnd
                 ? copy_Select : single_Select;
-    } else if (single_Select == state) {    // select off
+    } else if (single_Select == state || copy_Select == state) {    // will be off
         state = extend_Select;
-        ledOn = false;
+        ledOn = false; // keep the led on
         af = 1;
     } else if (extend_Select == state) {
         state = off_Select;
@@ -106,6 +106,9 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
         rangeEnd = nt->selectEnd;
     }
     NoteTakerButton::onDragEnd(e);
+    if (!nt->selectStart && !this->editStart()) {
+        nt->selectStart = nt->nthNoteIndex(0);
+    }
     nt->setWheelRange();  // (after led is updated) if state is single, set to horz from -1 to size
 }
 
