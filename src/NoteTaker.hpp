@@ -65,7 +65,7 @@ struct NoteTaker : Module {
     vector<uint8_t> midi;
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
-    array<unsigned, channels> gateOut;     // index into allNotes of current gate out per channel
+    array<int, channels> gateExpiration; // midi time when gate goes low
 	std::shared_ptr<Font> musicFont;
 	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
@@ -82,8 +82,6 @@ struct NoteTaker : Module {
     unsigned displayEnd = 0;
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
     unsigned selectEnd = 0;                 // one past last selected
-    unsigned copyStart = 0;                 // copied from select when insert is activated
-    unsigned copyEnd = 0;
     unsigned selectChannels = 0x0F;         // bit set for each active channel (all by default)
     float elapsedSeconds = 0;
     bool playingSelection = false;             // if set, provides feedback when editing notes
@@ -96,8 +94,11 @@ struct NoteTaker : Module {
 
     void debugDump() const;
 
-    void eraseNotes() {
-        allNotes.erase(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
+    void eraseNotes(unsigned start, unsigned end) {
+        this->debugDump();
+        debug("eraseNotes start %u end %u", start, end);
+        allNotes.erase(allNotes.begin() + start, allNotes.begin() + end);
+        this->debugDump();
     }
 
     unsigned firstOn() const {
@@ -109,7 +110,7 @@ struct NoteTaker : Module {
         return 0;
     }
 
-    int horizontalCount() const;
+    unsigned horizontalCount() const;
     bool isEmpty() const;
 
     unsigned lastAt(int midiTime) const {
@@ -148,14 +149,12 @@ struct NoteTaker : Module {
 
     void setExpiredGatesLow(int midiTime) {
         for (unsigned channel = 0; channel < channels; ++channel) {
-            unsigned index = gateOut[channel];
-            if (!index) {
+            int endTime = gateExpiration[channel];
+            if (!endTime) {
                 continue;
             }
-            const DisplayNote& gateOnNote = allNotes[index];
-            assert(gateOnNote.channel == channel);
-            if (gateOnNote.startTime + gateOnNote.duration <= midiTime) {
-                gateOut[channel] = 0;
+            if (endTime < midiTime) {
+                gateExpiration[channel] = 0;
                 if (channel < CV_OUTPUTS) {
                     outputs[GATE1_OUTPUT + channel].value = 0;
                 }
@@ -185,11 +184,12 @@ struct NoteTaker : Module {
     void setWheelRange();
 
     void shiftNotes(unsigned start, int diff) {
+        debug("shift notes start %d diff %d", start, diff);
         for (unsigned index = start; index < allNotes.size(); ++index) {
             DisplayNote& note = allNotes[index];
-            debug("shiftNotes index=%d diff=%d note=%s", index, diff, note.debugString().c_str());
             note.startTime += diff;
         }
+        this->debugDump();
     }
 
 	void step() override;
@@ -197,9 +197,7 @@ struct NoteTaker : Module {
     void updateVertical();
 
     void zeroGates() {
-        for (unsigned index = 0; index < channels; ++index) {
-            gateOut[index] = 0;
-        }
+        gateExpiration.fill(0);
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
             outputs[GATE1_OUTPUT + index].value = 0;
         }

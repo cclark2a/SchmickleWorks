@@ -64,7 +64,7 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
 }
 
 void PartButton::draw(NVGcontext *vg) {
-    EditButton::draw(vg);
+    EditLEDButton::draw(vg);
     nvgFontFaceId(vg, nModule()->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
@@ -105,25 +105,29 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
         rangeStart = nt->selectStart;
         rangeEnd = nt->selectEnd;
     }
-    nt->setWheelRange();  // if single_Select == state, set to horz from -1 to size
     NoteTakerButton::onDragEnd(e);
+    nt->setWheelRange();  // (after led is updated) if state is single, set to horz from -1 to size
 }
 
 void CutButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
+    if (nt->isEmpty() || !nt->selectStart) {
+        return;
+    }
     SelectButton* selectButton = nt->selectButton;
     if (selectButton->ledOn) {
         nt->copyNotes();
     }
-    int shiftTime = nt->allNotes[nt->selectStart].startTime - nt->allNotes[nt->selectEnd].startTime;
-    nt->eraseNotes();
+    unsigned start = nt->selectStart;
+    unsigned end = nt->selectEnd;
+    int shiftTime = nt->allNotes[start].startTime - nt->allNotes[end].startTime;
+    nt->eraseNotes(start, end);
+    nt->shiftNotes(start, shiftTime);
+    nt->selectStart = std::min(start, nt->horizontalCount());
     nt->selectEnd = nt->selectStart + 1;
-    nt->shiftNotes(nt->selectStart, shiftTime);
+    selectButton->state = SelectButton::single_Select;    // set so paste point can be chosen
     nt->setWheelRange();  // range is smaller
     nt->setDisplayEnd();
-    if (selectButton->editEnd()) {
-        nt->selectButton->state = SelectButton::single_Select;  // set so paste point can be chosen
-    }
     NoteTakerButton::onDragEnd(e);
 }
 

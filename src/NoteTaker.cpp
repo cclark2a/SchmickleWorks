@@ -14,7 +14,7 @@
     //   when user clicks these from the context menu
 
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-    gateOut.fill(0);
+    gateExpiration.fill(0);
     musicFont = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
     NoteTakerMakeMidi maker;
@@ -24,8 +24,8 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
 }
 
 // to compute range for horizontal wheel when selecting notes
-int NoteTaker::horizontalCount() const {
-    int count = 0;
+unsigned NoteTaker::horizontalCount() const {
+    unsigned count = 0;
     int lastTime = -1;
     for (auto& note : allNotes) {
         if (!note.isSelectable(selectChannels)) {
@@ -176,14 +176,9 @@ void NoteTaker::updateVertical() {
 }
 
 void NoteTaker::outputNote(const DisplayNote& note) {
-    unsigned noteIndex = &note - &allNotes.front();
     assert((0xFF == note.channel && MIDI_HEADER == note.type) || note.channel < CV_OUTPUTS);
-    if (0xFF == note.channel) {
-        gateOut.fill(noteIndex);
-    } else {
-        gateOut[note.channel] = noteIndex;
-    }
     if (NOTE_ON == note.type) {
+        gateExpiration[note.channel] = note.startTime + note.duration;
         outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
 	    float v_oct = inputs[V_OCT_INPUT].value;
         outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
@@ -263,18 +258,20 @@ void NoteTaker::setWheelRange() {
         if (index < selectMin || index >= selectMax) {
             debug("! note type %d index %d selectMin %d selectMax %d",
                     note->type, index, selectMin, selectMax);
+            this->debugDump();
         }
         assert(index >= selectMin);
         assert(index < selectMax);
         horizontalWheel->setValue(index);
     }
     // vertical wheel range 0 to 127 for midi pitch
+    debug("setWheelRange partButton->ledOn %d selectButton->ledOn %d",
+            partButton->ledOn, selectButton->ledOn);
     if (partButton->ledOn || selectButton->ledOn) {
         verticalWheel->setLimits(0, CV_OUTPUTS);
         // only makes sense if there is a selectStart?
         // to do : set speed so small number of entries moves OK
         // to do : only do this if SelectButton::single_Select == selectButton->state ?
-        verticalWheel->setLimits(0, CV_OUTPUTS);
         // to do : set vertical wheel value to selectStart channel
     } else {
         verticalWheel->setLimits(0, 127);

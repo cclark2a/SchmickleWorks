@@ -16,9 +16,9 @@ struct StaffNote {
     uint8_t accidental; // 0 none, 1 sharp, 2 flat, 3 natural
 };
 
-const uint8_t TREBLE_TOP = 28;  // smaller values need additional staff lines and/or 8/15va
+const uint8_t TREBLE_TOP = 29;  // smaller values need additional staff lines and/or 8/15va
 const uint8_t MIDDLE_C = 39;
-const uint8_t BASS_BOTTOM = 50; // larger values need additional staff lines and/or 8/15vb
+const uint8_t BASS_BOTTOM = 49; // larger values need additional staff lines and/or 8/15vb
 
 // C major only, for now
 // Given a MIDI pitch 0 - 127, looks up staff line position and presence of accidental (# only for now)
@@ -40,16 +40,28 @@ const StaffNote pitchMap[] = {
 void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) {
     const StaffNote& pitch = pitchMap[note.pitch()];
     float yPos = pitch.position * 3 - 48.25; // middle C 60 positioned at 39 maps to 66
+    float staffLine = yPos - 3;
+    int staffLineCount = 0;
     if (pitch.position < TREBLE_TOP) {
-        // to do: draw one or more lines above staff
+        staffLineCount = (TREBLE_TOP - pitch.position) / 2;
+        staffLine += !(pitch.position & 1) * 3;
     } else if (pitch.position > BASS_BOTTOM) {
-        // to do: draw one or more lines below staff
+        staffLineCount = (pitch.position - BASS_BOTTOM) / 2;
+        staffLine -= (staffLineCount - 1) * 6 + !(pitch.position & 1) * 3;
     } else if (pitch.position == MIDDLE_C) {
+        staffLineCount = 1;
+    }
+    if (staffLineCount) {
     	nvgBeginPath(vg);
-        nvgMoveTo(vg, xPos - 2, yPos - 3);
-        nvgLineTo(vg, xPos + 8, yPos - 3);
+        do {
+            nvgMoveTo(vg, xPos - 2, staffLine);
+            nvgLineTo(vg, xPos + 8, staffLine);
+            staffLine += 6;
+        } while (--staffLineCount);
+        nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
         nvgStroke(vg);
     }
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
     switch (pitch.accidental) {
         case SHARP_ACCIDENTAL:
             nvgText(vg, xPos - 7, yPos + 1, "B", NULL);
@@ -65,7 +77,6 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
     static_assert(sizeof(noteSymbols) - 1 == noteDurations.size(),
             "symbol duration mismatch");
     unsigned symbol = DurationIndex(note.duration);
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
     nvgText(vg, xPos, yPos, &noteSymbols[symbol], &noteSymbols[symbol + 1]);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
 }
