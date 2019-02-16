@@ -31,6 +31,8 @@ std::string DisplayNote::debugString() const {
             s += " onVelocity=" + std::to_string(onVelocity());
             s += " offVelocity=" + std::to_string(offVelocity());
         break;
+        case REST_TYPE:
+        break;
         case MIDI_HEADER:
             s += " format=" + std::to_string(format());
         break;

@@ -6,7 +6,7 @@
 #include "NoteTakerWheel.hpp"
 #include <limits.h>
 
-// todo:
+// to do:
 	// For more advanced Module features, read Rack's engine.hpp header file
 	// - toJson, fromJson: serialization of internal data
 	// - onSampleRateChange: event triggered by a change of sample rate
@@ -15,7 +15,7 @@
 
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     gateExpiration.fill(0);
-    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync.ttf"));
+    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync2.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
     NoteTakerMakeMidi maker;
     maker.createDefaultAsMidi(midi);
@@ -110,8 +110,12 @@ void NoteTaker::updateHorizontal() {
             DisplayNote& note = allNotes[index];
             note.startTime += diff;
             if (note.isSelectable(selectChannels)) {
-                assert((unsigned) wheelValue < noteDurations.size());
-                note.setNote(wheelValue);
+                if (NOTE_ON == note.type) {
+                    assert((unsigned) wheelValue < noteDurations.size());
+                    note.setNote(wheelValue);
+                } else {
+                    note.setRest(wheelValue);
+                }
                 int duration = noteDurations[wheelValue];
                 diff += duration - note.duration;
                 note.duration = duration;
@@ -187,6 +191,7 @@ void NoteTaker::outputNote(const DisplayNote& note) {
             outputs[GATE1_OUTPUT + note.channel].value = 0;
         }
     }
+    display->dirty = true;
 }
 
 void NoteTaker::playSelection() {
@@ -195,7 +200,7 @@ void NoteTaker::playSelection() {
 }
 
 void NoteTaker::setDisplayEnd() {
-    // todo: allow time range to display to be scaled from box width
+    // to do: allow time range to display to be scaled from box width
     // calc here must match NoteTakerDisplay::draw:75
     displayEnd = this->lastAt(allNotes[displayStart].startTime
             + display->box.size.x * 4 - 32);
@@ -239,15 +244,15 @@ void NoteTaker::setWheelRange() {
     // horizontal wheel range and value
     int selectMin = selectButton->editStart() ? -1 : 0;
     int selectMax = this->horizontalCount();
+    const DisplayNote* note = &allNotes[selectStart];
     if (!selectButton->ledOn) {
         // range is 0 to NoteTakerDisplay.durations.size(); find value in array values
         horizontalWheel->setLimits(0, noteDurations.size() - 1);
     } else {
         horizontalWheel->setLimits(selectMin, selectMax);
     }
-    const DisplayNote* note = &allNotes[selectStart];
     if (!selectButton->ledOn) {
-        horizontalWheel->setValue(note->note());
+        horizontalWheel->setValue(REST_TYPE == note->type ? note->rest() :note->note());
     } else {
         int index = this->noteIndex(*note);
         if (index < selectMin || index >= selectMax) {
@@ -270,7 +275,7 @@ void NoteTaker::setWheelRange() {
         // to do : set vertical wheel value to selectStart channel
     } else {
         verticalWheel->setLimits(0, 127);
-        if (MIDI_HEADER != note->type) {
+        if (NOTE_ON == note->type) {
             verticalWheel->setValue(note->pitch());
         }
     }
@@ -300,7 +305,7 @@ void NoteTaker::step() {
         if (this->lastNoteEnded(displayEnd, midiTime)) {
             elapsedSeconds = 0;  // to do : don't repeat unconditionally?
             midiTime = 0;
-            displayStart = this->firstOn();
+            displayStart = this->nthNoteIndex(0);
             if (!displayStart) { // no notes to play
                 runButton->ledOn = false;
                 return;

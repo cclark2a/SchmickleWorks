@@ -101,15 +101,6 @@ struct NoteTaker : Module {
         this->debugDump();
     }
 
-    unsigned firstOn() const {
-        for (unsigned index = 0; index < allNotes.size(); ++index) {
-            if (NOTE_ON == allNotes[index].type) {
-                return index;
-            }
-        }
-        return 0;
-    }
-
     unsigned horizontalCount() const;
     bool isEmpty() const;
 
@@ -126,19 +117,6 @@ struct NoteTaker : Module {
         assert(index < allNotes.size());
         const DisplayNote& last = allNotes[index];
         return last.startTime + last.duration <= midiTime;
-    }
-
-    DisplayNote* lastOn(unsigned index) {
-        assert(index < allNotes.size());
-        return this->lastOn(&allNotes[index]);
-    }
-
-    DisplayNote* lastOn(DisplayNote* note) {
-        do {
-            --note;
-            assert(note != &allNotes.front());
-        } while (NOTE_ON != note->type);
-        return note;
     }
 
     int noteIndex(const DisplayNote& match) const;

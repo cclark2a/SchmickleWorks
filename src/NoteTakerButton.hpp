@@ -145,28 +145,7 @@ struct EditLEDButton : EditButton {
 // insert adds new note to right of select, defaulting to selected note / cut buffer
 // insert turns off select
 struct InsertButton : EditButton {
-    void draw(NVGcontext *vg) override {
-        EditButton::draw(vg);
-        // replace this with a font character if one can be found
-        nvgTranslate(vg, af, 6 - af);
-        nvgBeginPath(vg);
-        nvgMoveTo(vg, 6, 20);
-        nvgLineTo(vg, 8, 20);
-        nvgArcTo(vg, 9, 20, 9, 21, 1);
-        nvgLineTo(vg, 9, 32);
-        nvgArcTo(vg, 9, 33, 8, 33, 1);
-        nvgLineTo(vg, 6, 33);
-        nvgMoveTo(vg, 12, 20);
-        nvgLineTo(vg, 10, 20);
-        nvgArcTo(vg, 9, 20, 9, 21, 1);
-        nvgMoveTo(vg, 12, 33);
-        nvgLineTo(vg, 10, 33);
-        nvgArcTo(vg, 9, 33, 9, 32, 1);
-        nvgStrokeColor(vg, nvgRGB(0, 0, 0));
-        nvgStrokeWidth(vg, .5);
-        nvgStroke(vg);
-    }
-
+    void draw(NVGcontext *vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };
 
@@ -204,6 +183,7 @@ struct SelectButton : EditLEDButton {
 // wheel up / down chooses one channel or chooses all channels
 struct PartButton : EditLEDButton {
     void draw(NVGcontext *vg) override;
+    void onDragEnd(EventDragEnd &e) override;
 };
 
 // if selection, exchange note / reset
@@ -211,6 +191,7 @@ struct PartButton : EditLEDButton {
 // if duration, horizontal changes rest size, vertical has no effect
 struct RestButton : EditButton {
     void draw(NVGcontext *vg) override;
+    void onDragEnd(EventDragEnd &e) override;
 };
 
 // cut button, momentary (no led)

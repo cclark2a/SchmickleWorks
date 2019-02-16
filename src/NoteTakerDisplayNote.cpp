@@ -36,10 +36,6 @@ bool DisplayNote::isValid() const {
                 }
             break;
             case REST_TYPE:
-                if (0 > data[0] || data[0] > 127) {  // todo: should be more restrictive
-                    debug("invalid rest pitch %d\n", data[0]);
-                    return false;
-                }
                 if (channel > channels) {
                     debug("invalid rest channel %d\n", channel);
                     return false;

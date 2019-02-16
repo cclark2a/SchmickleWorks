@@ -1,5 +1,6 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
+#include "NoteTakerMakeMidi.hpp"
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
@@ -17,7 +18,9 @@ struct StaffNote {
 };
 
 const uint8_t TREBLE_TOP = 29;  // smaller values need additional staff lines and/or 8/15va
+const uint8_t C_5 = 32;
 const uint8_t MIDDLE_C = 39;
+const uint8_t C_3 = 46;
 const uint8_t BASS_BOTTOM = 49; // larger values need additional staff lines and/or 8/15vb
 
 // C major only, for now
@@ -73,12 +76,43 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
             nvgText(vg, xPos - 7, yPos + 1, "\u00BD", NULL);
         break;
     }
-    const char noteSymbols[] = "seiqjhdwR";
-    static_assert(sizeof(noteSymbols) - 1 == noteDurations.size(),
+    const char upFlagNoteSymbols[] = "CDDEEFFGGHHIIJJKKLLM";
+    const char downFlagNoteSymbols[] = "cddeeffgghhiijjkkllm";
+    static_assert(sizeof(upFlagNoteSymbols) - 1 == noteDurations.size(),
             "symbol duration mismatch");
-    unsigned symbol = DurationIndex(note.duration);
-    nvgText(vg, xPos, yPos, &noteSymbols[symbol], &noteSymbols[symbol + 1]);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    static_assert(sizeof(downFlagNoteSymbols) - 1 == noteDurations.size(),
+            "symbol duration mismatch");
+    unsigned symbol = note.note();
+    nvgFontSize(vg, 42);
+    char noteStr[2];
+    noteStr[0] = (pitch.position <= MIDDLE_C && pitch.position > C_5) || pitch.position >= C_3
+            ? upFlagNoteSymbols[symbol] : downFlagNoteSymbols[symbol];
+    int noteCount = 1 + (symbol > 0 && (symbol & 1) == 0);
+    if (2 == noteCount) {
+        noteStr[1] = '.';
+    }
+    nvgText(vg, xPos, yPos, noteStr, noteStr + noteCount);
+}
+
+void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) {
+    const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
+    unsigned symbol = note.rest();
+    float yPos = 36 * 3 - 49;
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
+    nvgFontSize(vg, 42);
+    do {
+        unsigned restIndex = std::min((unsigned) sizeof(restSymbols) - 1, symbol);
+        nvgText(vg, xPos, yPos, &restSymbols[restIndex], &restSymbols[restIndex] + 1);
+        if (restIndex > 0 && (restIndex & 1) == 0) {
+            const int xOff[] = {5, 5, 5, 5, 5, 5, 5, 5, 5,  // 128 - 8
+                               10, 10, 12, 12, 12, 12, 12, 12, 12, 12, 14};
+            float xDot = xPos + xOff[restIndex];
+            float yDot = yPos - 9;
+            nvgText(vg, xDot, yDot, ".", nullptr);
+        }
+        xPos += noteDurations[restIndex] / 4;
+        symbol -= restIndex;
+    } while (symbol);
 }
 
 void NoteTakerDisplay::draw(NVGcontext *vg) {
@@ -108,11 +142,10 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
      // draw treble and bass clefs
     nvgFontFaceId(vg, module->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgFontSize(vg, 46);
-    nvgText(vg, 4, 60, "G", NULL);
-    nvgFontSize(vg, 36);
-    nvgText(vg, 4, 92, "?", NULL);
     nvgFontSize(vg, 42);
+    nvgText(vg, 4, 60, "(", NULL);
+    nvgFontSize(vg, 36);
+    nvgText(vg, 4, 92, ")", NULL);
     // draw selection rect
     nvgBeginPath(vg);
     const DisplayNote& selectStart = module->allNotes[module->selectStart];
@@ -138,12 +171,10 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
                 int xPos = 32 + note.startTime / 4;
                 this->drawNote(vg, note, xPos, 0xFF);
             } break;
-            case REST_TYPE:
-                // to do
-                debug("draw rest %d %d\n", note.startTime, note.pitch());
-                nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
-                nvgText(vg, 32 + note.startTime / 4, note.pitch(), "Q", NULL);
-            break;
+            case REST_TYPE: {
+                int xPos = 32 + note.startTime / 4;
+                this->drawRest(vg, note, xPos, 0xFF);
+            } break;
             case MIDI_HEADER:
             break;
             case KEY_SIGNATURE:
@@ -152,7 +183,7 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
             case TIME_SIGNATURE:
                 debug("draw time signature %d %d\n", note.startTime, note.pitch());
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
-                nvgText(vg, 32 + note.startTime / 4, note.pitch(), "c", NULL);
+                nvgText(vg, 32 + note.startTime / 4, note.pitch(), "'", NULL);
             break;
             case MIDI_TEMPO:
             break;

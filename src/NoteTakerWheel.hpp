@@ -6,7 +6,7 @@
 struct NoteTakerWheel : Knob, FramebufferWidget {
     void drawGear(NVGcontext *vg, float frame);
 
-    // todo: not working yet
+    // to do: not working yet
     void onScroll(EventScroll &e) override {
         e.consumed = true;
         debug("onScroll %s\n");
