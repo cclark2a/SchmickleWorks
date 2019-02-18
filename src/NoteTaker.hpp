@@ -65,7 +65,7 @@ struct NoteTaker : Module {
     vector<uint8_t> midi;
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
-    array<int, channels> gateExpiration; // midi time when gate goes low
+    array<int, CHANNEL_COUNT> gateExpiration; // midi time when gate goes low
 	std::shared_ptr<Font> musicFont;
 	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
@@ -82,7 +82,7 @@ struct NoteTaker : Module {
     unsigned displayEnd = 0;
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
     unsigned selectEnd = 0;                 // one past last selected
-    unsigned selectChannels = 0x0F;         // bit set for each active channel (all by default)
+    unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     float elapsedSeconds = 0;
     bool playingSelection = false;             // if set, provides feedback when editing notes
 
@@ -126,7 +126,7 @@ struct NoteTaker : Module {
     void setDisplayEnd();
 
     void setExpiredGatesLow(int midiTime) {
-        for (unsigned channel = 0; channel < channels; ++channel) {
+        for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             int endTime = gateExpiration[channel];
             if (!endTime) {
                 continue;

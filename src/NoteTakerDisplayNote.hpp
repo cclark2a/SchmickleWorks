@@ -2,7 +2,9 @@
 
 #include "SchmickleWorks.hpp"
 
-constexpr unsigned channels = 16;   // midi channels; only 4 supported via output jacks
+constexpr unsigned CHANNEL_COUNT = 16;      // MIDI channels
+constexpr unsigned ALL_CHANNELS = 0xFFFF;   // one bit set per MIDI channels
+constexpr unsigned ALL_CV_CHANNELS = 0x0F;  // one bit set per CV output
 
 enum DisplayType : uint8_t {
 // enums below match MIDI channel voice message high nybble order
@@ -36,6 +38,11 @@ struct DisplayNote {
     int data[4];        // type-specific values
     uint8_t channel;    // set to 0xFF if type doesn't have channel
     DisplayType type;
+
+    void setChannel(uint8_t c) {
+        channel = c;
+        assertValid(type == NOTE_ON ? NOTE_ON : REST_TYPE);
+    }
 
     int pitch() const {
         assertValid(NOTE_ON);

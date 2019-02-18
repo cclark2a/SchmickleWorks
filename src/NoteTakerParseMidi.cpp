@@ -27,7 +27,7 @@ void NoteTakerParseMidi::parseMidi() {
     displayNote.startTime = 0;
     displayNote.duration = 0;
     displayNote.type = MIDI_HEADER;
-    displayNote.channel = -1;
+    displayNote.channel = 0xFF;
     for (int i = 0; i < 3; ++i) {
         read_midi16(iter, &displayNote.data[i]);
     }

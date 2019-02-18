@@ -100,9 +100,15 @@ void PartButton::draw(NVGcontext *vg) {
     nvgText(vg, 8 + af, 41 - af, "\"", NULL);
 }
 
-void PartButton::onDragEnd(EventDragEnd& e) {
-    // to do : switch active part
+void PartButton::onDragEnd(EventDragEnd &e) {
+    NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
+    if (!ledOn) {
+        if (nt->selectButton->ledOn) {
+            nt->selectChannels = ALL_CHANNELS;
+        }
+    }
+    nt->setWheelRange();  // range is larger
 }
 
 void RestButton::draw(NVGcontext *vg) {

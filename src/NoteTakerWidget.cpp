@@ -20,18 +20,18 @@ struct NoteTakerWidget : ModuleWidget {
                 module, NoteTaker::VERTICAL_WHEEL, 0.0, 127.0, 60.0);
 		addParam(module->verticalWheel);
 
-		addInput(Port::create<PJ301MPort>(Vec(140, 306), Port::INPUT, module, 
-                        NoteTaker::V_OCT_INPUT));
-		addInput(Port::create<PJ301MPort>(Vec(172, 306), Port::INPUT, module, 
-                        NoteTaker::CLOCK_INPUT));
-		addInput(Port::create<PJ301MPort>(Vec(204, 306), Port::INPUT, module, 
-                        NoteTaker::RESET_INPUT));
+        addInput(Port::create<PJ301MPort>(Vec(140, 306), Port::INPUT, module, 
+                NoteTaker::V_OCT_INPUT));
+        addInput(Port::create<PJ301MPort>(Vec(172, 306), Port::INPUT, module, 
+                NoteTaker::CLOCK_INPUT));
+        addInput(Port::create<PJ301MPort>(Vec(204, 306), Port::INPUT, module, 
+                NoteTaker::RESET_INPUT));
 
         for (unsigned i = 0; i < CV_OUTPUTS; ++i) {
             addOutput(Port::create<PJ301MPort>(Vec(12 + i * 32, 306), Port::OUTPUT, module,
-            NoteTaker::CV1_OUTPUT + i));
+                    NoteTaker::CV1_OUTPUT + i));
             addOutput(Port::create<PJ301MPort>(Vec(12 + i * 32, 338), Port::OUTPUT, module,
-            NoteTaker::GATE1_OUTPUT + i));
+                    NoteTaker::GATE1_OUTPUT + i));
         }
 
         module->runButton = ParamWidget::create<RunButton>(Vec(200, 172),

@@ -40,6 +40,10 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
 };
 
 struct EditButton : NoteTakerButton {
+    EditButton() {
+        box.size.x = 20;
+        box.size.y = 40;
+    }
 
     void draw(NVGcontext *vg) override {
         nvgScale(vg, .75, .75);
@@ -229,6 +233,8 @@ struct CutButton : EditButton {
 struct RunButton : NoteTakerButton {
     RunButton() {
         hasLed = true;
+        box.size.x = 25;
+        box.size.y = 45;
     }
 
     // to do : make a button that depresses

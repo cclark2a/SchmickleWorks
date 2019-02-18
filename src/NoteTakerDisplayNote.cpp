@@ -14,12 +14,12 @@ static_assert(((MIDI_SYSTEM << 4) | 0x80) == midiSystem, "system mismatch");
 bool DisplayNote::isValid() const {
         switch (type) {
             case NOTE_ON:
-                if (0 > data[0] || data[0] > 127) {
-                    debug("invalid note pitch %d\n", data[0]);
+                if (channel > CHANNEL_COUNT) {
+                    debug("invalid note channel %d\n", channel);
                     return false;
                 }
-                if (channel > channels) {
-                    debug("invalid note channel %d\n", channel);
+                if (0 > data[0] || data[0] > 127) {
+                    debug("invalid note pitch %d\n", data[0]);
                     return false;
                 }
                 if ((unsigned) data[1] >= noteDurations.size()) {
@@ -36,7 +36,7 @@ bool DisplayNote::isValid() const {
                 }
             break;
             case REST_TYPE:
-                if (channel > channels) {
+                if (channel > CHANNEL_COUNT) {
                     debug("invalid rest channel %d\n", channel);
                     return false;
                 }

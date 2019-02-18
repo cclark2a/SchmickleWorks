@@ -143,12 +143,22 @@ void NoteTaker::updateVertical() {
         // to do : if running, transpose all up/down
         return;
     }
-    if (selectButton->ledOn) {
-        // to do : choose selectable part
-        return;
-    }
     if (partButton->ledOn) {
-        // to do : move selection to chosen part
+        unsigned value = (unsigned) verticalWheel->value;
+        assert(value < CHANNEL_COUNT);
+        if (selectButton->ledOn) {  // set part to chosen value
+            selectChannels = 1 << value;
+            this->playSelection();
+        } else {  // set selection to chosen part value
+            for (unsigned index = selectStart; index < selectEnd; ++index) {
+                DisplayNote& note = allNotes[index];
+                if (!note.isSelectable(selectChannels)) {
+                    continue;
+                }
+                note.setChannel(value);
+            }
+        }
+        this->playSelection();
         return;
     }
     // transpose selection
@@ -267,8 +277,11 @@ void NoteTaker::setWheelRange() {
     // vertical wheel range 0 to 127 for midi pitch
     debug("setWheelRange partButton->ledOn %d selectButton->ledOn %d",
             partButton->ledOn, selectButton->ledOn);
-    if (partButton->ledOn || selectButton->ledOn) {
+    if (partButton->ledOn) {
         verticalWheel->setLimits(0, CV_OUTPUTS);
+        if (NOTE_ON == note->type || REST_TYPE == note->type) {
+            verticalWheel->setValue(note->channel);
+        }
         // only makes sense if there is a selectStart?
         // to do : set speed so small number of entries moves OK
         // to do : only do this if SelectButton::single_Select == selectButton->state ?

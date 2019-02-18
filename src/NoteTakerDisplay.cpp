@@ -64,7 +64,8 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
         nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
         nvgStroke(vg);
     }
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
+    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0x7f, (3 == note.channel) * 0x7f,
+            (2 == note.channel) * 0x7f, alpha));
     switch (pitch.accidental) {
         case SHARP_ACCIDENTAL:
             nvgText(vg, xPos - 7, yPos + 1, "B", NULL);
@@ -98,7 +99,8 @@ void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPo
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
     unsigned symbol = note.rest();
     float yPos = 36 * 3 - 49;
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
+    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0x7f, (3 == note.channel) * 0x7f,
+            (2 == note.channel) * 0x7f, alpha));
     nvgFontSize(vg, 42);
     do {
         unsigned restIndex = std::min((unsigned) sizeof(restSymbols) - 1, symbol);
@@ -161,7 +163,9 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         int xEnd = 32 + selectEnd.startTime / 4;
         nvgRect(vg, xStart - 5, 0, xEnd - xStart, box.size.y);
     }
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x1f));
+    unsigned selectChannels = module->selectChannels;
+    nvgFillColor(vg, nvgRGBA((1 == selectChannels) * 0x7f, (4 == selectChannels) * 0x7f,
+            (2 == selectChannels) * 0x7f, 0x1f));
     nvgFill(vg);
     // draw notes
     for (unsigned i = module->displayStart; i < module->displayEnd; ++i) {
