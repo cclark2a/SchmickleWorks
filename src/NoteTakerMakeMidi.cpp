@@ -30,7 +30,7 @@ void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
             add_one(c4 + lastNote);
             add_one(stdKeyPressure);
         }
-        add_delta(n.time, &lastTime, 0);  // channel 1
+        add_delta(n.time, &lastTime, 0);
         if (n.note >= 0) {
             add_one(midiNoteOn + 0);
             add_one(c4 + n.note);
@@ -40,6 +40,21 @@ void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
         }
         lastNote = n.note;
     }
+    target = &midi;
+    add_size32(temp.size());
+    midi.insert(midi.end(), temp.begin(), temp.end());
+}
+
+void NoteTakerMakeMidi::createEmpty(vector<uint8_t>& midi) {
+    midi.insert(midi.end(), MThd.begin(), MThd.end());
+    midi.insert(midi.end(), MThd_length.begin(), MThd_length.end());
+    midi.insert(midi.end(), MThd_data.begin(), MThd_data.end());
+    midi.insert(midi.end(), MTrk.begin(), MTrk.end());
+    // defer adding until size of data is known
+    std::vector<uint8_t> temp;
+    target = &temp;
+    add_size8(0);
+    temp.insert(temp.end(), MTrk_end.begin(), MTrk_end.end());
     target = &midi;
     add_size32(temp.size());
     midi.insert(midi.end(), temp.begin(), temp.end());

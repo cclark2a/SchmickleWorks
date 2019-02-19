@@ -14,13 +14,10 @@
     //   when user clicks these from the context menu
 
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-    gateExpiration.fill(0);
     musicFont = Font::load(assetPlugin(plugin, "res/MusiSync2.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
-    NoteTakerMakeMidi maker;
-    maker.createDefaultAsMidi(midi);
-    NoteTakerParseMidi parser(midi, allNotes);
-    parser.parseMidi();
+    this->initialize();
+    this->setUpSampleNotes();
 }
 
 // to compute range for horizontal wheel when selecting notes
@@ -40,6 +37,18 @@ unsigned NoteTaker::horizontalCount() const {
     return count;
 }
 
+void NoteTaker::initialize() {
+    allNotes.clear();
+    clipboard.clear();
+    gateExpiration.fill(0);
+    displayStart = displayEnd = selectStart = selectEnd = 0;
+    elapsedSeconds = 0;
+    playingSelection = false;
+    selectChannels = ALL_CHANNELS;
+    lastHorizontal = INT_MAX;
+    lastVertical = INT_MAX;
+}
+
 bool NoteTaker::isEmpty() const {
     for (auto& note : allNotes) {
         if (note.isSelectable(selectChannels)) {
@@ -49,7 +58,9 @@ bool NoteTaker::isEmpty() const {
     return true;
 }
 
-int NoteTaker::nthNoteIndex(int value) const {
+unsigned NoteTaker::wheelToNote(int value) const {
+    debug("wheelToNote start");
+    this->debugDump();
     if (value < 0) {
         assert(selectButton->editStart());
         return 0;
@@ -69,13 +80,18 @@ int NoteTaker::nthNoteIndex(int value) const {
         --count;
         lastTime = note.startTime;
     }
-    debug("nthNoteIndex value %d", value);
+    if (0 == count && selectButton->editEnd()) {
+        auto& note = allNotes.back();
+        assert(TRACK_END == note.type);
+        return &note - &allNotes.front();
+    }
+    debug("wheelToNote value %d", value);
     this->debugDump();
     assert(0);
-    return -1;
+    return (unsigned) -1;
 }
 
-int NoteTaker::noteIndex(const DisplayNote& match) const {
+int NoteTaker::noteToWheel(const DisplayNote& match) const {
     if (MIDI_HEADER == match.type) {
         return -1;
     }
@@ -97,12 +113,27 @@ int NoteTaker::noteIndex(const DisplayNote& match) const {
     assert(0);
 }
 
+void NoteTaker::setUpSampleNotes() {
+    NoteTakerMakeMidi maker;
+    maker.createDefaultAsMidi(midi);
+    NoteTakerParseMidi parser(midi, allNotes);
+    parser.parseMidi();
+
+}
+
 void NoteTaker::updateHorizontal() {
+    if (isEmpty()) {
+        return;
+    }
     if (runButton->running()) {
         // to do : while running, change tempo
         return;
     }
-    int wheelValue = (int) horizontalWheel->value;
+    const int wheelValue = (int) horizontalWheel->value;
+    if (wheelValue == lastHorizontal) {
+        return;
+    }
+    lastHorizontal = wheelValue;
     bool noteChanged = false;
     if (!selectButton->ledOn) {
         int diff = 0;
@@ -122,15 +153,14 @@ void NoteTaker::updateHorizontal() {
             }
         }
         if (diff) {
-            this->shiftNotes(selectEnd, diff);
+            this->ShiftNotes(allNotes, selectEnd, diff);
             noteChanged = true;
         }
     } else {
     // value should range from 0 to max - 1, where max is number of starts for active channels
     // if insert mode, value ranges from -1 to max - 1
-        int index = this->nthNoteIndex(wheelValue);
-        assert(index >= 0);
-        noteChanged = selectButton->editEnd() ? this->setSelectEnd(index) :
+        unsigned index = this->wheelToNote(wheelValue);
+        noteChanged = selectButton->editEnd() ? this->setSelectEnd(wheelValue, index) :
                 this->setSelectStart(index);
     }
     if (noteChanged) {
@@ -139,12 +169,20 @@ void NoteTaker::updateHorizontal() {
 }
     
 void NoteTaker::updateVertical() {
+    if (isEmpty()) {
+        return;
+    }
     if (runButton->running()) {
         // to do : if running, transpose all up/down
         return;
     }
+    const int wheelValue = (int) verticalWheel->value;
+    if (wheelValue == lastVertical) {
+        return;
+    }
+    lastVertical = wheelValue;
     if (partButton->ledOn) {
-        unsigned value = (unsigned) verticalWheel->value;
+        unsigned value = (unsigned) wheelValue;
         assert(value < CHANNEL_COUNT);
         if (selectButton->ledOn) {  // set part to chosen value
             selectChannels = 1 << value;
@@ -171,7 +209,7 @@ void NoteTaker::updateVertical() {
         }
         int value;
         if (!diff) {
-            value = (int) verticalWheel->value;
+            value = wheelValue;
             diff = value - note.pitch();
             if (!diff) {
                 return;
@@ -216,6 +254,31 @@ void NoteTaker::setDisplayEnd() {
             + display->box.size.x * 4 - 32);
 }
 
+bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
+    debug("setSelectEnd wheelValue=%d end=%u singlePos=%u selectStart=%u selectEnd=%u", 
+            wheelValue, end, selectButton->singlePos, selectStart, selectEnd);
+    if (end < selectButton->singlePos) {
+        selectStart = end;
+        selectEnd = selectButton->singlePos;
+        debug("setSelectEnd < s:%u e:%u", selectStart, selectEnd);
+   } else if (end == selectButton->singlePos) {
+        selectStart = selectButton->singlePos;
+        if (TRACK_END == allNotes[selectStart].type) {
+            selectEnd = selectStart;
+            selectStart = isEmpty() ? 0 : wheelToNote(wheelValue - 1);
+        } else {
+            selectEnd = this->wheelToNote(wheelValue + 1);
+        }
+        debug("setSelectEnd == s:%u e:%u", selectStart, selectEnd);
+    } else {
+        selectStart = selectButton->singlePos;
+        selectEnd = end;
+        debug("setSelectEnd > s:%u e:%u", selectStart, selectEnd);
+    }
+    assert(selectEnd != selectStart);
+    return true;
+}
+
 bool NoteTaker::setSelectStart(unsigned start) {
     if (selectStart == start) {
         return false;
@@ -248,35 +311,34 @@ void NoteTaker::setSelectStartAt(int midiTime, unsigned startIndex, unsigned end
 }
 
 void NoteTaker::setWheelRange() {
-    if (!selectButton) {
+    if (!selectButton || isEmpty()) {
         return;
     }
     // horizontal wheel range and value
-    int selectMin = selectButton->editStart() ? -1 : 0;
-    int selectMax = this->horizontalCount();
+    int wheelMin = selectButton->editStart() ? -1 : 0;
+    int wheelMax = (int) this->horizontalCount() + wheelMin;
     const DisplayNote* note = &allNotes[selectStart];
     if (!selectButton->ledOn) {
         // range is 0 to NoteTakerDisplay.durations.size(); find value in array values
         horizontalWheel->setLimits(0, noteDurations.size() - 1);
     } else {
-        horizontalWheel->setLimits(selectMin, selectMax);
+        horizontalWheel->setLimits(wheelMin, wheelMax);
     }
     if (!selectButton->ledOn) {
         horizontalWheel->setValue(REST_TYPE == note->type ? note->rest() :note->note());
     } else {
-        int index = this->noteIndex(*note);
-        if (index < selectMin || index >= selectMax) {
-            debug("! note type %d index %d selectMin %d selectMax %d",
-                    note->type, index, selectMin, selectMax);
+        int index = this->noteToWheel(*note);
+        if (index < wheelMin || index > wheelMax) {
+            debug("! note type %d index %d wheelMin %d wheelMax %d",
+                    note->type, index, wheelMin, wheelMax);
             this->debugDump();
+            assert(0);
         }
-        assert(index >= selectMin);
-        assert(index < selectMax);
         horizontalWheel->setValue(index);
     }
     // vertical wheel range 0 to 127 for midi pitch
-    debug("setWheelRange partButton->ledOn %d selectButton->ledOn %d",
-            partButton->ledOn, selectButton->ledOn);
+    debug("setWheelRange partButton->ledOn %d selectButton->ledOn %d selectButton->state %d",
+            partButton->ledOn, selectButton->ledOn, selectButton->state);
     if (partButton->ledOn) {
         verticalWheel->setLimits(0, CV_OUTPUTS);
         if (NOTE_ON == note->type || REST_TYPE == note->type) {
@@ -299,7 +361,7 @@ void NoteTaker::setWheelRange() {
 }
 
 void NoteTaker::step() {
-    if (!runButton || (!runButton->running() && !playingSelection)) {
+    if (!runButton || (!runButton->running() && !playingSelection) || this->isEmpty()) {
         return;
     }
     // read data from display notes to determine pitch
@@ -318,7 +380,7 @@ void NoteTaker::step() {
         if (this->lastNoteEnded(displayEnd, midiTime)) {
             elapsedSeconds = 0;  // to do : don't repeat unconditionally?
             midiTime = 0;
-            displayStart = this->nthNoteIndex(0);
+            displayStart = this->wheelToNote(0);
             if (!displayStart) { // no notes to play
                 runButton->ledOn = false;
                 return;

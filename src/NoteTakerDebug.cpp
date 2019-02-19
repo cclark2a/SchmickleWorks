@@ -53,21 +53,79 @@ std::string DisplayNote::debugString() const {
     return s;
 }
 
-void NoteTaker::debugDump() const {
+void NoteTaker::debugDump(const vector<DisplayNote>& notes, bool showSelect) const {
     // make sure debug data is self-consistent
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         assert(i == typeNames[i].type);
     }
-    debug("notes: %d", allNotes.size());
-    for (const auto& note : allNotes) {
+    debug("notes: %d", notes.size());
+    for (const auto& note : notes) {
         std::string s;
-        if (&note == &allNotes[selectStart]) {
+        if (showSelect && &note == &notes[selectStart]) {
             s += "< ";
         }
-        if (&note == &allNotes[selectEnd]) {
+        if (showSelect && &note == &notes[selectEnd]) {
             s += "> ";
         }
         s += note.debugString();
         debug("%s", s.c_str());
     }
+}
+
+void NoteTaker::validate() const {
+    int time = 0;
+    array<int, CHANNEL_COUNT> channel;
+    channel.fill(0);
+    bool sawHeader = false;
+    bool sawTrailer = false;
+    bool malformed = false;
+    for (const auto& note : allNotes) {
+        switch (note.type) {
+            case MIDI_HEADER:
+                if (sawHeader) {
+                    debug("duplicate midi header");
+                    malformed = true;
+                }
+                sawHeader = true;
+                break;
+            case NOTE_ON:
+            case REST_TYPE:
+                if (!sawHeader) {
+                    debug("missing midi header before note");
+                    malformed = true;
+                }
+                if (sawTrailer) {
+                    debug("note after trailer");
+                    malformed = true;
+                }
+                if (time > note.startTime) {
+                    debug("note out of order");
+                    malformed = true;
+                }
+                if (channel[note.channel] >= note.startTime) {
+                    debug("note channel time error");
+                    malformed = true;
+                }
+                time = note.startTime;
+                channel[note.channel] = note.startTime;
+                break;
+            case TRACK_END:
+                if (!sawHeader) {
+                    debug("missing midi header before trailer");
+                    malformed = true;
+                }
+                if (sawTrailer) {
+                    debug("duplicate midi trailer");
+                    malformed = true;
+                }
+                sawTrailer = true;
+                break;
+            default:
+                assert(0); // incomplete
+        }
+        if (malformed) {
+            break;
+        }
+    }
+    assert(sawTrailer && !malformed);
 }

@@ -84,6 +84,8 @@ struct NoteTaker : Module {
     unsigned selectEnd = 0;                 // one past last selected
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     float elapsedSeconds = 0;
+    int lastHorizontal = INT_MAX;
+    int lastVertical = INT_MAX;
     bool playingSelection = false;             // if set, provides feedback when editing notes
 
     NoteTaker();
@@ -92,7 +94,11 @@ struct NoteTaker : Module {
         clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
     }
 
-    void debugDump() const;
+    void debugDump() const {
+        this->debugDump(allNotes, true);
+    }
+
+    void debugDump(const vector<DisplayNote>& , bool showSelect = false) const;
 
     void eraseNotes(unsigned start, unsigned end) {
         this->debugDump();
@@ -102,6 +108,7 @@ struct NoteTaker : Module {
     }
 
     unsigned horizontalCount() const;
+    void initialize();
     bool isEmpty() const;
 
     unsigned lastAt(int midiTime) const {
@@ -119,8 +126,13 @@ struct NoteTaker : Module {
         return last.startTime + last.duration <= midiTime;
     }
 
-    int noteIndex(const DisplayNote& match) const;
-    int nthNoteIndex(int value) const;  // maps wheel value to index in allNotes
+    int noteToWheel(unsigned index) const {
+        assert(index < allNotes.size());
+        return noteToWheel(allNotes[index]);
+    }
+
+    int noteToWheel(const DisplayNote& ) const;
+    unsigned wheelToNote(int value) const;  // maps wheel value to index in allNotes
     void outputNote(const DisplayNote& note);
     void playSelection();
     void setDisplayEnd();
@@ -140,39 +152,22 @@ struct NoteTaker : Module {
         }
     }
 
-    bool setSelectEnd(unsigned end) {
-        if (end == selectStart) {
-            do {
-                ++end;
-            } while (allNotes[selectStart].startTime == allNotes[end].startTime);       
-        }
-        if (selectEnd == end) {
-            return false;
-        }
-        selectEnd = end;
-        if (selectStart > selectEnd) {
-            std::swap(selectStart, selectEnd);
-        }
-        this->setWheelRange();
-        return true;
-    }
-
+    bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
     void setSelectStartAt(int midiTime, unsigned displayStart, unsigned displayEnd);
+    void setUpSampleNotes();
     void setWheelRange();
 
-    void shiftNotes(unsigned start, int diff) {
-        debug("shift notes start %d diff %d", start, diff);
-        for (unsigned index = start; index < allNotes.size(); ++index) {
-            DisplayNote& note = allNotes[index];
-            note.startTime += diff;
-        }
-        this->debugDump();
-    }
+    static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff) {
+         for (unsigned index = start; index < notes.size(); ++index) {
+            notes[index].startTime += diff;
+        }    
+   }
 
 	void step() override;
     void updateHorizontal();
     void updateVertical();
+    void validate() const;
 
     void zeroGates() {
         gateExpiration.fill(0);

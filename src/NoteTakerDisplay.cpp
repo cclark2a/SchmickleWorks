@@ -64,17 +64,17 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
         nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
         nvgStroke(vg);
     }
-    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0x7f, (3 == note.channel) * 0x7f,
+    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0xBf, (3 == note.channel) * 0x7f,
             (2 == note.channel) * 0x7f, alpha));
     switch (pitch.accidental) {
         case SHARP_ACCIDENTAL:
-            nvgText(vg, xPos - 7, yPos + 1, "B", NULL);
+            nvgText(vg, xPos - 7, yPos + 1, "#", NULL);
         break;
         case FLAT_ACCIDENTAL:
-            nvgText(vg, xPos - 7, yPos + 1, "b", NULL);
+            nvgText(vg, xPos - 7, yPos + 1, "$", NULL);
         break;
         case NATURAL_ACCIDENTAL:
-            nvgText(vg, xPos - 7, yPos + 1, "\u00BD", NULL);
+            nvgText(vg, xPos - 7, yPos + 1, "%", NULL);
         break;
     }
     const char upFlagNoteSymbols[] = "CDDEEFFGGHHIIJJKKLLM";
@@ -99,7 +99,7 @@ void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPo
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
     unsigned symbol = note.rest();
     float yPos = 36 * 3 - 49;
-    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0x7f, (3 == note.channel) * 0x7f,
+    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0xBf, (3 == note.channel) * 0x7f,
             (2 == note.channel) * 0x7f, alpha));
     nvgFontSize(vg, 42);
     do {
@@ -164,7 +164,7 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         nvgRect(vg, xStart - 5, 0, xEnd - xStart, box.size.y);
     }
     unsigned selectChannels = module->selectChannels;
-    nvgFillColor(vg, nvgRGBA((1 == selectChannels) * 0x7f, (4 == selectChannels) * 0x7f,
+    nvgFillColor(vg, nvgRGBA((1 == selectChannels) * 0xBf, (4 == selectChannels) * 0x7f,
             (2 == selectChannels) * 0x7f, 0x1f));
     nvgFill(vg);
     // draw notes

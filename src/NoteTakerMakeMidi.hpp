@@ -50,6 +50,7 @@ using std::vector;
 class NoteTakerMakeMidi {
 public:
     void createDefaultAsMidi(vector<uint8_t>& midi);
+    void createEmpty(vector<uint8_t>& midi);
 private:
     vector<uint8_t>* target;  // used only during constructing midi, to compute track length
 

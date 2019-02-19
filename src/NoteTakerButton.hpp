@@ -34,6 +34,11 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         return (const NoteTaker* ) module;
     }
 
+    virtual void setOff() {
+        ledOn = false;
+        af = 0;
+    }
+
     int af = 0;  // animation frame, 0 to 1
     bool hasLed = false;
     bool ledOn = false;
@@ -159,28 +164,29 @@ struct InsertButton : EditButton {
 //   pressing run / enter locks start of selection, horz wheel extends selection
 //   wheel up / down transposes selection
 struct SelectButton : EditLEDButton {
-    enum State {
-        single_Select,
-        extend_Select,
-        off_Select,     // set when previous state was extend_Select
-        copy_Select,
+    enum class State {
+        ledOff,         // redundant with !ledOn, may remove
+        single,
+        extend,
     };
 
     void draw(NVGcontext *vg) override;
-    bool editEnd() const { return ledOn && state == extend_Select; }
-    bool editStart() const { return ledOn && (state == single_Select || state == copy_Select); }
+    bool editEnd() const { return ledOn && State::extend == state; }
+    bool editStart() const { return ledOn && State::single == state; }
     void onDragEnd(EventDragEnd &e) override;
+    void setOff() override;
+    void setExtend();
+    void setSingle() { state = State::single; ledOn = true; }
 
     NVGcolor ledColor() const override {
-        if (extend_Select == state) {
+        if (State::extend == state) {
             return nvgRGB(0x17, 0x37, 0xF7);
         }
         return EditLEDButton::ledColor();
     }
 
-    State state = single_Select;
-    unsigned rangeStart;  // stored on off_Select state
-    unsigned rangeEnd;
+    unsigned singlePos = 0;
+    State state = State::ledOff;
 };
 
 // stateful button that chooses if vertical wheel changes pitch or part
@@ -204,6 +210,7 @@ struct RestButton : EditButton {
 //   cut with select button off deletes current selection, does not modify clipboard
 //   select off discards clipboard
 //   if cut is saved in clipboard, insert adds clipboard as paste
+// to do : create font character for this
 struct CutButton : EditButton {
     void draw(NVGcontext* vg) override {
         EditButton::draw(vg);
@@ -256,7 +263,7 @@ struct RunButton : NoteTakerButton {
     void onDragEnd(EventDragEnd &e) override;
 };
 
-// to do : remove 
+// to do : remove below
 // temporary button to dump notes for debugging
 struct DumpButton : EditButton {
     void onDragEnd(EventDragEnd &e) override;

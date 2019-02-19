@@ -68,7 +68,13 @@ struct NoteTakerWidget : ModuleWidget {
                 0.0f, 1.0f, 0.0f));
         addParam(ParamWidget::create<DumpButton>(Vec(190, 252), module, NoteTaker::BUTTON_12,
                 0.0f, 1.0f, 0.0f));
-        module->runButton->ledOn = true;  // start running after everything is set up
+        const bool runUnitTest = true;
+        if (runUnitTest) {
+            extern void UnitTest(NoteTaker* );
+            UnitTest(module);
+        } else {
+            module->runButton->ledOn = true;  // start running after everything is set up
+        }
     }
 };
 
