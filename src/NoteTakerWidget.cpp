@@ -53,13 +53,17 @@ struct NoteTakerWidget : ModuleWidget {
         module->partButton = ParamWidget::create<PartButton>(Vec(158, 202),
                 module, NoteTaker::PART_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->partButton);
-        addParam(ParamWidget::create<EditButton>(Vec(190, 202), module, NoteTaker::BUTTON_6,
-                0.0f, 1.0f, 0.0f));
+        module->fileButton = ParamWidget::create<FileButton>(Vec(190, 202),
+                module, NoteTaker::FILE_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->fileButton);
 
-        addParam(ParamWidget::create<EditButton>(Vec(30, 252), module, NoteTaker::BUTTON_7,
-                0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<EditButton>(Vec(62, 252), module, NoteTaker::BUTTON_8,
-                0.0f, 1.0f, 0.0f));
+        module->sustainButton = ParamWidget::create<SustainButton>(Vec(30, 252),
+                module, NoteTaker::SUSTAIN_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->sustainButton);
+        module->timeButton = ParamWidget::create<TimeButton>(Vec(62, 252),
+                module, NoteTaker::TIME_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->timeButton);
+
         addParam(ParamWidget::create<EditButton>(Vec(94, 252), module, NoteTaker::BUTTON_9,
                 0.0f, 1.0f, 0.0f));
         addParam(ParamWidget::create<EditButton>(Vec(126, 252), module, NoteTaker::BUTTON_10,

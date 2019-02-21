@@ -12,11 +12,14 @@ using std::vector;
 
 struct CutButton;
 struct DurationButton;
+struct FileButton;
 struct InsertButton;
 struct PartButton;
 struct RestButton;
 struct RunButton;
 struct SelectButton;
+struct SustainButton;
+struct TimeButton;
 struct NoteTakerDisplay;
 struct NoteTakerWheel;
 
@@ -31,9 +34,9 @@ struct NoteTaker : Module {
         CUT_BUTTON,
         REST_BUTTON,
         PART_BUTTON,
-        BUTTON_6,
-        BUTTON_7,
-        BUTTON_8,
+        FILE_BUTTON,
+        SUSTAIN_BUTTON,
+        TIME_BUTTON,
         BUTTON_9,
         BUTTON_10,
         BUTTON_11,
@@ -72,11 +75,14 @@ struct NoteTaker : Module {
     NoteTakerDisplay* display = nullptr;
     CutButton* cutButton = nullptr;
     DurationButton* durationButton = nullptr;
+    FileButton* fileButton = nullptr;
     InsertButton* insertButton = nullptr;
     PartButton* partButton = nullptr;
     RestButton* restButton = nullptr;
     RunButton* runButton = nullptr;
     SelectButton* selectButton = nullptr;
+    SustainButton* sustainButton = nullptr;
+    TimeButton* timeButton = nullptr;
     NoteTakerWheel* horizontalWheel = nullptr;
     NoteTakerWheel* verticalWheel = nullptr;
     unsigned displayStart = 0;              // index into allNotes of first visible note
@@ -89,6 +95,7 @@ struct NoteTaker : Module {
     int lastVertical = INT_MAX;
     int tempo = 500000;                     // default to 120 beats/minute
     int ppq = 96;                           // default to 96 pulses/ticks per quarter note
+    bool allOutputsOff = false;
     bool playingSelection = false;          // if set, provides feedback when editing notes
 
     NoteTaker();
@@ -111,7 +118,6 @@ struct NoteTaker : Module {
     }
 
     unsigned horizontalCount() const;
-    void initialize();
     bool isEmpty() const;
 
     unsigned lastAt(int midiTime) const {
@@ -138,6 +144,7 @@ struct NoteTaker : Module {
     unsigned wheelToNote(int value) const;  // maps wheel value to index in allNotes
     void outputNote(const DisplayNote& note);
     void playSelection();
+    void reset() override;
     void setDisplayEnd();
 
     void setExpiredGatesLow(int midiTime) {
@@ -147,6 +154,7 @@ struct NoteTaker : Module {
                 continue;
             }
             if (endTime < midiTime) {
+                debug("expire endTime=%d midiTime=%d", endTime, midiTime);
                 channels[channel].expiration = 0;
                 if (channel < CV_OUTPUTS) {
                     outputs[GATE1_OUTPUT + channel].value = 0;
@@ -174,10 +182,12 @@ struct NoteTaker : Module {
 
     void zeroGates() {
         for (auto& channel : channels) {
+            channel.note = nullptr;
             channel.expiration = 0;
         }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
             outputs[GATE1_OUTPUT + index].value = 0;
         }
+        allOutputsOff = true;
     }
 };

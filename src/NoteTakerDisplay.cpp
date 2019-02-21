@@ -198,5 +198,6 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
                 assert(0); // incomplete
         }
     }
+    dirty = false;
 }
 

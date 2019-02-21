@@ -48,7 +48,7 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
     // to do: still need to figure out duration of note vs time of NOTE_OFF in midi
         insertLoc = nt->allNotes.size() - 1;
         assert(TRACK_END == nt->allNotes[insertLoc].type);
-        DisplayNote midC = { 0, stdTimePerQuarterNote / 2,
+        DisplayNote midC = { 0, stdTimePerQuarterNote,
                 { 60, 0, stdKeyPressure, stdKeyPressure}, 0, NOTE_ON  };
         midC.setNote(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
@@ -111,24 +111,12 @@ void PartButton::onDragEnd(EventDragEnd &e) {
     nt->setWheelRange();  // range is larger
 }
 
-void RestButton::draw(NVGcontext *vg) {
-    EditButton::draw(vg);
-    nvgFontFaceId(vg, nModule()->musicFont->handle);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgFontSize(vg, 36);
-    nvgText(vg, 8 + af, 41 - af, "t", NULL);
-}
-
-void RestButton::onDragEnd(EventDragEnd& e) {
+void AdderButton::onDragEndPreamble(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     SelectButton* selectButton = nt->selectButton;
-    unsigned insertLoc;
-    unsigned shiftLoc;
-    int startTime = 0;
-    int shiftTime = stdTimePerQuarterNote;
-    int duration = stdTimePerQuarterNote; 
+    startTime = 0;
+    // to do : salt this away so it can be shared with time signature
     if (nt->isEmpty()) {
-    // to do: still need to figure out duration of note vs time of NOTE_OFF in midi
         insertLoc = nt->allNotes.size() - 1;
         assert(TRACK_END == nt->allNotes[insertLoc].type);
         shiftLoc = insertLoc + 1;
@@ -151,13 +139,14 @@ void RestButton::onDragEnd(EventDragEnd& e) {
             shiftTime = 0;
         }
     }
-    DisplayNote rest = { startTime, duration, { 0, 0, 0, 0}, 0, REST_TYPE };
-    rest.setRest(NoteTakerDisplay::RestIndex(duration));
-    nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);
+}
+
+void AdderButton::onDragEnd(EventDragEnd& e) {
+    NoteTaker* nt = nModule();
     if (shiftTime) {
         NoteTaker::ShiftNotes(nt->allNotes, shiftLoc, shiftTime);
     }
-    selectButton->setOff();
+    nt->selectButton->setOff();
     nt->selectStart = insertLoc;
     nt->selectEnd = insertLoc + 1;
     nt->setWheelRange();  // range is larger
@@ -166,12 +155,30 @@ void RestButton::onDragEnd(EventDragEnd& e) {
     nt->debugDump();
 }
 
+void RestButton::draw(NVGcontext *vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 36);
+    nvgText(vg, 8 + af, 41 - af, "t", NULL);
+}
+
+void RestButton::onDragEnd(EventDragEnd& e) {
+    shiftTime = duration = stdTimePerQuarterNote;
+    onDragEndPreamble(e);
+    NoteTaker* nt = nModule();
+    DisplayNote rest = { startTime, duration, { 0, 0, 0, 0}, 0, REST_TYPE };
+    rest.setRest(NoteTakerDisplay::RestIndex(duration));
+    nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);
+    AdderButton::onDragEnd(e);
+}
+
 void SelectButton::draw(NVGcontext *vg) {
     EditLEDButton::draw(vg);
     nvgFontFaceId(vg, nModule()->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
-    nvgText(vg, 4 + af, 41 - af, "\u00E0", NULL);
+    nvgText(vg, 4 + af, 41 - af, "<", NULL);  // was \u00E0
 }
 
 void SelectButton::onDragEnd(EventDragEnd &e) {
@@ -230,6 +237,35 @@ void SelectButton::setExtend() {
     state = State::extend;
 }
 
+void CutButton::draw(NVGcontext* vg) {
+        EditButton::draw(vg);
+    #if 0
+        nvgTranslate(vg, af + 9, 27 - af);
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, 0, -1);
+        nvgLineTo(vg, 2, -3);   
+        nvgLineTo(vg, 4, -3);
+        nvgLineTo(vg, 1,  0);
+        nvgLineTo(vg, 4,  3);
+        nvgLineTo(vg, 2,  3);
+        nvgLineTo(vg, 0,  1);
+        nvgLineTo(vg, -2,  3);
+        nvgLineTo(vg,  -4,  3);
+        nvgLineTo(vg, -1,  0);
+        nvgLineTo(vg, -4, -3);
+        nvgLineTo(vg, -2, -3);
+        nvgLineTo(vg, 0, -1);
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+        nvgFill(vg);
+    #else
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 4 + af, 41 - af, ";", NULL);
+    #endif
+}
+
+// to do : should a long press clear all?
 void CutButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isEmpty() || !nt->selectStart) {
@@ -251,6 +287,70 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     nt->setWheelRange();  // range is smaller
     nt->setDisplayEnd();
     NoteTakerButton::onDragEnd(e);
+}
+
+void FileButton::onDragEnd(EventDragEnd &e) {
+    NoteTaker* nt = nModule();
+    NoteTakerButton::onDragEnd(e);
+    if (ledOn) {
+        // to do : vert wheel chooses load / save row
+        //       : horz wheel chooses file slot
+        // turning off file commits load / save (or run?)
+        // play selection immediately and show behind row
+        // show only one row
+        // show load row first?
+    }
+    nt->display->dirty = true;
+}
+
+void FileButton::draw(NVGcontext* vg) {
+    EditLEDButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 5 + af, 41 - af, ":", NULL);
+}
+
+void SustainButton::onDragEnd(EventDragEnd &e) {
+    NoteTaker* nt = nModule();
+    NoteTakerButton::onDragEnd(e);
+    if (ledOn) {
+        // to do : vert wheel chooses sustain / release min / max
+        //         horz wheel increases / decreases
+        // if part button is on, change current channel
+        // if part button is off, change all channels
+    }
+    nt->display->dirty = true;
+
+}
+
+void SustainButton::draw(NVGcontext* vg) {
+    EditLEDButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 4 + af, 41 - af, "=", NULL);
+}
+
+// insert time signature
+void TimeButton::onDragEnd(EventDragEnd &e) {
+    NoteTaker* nt = nModule();
+    shiftTime = duration = 0;
+    onDragEndPreamble(e);
+    // to do : insert one note ala rest
+    DisplayNote timeSignature = { startTime, 0, { 4, 4, 0, 0}, 0, TIME_SIGNATURE };
+    nt->allNotes.insert(nt->allNotes.begin() + insertLoc, timeSignature);
+    shiftTime = duration = 0;
+    AdderButton::onDragEnd(e);
+}
+
+void TimeButton::draw(NVGcontext* vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 8 + af, 33 - af, "4", NULL);
+    nvgText(vg, 8 + af, 41 - af, "4", NULL);
 }
 
 void RunButton::onDragEnd(EventDragEnd &e) {

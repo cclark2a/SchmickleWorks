@@ -14,9 +14,9 @@
     //   when user clicks these from the context menu
 
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+    this->reset();
     musicFont = Font::load(assetPlugin(plugin, "res/MusiSync2.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
-    this->initialize();
     this->setUpSampleNotes();
 }
 
@@ -37,20 +37,6 @@ unsigned NoteTaker::horizontalCount() const {
     return count;
 }
 
-void NoteTaker::initialize() {
-    allNotes.clear();
-    clipboard.clear();
-    for (auto channel : channels) {
-        channel.reset();
-    }
-    displayStart = displayEnd = selectStart = selectEnd = 0;
-    elapsedSeconds = 0;
-    playingSelection = false;
-    selectChannels = ALL_CHANNELS;
-    lastHorizontal = INT_MAX;
-    lastVertical = INT_MAX;
-}
-
 bool NoteTaker::isEmpty() const {
     for (auto& note : allNotes) {
         if (note.isSelectable(selectChannels)) {
@@ -58,6 +44,23 @@ bool NoteTaker::isEmpty() const {
         }
     }
     return true;
+}
+
+void NoteTaker::reset() {
+    allNotes.clear();
+    clipboard.clear();
+    for (auto channel : channels) {
+        channel.reset();
+    }
+    displayStart = displayEnd = selectStart = selectEnd = 0;
+    elapsedSeconds = 0;
+    allOutputsOff = true;
+    playingSelection = false;
+    selectChannels = ALL_CHANNELS;
+    lastHorizontal = INT_MAX;
+    lastVertical = INT_MAX;
+    this->zeroGates();
+    Module::reset();
 }
 
 unsigned NoteTaker::wheelToNote(int value) const {
@@ -228,27 +231,42 @@ void NoteTaker::updateVertical() {
 }
 
 void NoteTaker::outputNote(const DisplayNote& note) {
-    assert((0xFF == note.channel && MIDI_HEADER == note.type) || note.channel < CV_OUTPUTS);
+    if (MIDI_HEADER == note.type) { 
+        if (allOutputsOff) {
+            return;
+        }
+    } else if (&note == channels[note.channel].note) {
+        return;
+    }
+    assert((0xFF == note.channel && MIDI_HEADER == note.type) || note.channel < CHANNEL_COUNT);
     if (NOTE_ON == note.type) {
         channels[note.channel].expiration = note.startTime
                 + channels[note.channel].sustain(note.duration);
-        outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
-	    float v_oct = inputs[V_OCT_INPUT].value;
-        outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
-    } else {
+        debug("outputNote time=%d dur=%d sustain=%d expr=%d", note.startTime, note.duration,
+                channels[note.channel].sustain(note.duration), channels[note.channel].expiration);
+        if (note.channel < CV_OUTPUTS) {
+            outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
+            float v_oct = inputs[V_OCT_INPUT].value;
+            outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
+        }
+        channels[note.channel].note = &note;
+        allOutputsOff = false;
+   } else {
         assert((MIDI_HEADER == note.type && selectButton->editStart()) || REST_TYPE == note.type);
         if (0xFF == note.channel) {
-            for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
-                outputs[GATE1_OUTPUT + index].value = 0;
-            }
+            this->zeroGates();
         } else {
-            outputs[GATE1_OUTPUT + note.channel].value = 0;
+            if (note.channel < CV_OUTPUTS) {
+                outputs[GATE1_OUTPUT + note.channel].value = 0; // rest
+            }
+            channels[note.channel].note = &note;
         }
     }
     display->dirty = true;
 }
 
 void NoteTaker::playSelection() {
+    this->zeroGates();
     elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime, ppq, tempo);
     playingSelection = true;
 }
@@ -377,9 +395,8 @@ void NoteTaker::step() {
     elapsedSeconds += deltaTime;
     int midiTime = SecondsToMidi(elapsedSeconds, ppq, tempo);
     if (runButton->running()) {
-        // to do: use info in midi header, time signature, tempo to get this right
         this->setExpiredGatesLow(midiTime);
-        // if midi time exceeds displayEnd: scroll; reset displayStart, displayEnd
+        // to do : if midi time exceeds displayEnd: scroll; reset displayStart, displayEnd
         // if midi time exceeds last of allNotes: either reset to zero and repeat,
         // or stop running
         bool recomputeDisplayEnd = false;

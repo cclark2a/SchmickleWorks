@@ -196,10 +196,21 @@ struct PartButton : EditLEDButton {
     void onDragEnd(EventDragEnd &e) override;
 };
 
+struct AdderButton : EditButton {
+    unsigned insertLoc;
+    unsigned shiftLoc;
+    int startTime;
+    int shiftTime;
+    int duration; 
+
+    void onDragEndPreamble(EventDragEnd &e);
+    void onDragEnd(EventDragEnd &e) override;
+};
+
 // if selection, exchange note / reset
 // if insertion, insert/delete rest
 // if duration, horizontal changes rest size, vertical has no effect
-struct RestButton : EditButton {
+struct RestButton : AdderButton {
     void draw(NVGcontext *vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };
@@ -212,27 +223,7 @@ struct RestButton : EditButton {
 //   if cut is saved in clipboard, insert adds clipboard as paste
 // to do : create font character for this
 struct CutButton : EditButton {
-    void draw(NVGcontext* vg) override {
-        EditButton::draw(vg);
-        nvgTranslate(vg, af + 9, 27 - af);
-        nvgBeginPath(vg);
-        nvgMoveTo(vg, 0, -1);
-        nvgLineTo(vg, 2, -3);   
-        nvgLineTo(vg, 4, -3);
-        nvgLineTo(vg, 1,  0);
-        nvgLineTo(vg, 4,  3);
-        nvgLineTo(vg, 2,  3);
-        nvgLineTo(vg, 0,  1);
-        nvgLineTo(vg, -2,  3);
-        nvgLineTo(vg,  -4,  3);
-        nvgLineTo(vg, -1,  0);
-        nvgLineTo(vg, -4, -3);
-        nvgLineTo(vg, -2, -3);
-        nvgLineTo(vg, 0, -1);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
-        nvgFill(vg);
-    }
-
+    void draw(NVGcontext* vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };
 
@@ -260,6 +251,21 @@ struct RunButton : NoteTakerButton {
         return ledOn;
     }
 
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+struct FileButton : EditLEDButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+struct SustainButton : EditLEDButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+struct TimeButton : AdderButton {
+    void draw(NVGcontext* vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };
 

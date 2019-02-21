@@ -42,7 +42,7 @@ static void ExerciseWheels(NoteTaker* n) {
 }
 
 static void SetScoreEmpty(NoteTaker* n) {
-    n->initialize();
+    n->reset();
     vector<uint8_t> emptyMidi;
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
@@ -152,7 +152,8 @@ void UnitTest(NoteTaker* n) {
     assert(3 == n->horizontalCount());
 
     debug("restore defaults");
-    n->initialize();
+    n->reset();
     n->setUpSampleNotes();
     ResetButtons(n);
+    n->setDisplayEnd();
 }
