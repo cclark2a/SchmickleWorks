@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SchmickleWorks.hpp"
+#include "NoteTakerChannel.hpp"
 #include "NoteTakerDisplayNote.hpp"
 #include "dsp/digital.hpp"
 #include <array>
@@ -65,7 +66,7 @@ struct NoteTaker : Module {
     vector<uint8_t> midi;
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
-    array<int, CHANNEL_COUNT> gateExpiration; // midi time when gate goes low
+    array<NoteTakerChannel, CHANNEL_COUNT> channels;
 	std::shared_ptr<Font> musicFont;
 	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
@@ -86,7 +87,9 @@ struct NoteTaker : Module {
     float elapsedSeconds = 0;
     int lastHorizontal = INT_MAX;
     int lastVertical = INT_MAX;
-    bool playingSelection = false;             // if set, provides feedback when editing notes
+    int tempo = 500000;                     // default to 120 beats/minute
+    int ppq = 96;                           // default to 96 pulses/ticks per quarter note
+    bool playingSelection = false;          // if set, provides feedback when editing notes
 
     NoteTaker();
 
@@ -139,12 +142,12 @@ struct NoteTaker : Module {
 
     void setExpiredGatesLow(int midiTime) {
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
-            int endTime = gateExpiration[channel];
+            int endTime = channels[channel].expiration;
             if (!endTime) {
                 continue;
             }
             if (endTime < midiTime) {
-                gateExpiration[channel] = 0;
+                channels[channel].expiration = 0;
                 if (channel < CV_OUTPUTS) {
                     outputs[GATE1_OUTPUT + channel].value = 0;
                 }
@@ -170,7 +173,9 @@ struct NoteTaker : Module {
     void validate() const;
 
     void zeroGates() {
-        gateExpiration.fill(0);
+        for (auto& channel : channels) {
+            channel.expiration = 0;
+        }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
             outputs[GATE1_OUTPUT + index].value = 0;
         }

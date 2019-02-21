@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SchmickleWorks.hpp"
+#include "NoteTakerDisplayNote.hpp"
 #include <array>
 
 static constexpr uint8_t midiCVMask = 0xF0;
@@ -16,12 +16,12 @@ static constexpr uint8_t midiSystem = 0xF0;
 const uint8_t stdKeyPressure = 0x64;
 const int stdTimePerQuarterNote = 0x60;
 
-inline int SecondsToMidi(float seconds) {
-    return (int) (stdTimePerQuarterNote * seconds);
+inline int SecondsToMidi(float seconds, int ppq, int tempo) {
+    return (int) (ppq * seconds * 1000000 / tempo);
 }
 
-inline float MidiToSeconds(int midiTime) {
-    return (float) midiTime / stdTimePerQuarterNote;
+inline float MidiToSeconds(int midiTime, int ppq, int tempo) {
+    return (float) midiTime / ppq * tempo / 1000000;
 }
 
 using std::array;
@@ -51,11 +51,12 @@ class NoteTakerMakeMidi {
 public:
     void createDefaultAsMidi(vector<uint8_t>& midi);
     void createEmpty(vector<uint8_t>& midi);
+    void createFromNotes(const vector<DisplayNote>& notes, vector<uint8_t>& midi);
 private:
-    vector<uint8_t>* target;  // used only during constructing midi, to compute track length
+    vector<uint8_t>* target = nullptr;  // used only during constructing midi, to compute track length
+    vector<uint8_t> temp;
 
-    void add_delta(float time, int* lastTime, int end) {
-        int midiTime = SecondsToMidi(time) - end;
+    void add_delta(int midiTime, int* lastTime) {
         int delta = midiTime - *lastTime;
         assert(delta >= 0);
         add_size8(delta);  // time of first note
@@ -84,5 +85,27 @@ private:
         do {
            target->push_back(buffer & 0xFF);
         } while ((buffer >>= 8));
+    }
+
+    void add_track_end() {
+        target->insert(temp.end(), MTrk_end.begin(), MTrk_end.end());
+    }
+
+    void standardHeader(vector<uint8_t>& midi) {
+        target = &midi;
+        target->clear();
+        target->insert(target->end(), MThd.begin(), MThd.end());
+        target->insert(target->end(), MThd_length.begin(), MThd_length.end());
+        target->insert(target->end(), MThd_data.begin(), MThd_data.end());
+        target->insert(target->end(), MTrk.begin(), MTrk.end());
+    // defer adding until size of data is known
+        temp.clear();
+        target = &temp;
+    }
+
+    void standardTrailer(vector<uint8_t>& midi) {
+        target = &midi;
+        add_size32(temp.size());
+        midi.insert(midi.end(), temp.begin(), temp.end());
     }
 };

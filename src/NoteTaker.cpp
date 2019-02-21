@@ -40,7 +40,9 @@ unsigned NoteTaker::horizontalCount() const {
 void NoteTaker::initialize() {
     allNotes.clear();
     clipboard.clear();
-    gateExpiration.fill(0);
+    for (auto channel : channels) {
+        channel.reset();
+    }
     displayStart = displayEnd = selectStart = selectEnd = 0;
     elapsedSeconds = 0;
     playingSelection = false;
@@ -118,7 +120,10 @@ void NoteTaker::setUpSampleNotes() {
     maker.createDefaultAsMidi(midi);
     NoteTakerParseMidi parser(midi, allNotes);
     parser.parseMidi();
-
+    channels[0].sustainMin = 1;
+    channels[0].sustainMax = INT_MAX;
+    channels[0].releaseMin = 1;
+    channels[0].releaseMax = 24;
 }
 
 void NoteTaker::updateHorizontal() {
@@ -225,7 +230,8 @@ void NoteTaker::updateVertical() {
 void NoteTaker::outputNote(const DisplayNote& note) {
     assert((0xFF == note.channel && MIDI_HEADER == note.type) || note.channel < CV_OUTPUTS);
     if (NOTE_ON == note.type) {
-        gateExpiration[note.channel] = note.startTime + note.duration;
+        channels[note.channel].expiration = note.startTime
+                + channels[note.channel].sustain(note.duration);
         outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
 	    float v_oct = inputs[V_OCT_INPUT].value;
         outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
@@ -243,7 +249,7 @@ void NoteTaker::outputNote(const DisplayNote& note) {
 }
 
 void NoteTaker::playSelection() {
-    elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime);
+    elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime, ppq, tempo);
     playingSelection = true;
 }
 
@@ -369,7 +375,7 @@ void NoteTaker::step() {
     // note on event duration sets gate low
 	float deltaTime = engineGetSampleTime();
     elapsedSeconds += deltaTime;
-    int midiTime = SecondsToMidi(elapsedSeconds);
+    int midiTime = SecondsToMidi(elapsedSeconds, ppq, tempo);
     if (runButton->running()) {
         // to do: use info in midi header, time signature, tempo to get this right
         this->setExpiredGatesLow(midiTime);
