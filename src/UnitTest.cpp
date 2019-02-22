@@ -13,9 +13,7 @@ static void Press(MomentarySwitch* ms) {
 }
 
 static void ResetButtons(NoteTaker* n) {
-    n->selectButton->setOff();
-    n->partButton->setOff();
-    n->setWheelRange();
+    n->resetButtons();
 }
 
 static void WheelUp(NoteTaker* n, float value) {

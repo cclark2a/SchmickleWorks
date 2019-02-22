@@ -118,24 +118,54 @@ void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPo
 }
 
 void NoteTakerDisplay::draw(NVGcontext *vg) {
-    // draw bounds
-    // to do : clip to bounds
-	nvgStrokeWidth(vg, 1.0);
+    nvgScissor(vg, 0, 0, box.size.x, box.size.y);
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, box.size.x, box.size.y);
-	nvgStrokeColor(vg, nvgRGB(0, 0, 0));
-	nvgStroke(vg);
+    nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
+    nvgFill(vg);
+
+    // draw bevel
+    const float bevel = 2;
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, 0, 0);
+    nvgLineTo(vg, 0, box.size.y);
+    nvgLineTo(vg, bevel, box.size.y - bevel);
+    nvgLineTo(vg, bevel, bevel);
+    nvgFillColor(vg, nvgRGB(0x6f, 0x6f, 0x6f));
+    nvgFill(vg);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, 0, box.size.y);
+    nvgLineTo(vg, box.size.x, box.size.y);
+    nvgLineTo(vg, box.size.x - bevel, box.size.y - bevel);
+    nvgLineTo(vg, bevel, box.size.y - bevel);
+    nvgFillColor(vg, nvgRGB(0x9f, 0x9f, 0x9f));
+    nvgFill(vg);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, box.size.x, box.size.y);
+    nvgLineTo(vg, box.size.x, 0);
+    nvgLineTo(vg, box.size.x - bevel, bevel);
+    nvgLineTo(vg, box.size.x - bevel, box.size.y - bevel);
+    nvgFillColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
+    nvgFill(vg);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, box.size.x, 0);
+    nvgLineTo(vg, 0, 0);
+    nvgLineTo(vg, bevel, bevel);
+    nvgLineTo(vg, box.size.x - bevel, bevel);
+    nvgFillColor(vg, nvgRGB(0x5f, 0x5f, 0x5f));
+    nvgFill(vg);
+
     // draw vertical line at end of staff lines
     nvgBeginPath(vg);
-    nvgMoveTo(vg, 2, 36);
-    nvgLineTo(vg, 2, 96);
+    nvgMoveTo(vg, 3, 36);
+    nvgLineTo(vg, 3, 96);
     nvgStrokeWidth(vg, 0.5);
     nvgStroke(vg);
     // draw staff lines
     nvgBeginPath(vg);
     for (int staff = 36; staff <= 72; staff += 36) {
         for (int y = staff; y <= staff + 24; y += 6) { 
-	        nvgMoveTo(vg, 2, y);
+	        nvgMoveTo(vg, 3, y);
 	        nvgLineTo(vg, box.size.x - 1, y);
         }
     }
@@ -145,13 +175,14 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     nvgFontFaceId(vg, module->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 42);
-    nvgText(vg, 4, 60, "(", NULL);
+    nvgText(vg, 5, 60, "(", NULL);
     nvgFontSize(vg, 36);
-    nvgText(vg, 4, 92, ")", NULL);
+    nvgText(vg, 5, 92, ")", NULL);
     // draw selection rect
     nvgBeginPath(vg);
     const DisplayNote& selectStart = module->allNotes[module->selectStart];
-    int xStart = 32 + selectStart.startTime / 4;
+    this->initXPos();
+    int xStart = this->xPos(selectStart.startTime);
     if (module->selectButton->editStart()) {
         if (module->selectStart == 0) {
             nvgRect(vg, 24, 0, 4, box.size.y);
@@ -160,7 +191,7 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         }
     } else {
         const DisplayNote& selectEnd = module->allNotes[module->selectEnd];
-        int xEnd = 32 + selectEnd.startTime / 4;
+        int xEnd = this->xPos(selectEnd.startTime);
         nvgRect(vg, xStart - 5, 0, xEnd - xStart, box.size.y);
     }
     unsigned selectChannels = module->selectChannels;
@@ -172,11 +203,11 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         const DisplayNote& note = module->allNotes[i];
         switch (note.type) {
             case NOTE_ON: {
-                int xPos = 32 + note.startTime / 4;
+                int xPos = this->xPos(note.startTime);
                 this->drawNote(vg, note, xPos, 0xFF);
             } break;
             case REST_TYPE: {
-                int xPos = 32 + note.startTime / 4;
+                int xPos = this->xPos(note.startTime);
                 this->drawRest(vg, note, xPos, 0xFF);
             } break;
             case MIDI_HEADER:
@@ -187,7 +218,7 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
             case TIME_SIGNATURE:
                 debug("draw time signature %d %d\n", note.startTime, note.pitch());
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
-                nvgText(vg, 32 + note.startTime / 4, note.pitch(), "'", NULL);
+                nvgText(vg, this->xPos(note.startTime), note.pitch(), "'", NULL);
             break;
             case MIDI_TEMPO:
             break;
@@ -198,6 +229,40 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
                 assert(0); // incomplete
         }
     }
+    if (module->fileButton->ledOn) {
+        nvgFontFaceId(vg, module->textFont->handle);
+        nvgFontSize(vg, 16);
+        float wheel = module->verticalWheel->value;
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+        if (module->loading) {
+            nvgBeginPath(vg);
+            nvgRect(vg, box.size.x - 33, 20, 23, 12);
+            nvgFill(vg);
+            nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
+        }
+        nvgText(vg, box.size.x - 30, 30, "load", NULL);
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+        if (module->saving) {
+            nvgBeginPath(vg);
+            nvgRect(vg, box.size.x - 33, box.size.y - 30, 23, 12);
+            nvgFill(vg);
+            nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
+        }
+        nvgText(vg, box.size.x - 30, box.size.y - 20, "save", NULL);
+        nvgBeginPath(vg);
+        nvgRect(vg, box.size.x - 10, 20, 5, box.size.y - 40);
+        nvgStrokeWidth(vg, 2);
+        nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+        nvgStroke(vg);
+        nvgBeginPath(vg);
+        float yPos = box.size.y - 20 - wheel * (box.size.y - 40) / 10;
+        nvgMoveTo(vg, box.size.x - 10, yPos);
+        nvgLineTo(vg, box.size.x - 5, yPos - 3);
+        nvgLineTo(vg, box.size.x - 5, yPos + 3);
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+        nvgFill(vg);
+    }
+	FramebufferWidget::draw(vg);
     dirty = false;
 }
 

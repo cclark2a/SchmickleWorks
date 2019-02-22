@@ -81,7 +81,7 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
                 insertLoc, insertSize, shiftTime, nt->selectStart, nt->selectEnd);
         nt->debugDump();
     }
-    selectButton->setOff();
+    selectButton->reset();
     nt->selectStart = insertLoc;
     nt->selectEnd = insertLoc + insertSize;
     NoteTaker::ShiftNotes(nt->allNotes, nt->selectEnd, shiftTime);
@@ -146,7 +146,7 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     if (shiftTime) {
         NoteTaker::ShiftNotes(nt->allNotes, shiftLoc, shiftTime);
     }
-    nt->selectButton->setOff();
+    nt->selectButton->reset();
     nt->selectStart = insertLoc;
     nt->selectEnd = insertLoc + 1;
     nt->setWheelRange();  // range is larger
@@ -210,7 +210,7 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
         case State::extend:
             assert(!ledOn);
             nt->copyNotes();
-            this->setOff();
+            this->reset();
         break;
         default:
             assert(0);
@@ -218,13 +218,13 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
     nt->setWheelRange();  // if state is single, set to horz from -1 to size
 }
 
-void SelectButton::setOff() {
+void SelectButton::reset() {
     NoteTaker* nt = nModule();
     if (!nt->selectStart && !nt->isEmpty()) {
         nt->selectStart = nt->wheelToNote(0);
     }
     state = State::ledOff;
-    NoteTakerButton::setOff();
+    NoteTakerButton::reset();
 }
 
 void SelectButton::setExtend() {
@@ -290,17 +290,8 @@ void CutButton::onDragEnd(EventDragEnd& e) {
 }
 
 void FileButton::onDragEnd(EventDragEnd &e) {
-    NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
-    if (ledOn) {
-        // to do : vert wheel chooses load / save row
-        //       : horz wheel chooses file slot
-        // turning off file commits load / save (or run?)
-        // play selection immediately and show behind row
-        // show only one row
-        // show load row first?
-    }
-    nt->display->dirty = true;
+    nModule()->setWheelRange();
 }
 
 void FileButton::draw(NVGcontext* vg) {

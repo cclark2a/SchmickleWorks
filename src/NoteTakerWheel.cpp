@@ -25,6 +25,14 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
     float frameWidth = 1;
     nvgStrokeWidth(vg, frameWidth);
 	nvgStroke(vg);
+    // draw shadow cast by wheel
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, 0, bottom);
+    nvgLineTo(vg, size.x, bottom);
+    nvgQuadTo(vg, size.x * shadow / 4, bottom + 18, 4, bottom);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x11));
+    nvgFill(vg);
+    // draw wheel
     nvgScissor(vg, frameWidth / 2, frameWidth / 2, size.x - frameWidth, size.y);
     const int segments = 40;
     const float depth = 2;  // tooth depth

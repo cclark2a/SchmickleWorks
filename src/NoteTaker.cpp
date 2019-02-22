@@ -130,6 +130,15 @@ void NoteTaker::setUpSampleNotes() {
 }
 
 void NoteTaker::updateHorizontal() {
+    const int wheelValue = (int) horizontalWheel->value;
+    if (wheelValue == lastHorizontal) {
+        return;
+    }
+    lastHorizontal = wheelValue;
+    if (fileButton->ledOn) {
+        display->dirty = true;
+        return;
+    }
     if (isEmpty()) {
         return;
     }
@@ -137,11 +146,6 @@ void NoteTaker::updateHorizontal() {
         // to do : while running, change tempo
         return;
     }
-    const int wheelValue = (int) horizontalWheel->value;
-    if (wheelValue == lastHorizontal) {
-        return;
-    }
-    lastHorizontal = wheelValue;
     bool noteChanged = false;
     if (!selectButton->ledOn) {
         int diff = 0;
@@ -177,6 +181,21 @@ void NoteTaker::updateHorizontal() {
 }
     
 void NoteTaker::updateVertical() {
+    const int wheelValue = (int) verticalWheel->value;
+    if (wheelValue == lastVertical) {
+        return;
+    }
+    lastVertical = wheelValue;
+    if (fileButton->ledOn) {
+        if (verticalWheel->value <= 2) {
+            saving = true;
+        }
+        if (verticalWheel->value >= 8) {
+            loading = true;
+        }
+        display->dirty = true;
+        return;
+    }
     if (isEmpty()) {
         return;
     }
@@ -184,11 +203,6 @@ void NoteTaker::updateVertical() {
         // to do : if running, transpose all up/down
         return;
     }
-    const int wheelValue = (int) verticalWheel->value;
-    if (wheelValue == lastVertical) {
-        return;
-    }
-    lastVertical = wheelValue;
     if (partButton->ledOn) {
         unsigned value = (unsigned) wheelValue;
         assert(value < CHANNEL_COUNT);
@@ -271,11 +285,21 @@ void NoteTaker::playSelection() {
     playingSelection = true;
 }
 
+void NoteTaker::resetButtons() {
+    cutButton->reset();
+    fileButton->reset();
+    insertButton->reset();
+    partButton->reset();
+    restButton->reset();
+    runButton->reset();
+    selectButton->reset();
+    sustainButton->reset();
+    timeButton->reset();
+}
+
 void NoteTaker::setDisplayEnd() {
-    // to do: allow time range to display to be scaled from box width
-    // calc here must match NoteTakerDisplay::draw:75
     displayEnd = this->lastAt(allNotes[displayStart].startTime
-            + display->box.size.x * 4 - 32);
+            + display->box.size.x / display->xAxisScale - display->xAxisOffset);
 }
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
@@ -335,9 +359,25 @@ void NoteTaker::setSelectStartAt(int midiTime, unsigned startIndex, unsigned end
 }
 
 void NoteTaker::setWheelRange() {
-    if (!selectButton || isEmpty()) {
+    if (!fileButton) {
         return;
     }
+    if (fileButton->ledOn) {
+        horizontalWheel->setLimits(0, storage.size());
+        horizontalWheel->setValue(0);
+        verticalWheel->setLimits(0, 10);
+        verticalWheel->setValue(5);
+        verticalWheel->speed = 1;
+        debug("horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
+                horizontalWheel->maxValue);
+        debug("vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
+                verticalWheel->maxValue);
+        return;
+    }
+    if (isEmpty()) {
+        return;
+    }
+    verticalWheel->speed = .1;
     // horizontal wheel range and value
     int wheelMin = selectButton->editStart() ? -1 : 0;
     int wheelMax = (int) this->horizontalCount() + wheelMin;
@@ -385,6 +425,15 @@ void NoteTaker::setWheelRange() {
 }
 
 void NoteTaker::step() {
+    if (loading || saving) {
+        float val = verticalWheel->value;
+        verticalWheel->value += val > 5 ? -.0001f : +.0001f;
+        if (4.9999f < val && val < 5.0001f) {
+            loading = false;
+            saving = false;
+        }
+        return;
+    }
     if (!runButton || (!runButton->running() && !playingSelection) || this->isEmpty()) {
         return;
     }

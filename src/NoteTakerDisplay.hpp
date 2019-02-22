@@ -33,6 +33,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         : module(m) {
         box.pos = pos;
         box.size = size;
+        xAxisScale = 0.25;
+        this->initXPos();
     }
     
     void draw(NVGcontext* vg) override;
@@ -46,6 +48,10 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
             }
         }
         return noteDurations.size() - 1;
+    }
+
+    void initXPos() {
+        xAxisOffset = 32;
     }
 
     static unsigned RestIndex(int duration) {
@@ -62,5 +68,11 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return result;
     }
 
+    float xPos(int time) {
+        return xAxisOffset + time * xAxisScale;
+    }
+
     NoteTaker* module;
+    float xAxisOffset;
+    float xAxisScale;
 };

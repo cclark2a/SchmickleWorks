@@ -34,9 +34,10 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         return (const NoteTaker* ) module;
     }
 
-    virtual void setOff() {
+    void reset() override {
         ledOn = false;
         af = 0;
+        MomentarySwitch::reset();
     }
 
     int af = 0;  // animation frame, 0 to 1
@@ -174,7 +175,7 @@ struct SelectButton : EditLEDButton {
     bool editEnd() const { return ledOn && State::extend == state; }
     bool editStart() const { return ledOn && State::single == state; }
     void onDragEnd(EventDragEnd &e) override;
-    void setOff() override;
+    void reset() override;
     void setExtend();
     void setSingle() { state = State::single; ledOn = true; }
 

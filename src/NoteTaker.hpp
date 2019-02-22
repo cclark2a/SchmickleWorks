@@ -7,7 +7,6 @@ using std::array;
 using std::vector;
 
 struct CutButton;
-struct DurationButton;
 struct FileButton;
 struct InsertButton;
 struct PartButton;
@@ -63,6 +62,7 @@ struct NoteTaker : Module {
 	};
 
     vector<uint8_t> midi;
+    vector<vector<uint8_t>> storage;
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;
@@ -70,7 +70,6 @@ struct NoteTaker : Module {
 	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
     CutButton* cutButton = nullptr;
-    DurationButton* durationButton = nullptr;
     FileButton* fileButton = nullptr;
     InsertButton* insertButton = nullptr;
     PartButton* partButton = nullptr;
@@ -93,7 +92,8 @@ struct NoteTaker : Module {
     int ppq = 96;                           // default to 96 pulses/ticks per quarter note
     bool allOutputsOff = false;
     bool playingSelection = false;          // if set, provides feedback when editing notes
-
+    bool loading = false;
+    bool saving = false;
     NoteTaker();
 
     void copyNotes() {
@@ -141,6 +141,7 @@ struct NoteTaker : Module {
     void outputNote(const DisplayNote& note);
     void playSelection();
     void reset() override;
+    void resetButtons();
     void setDisplayEnd();
 
     void setExpiredGatesLow(int midiTime) {

@@ -25,6 +25,7 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     }
 
     Vec size;
+    int shadow;
 };
 
 
@@ -33,6 +34,7 @@ struct HorizontalWheel : NoteTakerWheel {
         size.x = box.size.x = 100;
         size.y = box.size.y = 17;
         speed = 1;
+        shadow = 3;
     }
 
     void draw(NVGcontext *vg) override {
@@ -47,6 +49,7 @@ struct VerticalWheel : NoteTakerWheel {
         size.y = box.size.x = 17;
         size.x = box.size.y = 100;
         speed = .1;
+        shadow = 1;
     }
 
     void draw(NVGcontext *vg) override {
