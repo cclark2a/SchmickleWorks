@@ -1,7 +1,6 @@
 #pragma once
 
 #include "SchmickleWorks.hpp"
-#include <float.h>
 
 struct NoteTakerWheel : Knob, FramebufferWidget {
     void drawGear(NVGcontext *vg, float frame);

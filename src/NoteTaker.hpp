@@ -1,11 +1,7 @@
 #pragma once
 
-#include "SchmickleWorks.hpp"
 #include "NoteTakerChannel.hpp"
 #include "NoteTakerDisplayNote.hpp"
-#include "dsp/digital.hpp"
-#include <array>
-#include <float.h>
 
 using std::array;
 using std::vector;

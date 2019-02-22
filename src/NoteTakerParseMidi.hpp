@@ -1,6 +1,5 @@
 #pragma once
 
-#include "SchmickleWorks.hpp"
 #include "NoteTakerDisplayNote.hpp"
 
 using std::vector;

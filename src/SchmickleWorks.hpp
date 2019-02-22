@@ -1,4 +1,10 @@
+#pragma once
+
 #include "rack.hpp"
+#include "dsp/digital.hpp"
+#include <array>
+#include <float.h>
+#include <limits.h>
 
 using namespace rack;
 
