@@ -131,6 +131,8 @@ struct NoteTaker : Module {
         return last.startTime + last.duration <= midiTime;
     }
 
+    void loadScore();
+
     int noteToWheel(unsigned index) const {
         assert(index < allNotes.size());
         return noteToWheel(allNotes[index]);
@@ -142,6 +144,7 @@ struct NoteTaker : Module {
     void playSelection();
     void reset() override;
     void resetButtons();
+    void saveScore();
     void setDisplayEnd();
 
     void setExpiredGatesLow(int midiTime) {

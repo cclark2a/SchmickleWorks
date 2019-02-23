@@ -46,6 +46,13 @@ bool NoteTaker::isEmpty() const {
     return true;
 }
 
+void NoteTaker::loadScore() {
+    unsigned index = (unsigned) horizontalWheel->value;
+    assert(index < storage.size());
+    NoteTakerParseMidi parser(storage[index], allNotes);
+    parser.parseMidi();
+}
+
 void NoteTaker::reset() {
     allNotes.clear();
     clipboard.clear();
@@ -116,6 +123,17 @@ int NoteTaker::noteToWheel(const DisplayNote& match) const {
         lastTime = note.startTime;
     }
     assert(0);
+}
+
+void NoteTaker::saveScore() {
+    unsigned index = (unsigned) horizontalWheel->value;
+    assert(index <= storage.size());
+    if (storage.size() == index) {
+        storage.push_back(vector<uint8_t>());
+    }
+    auto& dest = storage[index];
+    NoteTakerMakeMidi midiMaker;
+    midiMaker.createFromNotes(allNotes, dest);
 }
 
 void NoteTaker::setUpSampleNotes() {
@@ -189,9 +207,11 @@ void NoteTaker::updateVertical() {
     if (fileButton->ledOn) {
         if (verticalWheel->value <= 2) {
             saving = true;
+            this->saveScore();
         }
-        if (verticalWheel->value >= 8) {
+        if (verticalWheel->value >= 8 && (unsigned) horizontalWheel->value < storage.size()) {
             loading = true;
+            this->loadScore();
         }
         display->dirty = true;
         return;

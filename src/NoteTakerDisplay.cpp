@@ -230,10 +230,15 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         }
     }
     if (module->fileButton->ledOn) {
+        // draw vertical control
         nvgFontFaceId(vg, module->textFont->handle);
         nvgFontSize(vg, 16);
         float wheel = module->verticalWheel->value;
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
+        if ((unsigned) module->horizontalWheel->value < module->storage.size()) {
+            nvgFillColor(vg, nvgRGB(0, 0, 0));
+        } else {
+            nvgFillColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
+        }
         if (module->loading) {
             nvgBeginPath(vg);
             nvgRect(vg, box.size.x - 33, 20, 23, 12);
@@ -261,6 +266,45 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         nvgLineTo(vg, box.size.x - 5, yPos + 3);
         nvgFillColor(vg, nvgRGB(0, 0, 0));
         nvgFill(vg);
+        // draw horizontal control
+        const float boxWidth = 20;
+        auto drawEmpty = [&](unsigned index){
+            nvgBeginPath(vg);
+            nvgRect(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
+            nvgMoveTo(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5);
+            nvgLineTo(vg, 5 + (index + 1) * boxWidth, box.size.y - 5);
+            nvgMoveTo(vg, 5 + (index + 1) * boxWidth, box.size.y - boxWidth - 5);
+            nvgLineTo(vg, 5 + index * boxWidth, box.size.y - 5);
+            nvgStrokeWidth(vg, 1);
+            nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+            nvgStroke(vg);
+        };
+        for (unsigned index = 0; index < module->storage.size() && index * boxWidth < box.size.x;
+                ++index) {            
+            if (module->storage[index].empty()) {
+                drawEmpty(index);
+            } else {
+                nvgBeginPath(vg);
+                nvgRect(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
+                nvgStrokeWidth(vg, 1);
+                nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+                nvgStroke(vg);
+                nvgFontFaceId(vg, module->musicFont->handle);
+                nvgFontSize(vg, 16);
+                nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+                nvgText(vg, 5 + (index + .5) * boxWidth, box.size.y - 8, "H", NULL);
+            }
+        }
+        unsigned index = module->storage.size();
+        if (index * boxWidth <= box.size.x) {
+            drawEmpty(index);
+        }
+        wheel = module->horizontalWheel->value;
+        nvgBeginPath(vg);
+        nvgRect(vg, 5 + wheel * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
+        nvgStrokeWidth(vg, 2);
+        nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+        nvgStroke(vg);
     }
 	FramebufferWidget::draw(vg);
     dirty = false;
