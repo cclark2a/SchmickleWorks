@@ -37,10 +37,12 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         this->initXPos();
     }
     
-    void draw(NVGcontext* vg) override;
-    void drawNote(NVGcontext* , const DisplayNote& , int offset, int alpha);
-    void drawRest(NVGcontext* , const DisplayNote& , int offset, int alpha);
-
+    void draw(NVGcontext* ) override;
+    void drawFileControl(NVGcontext* ) const;
+    void drawSustainControl(NVGcontext* ) const;
+    void drawNote(NVGcontext* , const DisplayNote& , int offset, int alpha) const;
+    void drawRest(NVGcontext* , const DisplayNote& , int offset, int alpha) const;
+    void drawVerticalControl(NVGcontext* ) const;
     static unsigned DurationIndex(int duration) {
         for (unsigned i = 0; i < noteDurations.size(); ++i) {
             if (duration <= noteDurations[i]) {
@@ -68,7 +70,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return result;
     }
 
-    float xPos(int time) {
+    float xPos(int time) const {
         return xAxisOffset + time * xAxisScale;
     }
 

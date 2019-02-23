@@ -4,8 +4,6 @@
 
 // per cv/gate info
 
-struct DisplayNote;
-
 // if note is shorter than sustainMax + releaseMax, releaseMax takes precedence
 //       result note is gateOn:sustainMin gateOff:(duration - sustainMin)
 // if note is equal to or longer than sustainMax + releaseMax:
@@ -15,7 +13,7 @@ struct NoteTakerChannel {
     int sustainMax;
     int releaseMin;  // midi time for smallest interval gate goes low
     int releaseMax;
-    const DisplayNote* note; // the note currently playing on this channel
+    unsigned noteIndex; // the note currently playing on this channel
     int expiration;  // midi time when gate goes low
 
     NoteTakerChannel() {
@@ -25,7 +23,7 @@ struct NoteTakerChannel {
     void reset() {
         sustainMin = releaseMin = 1;
         sustainMax = releaseMax = 24;  // to do : use a constant here
-        note = nullptr;
+        noteIndex = INT_MAX;
         expiration = 0;
     }
 

@@ -1,8 +1,11 @@
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerParseMidi.hpp"
 #include "NoteTakerMakeMidi.hpp"
+#include "NoteTaker.hpp"
 
 void NoteTakerParseMidi::parseMidi() {
+    debug("parseMidi start");
+    vector<DisplayNote> parsedNotes;
     int midiTime = 0;
     if (midi.size() < 14) {
         debug("MIDI file too small size=%llu\n", midi.size());
@@ -32,9 +35,10 @@ void NoteTakerParseMidi::parseMidi() {
         read_midi16(iter, &displayNote.data[i]);
     }
     if (!displayNote.isValid()) {
+        debug("invalid %s", displayNote.debugString().c_str());
         return;
     }
-    displayNotes.push_back(displayNote);
+    parsedNotes.push_back(displayNote);
     vector<uint8_t>::const_iterator trk = iter;
     // parse track header before parsing channel voice messages
     if (!match_midi(iter, MTrk)) {
@@ -45,6 +49,7 @@ void NoteTakerParseMidi::parseMidi() {
     }
     int trackLength;
     if (!midi_size32(iter, &trackLength)) {
+        debug("invalid track length");
         return;
     }
     while (iter != midi.end()) {
@@ -63,15 +68,17 @@ void NoteTakerParseMidi::parseMidi() {
         switch(displayNote.type) {
             case UNUSED: {  // midi note off
                 if (!midi_check7bits(iter)) {
+                    debug("midi_check7bits 1");
                     return;
                 }
                 int pitch = *iter++;
                 if (!midi_check7bits(iter)) {
+                    debug("midi_check7bits 2");
                     return;
                 }
                 int velocity = *iter++;
                 bool found = false;
-                for (auto ri = displayNotes.rbegin(); ri != displayNotes.rend(); ++ri) {
+                for (auto ri = parsedNotes.rbegin(); ri != parsedNotes.rend(); ++ri) {
                     if (ri->type != NOTE_ON) {
                         continue;
                     }
@@ -102,10 +109,12 @@ void NoteTakerParseMidi::parseMidi() {
             } break;
             case NOTE_ON:
                 if (!midi_check7bits(iter)) {
+                    debug("midi_check7bits 3");
                     return;
                 }
                 displayNote.setPitch(*iter++);
                 if (!midi_check7bits(iter)) {
+                    debug("midi_check7bits 4");
                     return;
                 }
                 displayNote.setOnVelocity(*iter++);
@@ -115,6 +124,7 @@ void NoteTakerParseMidi::parseMidi() {
             case PITCH_WHEEL:
                 for (int i = 0; i < 2; i++) {
                     if (!midi_check7bits(iter)) {
+                        debug("midi_check7bits 5");
                         return;
                     }
                     displayNote.data[i] = *iter++;
@@ -123,6 +133,7 @@ void NoteTakerParseMidi::parseMidi() {
             case PROGRAM_CHANGE:
             case CHANNEL_PRESSURE:
                 if (!midi_check7bits(iter)) {
+                    debug("midi_check7bits 6");
                     return;
                 }
                 displayNote.data[0] = *iter++;
@@ -143,6 +154,7 @@ void NoteTakerParseMidi::parseMidi() {
                     case 0x2: // song position pointer
                         for (int i = 0; i < 2; i++) {
                             if (!midi_check7bits(iter)) {
+                                debug("midi_check7bits 7");
                                 return;
                             }
                             displayNote.data[i] = *iter++;
@@ -150,6 +162,7 @@ void NoteTakerParseMidi::parseMidi() {
                         break;
                     case 0x3: // song select
                         if (!midi_check7bits(iter)) {
+                            debug("midi_check7bits 8");
                             return;
                         }
                         displayNote.data[0] = *iter++;
@@ -163,6 +176,7 @@ void NoteTakerParseMidi::parseMidi() {
                     break;
                     case 0xF: // meta event
                         if (!midi_check7bits(iter)) {
+                            debug("midi_check7bits 9");
                             return;
                         }
                         displayNote.data[0] = *iter++;
@@ -176,6 +190,7 @@ void NoteTakerParseMidi::parseMidi() {
                                 if (2 == displayNote.data[1]) { // two bytes for # follow
                                     for (int i = 2; i < 4; i++) {
                                         if (!midi_check7bits(iter)) {
+                                            debug("midi_check7bits 10");
                                             return;
                                         }
                                         displayNote.data[i] = *iter++;
@@ -207,6 +222,7 @@ void NoteTakerParseMidi::parseMidi() {
                                     return;
                                 }
                                 if (!midi_check7bits(iter)) {
+                                    debug("midi_check7bits 11");
                                     return;
                                 }
                                 displayNote.data[2] = *iter++;
@@ -227,6 +243,7 @@ void NoteTakerParseMidi::parseMidi() {
                                     return;
                                 }
                                 if (!midi_size24(iter, &displayNote.data[2])) {
+                                    debug("midi_size24");
                                     return;
                                 }
                             break;
@@ -243,11 +260,13 @@ void NoteTakerParseMidi::parseMidi() {
                                 displayNote.type = TIME_SIGNATURE;
                                 for (int i = 0; i < 4; ++i) {
                                     if (!midi_check7bits(iter)) {
+                                        debug("midi_check7bits 12");
                                         return;
                                     }
                                     displayNote.data[i] = *iter++;
                                 }
                                 if (!displayNote.isValid()) {
+                                    debug("invalid %s 2", displayNote.debugString().c_str());
                                     return;
                                 }
                             break;
@@ -255,11 +274,13 @@ void NoteTakerParseMidi::parseMidi() {
                                 displayNote.type = KEY_SIGNATURE;
                                 for (int i = 0; i < 2; ++i) {
                                     if (!midi_check7bits(iter)) {
+                                        debug("midi_check7bits 13");
                                         return;
                                     }
                                     displayNote.data[i] = *iter++;
                                 }
                                 if (!displayNote.isValid()) {
+                                    debug("invalid %s 3", displayNote.debugString().c_str());
                                     return;
                                 }
                             break;
@@ -286,7 +307,8 @@ void NoteTakerParseMidi::parseMidi() {
                 debug("unexpected byte %d\n", *iter);
                 return;
         }
-        displayNotes.push_back(displayNote);
+        parsedNotes.push_back(displayNote);
     }
+    NoteTaker::DebugDump(parsedNotes);
+    displayNotes.swap(parsedNotes);
 }
-

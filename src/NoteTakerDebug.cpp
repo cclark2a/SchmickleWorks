@@ -53,18 +53,18 @@ std::string DisplayNote::debugString() const {
     return s;
 }
 
-void NoteTaker::debugDump(const vector<DisplayNote>& notes, bool showSelect) const {
-    // make sure debug data is self-consistent
+void NoteTaker::DebugDump(const vector<DisplayNote>& notes, unsigned selectStart,
+        unsigned selectEnd) {
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         assert(i == typeNames[i].type);
     }
     debug("notes: %d", notes.size());
     for (const auto& note : notes) {
         std::string s;
-        if (showSelect && &note == &notes[selectStart]) {
+        if (INT_MAX != selectStart && &note == &notes[selectStart]) {
             s += "< ";
         }
-        if (showSelect && &note == &notes[selectEnd]) {
+        if (INT_MAX != selectEnd && &note == &notes[selectEnd]) {
             s += "> ";
         }
         s += note.debugString();

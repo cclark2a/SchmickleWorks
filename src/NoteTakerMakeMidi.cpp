@@ -60,7 +60,7 @@ void NoteTakerMakeMidi::createFromNotes(const vector<DisplayNote>& notes, vector
     this->standardHeader(midi);
     std::set<LastNote> lastNotes;
     int lastTime = 0;
-    for (auto n : notes) {
+    for (auto& n : notes) {
         switch(n.type) {
             case MIDI_HEADER:
                 // to do : allow custom ticks / quarter note (hardcoded to 96)

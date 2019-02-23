@@ -47,10 +47,12 @@ bool NoteTaker::isEmpty() const {
 }
 
 void NoteTaker::loadScore() {
+    debug("loadScore start");
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
     NoteTakerParseMidi parser(storage[index], allNotes);
     parser.parseMidi();
+    debug("loadScore end");
 }
 
 void NoteTaker::reset() {
@@ -84,7 +86,7 @@ unsigned NoteTaker::wheelToNote(int value) const {
             continue;
         }
         if (count <= 0) {
-            return &note - &allNotes.front();
+            return this->noteIndex(note);
         }
         if (lastTime == note.startTime) {
             continue;
@@ -95,7 +97,7 @@ unsigned NoteTaker::wheelToNote(int value) const {
     if (0 == count && selectButton->editEnd()) {
         auto& note = allNotes.back();
         assert(TRACK_END == note.type);
-        return &note - &allNotes.front();
+        return this->noteIndex(note);
     }
     debug("wheelToNote value %d", value);
     this->debugDump();
@@ -148,13 +150,8 @@ void NoteTaker::setUpSampleNotes() {
 }
 
 void NoteTaker::updateHorizontal() {
-    const int wheelValue = (int) horizontalWheel->value;
-    if (wheelValue == lastHorizontal) {
-        return;
-    }
-    lastHorizontal = wheelValue;
     if (fileButton->ledOn) {
-        display->dirty = true;
+        // to do : nudge to next valid value once I figure out how that should work, exactly
         return;
     }
     if (isEmpty()) {
@@ -165,6 +162,11 @@ void NoteTaker::updateHorizontal() {
         return;
     }
     bool noteChanged = false;
+    const int wheelValue = (int) horizontalWheel->value;
+    if (wheelValue == lastHorizontal) {
+        return;
+    }
+    lastHorizontal = wheelValue;
     if (!selectButton->ledOn) {
         int diff = 0;
         for (unsigned index = selectStart; index < selectEnd; ++index) {
@@ -210,10 +212,10 @@ void NoteTaker::updateVertical() {
             this->saveScore();
         }
         if (verticalWheel->value >= 8 && (unsigned) horizontalWheel->value < storage.size()) {
+            debug("updateVertical loadScore");
             loading = true;
             this->loadScore();
         }
-        display->dirty = true;
         return;
     }
     if (isEmpty()) {
@@ -269,7 +271,7 @@ void NoteTaker::outputNote(const DisplayNote& note) {
         if (allOutputsOff) {
             return;
         }
-    } else if (&note == channels[note.channel].note) {
+    } else if (this->noteIndex(note) == channels[note.channel].noteIndex) {
         return;
     }
     assert((0xFF == note.channel && MIDI_HEADER == note.type) || note.channel < CHANNEL_COUNT);
@@ -283,7 +285,7 @@ void NoteTaker::outputNote(const DisplayNote& note) {
             float v_oct = inputs[V_OCT_INPUT].value;
             outputs[CV1_OUTPUT + note.channel].value = v_oct + note.pitch() / 12.f;
         }
-        channels[note.channel].note = &note;
+        channels[note.channel].noteIndex = this->noteIndex(note);
         allOutputsOff = false;
    } else {
         assert((MIDI_HEADER == note.type && selectButton->editStart()) || REST_TYPE == note.type);
@@ -293,7 +295,7 @@ void NoteTaker::outputNote(const DisplayNote& note) {
             if (note.channel < CV_OUTPUTS) {
                 outputs[GATE1_OUTPUT + note.channel].value = 0; // rest
             }
-            channels[note.channel].note = &note;
+            channels[note.channel].noteIndex = this->noteIndex(note);
         }
     }
     display->dirty = true;
@@ -392,6 +394,14 @@ void NoteTaker::setWheelRange() {
                 horizontalWheel->maxValue);
         debug("vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
                 verticalWheel->maxValue);
+        return;
+    }
+    if (sustainButton->ledOn) {
+        horizontalWheel->setLimits(0, noteDurations.size() - 1);
+        horizontalWheel->setValue(channels[0].sustainMax); // to do : if part is on, set to selected channel
+        verticalWheel->setLimits(0, 3.999f);
+        verticalWheel->setValue(3.8f);
+        verticalWheel->speed = 1;
         return;
     }
     if (isEmpty()) {

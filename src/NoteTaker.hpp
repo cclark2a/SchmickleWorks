@@ -101,10 +101,11 @@ struct NoteTaker : Module {
     }
 
     void debugDump() const {
-        this->debugDump(allNotes, true);
+        NoteTaker::DebugDump(allNotes, selectStart, selectEnd);
     }
 
-    void debugDump(const vector<DisplayNote>& , bool showSelect = false) const;
+    static void DebugDump(const vector<DisplayNote>& , unsigned selectStart = INT_MAX,
+            unsigned selectEnd = INT_MAX);
 
     void eraseNotes(unsigned start, unsigned end) {
         this->debugDump();
@@ -132,6 +133,10 @@ struct NoteTaker : Module {
     }
 
     void loadScore();
+
+    unsigned noteIndex(const DisplayNote& note) const {
+        return (unsigned) (&note - &allNotes.front());
+    }
 
     int noteToWheel(unsigned index) const {
         assert(index < allNotes.size());
@@ -182,7 +187,7 @@ struct NoteTaker : Module {
 
     void zeroGates() {
         for (auto& channel : channels) {
-            channel.note = nullptr;
+            channel.noteIndex = INT_MAX;
             channel.expiration = 0;
         }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {

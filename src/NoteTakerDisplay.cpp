@@ -40,7 +40,7 @@ const StaffNote pitchMap[] = {
     { 4, 0}, { 4, 1}, { 3, 0}, { 3, 1}, { 2, 0}, { 1, 0}, { 1, 1}, { 0, 0}                                      // C9
 };
 
-void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) {
+void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) const {
     const StaffNote& pitch = pitchMap[note.pitch()];
     float yPos = pitch.position * 3 - 48.25; // middle C 60 positioned at 39 maps to 66
     float staffLine = yPos - 3;
@@ -95,7 +95,7 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
     nvgText(vg, xPos, yPos, noteStr, noteStr + noteCount);
 }
 
-void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) {
+void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) const {
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
     unsigned symbol = note.rest();
     float yPos = 36 * 3 - 49;
@@ -230,83 +230,138 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         }
     }
     if (module->fileButton->ledOn) {
-        // draw vertical control
-        nvgFontFaceId(vg, module->textFont->handle);
-        nvgFontSize(vg, 16);
-        float wheel = module->verticalWheel->value;
-        if ((unsigned) module->horizontalWheel->value < module->storage.size()) {
-            nvgFillColor(vg, nvgRGB(0, 0, 0));
-        } else {
-            nvgFillColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
-        }
-        if (module->loading) {
-            nvgBeginPath(vg);
-            nvgRect(vg, box.size.x - 33, 20, 23, 12);
-            nvgFill(vg);
-            nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
-        }
-        nvgText(vg, box.size.x - 30, 30, "load", NULL);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
-        if (module->saving) {
-            nvgBeginPath(vg);
-            nvgRect(vg, box.size.x - 33, box.size.y - 30, 23, 12);
-            nvgFill(vg);
-            nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
-        }
-        nvgText(vg, box.size.x - 30, box.size.y - 20, "save", NULL);
-        nvgBeginPath(vg);
-        nvgRect(vg, box.size.x - 10, 20, 5, box.size.y - 40);
-        nvgStrokeWidth(vg, 2);
-        nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
-        nvgStroke(vg);
-        nvgBeginPath(vg);
-        float yPos = box.size.y - 20 - wheel * (box.size.y - 40) / 10;
-        nvgMoveTo(vg, box.size.x - 10, yPos);
-        nvgLineTo(vg, box.size.x - 5, yPos - 3);
-        nvgLineTo(vg, box.size.x - 5, yPos + 3);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
-        nvgFill(vg);
-        // draw horizontal control
-        const float boxWidth = 20;
-        auto drawEmpty = [&](unsigned index){
-            nvgBeginPath(vg);
-            nvgRect(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
-            nvgMoveTo(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5);
-            nvgLineTo(vg, 5 + (index + 1) * boxWidth, box.size.y - 5);
-            nvgMoveTo(vg, 5 + (index + 1) * boxWidth, box.size.y - boxWidth - 5);
-            nvgLineTo(vg, 5 + index * boxWidth, box.size.y - 5);
-            nvgStrokeWidth(vg, 1);
-            nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-            nvgStroke(vg);
-        };
-        for (unsigned index = 0; index < module->storage.size() && index * boxWidth < box.size.x;
-                ++index) {            
-            if (module->storage[index].empty()) {
-                drawEmpty(index);
-            } else {
-                nvgBeginPath(vg);
-                nvgRect(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
-                nvgStrokeWidth(vg, 1);
-                nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-                nvgStroke(vg);
-                nvgFontFaceId(vg, module->musicFont->handle);
-                nvgFontSize(vg, 16);
-                nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-                nvgText(vg, 5 + (index + .5) * boxWidth, box.size.y - 8, "H", NULL);
-            }
-        }
-        unsigned index = module->storage.size();
-        if (index * boxWidth <= box.size.x) {
-            drawEmpty(index);
-        }
-        wheel = module->horizontalWheel->value;
-        nvgBeginPath(vg);
-        nvgRect(vg, 5 + wheel * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
-        nvgStrokeWidth(vg, 2);
-        nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
-        nvgStroke(vg);
+        this->drawFileControl(vg);
+    }
+    if (module->sustainButton->ledOn) {
+        this->drawSustainControl(vg);
     }
 	FramebufferWidget::draw(vg);
     dirty = false;
 }
 
+void NoteTakerDisplay::drawFileControl(NVGcontext *vg) const {
+        // draw vertical control
+    nvgFontFaceId(vg, module->textFont->handle);
+    nvgFontSize(vg, 16);
+    if ((unsigned) module->horizontalWheel->value < module->storage.size()) {
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+    } else {
+        nvgFillColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
+    }
+    if (module->loading) {
+        nvgBeginPath(vg);
+        nvgRect(vg, box.size.x - 33, 20, 23, 12);
+        nvgFill(vg);
+        nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
+    }
+    nvgText(vg, box.size.x - 30, 30, "load", NULL);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    if (module->saving) {
+        nvgBeginPath(vg);
+        nvgRect(vg, box.size.x - 33, box.size.y - 30, 23, 12);
+        nvgFill(vg);
+        nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
+    }
+    nvgText(vg, box.size.x - 30, box.size.y - 20, "save", NULL);
+    this->drawVerticalControl(vg);
+    // draw horizontal control
+    const float boxWidth = 20;
+    int slot = (int) module->horizontalWheel->value;
+    nvgBeginPath(vg);
+    nvgRect(vg, 5 + slot * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+    nvgFill(vg);
+    auto drawEmpty = [&](unsigned index){
+        nvgBeginPath(vg);
+        nvgRect(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
+        nvgMoveTo(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5);
+        nvgLineTo(vg, 5 + (index + 1) * boxWidth, box.size.y - 5);
+        nvgMoveTo(vg, 5 + (index + 1) * boxWidth, box.size.y - boxWidth - 5);
+        nvgLineTo(vg, 5 + index * boxWidth, box.size.y - 5);
+        nvgStrokeWidth(vg, 1);
+        nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+        nvgStroke(vg);
+    };
+    for (unsigned index = 0; index < module->storage.size() && index * boxWidth < box.size.x;
+            ++index) {            
+        if (module->storage[index].empty()) {
+            drawEmpty(index);
+        } else {
+            nvgBeginPath(vg);
+            nvgRect(vg, 5 + index * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
+            nvgStrokeWidth(vg, 1);
+            nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+            nvgStroke(vg);
+            nvgFontFaceId(vg, module->musicFont->handle);
+            nvgFontSize(vg, 16);
+            nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+            nvgText(vg, 5 + (index + .5) * boxWidth, box.size.y - 8, "H", NULL);
+        }
+    }
+    unsigned index = module->storage.size();
+    if (index * boxWidth <= box.size.x) {
+        drawEmpty(index);
+    }
+    float wheel = module->horizontalWheel->value;
+    nvgBeginPath(vg);
+    nvgRect(vg, 5 + wheel * boxWidth, box.size.y - boxWidth - 5, boxWidth, boxWidth);
+    nvgStrokeWidth(vg, 2);
+    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+    nvgStroke(vg);
+}
+
+void NoteTakerDisplay::drawSustainControl(NVGcontext *vg) const {
+    nvgBeginPath(vg);
+    nvgRect(vg, box.size.x - 35, 25, 35, box.size.y - 30);
+    nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x7f));
+    nvgFill(vg);
+    int select = (int) module->verticalWheel->value;
+    debug("select:%d", select);
+    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, box.size.x - 30, 30);
+    nvgLineTo(vg, box.size.x - 30, 20);
+    nvgLineTo(vg, box.size.x - 15, 20);
+    nvgLineTo(vg, box.size.x - 15, 30);
+    nvgStrokeWidth(vg, 1 + (3 == select));
+    nvgStroke(vg);
+    nvgBeginPath(vg);
+    float yOff = (box.size.y - 40) / 3;
+    nvgMoveTo(vg, box.size.x - 30, 30 + yOff);
+    nvgLineTo(vg, box.size.x - 30, 20 + yOff);
+    nvgLineTo(vg, box.size.x - 25, 20 + yOff);
+    nvgLineTo(vg, box.size.x - 25, 30 + yOff);
+    nvgStrokeWidth(vg, 1 + (2 == select));
+    nvgStroke(vg);
+    nvgBeginPath(vg);
+    yOff = (box.size.y - 40) * 2 / 3;
+    nvgMoveTo(vg, box.size.x - 30, 20 + yOff);
+    nvgQuadTo(vg, box.size.x - 28, 30 + yOff,
+                  box.size.x - 22, 30 + yOff);
+    nvgStrokeWidth(vg, 1 + (1 == select));
+    nvgStroke(vg);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, box.size.x - 30, box.size.y - 30);
+    nvgQuadTo(vg, box.size.x - 24, box.size.y - 20,
+                  box.size.x - 15, box.size.y - 20);
+    nvgStrokeWidth(vg, 1 + (0 == select));
+    nvgStroke(vg);
+    this->drawVerticalControl(vg);
+}
+
+void NoteTakerDisplay::drawVerticalControl(NVGcontext* vg) const {
+    nvgBeginPath(vg);
+    nvgRect(vg, box.size.x - 10, 20, 5, box.size.y - 40);
+    nvgStrokeWidth(vg, 2);
+    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+    nvgStroke(vg);
+    nvgBeginPath(vg);
+    float value = module->verticalWheel->value;
+    float range = module->verticalWheel->maxValue;
+    float yPos = box.size.y - 20 - value * (box.size.y - 40) / range;
+    nvgMoveTo(vg, box.size.x - 10, yPos);
+    nvgLineTo(vg, box.size.x - 5, yPos - 3);
+    nvgLineTo(vg, box.size.x - 5, yPos + 3);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFill(vg);
+}

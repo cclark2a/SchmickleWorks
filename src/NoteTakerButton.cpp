@@ -61,7 +61,7 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
         insertLoc = !nt->selectStart ? nt->wheelToNote(0) : nt->selectEnd;
         if (selectButton->editStart() && !nt->clipboard.empty()) { // paste part of copy n paste
             copyFrom = &nt->clipboard;
-            debug("paste from clipboard"); nt->debugDump(nt->clipboard);
+            debug("paste from clipboard"); NoteTaker::DebugDump(nt->clipboard);
         } else {
             copyFrom = &span;
             unsigned iStart = !nt->selectStart ? insertLoc : nt->selectStart;
@@ -303,15 +303,8 @@ void FileButton::draw(NVGcontext* vg) {
 }
 
 void SustainButton::onDragEnd(EventDragEnd &e) {
-    NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
-    if (ledOn) {
-        // to do : vert wheel chooses sustain / release min / max
-        //         horz wheel increases / decreases
-        // if part button is on, change current channel
-        // if part button is off, change all channels
-    }
-    nt->display->dirty = true;
+    nModule()->setWheelRange();
 
 }
 
