@@ -303,9 +303,9 @@ void FileButton::draw(NVGcontext* vg) {
 }
 
 void SustainButton::onDragEnd(EventDragEnd &e) {
+    NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
-    nModule()->setWheelRange();
-
+    nt->setWheelRange();
 }
 
 void SustainButton::draw(NVGcontext* vg) {

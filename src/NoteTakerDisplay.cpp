@@ -382,7 +382,7 @@ void NoteTakerDisplay::drawSustainControl(NVGcontext *vg) const {
         nvgMoveTo(vg, 40 + susMin, box.size.y - 20);
         nvgLineTo(vg, 40 + susMin + susMax, box.size.y - 20);
         nvgLineTo(vg, 40 + susMin + susMax, box.size.y - 5);
-        nvgStrokeWidth(vg, 1 + (2 == select));
+        nvgStrokeWidth(vg, 1 + (3 == select));
         nvgStroke(vg);
     }
     int xPos = 40 + susMin + susMax;
@@ -397,17 +397,22 @@ void NoteTakerDisplay::drawSustainControl(NVGcontext *vg) const {
         int rel = relMin + relMax;
         nvgQuadTo(vg, xPos + rel / 2, box.size.y - 5, xPos + rel, box.size.y - 5);
         nvgStrokeWidth(vg, 1 + (0 == select));
+        nvgStroke(vg);
     }
     nvgFontSize(vg, 24);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 2 == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
             DurationIndex(channel.sustainMin)], nullptr);
     if (susMax) {
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, 3 == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin, box.size.y - 18, downFlagNoteSymbols[
                 DurationIndex(channel.sustainMax)], nullptr);
     }
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 1 == select ? 0xFF : 0x7f));
     nvgText(vg, 42 + susMin + susMax, box.size.y - 18, downFlagNoteSymbols[
             DurationIndex(channel.releaseMin)], nullptr);
     if (relMax) {
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0 == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin + susMax + relMin, box.size.y - 18, downFlagNoteSymbols[
                 DurationIndex(channel.releaseMax)], nullptr);
     }

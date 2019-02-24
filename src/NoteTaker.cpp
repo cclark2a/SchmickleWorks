@@ -154,6 +154,42 @@ void NoteTaker::updateHorizontal() {
         // to do : nudge to next valid value once I figure out how that should work, exactly
         return;
     }
+    const int wheelValue = (int) horizontalWheel->value;
+    if (wheelValue == lastHorizontal) {
+        return;
+    }
+    lastHorizontal = wheelValue;
+    if (sustainButton->ledOn) {
+        NoteTakerChannel& channel = channels[this->firstChannel()];
+        int duration = noteDurations[wheelValue];
+        switch ((int) verticalWheel->value) {
+            case 3: // to do : create enum to identify values
+                channel.sustainMax = duration;
+                if (channel.sustainMin > duration) {
+                    channel.sustainMin = duration;
+                }
+                break;
+            case 2:
+                channel.sustainMin = duration;
+                if (channel.sustainMax < duration) {
+                    channel.sustainMax = duration;
+                }
+                break;
+            case 1:
+                channel.releaseMin = duration;
+                if (channel.releaseMax < duration) {
+                    channel.releaseMax = duration;
+                }
+                break;
+            case 0:
+                channel.releaseMax = duration;
+                if (channel.releaseMin > duration) {
+                    channel.releaseMin = duration;
+                }
+                break;
+        }
+        return;
+    }
     if (isEmpty()) {
         return;
     }
@@ -162,11 +198,6 @@ void NoteTaker::updateHorizontal() {
         return;
     }
     bool noteChanged = false;
-    const int wheelValue = (int) horizontalWheel->value;
-    if (wheelValue == lastHorizontal) {
-        return;
-    }
-    lastHorizontal = wheelValue;
     if (!selectButton->ledOn) {
         int diff = 0;
         for (unsigned index = selectStart; index < selectEnd; ++index) {
@@ -217,6 +248,27 @@ void NoteTaker::updateVertical() {
             this->loadScore();
         }
         return;
+    }
+    if (sustainButton->ledOn) {
+        NoteTakerChannel& channel = channels[this->firstChannel()];
+        int sustainDuration = INT_MAX;
+        switch(wheelValue) {
+            case 3: // to do : create enum to identify values
+                sustainDuration = channel.sustainMax;
+                break;
+            case 2:
+                sustainDuration = channel.sustainMin;
+                break;
+            case 1:
+                sustainDuration = channel.releaseMin;
+                break;
+            case 0:
+                sustainDuration = channel.releaseMax;
+                break;
+            default:
+                assert(0);
+        }
+        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainDuration));
     }
     if (isEmpty()) {
         return;
@@ -398,10 +450,11 @@ void NoteTaker::setWheelRange() {
     }
     if (sustainButton->ledOn) {
         horizontalWheel->setLimits(0, noteDurations.size() - 1);
-        horizontalWheel->setValue(channels[0].sustainMax); // to do : if part is on, set to selected channel
+        int sustainMinDuration = channels[this->firstChannel()].sustainMin;
+        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainMinDuration));
         verticalWheel->setLimits(0, 3.999f);
-        verticalWheel->setValue(3.8f);
         verticalWheel->speed = 1;
+        verticalWheel->setValue(2.5f); // sustain min
         return;
     }
     if (isEmpty()) {
