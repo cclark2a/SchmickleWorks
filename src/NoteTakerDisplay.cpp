@@ -40,6 +40,11 @@ const StaffNote pitchMap[] = {
     { 4, 0}, { 4, 1}, { 3, 0}, { 3, 1}, { 2, 0}, { 1, 0}, { 1, 1}, { 0, 0}                                      // C9
 };
 
+const char* upFlagNoteSymbols[] = {   "C", "D", "D.", "E", "E.", "F", "F.", "G", "G.", "H", "H.",
+                                           "I", "I.", "J", "J.", "K", "K.", "L", "L.", "M" };
+const char* downFlagNoteSymbols[] = { "c", "d", "d.", "e", "e.", "f", "f.", "g", "g.", "h", "h.",
+                                           "i", "i.", "j", "j.", "k", "k.", "l", "l.", "m" };
+
 void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) const {
     const StaffNote& pitch = pitchMap[note.pitch()];
     float yPos = pitch.position * 3 - 48.25; // middle C 60 positioned at 39 maps to 66
@@ -77,22 +82,15 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
             nvgText(vg, xPos - 7, yPos + 1, "%", NULL);
         break;
     }
-    const char upFlagNoteSymbols[] = "CDDEEFFGGHHIIJJKKLLM";
-    const char downFlagNoteSymbols[] = "cddeeffgghhiijjkkllm";
-    static_assert(sizeof(upFlagNoteSymbols) - 1 == noteDurations.size(),
+    static_assert(sizeof(upFlagNoteSymbols) / sizeof(char*) == noteDurations.size(),
             "symbol duration mismatch");
-    static_assert(sizeof(downFlagNoteSymbols) - 1 == noteDurations.size(),
+    static_assert(sizeof(downFlagNoteSymbols) / sizeof(char*) == noteDurations.size(),
             "symbol duration mismatch");
     unsigned symbol = note.note();
     nvgFontSize(vg, 42);
-    char noteStr[2];
-    noteStr[0] = (pitch.position <= MIDDLE_C && pitch.position > C_5) || pitch.position >= C_3
-            ? upFlagNoteSymbols[symbol] : downFlagNoteSymbols[symbol];
-    int noteCount = 1 + (symbol > 0 && (symbol & 1) == 0);
-    if (2 == noteCount) {
-        noteStr[1] = '.';
-    }
-    nvgText(vg, xPos, yPos, noteStr, noteStr + noteCount);
+    const char* noteStr = (pitch.position <= MIDDLE_C && pitch.position > C_5)
+            || pitch.position >= C_3 ? upFlagNoteSymbols[symbol] : downFlagNoteSymbols[symbol];
+    nvgText(vg, xPos, yPos, noteStr, nullptr);
 }
 
 void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) const {
@@ -311,12 +309,12 @@ void NoteTakerDisplay::drawFileControl(NVGcontext *vg) const {
 }
 
 void NoteTakerDisplay::drawSustainControl(NVGcontext *vg) const {
+    // draw vertical control
     nvgBeginPath(vg);
     nvgRect(vg, box.size.x - 35, 25, 35, box.size.y - 30);
     nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x7f));
     nvgFill(vg);
     int select = (int) module->verticalWheel->value;
-    debug("select:%d", select);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
     nvgBeginPath(vg);
     nvgMoveTo(vg, box.size.x - 30, 30);
@@ -336,17 +334,83 @@ void NoteTakerDisplay::drawSustainControl(NVGcontext *vg) const {
     nvgBeginPath(vg);
     yOff = (box.size.y - 40) * 2 / 3;
     nvgMoveTo(vg, box.size.x - 30, 20 + yOff);
-    nvgQuadTo(vg, box.size.x - 28, 30 + yOff,
-                  box.size.x - 22, 30 + yOff);
+    nvgQuadTo(vg, box.size.x - 28, 30 + yOff, box.size.x - 22, 30 + yOff);
     nvgStrokeWidth(vg, 1 + (1 == select));
     nvgStroke(vg);
     nvgBeginPath(vg);
     nvgMoveTo(vg, box.size.x - 30, box.size.y - 30);
-    nvgQuadTo(vg, box.size.x - 24, box.size.y - 20,
-                  box.size.x - 15, box.size.y - 20);
+    nvgQuadTo(vg, box.size.x - 24, box.size.y - 20, box.size.x - 15, box.size.y - 20);
     nvgStrokeWidth(vg, 1 + (0 == select));
     nvgStroke(vg);
     this->drawVerticalControl(vg);
+    // draw horizontal control
+    nvgBeginPath(vg);
+    NoteTakerChannel& channel = module->channels[module->firstChannel()];
+    int susMin = std::max(6, channel.sustainMin);
+    int susMax = channel.sustainMin == channel.sustainMax ? 0
+            : std::max(6, channel.sustainMax - channel.sustainMin);
+    int relMin = std::max(6, channel.releaseMin);
+    int relMax = channel.releaseMin == channel.releaseMax ? 0
+            : std::max(6, channel.releaseMax - channel.releaseMin);
+    int total = susMin + susMax + relMin + relMax;
+    if (total > box.size.x - 80) {
+        int overhead = 12 + (susMax ? 6 : 0) + (relMax ? 6 : 0);
+        float scale = (box.size.x - 80 - overhead) / (total - overhead);
+        susMin = std::max(6, (int) (susMin * scale));
+        if (susMax) {
+            susMax = std::max(6, (int) (susMax * scale));
+        }
+        relMin = std::max(6, (int) (relMin * scale));
+        if (relMax) {
+            relMax = std::max(6, (int) (relMax * scale));
+        }
+        assert(susMin + susMax + relMin + relMax <= box.size.x - 80);
+    }
+    debug("sus %d %d rel %d %d", susMin, susMax, relMin, relMax);
+    nvgMoveTo(vg, 40, box.size.y - 5);
+    nvgLineTo(vg, 40, box.size.y - 20);
+    nvgLineTo(vg, 40 + susMin, box.size.y - 20);
+    nvgStrokeWidth(vg, 1 + (2 <= select));
+    nvgStroke(vg);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, 40 + susMin, box.size.y - 20);
+    nvgLineTo(vg, 40 + susMin, box.size.y - 5);
+    nvgStrokeWidth(vg, 1 + (2 == select));
+    nvgStroke(vg);
+    if (susMax) {
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, 40 + susMin, box.size.y - 20);
+        nvgLineTo(vg, 40 + susMin + susMax, box.size.y - 20);
+        nvgLineTo(vg, 40 + susMin + susMax, box.size.y - 5);
+        nvgStrokeWidth(vg, 1 + (2 == select));
+        nvgStroke(vg);
+    }
+    int xPos = 40 + susMin + susMax;
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, xPos, box.size.y - 20);
+    nvgQuadTo(vg, xPos + relMin / 4, box.size.y - 5, xPos + relMin, box.size.y - 5);
+    nvgStrokeWidth(vg, 1 + (1 == select));
+    nvgStroke(vg);
+    if (relMax) {
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, xPos, box.size.y - 20);
+        int rel = relMin + relMax;
+        nvgQuadTo(vg, xPos + rel / 2, box.size.y - 5, xPos + rel, box.size.y - 5);
+        nvgStrokeWidth(vg, 1 + (0 == select));
+    }
+    nvgFontSize(vg, 24);
+    nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
+            DurationIndex(channel.sustainMin)], nullptr);
+    if (susMax) {
+        nvgText(vg, 42 + susMin, box.size.y - 18, downFlagNoteSymbols[
+                DurationIndex(channel.sustainMax)], nullptr);
+    }
+    nvgText(vg, 42 + susMin + susMax, box.size.y - 18, downFlagNoteSymbols[
+            DurationIndex(channel.releaseMin)], nullptr);
+    if (relMax) {
+        nvgText(vg, 42 + susMin + susMax + relMin, box.size.y - 18, downFlagNoteSymbols[
+                DurationIndex(channel.releaseMax)], nullptr);
+    }
 }
 
 void NoteTakerDisplay::drawVerticalControl(NVGcontext* vg) const {

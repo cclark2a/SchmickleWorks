@@ -96,6 +96,17 @@ struct NoteTaker : Module {
     bool saving = false;
     NoteTaker();
 
+    // returns lowest numbered selectChannel, channel-wide edits affect all select
+    unsigned firstChannel() const {
+        for (unsigned index = 0; index < ALL_CHANNELS; ++index) {
+            if (selectChannels & (1 << index)) {
+                return index;
+            }
+        }
+        assert(0);  // at least one should always be selected
+        return INT_MAX;
+    }
+
     void copyNotes() {
         clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
     }

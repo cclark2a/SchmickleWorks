@@ -144,7 +144,7 @@ void NoteTaker::setUpSampleNotes() {
     NoteTakerParseMidi parser(midi, allNotes);
     parser.parseMidi();
     channels[0].sustainMin = 1;
-    channels[0].sustainMax = INT_MAX;
+    channels[0].sustainMax = noteDurations.back();
     channels[0].releaseMin = 1;
     channels[0].releaseMax = 24;
 }
