@@ -74,8 +74,8 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, unsigned selectStart
 
 void NoteTaker::validate() const {
     int time = 0;
-    array<int, CHANNEL_COUNT> channel;
-    channel.fill(0);
+    array<int, CHANNEL_COUNT> channelTimes;
+    channelTimes.fill(0);
     bool sawHeader = false;
     bool sawTrailer = false;
     bool malformed = false;
@@ -102,12 +102,12 @@ void NoteTaker::validate() const {
                     debug("note out of order");
                     malformed = true;
                 }
-                if (channel[note.channel] >= note.startTime) {
+                if (channelTimes[note.channel] != note.startTime) {
                     debug("note channel time error");
                     malformed = true;
                 }
                 time = note.startTime;
-                channel[note.channel] = note.startTime;
+                channelTimes[note.channel] += note.duration;
                 break;
             case TRACK_END:
                 if (!sawHeader) {
@@ -117,6 +117,12 @@ void NoteTaker::validate() const {
                 if (sawTrailer) {
                     debug("duplicate midi trailer");
                     malformed = true;
+                }
+                for (int c : channelTimes) {
+                    if (c > note.startTime) {
+                        debug("track end time error");
+                        malformed = true;
+                    }
                 }
                 sawTrailer = true;
                 break;

@@ -76,10 +76,10 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
                 copyFrom->end());
         insertSize = copyFrom->size();
         shiftTime = copyFrom->back().startTime - copyFrom->front().startTime
-                + copyFrom->back().duration * 2;
+                + copyFrom->back().duration;
         debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
                 insertLoc, insertSize, shiftTime, nt->selectStart, nt->selectEnd);
-        nt->debugDump();
+        nt->debugDump(false);
     }
     selectButton->reset();
     nt->selectStart = insertLoc;
@@ -347,6 +347,7 @@ void RunButton::onDragEnd(EventDragEnd &e) {
 // todo : remove below
 void DumpButton::onDragEnd(EventDragEnd& e) {
     nModule()->debugDump();
+    nModule()->validate();
     NoteTakerButton::onDragEnd(e);
 }
 

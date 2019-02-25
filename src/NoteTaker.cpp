@@ -74,7 +74,7 @@ void NoteTaker::reset() {
 
 unsigned NoteTaker::wheelToNote(int value) const {
     debug("wheelToNote start");
-    this->debugDump();
+    this->debugDump(false);
     if (value < 0) {
         assert(selectButton->editStart());
         return 0;
@@ -100,7 +100,7 @@ unsigned NoteTaker::wheelToNote(int value) const {
         return this->noteIndex(note);
     }
     debug("wheelToNote value %d", value);
-    this->debugDump();
+    this->debugDump(false);
     assert(0);
     return (unsigned) -1;
 }

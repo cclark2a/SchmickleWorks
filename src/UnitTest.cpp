@@ -5,11 +5,12 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
-static void Press(MomentarySwitch* ms) {
+static void Press(NoteTaker* n, MomentarySwitch* ms) {
     EventDragStart evs;
     ms->onDragStart(evs);
     EventDragEnd evd;
     ms->onDragEnd(evd);
+    n->debugDump();
 }
 
 static void ResetButtons(NoteTaker* n) {
@@ -52,8 +53,8 @@ static void SetScoreEmpty(NoteTaker* n) {
 static void AddTwoNotes(NoteTaker* n) {
     SetScoreEmpty(n);
     ResetButtons(n);
-    Press(n->insertButton);
-    Press(n->insertButton);
+    Press(n, n->insertButton);
+    Press(n, n->insertButton);
     unsigned note1 = n->wheelToNote(0);
     WheelUp(n, n->allNotes[note1].pitch() + 1);
 }
@@ -62,20 +63,20 @@ void UnitTest(NoteTaker* n) {
     SetScoreEmpty(n);
 
     debug("delete a note with empty score");
-    Press(n->cutButton);
+    Press(n, n->cutButton);
 
     debug("add a note with empty score, delete same");
-    Press(n->insertButton);
+    Press(n, n->insertButton);
     assert(!n->isEmpty());
-    Press(n->cutButton);
+    Press(n, n->cutButton);
     assert(n->isEmpty());
 
     debug("add two notes with empty score, delete same");
-    Press(n->insertButton);
-    Press(n->insertButton);
-    Press(n->cutButton);
+    Press(n, n->insertButton);
+    Press(n, n->insertButton);
+    Press(n, n->cutButton);
     assert(!n->isEmpty());
-    Press(n->cutButton);
+    Press(n, n->cutButton);
     assert(n->isEmpty());
 
     debug("add two notes with empty score, check order");
@@ -85,67 +86,68 @@ void UnitTest(NoteTaker* n) {
     assert(2 == n->horizontalCount());
     unsigned note2 = n->wheelToNote(1);
     assert(n->allNotes[note1].pitch() < n->allNotes[note2].pitch());
-    Press(n->cutButton);
+    Press(n, n->cutButton);
     assert(!n->isEmpty());
-    Press(n->cutButton);
+    Press(n, n->cutButton);
     assert(n->isEmpty());
 
     debug("press select button with empty score");
     ResetButtons(n);
     assert(!n->selectButton->ledOn);
     ExerciseWheels(n);
-    Press(n->selectButton);
+    Press(n, n->selectButton);
     assert(n->selectButton->editStart());
     ExerciseWheels(n);
-    Press(n->selectButton);
+    Press(n, n->selectButton);
     assert(n->selectButton->editEnd());
     ExerciseWheels(n);
-    Press(n->selectButton);
+    Press(n, n->selectButton);
     assert(!n->selectButton->ledOn && SelectButton::State::ledOff == n->selectButton->state);
     ExerciseWheels(n);
+    n->validate();
 
     debug("press part button with empty score");
     ResetButtons(n);
     assert(!n->partButton->ledOn);
     ExerciseWheels(n);
-    Press(n->partButton);
+    Press(n, n->partButton);
     assert(n->partButton->ledOn);
     ExerciseWheels(n);
-    Press(n->partButton);
+    Press(n, n->partButton);
     assert(!n->partButton->ledOn);
-    Press(n->partButton);
-    Press(n->selectButton);
+    Press(n, n->partButton);
+    Press(n, n->selectButton);
     ExerciseWheels(n);
-    Press(n->cutButton);
+    Press(n, n->cutButton);
     ExerciseWheels(n);
+    n->validate();
 
     debug("duplicate");
     AddTwoNotes(n);
-    Press(n->selectButton);
+    Press(n, n->selectButton);
     WheelLeft(n, -1);
-    Press(n->selectButton);
+    Press(n, n->selectButton);
     WheelLeft(n, 2);
-    Press(n->insertButton);
+    Press(n, n->insertButton);
     assert(6 == n->allNotes.size());
     assert(4 == n->horizontalCount());
 
     debug("copy and paste");
     AddTwoNotes(n);
-    Press(n->selectButton);
+    Press(n, n->selectButton);
     WheelLeft(n, 0);
     debug("cnp wheel left 0");
     n->debugDump();
-    Press(n->selectButton);
+    Press(n, n->selectButton);
     WheelLeft(n, 2);
     debug("cnp wheel left 2");
     n->debugDump();
-    Press(n->selectButton);
-    Press(n->selectButton);
+    Press(n, n->selectButton);
+    Press(n, n->selectButton);
     WheelLeft(n, 0);
     debug("cnp wheel left 0");
     n->debugDump();
-    Press(n->insertButton);
-    n->debugDump();
+    Press(n, n->insertButton);
     assert(5 == n->allNotes.size());
     assert(3 == n->horizontalCount());
 

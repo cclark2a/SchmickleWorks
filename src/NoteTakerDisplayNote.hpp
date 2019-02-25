@@ -32,6 +32,11 @@ enum DisplayType : uint8_t {
         
 // better to have a structured array of notes that more closely resembles the
 // data we want to draw
+
+// startTime is not strictly required if we assume that all notes in a channel
+// start at zero and don't have gaps between them, but maintaining when a note
+// starts, given just the note, is onerous. For now, have validation ensure that
+// there are no gaps and call it often enough to keep the note array sane.
 struct DisplayNote {
     int startTime;      // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
     int duration;       // MIDI time

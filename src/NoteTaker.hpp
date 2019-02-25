@@ -111,9 +111,12 @@ struct NoteTaker : Module {
         clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
     }
 
-    void debugDump() const {
+    void debugDump(bool validatable = true) const {
         NoteTaker::DebugDump(allNotes, selectStart, selectEnd);
-    }
+        if (validatable) {
+            this->validate();
+        }
+}
 
     static void DebugDump(const vector<DisplayNote>& , unsigned selectStart = INT_MAX,
             unsigned selectEnd = INT_MAX);
