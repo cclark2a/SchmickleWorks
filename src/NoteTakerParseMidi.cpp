@@ -107,7 +107,7 @@ void NoteTakerParseMidi::parseMidi() {
                 }
                 continue;  // do not store note off
             } break;
-            case NOTE_ON:
+            case NOTE_ON: {
                 if (!midi_check7bits(iter)) {
                     debug("midi_check7bits 3");
                     return;
@@ -118,7 +118,19 @@ void NoteTakerParseMidi::parseMidi() {
                     return;
                 }
                 displayNote.setOnVelocity(*iter++);
-            break;
+                DisplayNote& prior = parsedNotes.back();
+                if (prior.duration >= 0 && prior.endTime() < displayNote.startTime) {
+                    // to do : create constructor so this can call emplace_back ?
+                    DisplayNote rest;
+                    rest.startTime = prior.endTime();
+                    rest.duration = displayNote.startTime - rest.startTime;
+                    rest.type = REST_TYPE;
+                    rest.channel = 0xFF;
+                    memset(rest.data, 0, sizeof(rest.data));
+                    rest.setRest(NoteTakerDisplay::DurationIndex(rest.duration));
+                    parsedNotes.push_back(rest);
+                }
+            } break;
             case KEY_PRESSURE:
             case CONTROL_CHANGE:
             case PITCH_WHEEL:
@@ -302,6 +314,7 @@ void NoteTakerParseMidi::parseMidi() {
                                 0xF0 | displayNote.channel);
                         return;
                 }
+                displayNote.channel = 0xFF;
             break;
             default:
                 debug("unexpected byte %d\n", *iter);

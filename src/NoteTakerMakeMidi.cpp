@@ -50,7 +50,7 @@ struct LastNote {
     }
 
     bool operator<(const LastNote& n) const { 
-        return note->startTime + note->duration < n.note->startTime + n.note->duration;
+        return note->endTime() < n.note->endTime();
     }
 
     const DisplayNote* note;
@@ -68,10 +68,10 @@ void NoteTakerMakeMidi::createFromNotes(const vector<DisplayNote>& notes, vector
             case NOTE_ON:
                 while (!lastNotes.empty()) {
                     auto off = lastNotes.begin()->note;
-                    if (off->startTime + off->duration > n.startTime) {
+                    if (off->endTime() > n.startTime) {
                         break;
                     }
-                    add_delta(off->startTime + off->duration, &lastTime);
+                    add_delta(off->endTime(), &lastTime);
                     add_one(midiNoteOff + off->channel);
                     add_one(off->pitch());
                     add_one(off->offVelocity());
@@ -89,7 +89,7 @@ void NoteTakerMakeMidi::createFromNotes(const vector<DisplayNote>& notes, vector
             case TRACK_END:
                 for (auto last : lastNotes) {
                     auto off = last.note;
-                    add_delta(off->startTime + off->duration, &lastTime);
+                    add_delta(off->endTime(), &lastTime);
                     add_one(midiNoteOff + off->channel);
                     add_one(off->pitch());
                     add_one(off->offVelocity());

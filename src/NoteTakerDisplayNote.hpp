@@ -46,7 +46,7 @@ struct DisplayNote {
 
     void setChannel(uint8_t c) {
         channel = c;
-        assertValid(type == NOTE_ON ? NOTE_ON : REST_TYPE);
+        assertValid(NOTE_ON);
     }
 
     int pitch() const {
@@ -142,10 +142,14 @@ struct DisplayNote {
         return assert(isValid());
     }
 
+    int endTime() const {
+        return startTime + duration;
+    }
+
     bool isValid() const;
 
     bool isActive(int midiTime) const {
-        return startTime <= midiTime && startTime + duration > midiTime;
+        return startTime <= midiTime && endTime() > midiTime;
     }
 
     bool isBestSelectStart(const DisplayNote** bestPtr, int midiTime) const {
@@ -165,7 +169,7 @@ struct DisplayNote {
     }
 
     bool isSelectable(unsigned selectChannels) const {
-        return (NOTE_ON == type || REST_TYPE == type) && (selectChannels & (1 << channel));
+        return REST_TYPE == type || (NOTE_ON == type && (selectChannels & (1 << channel)));
     }
 
     std::string debugString() const;

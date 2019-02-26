@@ -36,10 +36,6 @@ bool DisplayNote::isValid() const {
                 }
             break;
             case REST_TYPE:
-                if (channel > CHANNEL_COUNT) {
-                    debug("invalid rest channel %d\n", channel);
-                    return false;
-                }
             break;
             case MIDI_HEADER:
                 if (0 > data[0] || data[0] > 2) {

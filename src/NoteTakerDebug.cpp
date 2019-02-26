@@ -102,12 +102,22 @@ void NoteTaker::validate() const {
                     debug("note out of order");
                     malformed = true;
                 }
-                if (channelTimes[note.channel] != note.startTime) {
+                time = note.startTime;
+                if (REST_TYPE == note.type) {
+                    for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+                        if (channelTimes[index] > note.startTime) {
+                            debug("rest channel time error");
+                            malformed = true;
+                        }
+                        channelTimes[index] = note.endTime();
+                    }
+                    break;
+                }
+                if (channelTimes[note.channel] > note.startTime) {
                     debug("note channel time error");
                     malformed = true;
                 }
-                time = note.startTime;
-                channelTimes[note.channel] += note.duration;
+                channelTimes[note.channel] = note.endTime();
                 break;
             case TRACK_END:
                 if (!sawHeader) {

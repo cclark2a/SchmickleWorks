@@ -49,7 +49,7 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
         insertLoc = nt->allNotes.size() - 1;
         assert(TRACK_END == nt->allNotes[insertLoc].type);
         DisplayNote midC = { 0, stdTimePerQuarterNote,
-                { 60, 0, stdKeyPressure, stdKeyPressure}, 0, NOTE_ON  };
+                { 60, 0, stdKeyPressure, stdKeyPressure}, (uint8_t) nt->firstChannel(), NOTE_ON  };
         midC.setNote(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
         insertSize = 1;
@@ -68,13 +68,41 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
             unsigned iEnd = nt->selectEnd;
             !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
             debug("iStart=%u iEnd=%u", iStart, iEnd);
-            span.assign(nt->allNotes.begin() + iStart, nt->allNotes.begin() + iEnd);
+            for (unsigned index = iStart; index < iEnd; ++index) {
+                const auto& note = nt->allNotes[index];
+                if (nt->selectChannels & (1 << note.channel)) {
+                    span.push_back(note);
+                }
+            }
+            if (span.empty()) {
+                int channel = -1;
+                for (unsigned index = iStart; index < iEnd; ++index) {
+                    const auto& note = nt->allNotes[index];
+                    if (channel < 0 || note.channel == channel) {
+                        span.push_back(note);
+                        channel = note.channel;
+                    }
+                }
+            }
         }
         NoteTaker::ShiftNotes(*copyFrom, 0, nt->allNotes[insertLoc].startTime
                 - copyFrom->front().startTime);
+        if (ALL_CHANNELS != nt->selectChannels) {
+            NoteTaker::MapChannel(*copyFrom, nt->firstChannel());
+        }
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, copyFrom->begin(),
                 copyFrom->end());
         insertSize = copyFrom->size();
+        // include notes on other channels that fit within the start/end window
+        int lastEndTime = copyFrom->back().endTime();
+        debug("insertSize=%u lastEndTime=%d", insertSize, lastEndTime);
+        do {
+            const auto& note = nt->allNotes[insertLoc + insertSize];
+            if (NOTE_ON != note.type || note.endTime() > lastEndTime
+                    || note.channel == nt->firstChannel()) {
+                break;
+            }
+        } while (++insertSize);
         shiftTime = copyFrom->back().startTime - copyFrom->front().startTime
                 + copyFrom->back().duration;
         debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
@@ -84,7 +112,7 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
     selectButton->reset();
     nt->selectStart = insertLoc;
     nt->selectEnd = insertLoc + insertSize;
-    NoteTaker::ShiftNotes(nt->allNotes, nt->selectEnd, shiftTime);
+    nt->shiftNotes(nt->selectEnd, shiftTime);
     debug("insert final"); nt->debugDump();
     nt->setWheelRange();  // range is larger
     nt->setDisplayEnd();
@@ -104,9 +132,10 @@ void PartButton::onDragEnd(EventDragEnd &e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
-        if (nt->selectButton->ledOn) {
-            nt->selectChannels = ALL_CHANNELS;
-        }
+        lastChannels = nt->selectChannels;
+        nt->selectChannels = ALL_CHANNELS;
+    } else {
+        nt->selectChannels = lastChannels;
     }
     nt->setWheelRange();  // range is larger
 }
@@ -347,7 +376,6 @@ void RunButton::onDragEnd(EventDragEnd &e) {
 // todo : remove below
 void DumpButton::onDragEnd(EventDragEnd& e) {
     nModule()->debugDump();
-    nModule()->validate();
     NoteTakerButton::onDragEnd(e);
 }
 

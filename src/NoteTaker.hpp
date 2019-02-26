@@ -96,27 +96,30 @@ struct NoteTaker : Module {
     bool saving = false;
     NoteTaker();
 
-    // returns lowest numbered selectChannel, channel-wide edits affect all select
-    unsigned firstChannel() const {
-        for (unsigned index = 0; index < ALL_CHANNELS; ++index) {
-            if (selectChannels & (1 << index)) {
-                return index;
-            }
-        }
-        assert(0);  // at least one should always be selected
-        return INT_MAX;
-    }
-
     void copyNotes() {
         clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
     }
 
+    void debugDumpChannels() const {
+        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+            auto& chan = channels[index];
+            if (chan.noteIndex >= allNotes.size()) {
+                continue;
+            }
+            debug("[%d] %u note=%s gateLow=%d noteEnd=%d", index, chan.noteIndex,
+                    allNotes[chan.noteIndex].debugString().c_str(), chan.gateLow, chan.noteEnd);
+        }
+    }
+
     void debugDump(bool validatable = true) const {
+        debug("select s/e %u %u display s/e %u %u chans 0x%02x tempo %d ppq %d",
+                selectStart, selectEnd, displayStart, displayEnd, selectChannels, tempo, ppq);
         NoteTaker::DebugDump(allNotes, selectStart, selectEnd);
+        this->debugDumpChannels();
         if (validatable) {
             this->validate();
         }
-}
+    }
 
     static void DebugDump(const vector<DisplayNote>& , unsigned selectStart = INT_MAX,
             unsigned selectEnd = INT_MAX);
@@ -128,8 +131,20 @@ struct NoteTaker : Module {
         this->debugDump();
     }
 
+    // returns lowest numbered selectChannel, channel-wide edits affect all select
+    unsigned firstChannel() const {
+        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+            if (selectChannels & (1 << index)) {
+                return index;
+            }
+        }
+        assert(0);  // at least one should always be selected
+        return INT_MAX;
+    }
+
     unsigned horizontalCount() const;
     bool isEmpty() const;
+    bool isSelectable(const DisplayNote& note) const;
 
     unsigned lastAt(int midiTime) const {
         assert(displayStart < allNotes.size());
@@ -143,10 +158,18 @@ struct NoteTaker : Module {
     bool lastNoteEnded(unsigned index, int midiTime) const {
         assert(index < allNotes.size());
         const DisplayNote& last = allNotes[index];
-        return last.startTime + last.duration <= midiTime;
+        return last.endTime() <= midiTime;
     }
 
     void loadScore();
+
+    static void MapChannel(vector<DisplayNote>& notes, unsigned channel) {
+         for (auto& note : notes) {
+             if (NOTE_ON == note.type) {
+                note.channel = channel;
+             }
+        }    
+    }
 
     unsigned noteIndex(const DisplayNote& note) const {
         return (unsigned) (&note - &allNotes.front());
@@ -159,25 +182,35 @@ struct NoteTaker : Module {
 
     int noteToWheel(const DisplayNote& ) const;
     unsigned wheelToNote(int value) const;  // maps wheel value to index in allNotes
-    void outputNote(const DisplayNote& note);
+    void outputNote(const DisplayNote& note, int midiTime);
     void playSelection();
     void reset() override;
     void resetButtons();
     void saveScore();
     void setDisplayEnd();
 
+    void setGateLow(const DisplayNote& note) {
+        auto &chan = channels[note.channel];
+        chan.gateLow = 0;
+        chan.noteEnd = 0;
+    }
+
     void setExpiredGatesLow(int midiTime) {
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
-            int endTime = channels[channel].expiration;
-            if (!endTime) {
+            auto &chan = channels[channel];
+            if (!chan.noteEnd) {
                 continue;
             }
-            if (endTime < midiTime) {
-                debug("expire endTime=%d midiTime=%d", endTime, midiTime);
-                channels[channel].expiration = 0;
+            if (chan.gateLow && chan.gateLow < midiTime) {
+                debug("expire gateLow=%d midiTime=%d", chan.gateLow, midiTime);
+                chan.gateLow = 0;
                 if (channel < CV_OUTPUTS) {
                     outputs[GATE1_OUTPUT + channel].value = 0;
                 }
+            }
+            if (chan.noteEnd < midiTime) {
+                debug("expire noteEnd=%d midiTime=%d", chan.noteEnd, midiTime);
+                chan.noteEnd = 0;
             }
         }
     }
@@ -187,6 +220,20 @@ struct NoteTaker : Module {
     void setSelectStartAt(int midiTime, unsigned displayStart, unsigned displayEnd);
     void setUpSampleNotes();
     void setWheelRange();
+
+    void shiftNotes(unsigned start, int diff) {
+        if (ALL_CHANNELS == selectChannels) {
+            return ShiftNotes(allNotes, start, diff);
+        }
+        for (unsigned index = start; index < allNotes.size(); ++index) {
+            DisplayNote& note = allNotes[index];
+            if (note.isSelectable(selectChannels)) {
+                note.startTime += diff;
+            }
+            // to do : if adjusted note overlaps rest, reduce rest
+            //         if adjusted note overlaps measure, insert rest to create new one
+        }
+    }
 
     static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff) {
          for (unsigned index = start; index < notes.size(); ++index) {
@@ -202,7 +249,7 @@ struct NoteTaker : Module {
     void zeroGates() {
         for (auto& channel : channels) {
             channel.noteIndex = INT_MAX;
-            channel.expiration = 0;
+            channel.gateLow = channel.noteEnd = 0;
         }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
             outputs[GATE1_OUTPUT + index].value = 0;

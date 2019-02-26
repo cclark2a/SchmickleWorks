@@ -97,8 +97,7 @@ void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPo
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
     unsigned symbol = note.rest();
     float yPos = 36 * 3 - 49;
-    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0xBf, (3 == note.channel) * 0x7f,
-            (2 == note.channel) * 0x7f, alpha));
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
     nvgFontSize(vg, 42);
     do {
         unsigned restIndex = std::min((unsigned) sizeof(restSymbols) - 1, symbol);
@@ -193,8 +192,8 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         nvgRect(vg, xStart - 5, 0, xEnd - xStart, box.size.y);
     }
     unsigned selectChannels = module->selectChannels;
-    nvgFillColor(vg, nvgRGBA((1 == selectChannels) * 0xBf, (4 == selectChannels) * 0x7f,
-            (2 == selectChannels) * 0x7f, 0x1f));
+    nvgFillColor(vg, nvgRGBA((2 == selectChannels) * 0xBf, (8 == selectChannels) * 0x7f,
+            (4 == selectChannels) * 0x7f, ALL_CHANNELS == selectChannels ? 0x3f : 0x1f));
     nvgFill(vg);
     // draw notes
     for (unsigned i = module->displayStart; i < module->displayEnd; ++i) {

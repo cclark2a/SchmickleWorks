@@ -193,6 +193,8 @@ struct SelectButton : EditLEDButton {
 // stateful button that chooses if vertical wheel changes pitch or part
 // wheel up / down chooses one channel or chooses all channels
 struct PartButton : EditLEDButton {
+    unsigned lastChannels = 1; // saved channel last time part button pressed
+
     void draw(NVGcontext *vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };
