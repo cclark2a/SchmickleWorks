@@ -172,5 +172,8 @@ struct DisplayNote {
         return REST_TYPE == type || (NOTE_ON == type && (selectChannels & (1 << channel)));
     }
 
+    json_t* toJson() const;
+    void fromJson(json_t* rootJ);
+
     std::string debugString() const;
 };

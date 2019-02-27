@@ -5,6 +5,10 @@
 struct NoteTakerWheel : Knob, FramebufferWidget {
     void drawGear(NVGcontext *vg, float frame);
 
+    void fromJson(json_t* root) {
+        speed = json_real_value(json_object_get(root, "speed"));
+    }
+
     // to do: not working yet
     void onScroll(EventScroll &e) override {
         e.consumed = true;
@@ -22,6 +26,12 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     void onChange(EventChange &e) override {
         dirty = true;
 	    Knob::onChange(e);
+    }
+
+    json_t *toJson() const {
+        json_t* root = json_object();
+        json_object_set_new(root, "speed", json_real(speed));
+        return root;
     }
 
     Vec size;

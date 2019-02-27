@@ -79,4 +79,26 @@ struct NoteTakerChannel {
         }
         return sustainMax;
     }
+
+    json_t* toJson() const {
+        json_t* root = json_object();
+        json_object_set_new(root, "releaseMax", json_integer(releaseMax));
+        json_object_set_new(root, "releaseMin", json_integer(releaseMin));
+        json_object_set_new(root, "sustainMin", json_integer(sustainMin));
+        json_object_set_new(root, "sustainMax", json_integer(sustainMax));
+        json_object_set_new(root, "noteIndex", json_integer(noteIndex));
+        json_object_set_new(root, "gateLow", json_integer(gateLow));
+        json_object_set_new(root, "noteEnd", json_integer(noteEnd));
+        return root;
+    }
+
+    void fromJson(json_t* root) {
+        releaseMax = json_integer_value(json_object_get(root, "releaseMax"));
+        releaseMin = json_integer_value(json_object_get(root, "releaseMin"));
+        sustainMin = json_integer_value(json_object_get(root, "sustainMin"));
+        sustainMax = json_integer_value(json_object_get(root, "sustainMax"));
+        noteIndex = json_integer_value(json_object_get(root, "noteIndex"));
+        gateLow = json_integer_value(json_object_get(root, "gateLow"));
+        noteEnd = json_integer_value(json_object_get(root, "noteEnd"));
+    }
 };

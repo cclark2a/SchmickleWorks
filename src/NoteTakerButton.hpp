@@ -5,6 +5,17 @@
 struct NoteTaker;
 
 struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
+    int af = 0;  // animation frame, 0 to 1
+    bool hasLed = false;
+    bool ledOn = false;
+
+    virtual void fromJson(json_t* root) {
+        if (!hasLed) {
+            return;
+        }
+        ledOn = json_boolean_value(json_object_get(root, "ledOn"));
+        af = ledOn ? 1 : 0;
+    }
 
     void onDragStart(EventDragStart &e) override {
 	    EventAction eAction;
@@ -40,9 +51,14 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         MomentarySwitch::reset();
     }
 
-    int af = 0;  // animation frame, 0 to 1
-    bool hasLed = false;
-    bool ledOn = false;
+    virtual json_t *toJson() const {
+        if (!hasLed) {
+            return nullptr;
+        }
+        json_t* root = json_object();
+        json_object_set_new(root, "ledOn", json_boolean(ledOn));
+        return root;
+    }
 };
 
 struct EditButton : NoteTakerButton {
@@ -171,9 +187,19 @@ struct SelectButton : EditLEDButton {
         extend,
     };
 
+    unsigned singlePos = 0;
+    State state = State::ledOff;
+
     void draw(NVGcontext *vg) override;
     bool editEnd() const { return ledOn && State::extend == state; }
     bool editStart() const { return ledOn && State::single == state; }
+
+    void fromJson(json_t* root) override {
+        NoteTakerButton::fromJson(root);
+        state = (State) json_integer_value(json_object_get(root, "state"));
+        singlePos = json_integer_value(json_object_get(root, "singlePos"));
+    }
+
     void onDragEnd(EventDragEnd &e) override;
     void reset() override;
     void setExtend();
@@ -186,8 +212,12 @@ struct SelectButton : EditLEDButton {
         return EditLEDButton::ledColor();
     }
 
-    unsigned singlePos = 0;
-    State state = State::ledOff;
+    json_t *toJson() const override {
+        json_t* root = NoteTakerButton::toJson();
+        json_object_set_new(root, "state", json_integer((int) state));
+        json_object_set_new(root, "singlePos", json_integer(singlePos));
+        return root;
+    }
 };
 
 // stateful button that chooses if vertical wheel changes pitch or part
@@ -196,10 +226,23 @@ struct PartButton : EditLEDButton {
     unsigned lastChannels = 1; // saved channel last time part button pressed
 
     void draw(NVGcontext *vg) override;
+
+    void fromJson(json_t* root) override {
+        NoteTakerButton::fromJson(root);
+        lastChannels = json_integer_value(json_object_get(root, "lastChannels"));
+    }
+
     void onDragEnd(EventDragEnd &e) override;
+
+    json_t *toJson() const override {
+        json_t* root = NoteTakerButton::toJson();
+        json_object_set_new(root, "lastChannels", json_integer(lastChannels));
+        return root;
+    }
 };
 
 struct AdderButton : EditButton {
+    // locals are not read/written to json; in a struct as a convenience, not persistent
     unsigned insertLoc;
     unsigned shiftLoc;
     int startTime;

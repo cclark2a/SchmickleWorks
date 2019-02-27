@@ -61,7 +61,6 @@ struct NoteTaker : Module {
 		NUM_LIGHTS
 	};
 
-    vector<uint8_t> midi;
     vector<vector<uint8_t>> storage;
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
@@ -142,6 +141,7 @@ struct NoteTaker : Module {
         return INT_MAX;
     }
 
+    void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
     bool isEmpty() const;
     bool isSelectable(const DisplayNote& note) const;
@@ -184,6 +184,7 @@ struct NoteTaker : Module {
     unsigned wheelToNote(int value) const;  // maps wheel value to index in allNotes
     void outputNote(const DisplayNote& note, int midiTime);
     void playSelection();
+    void readStorage();
     void reset() override;
     void resetButtons();
     void saveScore();
@@ -218,7 +219,7 @@ struct NoteTaker : Module {
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
     void setSelectStartAt(int midiTime, unsigned displayStart, unsigned displayEnd);
-    void setUpSampleNotes();
+    void setUpSampleNotes();  // to do : tempoary, remove
     void setWheelRange();
 
     void shiftNotes(unsigned start, int diff) {
@@ -242,9 +243,11 @@ struct NoteTaker : Module {
    }
 
 	void step() override;
+    json_t *toJson() override;
     void updateHorizontal();
     void updateVertical();
     void validate() const;
+    void writeStorage() const;
 
     void zeroGates() {
         for (auto& channel : channels) {

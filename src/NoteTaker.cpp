@@ -142,6 +142,7 @@ void NoteTaker::saveScore() {
 }
 
 void NoteTaker::setUpSampleNotes() {
+    vector<uint8_t> midi;
     NoteTakerMakeMidi maker;
     maker.createDefaultAsMidi(midi);
     NoteTakerParseMidi parser(midi, allNotes);

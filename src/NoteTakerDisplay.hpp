@@ -29,6 +29,10 @@ static constexpr std::array<int, 20> noteDurations = {
       };
 
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
+    NoteTaker* module;
+    float xAxisOffset;
+    float xAxisScale;
+
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m)
         : module(m) {
         box.pos = pos;
@@ -52,6 +56,11 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return noteDurations.size() - 1;
     }
 
+    void fromJson(json_t* root) {
+        xAxisOffset = json_real_value(json_object_get(root, "xAxisOffset"));
+        xAxisScale = json_real_value(json_object_get(root, "xAxisScale"));
+    }
+
     void initXPos() {
         xAxisOffset = 32;
     }
@@ -70,11 +79,14 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return result;
     }
 
+    json_t *toJson() const {
+        json_t* root = json_object();
+        json_object_set_new(root, "xAxisOffset", json_real(xAxisOffset));
+        json_object_set_new(root, "xAxisScale", json_real(xAxisScale));
+        return root;
+    }
+
     float xPos(int time) const {
         return xAxisOffset + time * xAxisScale;
     }
-
-    NoteTaker* module;
-    float xAxisOffset;
-    float xAxisScale;
 };

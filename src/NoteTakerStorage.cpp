@@ -1,7 +1,14 @@
-#include "NoteTakerDisplayNote.hpp"
+#include "NoteTakerButton.hpp"
+#include "NoteTakerDisplay.hpp"
+#include "NoteTakerWheel.hpp"
+#include "NoteTaker.hpp"
 
 using std::vector;
 
+// to do : not sure if we need radix 64 encoded midi or not ... 
+// depends on whether user is allowed to choose to store sequences in patches ...
+// the advantage : .vcv files can be distributed including additional sequences
+// the disadvantage : auto save time could become onerous
 struct NoteTakerStorage {
     NoteTakerStorage() {
         // unit test
@@ -67,7 +74,149 @@ struct NoteTakerStorage {
         encoded->insert(encoded->end(), out, &out[4]);
     }
 
+    static void WriteMidi(const vector<uint8_t>& midi, unsigned slot) {
+        std::string dest = assetLocal("plugins/Schmickleworks/midi/");
+        dest += std::to_string(slot) + ".mid";
+        FILE* file = fopen(dest.c_str(), "wb");
+        assert(file);
+        size_t written = fwrite(&midi.front(), 1, midi.size(), file);
+        assert(written == midi.size());
+        fclose(file);
+    }
+
+    static bool ReadMidi(vector<uint8_t>* midi, unsigned slot) {
+        std::string dest = assetLocal("plugins/Schmickleworks/midi/");
+        dest += std::to_string(slot) + ".mid";
+        FILE* file = fopen(dest.c_str(), "rb");
+        if (!file) {
+            return false;
+        }
+        int success = fseek(file, 0, SEEK_END);
+        assert(success);
+        long size = ftell(file);
+        midi->reserve(size);
+        size_t readBytes = fread(&midi->front(), 1, size, file);
+        assert((long) readBytes == size);
+        fclose(file);
+        return true;
+    }
+
 };
 
+// sets up 10 empty slots in addition to any read slots
+void NoteTaker::readStorage() {
+    unsigned limit = 10;
+    for (unsigned index = 0; index < limit; ++index) {
+        storage.push_back(vector<uint8_t>());
+        vector<uint8_t> midi;
+        if (NoteTakerStorage::ReadMidi(&midi, index)) {
+            std::swap(storage.back(), midi);
+            ++limit;
+        }
+    } 
+}
+
+void NoteTaker::writeStorage() const {
+    for (unsigned index = 0; index < storage.size(); ++index) {
+        if (!storage[index].empty()) {
+            NoteTakerStorage::WriteMidi(storage[index], index);
+        }
+    }
+}
+
+json_t *NoteTaker::toJson() {
+    json_t* root = json_object();
+    json_t* notes = json_array();
+    for (const auto& note : allNotes) {
+        json_array_append_new(notes, note.toJson());
+    }
+    json_object_set_new(root, "allNotes", notes);
+    json_t* clip = json_array();
+    for (const auto& note : clipboard) {
+        json_array_append_new(clip, note.toJson());
+    }
+    json_object_set_new(root, "clipboard", clip);
+    json_t* chans = json_array();
+    for (const auto& channel : channels) {
+        json_array_append_new(chans, channel.toJson());
+    }
+    json_object_set_new(root, "channels", chans);
+    // many of these are no-ops, but permits statefulness to change without recoding this block
+    json_object_set_new(root, "display", display->toJson());
+    json_object_set_new(root, "cutButton", cutButton->toJson());
+    json_object_set_new(root, "fileButton", fileButton->toJson());
+    json_object_set_new(root, "insertButton", insertButton->toJson());
+    json_object_set_new(root, "partButton", partButton->toJson());
+    json_object_set_new(root, "restButton", restButton->toJson());
+    json_object_set_new(root, "runButton", runButton->toJson());
+    json_object_set_new(root, "selectButton", selectButton->toJson());
+    json_object_set_new(root, "sustainButton", sustainButton->toJson());
+    json_object_set_new(root, "timeButton", timeButton->toJson());
+    json_object_set_new(root, "horizontalWheel", horizontalWheel->toJson());
+    json_object_set_new(root, "verticalWheel", verticalWheel->toJson());
+    // end of mostly no-op section
+    // this section saves more state than strictly necessary ...
+    json_object_set_new(root, "displayStart", json_integer(displayStart));
+    json_object_set_new(root, "displayEnd", json_integer(displayEnd));
+    json_object_set_new(root, "selectStart", json_integer(selectStart));
+    json_object_set_new(root, "selectEnd", json_integer(selectEnd));
+    json_object_set_new(root, "selectChannels", json_integer(selectChannels));
+    json_object_set_new(root, "elapsedSeconds", json_integer(elapsedSeconds));
+    json_object_set_new(root, "lastHorizontal", json_integer(lastHorizontal));
+    json_object_set_new(root, "lastVertical", json_integer(lastVertical));
+    json_object_set_new(root, "tempo", json_integer(tempo));
+    json_object_set_new(root, "ppq", json_integer(ppq));
+    json_object_set_new(root, "allOutputsOff", json_boolean(allOutputsOff));
+    json_object_set_new(root, "playingSelection", json_boolean(playingSelection));
+    json_object_set_new(root, "loading", json_boolean(loading));
+    json_object_set_new(root, "saving", json_boolean(saving));
+    return root;
+}
+
+void NoteTaker::fromJson(json_t *root) {
+    json_t* notes = json_object_get(root, "allNotes");
+    size_t index;
+    json_t* value;
+    allNotes.reserve(json_array_size(notes));
+    json_array_foreach(notes, index, value) {
+        allNotes[index].fromJson(value);
+    }
+    json_t* clip = json_object_get(root, "clipboard");
+    clipboard.reserve(json_array_size(clip));
+    json_array_foreach(clip, index, value) {
+        clipboard[index].fromJson(value);
+    }
+    json_t* chans = json_object_get(root, "channels");
+    json_array_foreach(chans, index, value) {
+        channels[index].fromJson(value);
+    }
+    display->fromJson(json_object_get(root, "display"));
+    cutButton->fromJson(json_object_get(root, "cutButton"));
+    fileButton->fromJson(json_object_get(root, "fileButton"));
+    insertButton->fromJson(json_object_get(root, "insertButton"));
+    partButton->fromJson(json_object_get(root, "partButton"));
+    restButton->fromJson(json_object_get(root, "restButton"));
+    runButton->fromJson(json_object_get(root, "runButton"));
+    selectButton->fromJson(json_object_get(root, "selectButton"));
+    sustainButton->fromJson(json_object_get(root, "sustainButton"));
+    timeButton->fromJson(json_object_get(root, "timeButton"));
+    horizontalWheel->fromJson(json_object_get(root, "horizontalWheel"));
+    verticalWheel->fromJson(json_object_get(root, "verticalWheel"));
+    displayStart = json_integer_value(json_object_get(root, "displayStart"));
+    displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
+    selectStart = json_integer_value(json_object_get(root, "selectStart"));
+    selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
+    selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
+    lastHorizontal = json_integer_value(json_object_get(root, "lastHorizontal"));
+    lastVertical = json_integer_value(json_object_get(root, "lastVertical"));
+    tempo = json_integer_value(json_object_get(root, "tempo"));
+    ppq = json_integer_value(json_object_get(root, "ppq"));
+    allOutputsOff = json_integer_value(json_object_get(root, "allOutputsOff"));
+    playingSelection = json_integer_value(json_object_get(root, "playingSelection"));
+    loading = json_integer_value(json_object_get(root, "loading"));
+    saving = json_integer_value(json_object_get(root, "saving"));
+}
+
+// to do : remove, to run unit tests only
 NoteTakerStorage storage;
 
