@@ -16,7 +16,8 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
     this->reset();
     musicFont = Font::load(assetPlugin(plugin, "res/MusiSync2.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
-    this->setUpSampleNotes();
+//    this->setUpSampleNotes();
+    this->readStorage();
 }
 
 // to compute range for horizontal wheel when selecting notes
@@ -139,6 +140,7 @@ void NoteTaker::saveScore() {
     auto& dest = storage[index];
     NoteTakerMakeMidi midiMaker;
     midiMaker.createFromNotes(allNotes, dest);
+    this->writeStorage(index);
 }
 
 void NoteTaker::setUpSampleNotes() {

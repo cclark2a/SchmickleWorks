@@ -247,7 +247,7 @@ struct NoteTaker : Module {
     void updateHorizontal();
     void updateVertical();
     void validate() const;
-    void writeStorage() const;
+    void writeStorage(unsigned index) const;
 
     void zeroGates() {
         for (auto& channel : channels) {

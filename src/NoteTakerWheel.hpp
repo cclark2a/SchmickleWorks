@@ -7,6 +7,8 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
 
     void fromJson(json_t* root) {
         speed = json_real_value(json_object_get(root, "speed"));
+        minValue = json_real_value(json_object_get(root, "minValue"));
+        maxValue = json_real_value(json_object_get(root, "maxValue"));
     }
 
     // to do: not working yet
@@ -31,6 +33,8 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     json_t *toJson() const {
         json_t* root = json_object();
         json_object_set_new(root, "speed", json_real(speed));
+        json_object_set_new(root, "minValue", json_real(minValue));
+        json_object_set_new(root, "maxValue", json_real(maxValue));
         return root;
     }
 

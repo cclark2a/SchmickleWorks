@@ -2,6 +2,8 @@
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
+#include <fstream>
+#include <iterator>
 
 using std::vector;
 
@@ -77,27 +79,28 @@ struct NoteTakerStorage {
     static void WriteMidi(const vector<uint8_t>& midi, unsigned slot) {
         std::string dest = assetLocal("plugins/Schmickleworks/midi/");
         dest += std::to_string(slot) + ".mid";
-        FILE* file = fopen(dest.c_str(), "wb");
-        assert(file);
-        size_t written = fwrite(&midi.front(), 1, midi.size(), file);
-        assert(written == midi.size());
-        fclose(file);
+        int err = remove(dest.c_str());
+        if (err) {
+            debug("remove %s err %d", dest.c_str(), err);
+        }
+        if (midi.empty()) {
+            return;
+        }
+        std::ofstream fout(dest.c_str(), std::ios::out | std::ios::binary);
+        fout.write((const char*) &midi.front(), midi.size());
+        fout.close();
     }
 
     static bool ReadMidi(vector<uint8_t>* midi, unsigned slot) {
         std::string dest = assetLocal("plugins/Schmickleworks/midi/");
         dest += std::to_string(slot) + ".mid";
-        FILE* file = fopen(dest.c_str(), "rb");
-        if (!file) {
+        std::ifstream in(dest.c_str(), std::ifstream::binary);
+        if (in.fail()) {
+            debug("%s not opened for reading", dest.c_str());
             return false;
         }
-        int success = fseek(file, 0, SEEK_END);
-        assert(success);
-        long size = ftell(file);
-        midi->reserve(size);
-        size_t readBytes = fread(&midi->front(), 1, size, file);
-        assert((long) readBytes == size);
-        fclose(file);
+        std::istream_iterator<uint8_t> start(in), end;
+        midi->insert(midi->begin(), start, end);
         return true;
     }
 
@@ -107,21 +110,18 @@ struct NoteTakerStorage {
 void NoteTaker::readStorage() {
     unsigned limit = 10;
     for (unsigned index = 0; index < limit; ++index) {
-        storage.push_back(vector<uint8_t>());
         vector<uint8_t> midi;
         if (NoteTakerStorage::ReadMidi(&midi, index)) {
-            std::swap(storage.back(), midi);
+            storage.push_back(midi);
             ++limit;
-        }
-    } 
-}
-
-void NoteTaker::writeStorage() const {
-    for (unsigned index = 0; index < storage.size(); ++index) {
-        if (!storage[index].empty()) {
-            NoteTakerStorage::WriteMidi(storage[index], index);
+        } else {
+            storage.push_back(vector<uint8_t>());
         }
     }
+}
+
+void NoteTaker::writeStorage(unsigned slot) const {
+    NoteTakerStorage::WriteMidi(storage[slot], slot);
 }
 
 json_t *NoteTaker::toJson() {
