@@ -1,20 +1,22 @@
 #pragma once
 
+#include "NoteTakerChannel.hpp"
 #include "NoteTakerDisplayNote.hpp"
-
-using std::vector;
 
 class NoteTakerParseMidi {
 public:
-    NoteTakerParseMidi(const vector<uint8_t>& m, vector<DisplayNote>& d)
+    NoteTakerParseMidi(const vector<uint8_t>& m, vector<DisplayNote>& d,
+            array<NoteTakerChannel, CHANNEL_COUNT>& c)
         : midi(m)
-        , displayNotes(d) {       
+        , displayNotes(d)
+        , channels(c) {       
     }
 
     void parseMidi();
 private:
     const vector<uint8_t>& midi;
     vector<DisplayNote>& displayNotes;
+    array<NoteTakerChannel, CHANNEL_COUNT>& channels;
 
     template<std::size_t size>
     bool match_midi(vector<uint8_t>::const_iterator& iter, const std::array<uint8_t, size>& data) {

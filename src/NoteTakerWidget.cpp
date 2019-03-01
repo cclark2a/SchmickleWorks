@@ -72,7 +72,7 @@ struct NoteTakerWidget : ModuleWidget {
                 0.0f, 1.0f, 0.0f));
         addParam(ParamWidget::create<DumpButton>(Vec(190, 252), module, NoteTaker::BUTTON_12,
                 0.0f, 1.0f, 0.0f));
-        const bool runUnitTest = true;
+        const bool runUnitTest = false;  // temporarily disable while debugging break
         if (runUnitTest) {
             extern void UnitTest(NoteTaker* );
             UnitTest(module);

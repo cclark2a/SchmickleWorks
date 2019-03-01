@@ -3,9 +3,6 @@
 #include "NoteTakerChannel.hpp"
 #include "NoteTakerDisplayNote.hpp"
 
-using std::array;
-using std::vector;
-
 struct CutButton;
 struct FileButton;
 struct InsertButton;
@@ -89,11 +86,18 @@ struct NoteTaker : Module {
     int lastVertical = INT_MAX;
     int tempo = 500000;                     // default to 120 beats/minute
     int ppq = 96;                           // default to 96 pulses/ticks per quarter note
-    bool allOutputsOff = false;
     bool playingSelection = false;          // if set, provides feedback when editing notes
     bool loading = false;
     bool saving = false;
     NoteTaker();
+
+    void alignStart() {
+        if (!selectStart && !this->isEmpty()) {
+            unsigned start = this->wheelToNote(0);
+            unsigned end = std::max(start + 1, selectEnd);
+            this->setSelect(start, end);
+        }
+    }
 
     void copyNotes() {
         clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
@@ -110,18 +114,9 @@ struct NoteTaker : Module {
         }
     }
 
-    void debugDump(bool validatable = true) const {
-        debug("select s/e %u %u display s/e %u %u chans 0x%02x tempo %d ppq %d",
-                selectStart, selectEnd, displayStart, displayEnd, selectChannels, tempo, ppq);
-        NoteTaker::DebugDump(allNotes, selectStart, selectEnd);
-        this->debugDumpChannels();
-        if (validatable) {
-            this->validate();
-        }
-    }
-
-    static void DebugDump(const vector<DisplayNote>& , unsigned selectStart = INT_MAX,
-            unsigned selectEnd = INT_MAX);
+    void debugDump(bool validatable = true) const;
+    static void DebugDump(const vector<DisplayNote>& , const vector<int>* xPos = nullptr,
+            unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
 
     void eraseNotes(unsigned start, unsigned end) {
         this->debugDump();
@@ -143,17 +138,9 @@ struct NoteTaker : Module {
 
     void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
+    unsigned isBestSelectStart(int midiTime) const;
     bool isEmpty() const;
     bool isSelectable(const DisplayNote& note) const;
-
-    unsigned lastAt(int midiTime) const {
-        assert(displayStart < allNotes.size());
-        const DisplayNote* note = &allNotes[displayStart];
-        do {
-            ++note;
-        } while (TRACK_END != note->type && note->startTime < midiTime);
-        return note - &allNotes[0];
-    }
 
     bool lastNoteEnded(unsigned index, int midiTime) const {
         assert(index < allNotes.size());
@@ -183,12 +170,13 @@ struct NoteTaker : Module {
     int noteToWheel(const DisplayNote& ) const;
     unsigned wheelToNote(int value) const;  // maps wheel value to index in allNotes
     void outputNote(const DisplayNote& note, int midiTime);
+    void outputNoteAt(int midiTime);
     void playSelection();
     void readStorage();
     void reset() override;
     void resetButtons();
     void saveScore();
-    void setDisplayEnd();
+    void setScoreEmpty();
 
     void setGateLow(const DisplayNote& note) {
         auto &chan = channels[note.channel];
@@ -216,10 +204,10 @@ struct NoteTaker : Module {
         }
     }
 
+    void setSelect(unsigned start, unsigned end);
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
-    void setSelectStartAt(int midiTime, unsigned displayStart, unsigned displayEnd);
-    void setUpSampleNotes();  // to do : tempoary, remove
+    void setSelectStartAt(int midiTime);
     void setWheelRange();
 
     void shiftNotes(unsigned start, int diff) {
@@ -246,10 +234,12 @@ struct NoteTaker : Module {
     json_t *toJson() override;
     void updateHorizontal();
     void updateVertical();
+    void updateXPosition();
     void validate() const;
     void writeStorage(unsigned index) const;
 
     void zeroGates() {
+        debug("zero gates");
         for (auto& channel : channels) {
             channel.noteIndex = INT_MAX;
             channel.gateLow = channel.noteEnd = 0;
@@ -257,6 +247,5 @@ struct NoteTaker : Module {
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
             outputs[GATE1_OUTPUT + index].value = 0;
         }
-        allOutputsOff = true;
     }
 };

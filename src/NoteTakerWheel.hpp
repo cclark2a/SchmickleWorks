@@ -52,7 +52,7 @@ struct HorizontalWheel : NoteTakerWheel {
     }
 
     void draw(NVGcontext *vg) override {
-        drawGear(vg, 1.f - fmodf(value, 1));
+        drawGear(vg, 1.f - fmodf(value + 1, 1));
     }
 
     void onDragMove(EventDragMove& e) override;
@@ -69,7 +69,7 @@ struct VerticalWheel : NoteTakerWheel {
     void draw(NVGcontext *vg) override {
         nvgTranslate(vg, 0, box.size.y);
         nvgRotate(vg, -M_PI / 2);
-        drawGear(vg, 1.f - fmodf(value, 1));
+        drawGear(vg, 1.f - fmodf(value + 1, 1));
     }
 
     void onDragMove(EventDragMove& e) override;

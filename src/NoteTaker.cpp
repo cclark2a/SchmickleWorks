@@ -16,7 +16,6 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
     this->reset();
     musicFont = Font::load(assetPlugin(plugin, "res/MusiSync2.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
-//    this->setUpSampleNotes();
     this->readStorage();
 }
 
@@ -51,12 +50,12 @@ bool NoteTaker::isSelectable(const DisplayNote& note) const {
 }
 
 void NoteTaker::loadScore() {
-    debug("loadScore start");
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
-    NoteTakerParseMidi parser(storage[index], allNotes);
+    NoteTakerParseMidi parser(storage[index], allNotes, channels);
     parser.parseMidi();
-    debug("loadScore end");
+    display->xPositionsInvalid = true;
+    this->setSelectStart(this->wheelToNote(0));
 }
 
 void NoteTaker::reset() {
@@ -67,7 +66,6 @@ void NoteTaker::reset() {
     }
     displayStart = displayEnd = selectStart = selectEnd = 0;
     elapsedSeconds = 0;
-    allOutputsOff = true;
     playingSelection = false;
     selectChannels = ALL_CHANNELS;
     lastHorizontal = INT_MAX;
@@ -139,53 +137,32 @@ void NoteTaker::saveScore() {
     }
     auto& dest = storage[index];
     NoteTakerMakeMidi midiMaker;
-    midiMaker.createFromNotes(allNotes, dest);
+    midiMaker.createFromNotes(*this, dest);
     this->writeStorage(index);
-}
-
-void NoteTaker::setUpSampleNotes() {
-    vector<uint8_t> midi;
-    NoteTakerMakeMidi maker;
-    maker.createDefaultAsMidi(midi);
-    NoteTakerParseMidi parser(midi, allNotes);
-    parser.parseMidi();
-    channels[0].sustainMin = 1;
-    channels[0].sustainMax = noteDurations.back();
-    channels[0].releaseMin = 1;
-    channels[0].releaseMax = 24;
 }
 
 void NoteTaker::outputNote(const DisplayNote& note, int midiTime) {
     auto& channelInfo = channels[note.channel];
-    if (MIDI_HEADER == note.type) { 
-        if (allOutputsOff) {
-            return;
-        }
-    } else if (this->noteIndex(note) == channelInfo.noteIndex) {
+    if (this->noteIndex(note) == channelInfo.noteIndex) {
         if (midiTime < channelInfo.noteEnd) {
             return;
         }
     }
-    assert((0xFF == note.channel && MIDI_HEADER == note.type) || note.channel < CHANNEL_COUNT);
-    if (NOTE_ON == note.type) {
-        channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
-        channelInfo.noteEnd = note.endTime();
-        debug("outputNote time=%d dur=%d sustain=%d gateLow=%d midiTime=%d"
-                " noteIndex=%d channelInfo.noteIndex=%d", note.startTime,
-                note.duration, channelInfo.sustain(note.duration), channelInfo.gateLow,
-                midiTime, this->noteIndex(note), channelInfo.noteIndex);
-        if (note.channel < CV_OUTPUTS) {
-            outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
-            const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-            float v_oct = inputs[V_OCT_INPUT].value;
-            outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
-        }
-        channelInfo.noteIndex = this->noteIndex(note);
-        allOutputsOff = false;
-   } else {
-        assert((MIDI_HEADER == note.type && selectButton->editStart()) || REST_TYPE == note.type);
-        this->zeroGates();
+    assert(note.channel < CHANNEL_COUNT);
+    channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
+    channelInfo.noteEnd = note.endTime();
+    debug("outputNote time=%d dur=%d sustain=%d gateLow=%d midiTime=%d"
+            " noteIndex=%d channelInfo.noteIndex=%d channelInfo.noteEnd=%d",
+            note.startTime, note.duration, channelInfo.sustain(note.duration), channelInfo.gateLow,
+            midiTime, 
+            this->noteIndex(note), channelInfo.noteIndex, channelInfo.noteEnd);
+    if (note.channel < CV_OUTPUTS) {
+        outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
+        const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
+        float v_oct = inputs[V_OCT_INPUT].value;
+        outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
     }
+    channelInfo.noteIndex = this->noteIndex(note);
     display->dirty = true;
 }
 
@@ -207,30 +184,128 @@ void NoteTaker::resetButtons() {
     timeButton->reset();
 }
 
-void NoteTaker::setDisplayEnd() {
-    displayEnd = this->lastAt(allNotes[displayStart].startTime
-            + display->box.size.x / display->xAxisScale - display->xAxisOffset);
+void NoteTaker::setScoreEmpty() {
+    this->reset();
+    vector<uint8_t> emptyMidi;
+    NoteTakerMakeMidi makeMidi;
+    makeMidi.createEmpty(emptyMidi);
+    NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels);
+    emptyParser.parseMidi();
+    this->resetButtons();
+    display->xPositionsInvalid = true;
+    display->updateXPosition();
+}
+
+// to do : some staff notation takes no time but takes space (clef marks, time signatures)
+// need to include these when figuring how much area displayStart / displayEnd encompasses
+void NoteTaker::setSelect(unsigned start, unsigned end) {
+    if (this->isEmpty()) {
+        selectStart = selectEnd = displayStart = displayEnd = 0;
+        return;
+    }
+    assert(start < end);
+    assert(allNotes.size() >= 2);
+    assert(end <= allNotes.size() - 1);
+    display->updateXPosition();
+    int selectStartTime = display->startTime(start);
+    int selectEndTime = display->endTime(end - 1);
+    if (!displayEnd || allNotes.size() <= displayEnd) {
+        displayEnd = allNotes.size() - 1;
+    }
+    if (displayEnd <= displayStart) {
+        displayStart = displayEnd - 1;
+    }
+    int displayStartTime = display->startTime(displayStart);
+    int displayEndTime = displayStartTime + display->box.size.x;
+    while (displayEnd < allNotes.size() - 1 && display->endTime(displayEnd) < displayEndTime) {
+        ++displayEnd;
+    }
+    debug("selectStartTime %d selectEndTime %d displayStartTime %d displayEndTime %d",
+            selectStartTime, selectEndTime, displayStartTime, displayEndTime);
+    debug("setSelect displayStart %u displayEnd %u", displayStart, displayEnd);
+    bool recomputeDisplayOffset = display->xPos(displayStart) < 0
+            || display->xPos(displayEnd) > display->box.size.x;
+    bool offsetFromEnd = false;
+    if (displayStartTime > selectStartTime || selectEndTime > displayEndTime) {
+        recomputeDisplayOffset = true;
+        // scroll small selections to center?
+        // move larger selections the smallest amount?
+        // prefer to show start? end?
+        // while playing, scroll a 'page' at a time?
+        // allow for smooth scrolling?
+        bool recomputeStart = false;
+        if (selectEnd != end && selectStart == start) { // only end moved
+            if (displayStartTime > selectEndTime || selectEndTime > displayEndTime) {
+                displayEnd = end;  // if end isn't visible
+                displayStart = displayEnd - 1;
+                recomputeStart = true;
+                debug("1 displayStart %u displayEnd %u", displayStart, displayEnd);
+            }
+        } else if (displayStartTime > selectStartTime || selectStartTime > displayEndTime
+                || ((displayStartTime > selectEndTime || selectEndTime > displayEndTime)
+                && display->duration(start) < display->box.size.x)) {
+            if (display->endTime(start) > displayEndTime) {
+                displayEnd = start + 1;
+                displayStart = start;
+                recomputeStart = true;
+                offsetFromEnd = true;
+                debug("2 displayStart %u displayEnd %u", displayStart, displayEnd);
+            } else if (selectStartTime < displayStartTime) {
+                displayStart = start;   // if start isn't fully visible
+                displayEnd = display->lastAt(start);
+                debug("3 displayStart %u displayEnd %u", displayStart, displayEnd);
+            }
+        }
+        if (recomputeStart) {
+            int endTime = display->endTime(displayStart);
+            while (displayStart
+                    && endTime - display->startTime(displayStart) < display->box.size.x) {
+                --displayStart;
+            }
+            if (displayStart < allNotes.size() - 1
+                    && endTime - display->startTime(displayStart) > display->box.size.x) {
+                ++displayStart;
+            }
+            debug("displayStart %u displayEnd %u endTime %d boxWidth %g xPos %d",
+                    displayStart, displayEnd, endTime, display->box.size.x,
+                    display->startTime(displayStart));
+        }
+    }
+    if (recomputeDisplayOffset) {
+        if (offsetFromEnd) {
+            display->xAxisOffset = std::max(display->endTime(start)
+                    - display->box.size.x, 0.f);
+        } else if (display->startTime(displayEnd) <= display->box.size.x) {
+            display->xAxisOffset = 0;
+        } else {
+            display->xAxisOffset = display->startTime(displayStart);
+        }
+        debug("display->xAxisOffset %g", display->xAxisOffset);
+    }
+    debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
+    selectStart = start;
+    selectEnd = end;
 }
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
     debug("setSelectEnd wheelValue=%d end=%u singlePos=%u selectStart=%u selectEnd=%u", 
             wheelValue, end, selectButton->singlePos, selectStart, selectEnd);
     if (end < selectButton->singlePos) {
-        selectStart = end;
-        selectEnd = selectButton->singlePos;
+        this->setSelect(end, selectButton->singlePos);
         debug("setSelectEnd < s:%u e:%u", selectStart, selectEnd);
    } else if (end == selectButton->singlePos) {
-        selectStart = selectButton->singlePos;
-        if (TRACK_END == allNotes[selectStart].type) {
-            selectEnd = selectStart;
-            selectStart = isEmpty() ? 0 : wheelToNote(wheelValue - 1);
+        unsigned start = selectButton->singlePos;
+        unsigned end;
+        if (TRACK_END == allNotes[start].type) {
+            end = start;
+            start = isEmpty() ? 0 : wheelToNote(wheelValue - 1);
         } else {
-            selectEnd = this->wheelToNote(wheelValue + 1);
+            end = this->wheelToNote(wheelValue + 1);
         }
+        this->setSelect(start, end);
         debug("setSelectEnd == s:%u e:%u", selectStart, selectEnd);
     } else {
-        selectStart = selectButton->singlePos;
-        selectEnd = end;
+        this->setSelect(selectButton->singlePos, end);
         debug("setSelectEnd > s:%u e:%u", selectStart, selectEnd);
     }
     assert(selectEnd != selectStart);
@@ -241,34 +316,58 @@ bool NoteTaker::setSelectStart(unsigned start) {
     if (selectStart == start) {
         return false;
     }
-    selectEnd = selectStart = start;
+    unsigned end = start;
     do {
-        ++selectEnd;
-    } while (allNotes[selectStart].startTime == allNotes[selectEnd].startTime);
+        ++end;
+    } while (allNotes[start].startTime == allNotes[end].startTime);
+    this->setSelect(start, end);
     this->setWheelRange();
     return true;
 }
 
-void NoteTaker::setSelectStartAt(int midiTime, unsigned startIndex, unsigned endIndex) {
+unsigned NoteTaker::isBestSelectStart(int midiTime) const {
+    unsigned startIndex = playingSelection ? selectStart : 0;
+    unsigned endIndex = playingSelection ? selectEnd : allNotes.size() - 1;
     int start = INT_MAX;
     const DisplayNote* best = nullptr;
     for (unsigned step = startIndex; step < endIndex; ++step) {
         const DisplayNote& note = allNotes[step];
-        if (NOTE_ON == note.type) {
-            if (note.isBestSelectStart(&best, midiTime)) {
-                start = step;
-            }
-            if (note.isActive(midiTime)) {
-                this->outputNote(note, midiTime);
-            }
+        if (NOTE_ON != note.type) {
+            continue;
+        }
+        if (note.isBestSelectStart(&best, midiTime)) {
+            start = step;
         }
     }
+    return start;
+}
+
+void NoteTaker::setSelectStartAt(int midiTime) {
+    unsigned start = this->isBestSelectStart(midiTime);
     if (INT_MAX != start) {
         (void) this->setSelectStart(start);
     }
 }
 
+void NoteTaker::outputNoteAt(int midiTime) {
+    unsigned start = this->isBestSelectStart(midiTime);
+    if (INT_MAX == start) {
+        return;
+    }
+    const auto& note = allNotes[start];
+    if (!note.isActive(midiTime) || NOTE_ON != note.type) {
+        return;
+    }
+    this->outputNote(note, midiTime);
+}
+
 void NoteTaker::step() {
+    if (!runButton) {
+        return;  // do nothing if we're not set up yet
+    }
+    if (!allNotes.size()) {  // if all data got deleted, set up empty framework
+        this->setScoreEmpty();
+    }
     if (loading || saving) {
         float val = verticalWheel->value;
         verticalWheel->value += val > 5 ? -.0001f : +.0001f;
@@ -278,7 +377,7 @@ void NoteTaker::step() {
         }
         return;
     }
-    if (!runButton || (!runButton->running() && !playingSelection) || this->isEmpty()) {
+    if ((!runButton->running() && !playingSelection) || this->isEmpty()) {
         return;
     }
     // read data from display notes to determine pitch
@@ -287,38 +386,22 @@ void NoteTaker::step() {
 	float deltaTime = engineGetSampleTime();
     elapsedSeconds += deltaTime;
     int midiTime = SecondsToMidi(elapsedSeconds, ppq, tempo);
-    if (runButton->running()) {
-        this->setExpiredGatesLow(midiTime);
-        // to do : if midi time exceeds displayEnd: scroll; reset displayStart, displayEnd
-        // if midi time exceeds last of allNotes: either reset to zero and repeat,
-        // or stop running
-        bool recomputeDisplayEnd = false;
-        if (this->lastNoteEnded(displayEnd, midiTime)) {
-            elapsedSeconds = 0;  // to do : don't repeat unconditionally?
+    this->setExpiredGatesLow(midiTime);
+    unsigned lastNote = playingSelection ? selectEnd : allNotes.size() - 1;
+    if (this->lastNoteEnded(lastNote - 1, midiTime)) {
+        if (playingSelection) {
+            playingSelection = false;
+            this->setExpiredGatesLow(INT_MAX);
+        } else {
+            // to do : add option to stop running
+            elapsedSeconds = 0;
             midiTime = 0;
             displayStart = 0;
-            recomputeDisplayEnd = true;
-        } else {
-            do {
-                const DisplayNote& note = allNotes[displayStart];
-                if (note.endTime() > midiTime || TRACK_END != note.type) {
-                    break;
-                }
-                ++displayStart;
-                recomputeDisplayEnd = true;
-            } while (true);
         }
-        if (recomputeDisplayEnd) {
-            this->setDisplayEnd();
-        }
-        this->setSelectStartAt(midiTime, displayStart, displayEnd);
-    } else if (playingSelection) { // not running, play note after selecting or editing
-        for (unsigned step = selectStart; step < selectEnd; ++step) {
-            this->outputNote(allNotes[step], midiTime);
-            if (step + 1 == selectEnd && this->lastNoteEnded(step, midiTime)) {
-                playingSelection = false;
-                this->setExpiredGatesLow(INT_MAX);
-            }
-        }
+        return;
     }
+    if (runButton->running()) {
+        this->setSelectStartAt(midiTime);
+    }
+    this->outputNoteAt(midiTime);
 }

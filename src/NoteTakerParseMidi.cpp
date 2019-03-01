@@ -320,6 +320,16 @@ void NoteTakerParseMidi::parseMidi() {
                 debug("unexpected byte %d\n", *iter);
                 return;
         }
+        // hijack 0x00 0xBx 0x57-0x5A 0xXX to set sustain and release parameters
+        // only intercepts if it occurs at time zero, and 0xXX value is in range
+        if (CONTROL_CHANGE == displayNote.type && 0 == displayNote.startTime &&
+                midiReleaseMax <= displayNote.data[0] && displayNote.data[0] <= midiSustainMax &&
+                (unsigned) displayNote.data[1] < noteDurations.size()) {
+            channels[displayNote.channel].setLimit(
+                    (NoteTakerChannel::Limit) (displayNote.data[0] - midiReleaseMax),
+                    noteDurations[displayNote.data[1]]);
+            continue;
+        }
         parsedNotes.push_back(displayNote);
     }
     NoteTaker::DebugDump(parsedNotes);

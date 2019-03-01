@@ -110,12 +110,11 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
         nt->debugDump(false);
     }
     selectButton->reset();
-    nt->selectStart = insertLoc;
-    nt->selectEnd = insertLoc + insertSize;
-    nt->shiftNotes(nt->selectEnd, shiftTime);
+    nt->shiftNotes(insertLoc + insertSize, shiftTime);
+    nt->display->xPositionsInvalid = true;
+    nt->setSelect(insertLoc, insertLoc + insertSize);
     debug("insert final"); nt->debugDump();
     nt->setWheelRange();  // range is larger
-    nt->setDisplayEnd();
     nt->playSelection();
     NoteTakerButton::onDragEnd(e);
 }
@@ -176,10 +175,8 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
         NoteTaker::ShiftNotes(nt->allNotes, shiftLoc, shiftTime);
     }
     nt->selectButton->reset();
-    nt->selectStart = insertLoc;
-    nt->selectEnd = insertLoc + 1;
+    nt->setSelect(insertLoc, insertLoc + 1);
     nt->setWheelRange();  // range is larger
-    nt->setDisplayEnd();
     NoteTakerButton::onDragEnd(e);
     nt->debugDump();
 }
@@ -218,8 +215,7 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
             assert(ledOn);
             int wheelIndex = nt->noteToWheel(nt->selectStart);
             state = State::single;
-            nt->selectStart = nt->wheelToNote(wheelIndex - 1);
-            nt->selectEnd = nt->wheelToNote(wheelIndex);
+            nt->setSelect(nt->wheelToNote(wheelIndex - 1), nt->wheelToNote(wheelIndex));
         } break;
         case State::single: {
             assert(!ledOn);
@@ -227,14 +223,16 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
             state = State::extend;
             af = 1;
             ledOn = true;
-            nt->selectStart = nt->wheelToNote(wheelIndex + 1);
-            singlePos = nt->selectStart;
-            if (TRACK_END == nt->allNotes[nt->selectStart].type) {
-                nt->selectEnd = nt->selectStart;
-                nt->selectStart = nt->isEmpty() ? 0 : nt->wheelToNote(wheelIndex);
+            unsigned start = nt->wheelToNote(wheelIndex + 1);
+            unsigned end;
+            singlePos = start;
+            if (TRACK_END == nt->allNotes[start].type) {
+                end = start;
+                start = nt->isEmpty() ? 0 : nt->wheelToNote(wheelIndex);
             } else {
-                nt->selectEnd = nt->wheelToNote(wheelIndex + 2);
+                end = nt->wheelToNote(wheelIndex + 2);
             }
+            nt->setSelect(start, end);
         } break;
         case State::extend:
             assert(!ledOn);
@@ -248,19 +246,13 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
 }
 
 void SelectButton::reset() {
-    NoteTaker* nt = nModule();
-    if (!nt->selectStart && !nt->isEmpty()) {
-        nt->selectStart = nt->wheelToNote(0);
-    }
+    nModule()->alignStart();
     state = State::ledOff;
     NoteTakerButton::reset();
 }
 
 void SelectButton::setExtend() {
-    NoteTaker* nt = nModule();
-    if (!nt->selectStart && !nt->isEmpty()) {
-        nt->selectStart = nt->wheelToNote(0);
-    }
+    nModule()->alignStart();
     af = 1;
     ledOn = true;
     state = State::extend;
@@ -311,10 +303,9 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     nt->eraseNotes(start, end);
     NoteTaker::ShiftNotes(nt->allNotes, start, shiftTime);
     int wheelIndex = nt->noteToWheel(start);
-    nt->selectStart = nt->wheelToNote(wheelIndex - 1);
-    nt->selectEnd = start;
+    nt->display->xPositionsInvalid = true;
+    nt->setSelect(nt->wheelToNote(wheelIndex - 1), start);
     nt->setWheelRange();  // range is smaller
-    nt->setDisplayEnd();
     NoteTakerButton::onDragEnd(e);
 }
 

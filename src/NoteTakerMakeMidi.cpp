@@ -1,7 +1,17 @@
 #include "NoteTakerMakeMidi.hpp"
+#include "NoteTakerDisplay.hpp"
 #include "NoteTaker.hpp"
 #include <set>
 
+// to do : move this to NoteTakeChannel.cpp
+const NoteTakerChannel::Limit NoteTakerChannelLimits[] = {
+    NoteTakerChannel::Limit::releaseMax,
+    NoteTakerChannel::Limit::releaseMin,
+    NoteTakerChannel::Limit::sustainMin,
+    NoteTakerChannel::Limit::sustainMax
+};
+
+#if 0
 struct TimeNote {
     float time;  // 1 == quarter note
     int note;
@@ -36,6 +46,7 @@ void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
     }
     this->standardTrailer(midi);
 }
+#endif
 
 void NoteTakerMakeMidi::createEmpty(vector<uint8_t>& midi) {
     this->standardHeader(midi);
@@ -56,14 +67,31 @@ struct LastNote {
     const DisplayNote* note;
 };
 
-void NoteTakerMakeMidi::createFromNotes(const vector<DisplayNote>& notes, vector<uint8_t>& midi) {
+void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi) {
+    // to do : allow custom ticks / quarter note (hardcoded to 96)
     this->standardHeader(midi);
+    // after header, write channel dur/sus as control change 0xBx
+                // 0x57 release max mapped to duration index
+                // 0x58 release min
+                // 0x59 sustain min
+                // 0x5A sustain max
+    // to do : allow sustain/release changes during playback?
+    for (unsigned index = 0; index < ALL_CHANNELS; ++index) {
+        const auto& chan = nt.channels[index];
+        for (const auto& limit : NoteTakerChannelLimits) {
+            if (!chan.isDefault(limit)) {
+                add_size8(0);
+                add_one(midiControlChange + index);
+                add_one(midiReleaseMax + (int) limit);
+                add_one(NoteTakerDisplay::DurationIndex(chan.getLimit(limit)));
+            }
+        }
+    }
     std::set<LastNote> lastNotes;
     int lastTime = 0;
-    for (auto& n : notes) {
+    for (auto& n : nt.allNotes) {
         switch(n.type) {
             case MIDI_HEADER:
-                // to do : allow custom ticks / quarter note (hardcoded to 96)
                 break;
             case NOTE_ON:
                 while (!lastNotes.empty()) {

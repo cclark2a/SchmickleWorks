@@ -114,6 +114,8 @@ void NoteTaker::updateHorizontal() {
         if (diff) {
             this->shiftNotes(selectEnd, diff);
             noteChanged = true;
+            display->xPositionsInvalid = true;
+            this->setSelect(selectStart, selectEnd);
         }
     } else {
     // value should range from 0 to max - 1, where max is number of starts for active channels

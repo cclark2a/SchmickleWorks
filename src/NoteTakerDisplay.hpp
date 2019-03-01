@@ -30,15 +30,15 @@ static constexpr std::array<int, 20> noteDurations = {
 
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTaker* module;
-    float xAxisOffset;
-    float xAxisScale;
+    vector<int> xPositions;  // where note is drawn (computed cache, not saved)
+    float xAxisOffset = 0;
+    float xAxisScale = 0.25;
+    bool xPositionsInvalid = false;
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m)
         : module(m) {
         box.pos = pos;
         box.size = size;
-        xAxisScale = 0.25;
-        this->initXPos();
     }
     
     void draw(NVGcontext* ) override;
@@ -47,6 +47,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawNote(NVGcontext* , const DisplayNote& , int offset, int alpha) const;
     void drawRest(NVGcontext* , const DisplayNote& , int offset, int alpha) const;
     void drawVerticalControl(NVGcontext* ) const;
+    int duration(unsigned index) const;
+
     static unsigned DurationIndex(int duration) {
         for (unsigned i = 0; i < noteDurations.size(); ++i) {
             if (duration <= noteDurations[i]) {
@@ -56,13 +58,29 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return noteDurations.size() - 1;
     }
 
+    int endTime(unsigned end) const {
+        return xPositions[end] + this->duration(end);
+    }
+
+    int startTime(unsigned start) const {
+        return xPositions[start];
+    }
+
     void fromJson(json_t* root) {
         xAxisOffset = json_real_value(json_object_get(root, "xAxisOffset"));
         xAxisScale = json_real_value(json_object_get(root, "xAxisScale"));
     }
 
-    void initXPos() {
-        xAxisOffset = 32;
+    unsigned lastAt(unsigned start) const {
+        assert(start < xPositions.size());
+        int endTime = this->startTime(start) + box.size.x;
+        unsigned index;
+        for (index = start; index < xPositions.size(); ++index) {
+            if (this->startTime(index) >= endTime) {
+                break;
+            }
+        } 
+        return index;
     }
 
     static unsigned RestIndex(int duration) {
@@ -86,7 +104,10 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return root;
     }
 
-    float xPos(int time) const {
-        return xAxisOffset + time * xAxisScale;
+    void updateXPosition();
+
+    int xPos(int index) const {
+        return xPositions[index] - xAxisOffset;
     }
+
 };

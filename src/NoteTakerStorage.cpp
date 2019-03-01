@@ -5,8 +5,6 @@
 #include <fstream>
 #include <iterator>
 
-using std::vector;
-
 // to do : not sure if we need radix 64 encoded midi or not ... 
 // depends on whether user is allowed to choose to store sequences in patches ...
 // the advantage : .vcv files can be distributed including additional sequences
@@ -166,7 +164,6 @@ json_t *NoteTaker::toJson() {
     json_object_set_new(root, "lastVertical", json_integer(lastVertical));
     json_object_set_new(root, "tempo", json_integer(tempo));
     json_object_set_new(root, "ppq", json_integer(ppq));
-    json_object_set_new(root, "allOutputsOff", json_boolean(allOutputsOff));
     json_object_set_new(root, "playingSelection", json_boolean(playingSelection));
     json_object_set_new(root, "loading", json_boolean(loading));
     json_object_set_new(root, "saving", json_boolean(saving));
@@ -177,12 +174,12 @@ void NoteTaker::fromJson(json_t *root) {
     json_t* notes = json_object_get(root, "allNotes");
     size_t index;
     json_t* value;
-    allNotes.reserve(json_array_size(notes));
+    allNotes.resize(json_array_size(notes));
     json_array_foreach(notes, index, value) {
         allNotes[index].fromJson(value);
     }
     json_t* clip = json_object_get(root, "clipboard");
-    clipboard.reserve(json_array_size(clip));
+    clipboard.resize(json_array_size(clip));
     json_array_foreach(clip, index, value) {
         clipboard[index].fromJson(value);
     }
@@ -211,12 +208,12 @@ void NoteTaker::fromJson(json_t *root) {
     lastVertical = json_integer_value(json_object_get(root, "lastVertical"));
     tempo = json_integer_value(json_object_get(root, "tempo"));
     ppq = json_integer_value(json_object_get(root, "ppq"));
-    allOutputsOff = json_integer_value(json_object_get(root, "allOutputsOff"));
     playingSelection = json_integer_value(json_object_get(root, "playingSelection"));
     loading = json_integer_value(json_object_get(root, "loading"));
     saving = json_integer_value(json_object_get(root, "saving"));
+    display->xPositionsInvalid = true;
+    display->updateXPosition();
 }
 
 // to do : remove, to run unit tests only
 NoteTakerStorage storage;
-

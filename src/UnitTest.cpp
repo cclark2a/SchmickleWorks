@@ -40,19 +40,8 @@ static void ExerciseWheels(NoteTaker* n) {
     }
 }
 
-static void SetScoreEmpty(NoteTaker* n) {
-    n->reset();
-    vector<uint8_t> emptyMidi;
-    NoteTakerMakeMidi makeMidi;
-    makeMidi.createEmpty(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, n->allNotes);
-    emptyParser.parseMidi();
-    ResetButtons(n);
-}
-
 static void AddTwoNotes(NoteTaker* n) {
-    SetScoreEmpty(n);
-    ResetButtons(n);
+    n->setScoreEmpty();
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     unsigned note1 = n->wheelToNote(0);
@@ -60,7 +49,7 @@ static void AddTwoNotes(NoteTaker* n) {
 }
 
 void UnitTest(NoteTaker* n) {
-    SetScoreEmpty(n);
+    n->setScoreEmpty();
 
     debug("delete a note with empty score");
     Press(n, n->cutButton);
@@ -153,7 +142,7 @@ void UnitTest(NoteTaker* n) {
 
     debug("restore defaults");
     n->reset();
-    n->setUpSampleNotes();
+//    n->setUpSampleNotes();
     ResetButtons(n);
-    n->setDisplayEnd();
+//    n->setDisplayEnd();
 }

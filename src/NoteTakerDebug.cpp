@@ -1,4 +1,5 @@
 #include "NoteTaker.hpp"
+#include "NoteTakerDisplay.hpp"
 
 struct DisplayTypeNames {
     DisplayType type;
@@ -53,14 +54,30 @@ std::string DisplayNote::debugString() const {
     return s;
 }
 
-void NoteTaker::DebugDump(const vector<DisplayNote>& notes, unsigned selectStart,
-        unsigned selectEnd) {
+
+void NoteTaker::debugDump(bool validatable) const {
+    debug("display xOffset: %d", display->xAxisOffset);
+    debug("select s/e %u %u display s/e %u %u chans 0x%02x tempo %d ppq %d",
+            selectStart, selectEnd, displayStart, displayEnd, selectChannels, tempo, ppq);
+    NoteTaker::DebugDump(allNotes, &display->xPositions, selectStart, selectEnd);
+    this->debugDumpChannels();
+    if (validatable) {
+        this->validate();
+    }
+}
+
+void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<int>* xPos,
+        unsigned selectStart, unsigned selectEnd) {
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         assert(i == typeNames[i].type);
     }
     debug("notes: %d", notes.size());
-    for (const auto& note : notes) {
+    for (unsigned index = 0; index < notes.size(); ++index) {
+        const DisplayNote& note = notes[index];
         std::string s;
+        if (xPos) {
+            s = std::to_string((*xPos)[index]) + " ";
+        }
         if (INT_MAX != selectStart && &note == &notes[selectStart]) {
             s += "< ";
         }
@@ -143,5 +160,7 @@ void NoteTaker::validate() const {
             break;
         }
     }
-    assert(sawTrailer && !malformed);
+    if (!malformed && !sawTrailer) {
+        debug("missing trailer");
+    }
 }

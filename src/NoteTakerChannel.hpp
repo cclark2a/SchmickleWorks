@@ -28,9 +28,46 @@ struct NoteTakerChannel {
         this->reset();
     }
 
+    static int DefaultLimit(Limit limit) {
+         switch (limit) {
+            case Limit::releaseMax:
+                return 24;
+            case Limit::releaseMin:
+                return 1;
+            case Limit::sustainMin:
+                return 1;
+            case Limit::sustainMax:
+                return 24;
+            default:
+                assert(0);
+        }
+    }
+
+    int getLimit(Limit limit) const {
+        switch (limit) {
+            case Limit::releaseMax:
+                return releaseMax;
+            case Limit::releaseMin:
+                return releaseMin;
+            case Limit::sustainMin:
+                return sustainMin;
+            case Limit::sustainMax:
+                return sustainMax;
+            default:
+                assert(0);
+        }
+    }
+
+    bool isDefault(Limit limit) const {
+        return this->getLimit(limit) == DefaultLimit(limit);
+    }
+
     void reset() {
-        sustainMin = releaseMin = 1;
-        sustainMax = releaseMax = 24;  // to do : use a constant here
+        debug("channel reset");
+        releaseMax = DefaultLimit(Limit::releaseMax);
+        releaseMin = DefaultLimit(Limit::releaseMin);
+        sustainMin = DefaultLimit(Limit::sustainMin);
+        sustainMax = DefaultLimit(Limit::sustainMax);
         noteIndex = INT_MAX;
         gateLow = noteEnd = 0;
     }
@@ -102,3 +139,6 @@ struct NoteTakerChannel {
         noteEnd = json_integer_value(json_object_get(root, "noteEnd"));
     }
 };
+
+extern const NoteTakerChannel::Limit NoteTakerChannelLimits[4];
+

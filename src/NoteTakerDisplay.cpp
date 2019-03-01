@@ -115,6 +115,10 @@ void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPo
 }
 
 void NoteTakerDisplay::draw(NVGcontext *vg) {
+    if (!module->allNotes.size()) {
+        return;  // do nothing if we're not set up yet
+    }
+
     nvgScissor(vg, 0, 0, box.size.x, box.size.y);
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, box.size.x, box.size.y);
@@ -154,15 +158,15 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
 
     // draw vertical line at end of staff lines
     nvgBeginPath(vg);
-    nvgMoveTo(vg, 3, 36);
-    nvgLineTo(vg, 3, 96);
+    nvgMoveTo(vg, 3 - xAxisOffset, 36);
+    nvgLineTo(vg, 3 - xAxisOffset, 96);
     nvgStrokeWidth(vg, 0.5);
     nvgStroke(vg);
     // draw staff lines
     nvgBeginPath(vg);
     for (int staff = 36; staff <= 72; staff += 36) {
         for (int y = staff; y <= staff + 24; y += 6) { 
-	        nvgMoveTo(vg, 3, y);
+	        nvgMoveTo(vg, std::max(0.f, 3 - xAxisOffset), y);
 	        nvgLineTo(vg, box.size.x - 1, y);
         }
     }
@@ -172,51 +176,50 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     nvgFontFaceId(vg, module->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 42);
-    nvgText(vg, 5, 60, "(", NULL);
+    nvgText(vg, 5 - xAxisOffset, 60, "(", NULL);
     nvgFontSize(vg, 36);
-    nvgText(vg, 5, 92, ")", NULL);
+    nvgText(vg, 5 - xAxisOffset, 92, ")", NULL);
     // draw selection rect
     nvgBeginPath(vg);
-    const DisplayNote& selectStart = module->allNotes[module->selectStart];
-    this->initXPos();
-    int xStart = this->xPos(selectStart.startTime);
+    int xStart = this->xPos(module->selectStart);
     if (module->selectButton->editStart()) {
         if (module->selectStart == 0) {
-            nvgRect(vg, 24, 0, 4, box.size.y);
+            nvgRect(vg, this->xPos(1) - 10, 0, 4, box.size.y);
         } else {
             nvgRect(vg, xStart + 13, 0, 4, box.size.y);
         }
     } else {
-        const DisplayNote& selectEnd = module->allNotes[module->selectEnd];
-        int xEnd = this->xPos(selectEnd.startTime);
-        nvgRect(vg, xStart - 5, 0, xEnd - xStart, box.size.y);
+        nvgRect(vg, xStart - 4, 0, this->xPos(module->selectEnd) - xStart, box.size.y);
     }
     unsigned selectChannels = module->selectChannels;
     nvgFillColor(vg, nvgRGBA((2 == selectChannels) * 0xBf, (8 == selectChannels) * 0x7f,
             (4 == selectChannels) * 0x7f, ALL_CHANNELS == selectChannels ? 0x3f : 0x1f));
     nvgFill(vg);
     // draw notes
-    for (unsigned i = module->displayStart; i < module->displayEnd; ++i) {
-        const DisplayNote& note = module->allNotes[i];
+    for (unsigned index = module->displayStart; index < module->displayEnd; ++index) {
+        const DisplayNote& note = module->allNotes[index];
         switch (note.type) {
-            case NOTE_ON: {
-                int xPos = this->xPos(note.startTime);
-                this->drawNote(vg, note, xPos, 0xFF);
-            } break;
-            case REST_TYPE: {
-                int xPos = this->xPos(note.startTime);
-                this->drawRest(vg, note, xPos, 0xFF);
-            } break;
+            case NOTE_ON:
+                this->drawNote(vg, note, this->xPos(index), 0xFF);
+            break;
+            case REST_TYPE:
+                this->drawRest(vg, note, this->xPos(index), 0xFF);
+            break;
             case MIDI_HEADER:
             break;
             case KEY_SIGNATURE:
                 // to do
             break;
-            case TIME_SIGNATURE:
-                debug("draw time signature %d %d\n", note.startTime, note.pitch());
+            case TIME_SIGNATURE: {
+                debug("draw time signature %d %d\n", note.numerator(), note.denominator());
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
-                nvgText(vg, this->xPos(note.startTime), note.pitch(), "'", NULL);
-            break;
+                std::string numerator = std::to_string(note.numerator());
+                int xPos = this->xPos(index) - 8 * (numerator.size() - 1);
+                nvgText(vg, xPos, 36 * 3 - 49, numerator.c_str(), NULL);
+                std::string denominator = std::to_string(note.denominator());
+                xPos = this->xPos(index) - 8 * (denominator.size() - 1);
+                nvgText(vg, xPos, 44 * 3 - 49, denominator.c_str(), NULL);
+            } break;
             case MIDI_TEMPO:
             break;
             case TRACK_END:
@@ -432,4 +435,47 @@ void NoteTakerDisplay::drawVerticalControl(NVGcontext* vg) const {
     nvgLineTo(vg, box.size.x - 5, yPos + 3);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFill(vg);
+}
+
+int NoteTakerDisplay::duration(unsigned index) const {
+    return module->allNotes[index].duration * xAxisScale;
+}
+
+void NoteTakerDisplay::updateXPosition() {
+    debug("updateXPosition");
+    if (!xPositionsInvalid) {
+        return;
+    }
+    debug("updateXPosition invalid");
+    xPositionsInvalid = false;
+    xPositions.resize(module->allNotes.size());
+    int pos = 0;
+    for (unsigned index = 0; index < module->allNotes.size(); ++index) {
+        xPositions[index] = module->allNotes[index].startTime * xAxisScale + pos;
+        switch (module->allNotes[index].type) {
+            case MIDI_HEADER:
+                assert(!pos);
+                assert(!index);
+                pos = 128 * xAxisScale;
+                break;
+            case NOTE_ON:
+                // to do : if note is very short, pad it a bit
+                //         if multiple notes from different channels overlap, space them out
+                break;
+            case REST_TYPE:
+                break;
+            case TIME_SIGNATURE:
+                // to do : add space to draw time signature (guess for now)
+                pos += 80 * xAxisScale;
+                break;
+            case TRACK_END:
+                debug("[%u] xPos %d start %d", index, xPositions[index],
+                        module->allNotes[index].startTime);
+                break;
+            default:
+                // to do : incomplete
+                assert(0);
+        }
+    }
+    debug("updateXPosition size %u", xPositions.size());
 }
