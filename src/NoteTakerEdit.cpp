@@ -1,10 +1,11 @@
 #include "NoteTaker.hpp"
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
+#include "NoteTakerMakeMidi.hpp"
 #include "NoteTakerWheel.hpp"
 
 void NoteTaker::setWheelRange() {
-    if (!fileButton) {
+    if (!runButton || runButton->running()) {
         return;
     }
     if (fileButton->ledOn) {
@@ -72,6 +73,9 @@ void NoteTaker::setWheelRange() {
 }
 
 void NoteTaker::updateHorizontal() {
+    if (runButton->running()) {
+        return;
+    }
     if (fileButton->ledOn) {
         // to do : nudge to next valid value once I figure out how that should work, exactly
         return;
@@ -87,10 +91,6 @@ void NoteTaker::updateHorizontal() {
         return;
     }
     if (isEmpty()) {
-        return;
-    }
-    if (runButton->running()) {
-        // to do : while running, change tempo
         return;
     }
     bool noteChanged = false;
@@ -130,6 +130,9 @@ void NoteTaker::updateHorizontal() {
 }
     
 void NoteTaker::updateVertical() {
+    if (runButton->running()) {
+        return;
+    }
     const int wheelValue = (int) verticalWheel->value;
     if (wheelValue == lastVertical) {
         return;
@@ -167,10 +170,6 @@ void NoteTaker::updateVertical() {
                 assert(0);
         }
         horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainDuration));
-    }
-    if (runButton->running()) {
-        // to do : if running, transpose all up/down
-        return;
     }
     if (partButton->ledOn && selectButton->ledOn) {
         selectChannels = 1 << wheelValue;

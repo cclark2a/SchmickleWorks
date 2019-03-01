@@ -152,14 +152,23 @@ void NoteTaker::outputNote(const DisplayNote& note, int midiTime) {
     channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
     channelInfo.noteEnd = note.endTime();
     debug("outputNote time=%d dur=%d sustain=%d gateLow=%d midiTime=%d"
-            " noteIndex=%d channelInfo.noteIndex=%d channelInfo.noteEnd=%d",
+            " noteIndex=%d channelInfo.noteIndex=%d channelInfo.noteEnd=%d"
+            " verticalWheel->value=%g",
             note.startTime, note.duration, channelInfo.sustain(note.duration), channelInfo.gateLow,
             midiTime, 
-            this->noteIndex(note), channelInfo.noteIndex, channelInfo.noteEnd);
+            this->noteIndex(note), channelInfo.noteIndex, channelInfo.noteEnd,
+            verticalWheel->value);
+    debug("y horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
+            horizontalWheel->maxValue);
+    debug("y vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
+            verticalWheel->maxValue);
     if (note.channel < CV_OUTPUTS) {
         outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
         const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
         float v_oct = inputs[V_OCT_INPUT].value;
+        if (runButton->running()) {
+            v_oct += (int) (verticalWheel->value * 12) / 12.f;
+        }
         outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
     }
     channelInfo.noteIndex = this->noteIndex(note);
@@ -368,7 +377,7 @@ void NoteTaker::step() {
     if (!allNotes.size()) {  // if all data got deleted, set up empty framework
         this->setScoreEmpty();
     }
-    if (loading || saving) {
+    if (!runButton->running() && (loading || saving)) {
         float val = verticalWheel->value;
         verticalWheel->value += val > 5 ? -.0001f : +.0001f;
         if (4.9999f < val && val < 5.0001f) {
@@ -384,6 +393,15 @@ void NoteTaker::step() {
     // note on event start changes cv and sets gate high
     // note on event duration sets gate low
 	float deltaTime = engineGetSampleTime();
+    if (runButton->running()) {
+        // to do : rework so that tempo accels / decels elapsedSeconds
+        int horzIndex = (int) horizontalWheel->value;
+        int floor = noteDurations[horzIndex];
+        int ceil = noteDurations[horzIndex + 1];
+        float interp = floor + (ceil - floor) * (horizontalWheel->value - horzIndex);
+    //    debug("horzIndex %d floor %d ceil %d interp %g", horzIndex, floor, ceil, interp);
+        deltaTime *= stdTimePerQuarterNote / interp;
+    }
     elapsedSeconds += deltaTime;
     int midiTime = SecondsToMidi(elapsedSeconds, ppq, tempo);
     this->setExpiredGatesLow(midiTime);

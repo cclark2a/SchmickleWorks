@@ -67,6 +67,7 @@ struct VerticalWheel : NoteTakerWheel {
     }
 
     void draw(NVGcontext *vg) override {
+        debug("draw val %g", value);
         nvgTranslate(vg, 0, box.size.y);
         nvgRotate(vg, -M_PI / 2);
         drawGear(vg, 1.f - fmodf(value + 1, 1));

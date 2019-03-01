@@ -1,6 +1,7 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerMakeMidi.hpp"
+#include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
 void EditButton::onDragStart(EventDragStart &e) {
@@ -358,10 +359,20 @@ void TimeButton::draw(NVGcontext* vg) {
 }
 
 void RunButton::onDragEnd(EventDragEnd &e) {
+    NoteTaker* nt = nModule();
     if (ledOn) {    // will be off
-        nModule()->zeroGates();
+        nt->zeroGates();
     }
     NoteTakerButton::onDragEnd(e);
+        nt->verticalWheel->setLimits(-5, 5);    // v/oct transpose (5 octaves up, down)
+        nt->verticalWheel->setValue(0);
+        nt->verticalWheel->speed = 1;
+        nt->horizontalWheel->setLimits(0, (noteDurations.size() - 1) - .001f); // tempo relative to quarter note
+        nt->horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));      
+    debug("x horz %g (%g %g)", nt->horizontalWheel->value, nt->horizontalWheel->minValue,
+            nt->horizontalWheel->maxValue);
+    debug("x vert %g (%g %g)", nt->verticalWheel->value, nt->verticalWheel->minValue,
+            nt->verticalWheel->maxValue);
 }
 
 // todo : remove below
