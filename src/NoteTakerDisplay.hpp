@@ -5,34 +5,15 @@
 struct DisplayNote;
 struct NoteTaker;
 
-static constexpr std::array<int, 20> noteDurations = {
-       3, //        128th note
-       6, //         64th
-       9, // dotted  64th
-      12, //         32nd
-      18, // dotted  32nd
-      24, //         16th
-      36, // dotted  16th
-      48, //          8th
-      72, // dotted   8th
-      96, //        quarter note
-     144, // dotted quarter     
-     192, //        half
-     288, // dotted half
-     384, //        whole note
-     576, // dotted whole
-     768, //        double whole
-    1052, //        triple whole (dotted double whole)
-    1536, //     quadruple whole
-    2304, //      sextuple whole (dotted quadruple whole)
-    3072, //       octuple whole
-      };
-
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTaker* module;
     vector<int> xPositions;  // where note is drawn (computed cache, not saved)
     float xAxisOffset = 0;
     float xAxisScale = 0.25;
+    int lastTranspose = 60;
+    int lastTempo = stdTimePerQuarterNote;
+    bool loading = false;
+    bool saving = false;
     bool xPositionsInvalid = false;
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m)

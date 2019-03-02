@@ -1,6 +1,5 @@
-#include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
-#include "NoteTakerMakeMidi.hpp"
+#include "NoteTakerButton.hpp"
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
@@ -235,6 +234,9 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     if (module->sustainButton->ledOn) {
         this->drawSustainControl(vg);
     }
+    if (module->isRunning()) {
+        // to do : draw notes to show pitch transposition and dynamic tempo
+    }
 	FramebufferWidget::draw(vg);
     dirty = false;
 }
@@ -248,7 +250,7 @@ void NoteTakerDisplay::drawFileControl(NVGcontext *vg) const {
     } else {
         nvgFillColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
     }
-    if (module->loading) {
+    if (loading) {
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 33, 20, 23, 12);
         nvgFill(vg);
@@ -256,7 +258,7 @@ void NoteTakerDisplay::drawFileControl(NVGcontext *vg) const {
     }
     nvgText(vg, box.size.x - 30, 30, "load", NULL);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
-    if (module->saving) {
+    if (saving) {
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 33, box.size.y - 30, 23, 12);
         nvgFill(vg);

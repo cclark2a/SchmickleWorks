@@ -1,6 +1,5 @@
 #include "NoteTakerDisplayNote.hpp"
 #include "NoteTakerDisplay.hpp"
-#include "NoteTakerMakeMidi.hpp"
 
 static_assert(((UNUSED << 4) | 0x80) == midiNoteOff, "note off mismatch");
 static_assert(((NOTE_ON << 4) | 0x80) == midiNoteOn, "note on mismatch");

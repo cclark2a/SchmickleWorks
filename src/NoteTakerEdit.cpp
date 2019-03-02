@@ -1,11 +1,22 @@
 #include "NoteTaker.hpp"
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
-#include "NoteTakerMakeMidi.hpp"
 #include "NoteTakerWheel.hpp"
 
 void NoteTaker::setWheelRange() {
-    if (!runButton || runButton->running()) {
+    if (!runButton) {
+        return;
+    }
+    if (this->isRunning()) {
+        verticalWheel->setLimits(0, 127);    // v/oct transpose (5 octaves up, down)
+        verticalWheel->setValue(60);
+        verticalWheel->speed = .1;
+        horizontalWheel->setLimits(0, (noteDurations.size() - 1) - .001f); // tempo relative to quarter note
+        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));      
+    debug("x horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
+            horizontalWheel->maxValue);
+    debug("x vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
+            verticalWheel->maxValue);
         return;
     }
     if (fileButton->ledOn) {
@@ -73,18 +84,17 @@ void NoteTaker::setWheelRange() {
 }
 
 void NoteTaker::updateHorizontal() {
-    if (runButton->running()) {
+    if (this->isRunning()) {
         return;
     }
     if (fileButton->ledOn) {
         // to do : nudge to next valid value once I figure out how that should work, exactly
         return;
     }
-    const int wheelValue = (int) horizontalWheel->value;
-    if (wheelValue == lastHorizontal) {
+    if (!horizontalWheel->hasChanged()) {
         return;
     }
-    lastHorizontal = wheelValue;
+    const int wheelValue = horizontalWheel->wheelValue();
     if (sustainButton->ledOn) {
         NoteTakerChannel& channel = channels[this->firstChannel()];
         channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value, noteDurations[wheelValue]);
@@ -130,22 +140,21 @@ void NoteTaker::updateHorizontal() {
 }
     
 void NoteTaker::updateVertical() {
-    if (runButton->running()) {
+    if (this->isRunning()) {
         return;
     }
-    const int wheelValue = (int) verticalWheel->value;
-    if (wheelValue == lastVertical) {
+    if (!verticalWheel->hasChanged()) {
         return;
     }
-    lastVertical = wheelValue;
+    const int wheelValue = verticalWheel->wheelValue();
     if (fileButton->ledOn) {
         if (verticalWheel->value <= 2) {
-            saving = true;
+            display->saving = true;
             this->saveScore();
         }
         if (verticalWheel->value >= 8 && (unsigned) horizontalWheel->value < storage.size()) {
             debug("updateVertical loadScore");
-            loading = true;
+            display->loading = true;
             this->loadScore();
         }
         return;

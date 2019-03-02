@@ -5,6 +5,8 @@
 #include <array>
 #include <float.h>
 #include <limits.h>
+#include <stdint.h>
+#include "NoteTakerConstants.hpp"
 
 using namespace rack;
 using std::array;

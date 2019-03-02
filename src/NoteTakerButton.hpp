@@ -293,10 +293,6 @@ struct RunButton : NoteTakerButton {
         nvgFill(vg);
     }
 
-    bool running() const {
-        return ledOn;
-    }
-
     void onDragEnd(EventDragEnd &e) override;
 };
 

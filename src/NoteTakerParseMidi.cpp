@@ -1,5 +1,5 @@
-#include "NoteTakerDisplay.hpp"
 #include "NoteTakerParseMidi.hpp"
+#include "NoteTakerDisplay.hpp"
 #include "NoteTakerMakeMidi.hpp"
 #include "NoteTaker.hpp"
 

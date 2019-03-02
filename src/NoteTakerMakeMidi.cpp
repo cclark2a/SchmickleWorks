@@ -11,43 +11,6 @@ const NoteTakerChannel::Limit NoteTakerChannelLimits[] = {
     NoteTakerChannel::Limit::sustainMax
 };
 
-#if 0
-struct TimeNote {
-    float time;  // 1 == quarter note
-    int note;
-};
-
-    // TODO: save and load working data
-    // to bootstrap, create a midi file
-    // has the downside that if there are mistakes here, there will also
-    // be mistakes in the midi parser
-void NoteTakerMakeMidi::createDefaultAsMidi(vector<uint8_t>& midi) {
-    this->standardHeader(midi);
-    const TimeNote notes[] = { {0, 0}, {1, 4}, {2, 7}, {3, 11}, {4, -1} };
-    const int c4 = 0x3C;
-    int lastNote = -1;
-    int lastTime = 0;
-    for (auto n : notes) {
-        if (lastNote >= 0) {
-            add_delta((int) (n.time * stdTimePerQuarterNote), &lastTime);
-            add_one(midiNoteOff + 0);  // channel 1
-            add_one(c4 + lastNote);
-            add_one(stdKeyPressure);
-        }
-        add_delta((int) (n.time * stdTimePerQuarterNote), &lastTime);
-        if (n.note >= 0) {
-            add_one(midiNoteOn + 0);
-            add_one(c4 + n.note);
-            add_one(stdKeyPressure);
-        } else {
-            add_track_end();
-        }
-        lastNote = n.note;
-    }
-    this->standardTrailer(midi);
-}
-#endif
-
 void NoteTakerMakeMidi::createEmpty(vector<uint8_t>& midi) {
     this->standardHeader(midi);
     add_size8(0);

@@ -15,9 +15,6 @@ struct TimeButton;
 struct NoteTakerDisplay;
 struct NoteTakerWheel;
 
-constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
-constexpr unsigned CV_OUTPUTS = 4;
-
 struct NoteTaker : Module {
 	enum ParamIds {
         RUN_BUTTON,
@@ -59,11 +56,12 @@ struct NoteTaker : Module {
 	};
 
     vector<vector<uint8_t>> storage;
+	std::shared_ptr<Font> musicFont;
+	std::shared_ptr<Font> textFont;
+    // state saved into json
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;
-	std::shared_ptr<Font> musicFont;
-	std::shared_ptr<Font> textFont;
     NoteTakerDisplay* display = nullptr;
     CutButton* cutButton = nullptr;
     FileButton* fileButton = nullptr;
@@ -81,14 +79,12 @@ struct NoteTaker : Module {
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
     unsigned selectEnd = 0;                 // one past last selected
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
-    float elapsedSeconds = 0;
-    int lastHorizontal = INT_MAX;
-    int lastVertical = INT_MAX;
     int tempo = 500000;                     // default to 120 beats/minute
     int ppq = 96;                           // default to 96 pulses/ticks per quarter note
+    // end of state saved into json
+    float elapsedSeconds = 0;
     bool playingSelection = false;          // if set, provides feedback when editing notes
-    bool loading = false;
-    bool saving = false;
+    
     NoteTaker();
 
     void alignStart() {
@@ -140,6 +136,7 @@ struct NoteTaker : Module {
     unsigned horizontalCount() const;
     unsigned isBestSelectStart(int midiTime) const;
     bool isEmpty() const;
+    bool isRunning() const;
     bool isSelectable(const DisplayNote& note) const;
 
     bool lastNoteEnded(unsigned index, int midiTime) const {

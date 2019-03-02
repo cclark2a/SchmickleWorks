@@ -153,20 +153,13 @@ json_t *NoteTaker::toJson() {
     json_object_set_new(root, "horizontalWheel", horizontalWheel->toJson());
     json_object_set_new(root, "verticalWheel", verticalWheel->toJson());
     // end of mostly no-op section
-    // this section saves more state than strictly necessary ...
     json_object_set_new(root, "displayStart", json_integer(displayStart));
     json_object_set_new(root, "displayEnd", json_integer(displayEnd));
     json_object_set_new(root, "selectStart", json_integer(selectStart));
     json_object_set_new(root, "selectEnd", json_integer(selectEnd));
     json_object_set_new(root, "selectChannels", json_integer(selectChannels));
-    json_object_set_new(root, "elapsedSeconds", json_integer(elapsedSeconds));
-    json_object_set_new(root, "lastHorizontal", json_integer(lastHorizontal));
-    json_object_set_new(root, "lastVertical", json_integer(lastVertical));
     json_object_set_new(root, "tempo", json_integer(tempo));
     json_object_set_new(root, "ppq", json_integer(ppq));
-    json_object_set_new(root, "playingSelection", json_boolean(playingSelection));
-    json_object_set_new(root, "loading", json_boolean(loading));
-    json_object_set_new(root, "saving", json_boolean(saving));
     return root;
 }
 
@@ -187,6 +180,7 @@ void NoteTaker::fromJson(json_t *root) {
     json_array_foreach(chans, index, value) {
         channels[index].fromJson(value);
     }
+    // read back controls' state
     display->fromJson(json_object_get(root, "display"));
     cutButton->fromJson(json_object_get(root, "cutButton"));
     fileButton->fromJson(json_object_get(root, "fileButton"));
@@ -199,18 +193,15 @@ void NoteTaker::fromJson(json_t *root) {
     timeButton->fromJson(json_object_get(root, "timeButton"));
     horizontalWheel->fromJson(json_object_get(root, "horizontalWheel"));
     verticalWheel->fromJson(json_object_get(root, "verticalWheel"));
+    // end of controls' state
     displayStart = json_integer_value(json_object_get(root, "displayStart"));
     displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
-    lastHorizontal = json_integer_value(json_object_get(root, "lastHorizontal"));
-    lastVertical = json_integer_value(json_object_get(root, "lastVertical"));
     tempo = json_integer_value(json_object_get(root, "tempo"));
     ppq = json_integer_value(json_object_get(root, "ppq"));
-    playingSelection = json_integer_value(json_object_get(root, "playingSelection"));
-    loading = json_integer_value(json_object_get(root, "loading"));
-    saving = json_integer_value(json_object_get(root, "saving"));
+    // update display cache
     display->xPositionsInvalid = true;
     display->updateXPosition();
 }

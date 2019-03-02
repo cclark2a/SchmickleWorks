@@ -30,6 +30,11 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
 	    Knob::onChange(e);
     }
 
+    void reset() override {
+        lastValue = INT_MAX;
+        Knob::reset();
+    }
+
     json_t *toJson() const {
         json_t* root = json_object();
         json_object_set_new(root, "speed", json_real(speed));
@@ -38,6 +43,20 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
         return root;
     }
 
+    bool hasChanged() {
+        int result = (int) value;
+        if (result == lastValue) {
+            return false;
+        }
+        lastValue = result;
+        return true;
+    }
+
+    int wheelValue() const {
+        return lastValue;
+    }
+
+    int lastValue = INT_MAX;
     Vec size;
     int shadow;
 };
@@ -67,7 +86,6 @@ struct VerticalWheel : NoteTakerWheel {
     }
 
     void draw(NVGcontext *vg) override {
-        debug("draw val %g", value);
         nvgTranslate(vg, 0, box.size.y);
         nvgRotate(vg, -M_PI / 2);
         drawGear(vg, 1.f - fmodf(value + 1, 1));

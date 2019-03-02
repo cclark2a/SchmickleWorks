@@ -1,7 +1,5 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
-#include "NoteTakerMakeMidi.hpp"
-#include "NoteTakerParseMidi.hpp"
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 

@@ -2,10 +2,6 @@
 
 #include "SchmickleWorks.hpp"
 
-constexpr unsigned CHANNEL_COUNT = 16;      // MIDI channels
-constexpr unsigned ALL_CHANNELS = 0xFFFF;   // one bit set per MIDI channels
-constexpr unsigned ALL_CV_CHANNELS = 0x0F;  // one bit set per CV output
-
 enum DisplayType : uint8_t {
 // enums below match MIDI channel voice message high nybble order
     UNUSED,            // midi note off slot

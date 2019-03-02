@@ -4,25 +4,6 @@
 
 struct NoteTaker;
 
-static constexpr uint8_t midiCVMask = 0xF0;
-static constexpr uint8_t midiNoteOff = 0x80;
-static constexpr uint8_t midiNoteOn = 0x90;
-static constexpr uint8_t midiKeyPressure = 0xA0;
-static constexpr uint8_t midiControlChange = 0xB0;
-static constexpr uint8_t midiProgramChange = 0xC0;
-static constexpr uint8_t midiChannelPressure = 0xD0;
-static constexpr uint8_t midiPitchWheel = 0xE0;
-static constexpr uint8_t midiSystem = 0xF0;
-
-// control change codes
-static constexpr uint8_t midiReleaseMax = 0x57;
-static constexpr uint8_t midiReleaseMin = 0x58;
-static constexpr uint8_t midiSustainMin = 0x59;
-static constexpr uint8_t midiSustainMax = 0x5A;
-
-const uint8_t stdKeyPressure = 0x64;
-const int stdTimePerQuarterNote = 0x60;
-
 inline int SecondsToMidi(float seconds, int ppq, int tempo) {
     return (int) (ppq * seconds * 1000000 / tempo);
 }
@@ -52,7 +33,6 @@ static constexpr array<uint8_t, 3> MTrk_end = {0xFF, 0x2F, 00}; // end of track
 
 class NoteTakerMakeMidi {
 public:
-//    void createDefaultAsMidi(vector<uint8_t>& midi);
     void createEmpty(vector<uint8_t>& midi);
     void createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi);
 private:

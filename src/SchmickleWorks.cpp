@@ -1,8 +1,6 @@
 #include "SchmickleWorks.hpp"
 
-
 Plugin *plugin;
-
 
 void init(Plugin *p) {
 	plugin = p;
