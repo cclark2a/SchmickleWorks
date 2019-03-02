@@ -19,6 +19,19 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
     this->readStorage();
 }
 
+float NoteTaker::beatsPerHalfSecond() const {
+    float deltaTime = stdMSecsPerQuarterNote / tempo;
+    if (this->isRunning()) {
+        // to do : rework so that tempo accels / decels elapsedSeconds
+        int horzIndex = (int) horizontalWheel->value;
+        int floor = noteDurations[horzIndex];
+        int ceil = noteDurations[horzIndex + 1];
+        float interp = floor + (ceil - floor) * (horizontalWheel->value - horzIndex);
+        deltaTime *= stdTimePerQuarterNote / interp;
+    }
+    return deltaTime;
+}
+
 // to compute range for horizontal wheel when selecting notes
 unsigned NoteTaker::horizontalCount() const {
     unsigned count = 0;
@@ -127,8 +140,10 @@ void NoteTaker::outputNote(const DisplayNote& note, int midiTime) {
         const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
         float v_oct = inputs[V_OCT_INPUT].value;
         if (this->isRunning()) {
-            debug("verticalWheel->value %g", verticalWheel->value);
-            v_oct += ((int) (verticalWheel->value) - 60) / 12.f;
+            if (verticalWheel->hasChanged()) {
+                dynamicPitchTimer = realSeconds + fadeDuration;
+            }
+            v_oct += (verticalWheel->wheelValue() - 60) / 12.f;
         }
         outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
     }
@@ -150,7 +165,8 @@ void NoteTaker::outputNoteAt(int midiTime) {
 
 void NoteTaker::playSelection() {
     this->zeroGates();
-    elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime, ppq, tempo);
+    elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime, ppq);
+    elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     playingSelection = true;
 }
 
@@ -342,6 +358,7 @@ void NoteTaker::setSelectStartAt(int midiTime) {
 }
 
 void NoteTaker::step() {
+    realSeconds += engineGetSampleTime();
     if (!runButton) {
         return;  // do nothing if we're not set up yet
     }
@@ -363,18 +380,8 @@ void NoteTaker::step() {
     // read data from display notes to determine pitch
     // note on event start changes cv and sets gate high
     // note on event duration sets gate low
-	float deltaTime = engineGetSampleTime();
-    if (this->isRunning()) {
-        // to do : rework so that tempo accels / decels elapsedSeconds
-        int horzIndex = (int) horizontalWheel->value;
-        int floor = noteDurations[horzIndex];
-        int ceil = noteDurations[horzIndex + 1];
-        float interp = floor + (ceil - floor) * (horizontalWheel->value - horzIndex);
-    //    debug("horzIndex %d floor %d ceil %d interp %g", horzIndex, floor, ceil, interp);
-        deltaTime *= stdTimePerQuarterNote / interp;
-    }
-    elapsedSeconds += deltaTime;
-    int midiTime = SecondsToMidi(elapsedSeconds, ppq, tempo);
+    elapsedSeconds += engineGetSampleTime() * this->beatsPerHalfSecond();
+    int midiTime = SecondsToMidi(elapsedSeconds, ppq);
     this->setExpiredGatesLow(midiTime);
     unsigned lastNote = playingSelection ? selectEnd : allNotes.size() - 1;
     if (this->lastNoteEnded(lastNote - 1, midiTime)) {
@@ -391,6 +398,13 @@ void NoteTaker::step() {
     }
     if (this->isRunning()) {
         this->setSelectStartAt(midiTime);
+        if (horizontalWheel->lastRealValue != horizontalWheel->value) {
+            dynamicTempoTimer = realSeconds + fadeDuration;
+            horizontalWheel->lastRealValue = horizontalWheel->value;
+        }
+        display->dynamicTempoAlpha = (int) (255 * (dynamicTempoTimer - realSeconds) / fadeDuration);
+        display->dynamicPitchAlpha =
+                (int) (255 * (dynamicPitchTimer - realSeconds) / fadeDuration);
     }
     this->outputNoteAt(midiTime);
 }

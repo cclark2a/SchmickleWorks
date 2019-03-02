@@ -79,10 +79,14 @@ struct NoteTaker : Module {
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
     unsigned selectEnd = 0;                 // one past last selected
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
-    int tempo = 500000;                     // default to 120 beats/minute
-    int ppq = 96;                           // default to 96 pulses/ticks per quarter note
+    int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute
+    int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
     // end of state saved into json
-    float elapsedSeconds = 0;
+    float elapsedSeconds = 0;               // seconds into score
+    float realSeconds = 0;                  // seconds for UI timers
+    const float fadeDuration = 1;
+    float dynamicPitchTimer = 0;
+    float dynamicTempoTimer = 0;
     bool playingSelection = false;          // if set, provides feedback when editing notes
     
     NoteTaker();
@@ -94,6 +98,8 @@ struct NoteTaker : Module {
             this->setSelect(start, end);
         }
     }
+
+    float beatsPerHalfSecond() const;
 
     void copyNotes() {
         clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);

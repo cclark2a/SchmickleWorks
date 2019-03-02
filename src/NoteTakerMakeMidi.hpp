@@ -4,12 +4,12 @@
 
 struct NoteTaker;
 
-inline int SecondsToMidi(float seconds, int ppq, int tempo) {
-    return (int) (ppq * seconds * 1000000 / tempo);
+inline int SecondsToMidi(float seconds, int ppq) {
+    return (int) (ppq * seconds * 1000000 / stdMSecsPerQuarterNote);
 }
 
-inline float MidiToSeconds(int midiTime, int ppq, int tempo) {
-    return (float) midiTime / ppq * tempo / 1000000;
+inline float MidiToSeconds(int midiTime, int ppq) {
+    return (float) midiTime / ppq / 1000000 * stdMSecsPerQuarterNote;
 }
 
 static constexpr array<uint8_t, 4> MThd = {0x4D, 0x54, 0x68, 0x64}; // MIDI file header

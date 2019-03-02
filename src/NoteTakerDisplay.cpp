@@ -235,10 +235,37 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         this->drawSustainControl(vg);
     }
     if (module->isRunning()) {
-        // to do : draw notes to show pitch transposition and dynamic tempo
+        this->drawDynamicPitchTempo(vg);
     }
 	FramebufferWidget::draw(vg);
     dirty = false;
+}
+
+void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext *vg) const {
+    if (dynamicPitchAlpha > 0) {
+        DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON };
+        note.setPitch((int) module->verticalWheel->value);
+        note.setNote(DurationIndex(note.duration));
+        nvgBeginPath(vg);
+        nvgRect(vg, box.size.x - 16, 2, 14, box.size.y - 4);
+        nvgFillColor(vg, nvgRGB(0xFF, 0xFF, 0xFF));
+        nvgFill(vg);
+        this->drawNote(vg, note, box.size.x - 10, dynamicPitchAlpha);
+    }
+    if (dynamicTempoAlpha > 0) {
+        nvgBeginPath(vg);
+        nvgRect(vg, 2, 2, 30, 12);
+        nvgFillColor(vg, nvgRGB(0xFF, 0xFF, 0xFF));
+        nvgFill(vg);
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicTempoAlpha));
+        nvgFontFaceId(vg, module->musicFont->handle);
+        nvgFontSize(vg, 16);
+        nvgText(vg, 5, 10, "H", nullptr);
+        nvgFontFaceId(vg, module->textFont->handle);
+        nvgFontSize(vg, 12);
+        std::string tempoStr("= " + std::to_string((int) (120.f * module->beatsPerHalfSecond())));
+        nvgText(vg, 9, 10, tempoStr.c_str(), nullptr);
+    }
 }
 
 void NoteTakerDisplay::drawFileControl(NVGcontext *vg) const {

@@ -10,6 +10,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     vector<int> xPositions;  // where note is drawn (computed cache, not saved)
     float xAxisOffset = 0;
     float xAxisScale = 0.25;
+    int dynamicPitchAlpha = 0;
+    int dynamicTempoAlpha = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
     bool loading = false;
@@ -23,6 +25,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     }
     
     void draw(NVGcontext* ) override;
+    void drawDynamicPitchTempo(NVGcontext* ) const;
     void drawFileControl(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
     void drawNote(NVGcontext* , const DisplayNote& , int offset, int alpha) const;

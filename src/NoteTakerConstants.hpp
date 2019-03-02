@@ -20,6 +20,7 @@ constexpr uint8_t midiSustainMax = 0x5A;
 
 constexpr uint8_t stdKeyPressure = 0x64;
 constexpr int stdTimePerQuarterNote = 0x60;
+constexpr int stdMSecsPerQuarterNote = 500000;  // 120 beats / minute
 
 constexpr unsigned CHANNEL_COUNT = 16;      // MIDI channels
 constexpr unsigned ALL_CHANNELS = 0xFFFF;   // one bit set per MIDI channels
@@ -28,7 +29,7 @@ constexpr unsigned ALL_CV_CHANNELS = 0x0F;  // one bit set per CV output
 constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
 constexpr unsigned CV_OUTPUTS = 4;
 
-static constexpr std::array<int, 20> noteDurations = {
+static constexpr const std::array<int, 20> noteDurations = {
        3, //        128th note
        6, //         64th
        9, // dotted  64th

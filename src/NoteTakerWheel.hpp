@@ -56,6 +56,7 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
         return lastValue;
     }
 
+    float lastRealValue = INT_MAX;  // manually maintained
     int lastValue = INT_MAX;
     Vec size;
     int shadow;
