@@ -32,11 +32,6 @@ const StaffNote pitchMap[] = {
     { 4, 0}, { 4, 1}, { 3, 0}, { 3, 1}, { 2, 0}, { 1, 0}, { 1, 1}, { 0, 0}                                      // C9
 };
 
-// if preceding note in bar (or if there is no bar) is sharp
-const StaffNote sharpPitchMap[] = {
-
-};
-
 const char* upFlagNoteSymbols[] = {   "C", "D", "D.", "E", "E.", "F", "F.", "G", "G.", "H", "H.",
                                            "I", "I.", "J", "J.", "K", "K.", "L", "L.", "M" };
 const char* downFlagNoteSymbols[] = { "c", "d", "d.", "e", "e.", "f", "f.", "g", "g.", "h", "h.",
