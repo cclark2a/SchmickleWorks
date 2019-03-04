@@ -33,19 +33,25 @@ float NoteTaker::beatsPerHalfSecond() const {
 }
 
 // to compute range for horizontal wheel when selecting notes
+// to do : horizontalCount, noteToWheel, wheelToNote share loop logic. Consolidate?
 unsigned NoteTaker::horizontalCount() const {
     unsigned count = 0;
     int lastTime = -1;
+    DisplayType lastType = UNUSED;
     for (auto& note : allNotes) {
         if (!this->isSelectable(note)) {
+            debug("! selectable %s", note.debugString().c_str());
             continue;
         }
-        if (lastTime == note.startTime) {
+        if (lastTime == note.startTime && NOTE_ON == note.type && NOTE_ON == lastType) {
+            debug("== lastTime %s", note.debugString().c_str());
             continue;
         }
         ++count;
         lastTime = note.startTime;
+        lastType = note.type;
     }
+    debug("horizontal count %u", count);
     return count;
 }
 
@@ -84,10 +90,12 @@ bool NoteTaker::isSelectable(const DisplayNote& note) const {
 }
 
 void NoteTaker::loadScore() {
+    this->reset();
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
     NoteTakerParseMidi parser(storage[index], allNotes, channels);
     parser.parseMidi();
+
     display->xPositionsInvalid = true;
     this->setSelectStart(this->wheelToNote(0));
 }
@@ -98,6 +106,7 @@ int NoteTaker::noteToWheel(const DisplayNote& match) const {
     }
     int count = 0;
     int lastTime = -1;
+    DisplayType lastType = UNUSED;
     for (auto& note : allNotes) {
         if (&match == &note) {
             return count;
@@ -105,11 +114,12 @@ int NoteTaker::noteToWheel(const DisplayNote& match) const {
         if (!this->isSelectable(note)) {
             continue;
         }
-        if (lastTime == note.startTime) {
+        if (lastTime == note.startTime && NOTE_ON == lastType && NOTE_ON == note.type) {
             continue;
         }
         ++count;
         lastTime = note.startTime;
+        lastType = note.type;
     }
     assert(0);
 }
@@ -418,6 +428,7 @@ unsigned NoteTaker::wheelToNote(int value) const {
     }
     int count = value;
     int lastTime = -1;
+    DisplayType lastType = UNUSED;
     for (auto& note : allNotes) {
         if (!this->isSelectable(note)) {
             continue;
@@ -425,11 +436,12 @@ unsigned NoteTaker::wheelToNote(int value) const {
         if (count <= 0) {
             return this->noteIndex(note);
         }
-        if (lastTime == note.startTime) {
+        if (lastTime == note.startTime && NOTE_ON == lastType && NOTE_ON == note.type) {
             continue;
         }
         --count;
         lastTime = note.startTime;
+        lastType = note.type;
     }
     if (0 == count && selectButton->editEnd()) {
         auto& note = allNotes.back();

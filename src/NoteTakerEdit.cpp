@@ -7,54 +7,53 @@ void NoteTaker::setWheelRange() {
     if (!runButton) {
         return;
     }
+    auto debugMe = [=](const char* str) {
+        debug("setWheelRange %s %s %s", str, horizontalWheel->debugString().c_str(),
+                verticalWheel->debugString().c_str());
+    };
     if (this->isRunning()) {
+        horizontalWheel->setLimits(0, (noteDurations.size() - 1) - .001f); // tempo relative to quarter note
+        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
+        horizontalWheel->speed = 1;
         verticalWheel->setLimits(0, 127);    // v/oct transpose (5 octaves up, down)
         verticalWheel->setValue(60);
         verticalWheel->speed = .1;
-        horizontalWheel->setLimits(0, (noteDurations.size() - 1) - .001f); // tempo relative to quarter note
-        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));      
-    debug("x horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
-            horizontalWheel->maxValue);
-    debug("x vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
-            verticalWheel->maxValue);
-        return;
+        return debugMe("running");
     }
     if (fileButton->ledOn) {
         horizontalWheel->setLimits(0, storage.size());
         horizontalWheel->setValue(0);
+        horizontalWheel->speed = 1;
         verticalWheel->setLimits(0, 10);
-        verticalWheel->speed = 1;
         verticalWheel->setValue(5);
-        debug("horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
-                horizontalWheel->maxValue);
-        debug("vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
-                verticalWheel->maxValue);
-        return;
+        verticalWheel->speed = 1;
+        return debugMe("fileButton");
     }
     if (sustainButton->ledOn) {
         horizontalWheel->setLimits(0, noteDurations.size() - 1);
         int sustainMinDuration = channels[this->firstChannel()].sustainMin;
         horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainMinDuration));
+        horizontalWheel->speed = 1;
         verticalWheel->setLimits(0, 3.999f);
-        verticalWheel->speed = 1;
         verticalWheel->setValue(2.5f); // sustain min
-        return;
+        verticalWheel->speed = 1;
+        return debugMe("sustainButton");
     }
     if (partButton->ledOn && selectButton->ledOn) {
         verticalWheel->setLimits(0, CV_OUTPUTS);
-        verticalWheel->speed = 1;
         verticalWheel->setValue(partButton->lastChannels);
+        verticalWheel->speed = 1;
     }
     if (isEmpty()) {
-        return;
+        return debugMe("empty");
     }
     const DisplayNote* note = &allNotes[selectStart];
     if (!partButton->ledOn || !selectButton->ledOn) {
         verticalWheel->setLimits(0, 127);  // range for midi pitch
-        verticalWheel->speed = .1;
         if (NOTE_ON == note->type) {
             verticalWheel->setValue(note->pitch());
         }
+        verticalWheel->speed = .1;
     }
     // horizontal wheel range and value
     int wheelMin = selectButton->editStart() ? -1 : 0;
@@ -65,8 +64,31 @@ void NoteTaker::setWheelRange() {
     } else {
         horizontalWheel->setLimits(wheelMin, wheelMax);
     }
+    float horzSpeed = 1;
     if (!selectButton->ledOn) {
-        horizontalWheel->setValue(REST_TYPE == note->type ? note->rest() : note->note());
+        int value = 0;
+        switch (note->type) {
+            case NOTE_ON:
+                value = note->note();
+                break;
+            case REST_TYPE:
+                value = note->rest();
+                break;
+            case TIME_SIGNATURE:
+                if (selectStart + 1 == selectEnd) {
+                    horizontalWheel->setLimits(1, 99.99);   // denom limit 0 to 6 (2^N, 1 to 64)
+                    horzSpeed = .1;
+                    verticalWheel->setLimits(0, 1);
+                    verticalWheel->setValue(0);
+                    verticalWheel->speed = 1;
+                    value = note->numerator();
+                }
+                break;
+            default:
+                assert(0);
+        }
+        // what to do when time signature is selected? set wheels to do nothing?
+        horizontalWheel->setValue(value);
     } else {
         int index = this->noteToWheel(*note);
         if (index < wheelMin || index > wheelMax) {
@@ -77,10 +99,8 @@ void NoteTaker::setWheelRange() {
         }
         horizontalWheel->setValue(index);
     }
-    debug("horz %g (%g %g)", horizontalWheel->value, horizontalWheel->minValue,
-            horizontalWheel->maxValue);
-    debug("vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
-            verticalWheel->maxValue);
+    horizontalWheel->speed = horzSpeed;
+    return debugMe("other");
 }
 
 void NoteTaker::updateHorizontal() {
@@ -110,15 +130,27 @@ void NoteTaker::updateHorizontal() {
             DisplayNote& note = allNotes[index];
             note.startTime += diff;
             if (this->isSelectable(note)) {
-                if (NOTE_ON == note.type) {
-                    assert((unsigned) wheelValue < noteDurations.size());
-                    note.setNote(wheelValue);
-                } else {
-                    note.setRest(wheelValue);
+                switch (note.type) {
+                    case NOTE_ON:
+                        assert((unsigned) wheelValue < noteDurations.size());
+                        note.setNote(wheelValue);
+                        break;
+                    case REST_TYPE:
+                        note.setRest(wheelValue);
+                        break;
+                    case TIME_SIGNATURE:
+                        if (selectStart + 1 == selectEnd) {
+                            note.data[1 - (int) verticalWheel->value] = wheelValue;
+                        }
+                        break;
+                    default:
+                        assert(0);
                 }
-                int duration = noteDurations[wheelValue];
-                diff += duration - note.duration;
-                note.duration = duration;
+                if (TIME_SIGNATURE != note.type) {
+                    int duration = noteDurations[wheelValue];
+                    diff += duration - note.duration;
+                    note.duration = duration;
+                }
             }
         }
         if (diff) {
@@ -189,7 +221,19 @@ void NoteTaker::updateVertical() {
     int diff = 0;
     for (unsigned index = selectStart ; index < selectEnd; ++index) {
         DisplayNote& note = allNotes[index];
-        if (!this->isSelectable(note)) {
+        if (TIME_SIGNATURE == note.type && selectStart + 1 == selectEnd) {
+            if (!wheelValue) {
+                horizontalWheel->setLimits(0, 6.99);   // denom limit 0 to 6 (2^N, 1 to 64)
+                horizontalWheel->value = note.data[0];
+                horizontalWheel->speed = 1;
+            } else {
+                horizontalWheel->setLimits(1, 99.99);   // numer limit 0 to 99
+                horizontalWheel->value = note.data[1];
+                horizontalWheel->speed = .1;
+            }
+            continue;
+        }
+        if (NOTE_ON != note.type) {
             continue;
         }
         int value;

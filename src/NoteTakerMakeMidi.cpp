@@ -77,6 +77,16 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
             case REST_TYPE:
                 // assume there's nothing to do here
                 break;
+            case TIME_SIGNATURE:
+                add_delta(n.startTime, &lastTime);
+                add_one(midiTimeSignatureHi);
+                add_one(midiTimeSignatureLo);
+                add_one(4); // number of bytes of data to follow
+                add_one(n.numerator());
+                add_one(n.denominator());
+                add_one(stdTimeSignatureClocksPerQuarterNote);
+                add_one(stdTimeSignature32ndNotesInQuarter);
+                break;
             case TRACK_END:
                 for (auto last : lastNotes) {
                     auto off = last.note;

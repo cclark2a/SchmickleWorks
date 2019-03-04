@@ -136,6 +136,12 @@ void NoteTaker::validate() const {
                 }
                 channelTimes[note.channel] = note.endTime();
                 break;
+            case TIME_SIGNATURE:
+                if (!sawHeader) {
+                    debug("missing midi header before time signature");
+                    malformed = true;
+                }
+                break;
             case TRACK_END:
                 if (!sawHeader) {
                     debug("missing midi header before trailer");

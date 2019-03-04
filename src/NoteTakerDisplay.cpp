@@ -4,13 +4,6 @@
 #include "NoteTaker.hpp"
 
 // map midi note for C major to drawable position
-enum Accidental : uint8_t {
-    NO_ACCIDENTAL,
-    SHARP_ACCIDENTAL,
-    FLAT_ACCIDENTAL,
-    NATURAL_ACCIDENTAL,
-};
-
 struct StaffNote {
     uint8_t position;  // 0 == G9, 38 == middle C (C4), 74 == C-1
     uint8_t accidental; // 0 none, 1 sharp, 2 flat, 3 natural
@@ -39,12 +32,18 @@ const StaffNote pitchMap[] = {
     { 4, 0}, { 4, 1}, { 3, 0}, { 3, 1}, { 2, 0}, { 1, 0}, { 1, 1}, { 0, 0}                                      // C9
 };
 
+// if preceding note in bar (or if there is no bar) is sharp
+const StaffNote sharpPitchMap[] = {
+
+};
+
 const char* upFlagNoteSymbols[] = {   "C", "D", "D.", "E", "E.", "F", "F.", "G", "G.", "H", "H.",
                                            "I", "I.", "J", "J.", "K", "K.", "L", "L.", "M" };
 const char* downFlagNoteSymbols[] = { "c", "d", "d.", "e", "e.", "f", "f.", "g", "g.", "h", "h.",
                                            "i", "i.", "j", "j.", "k", "k.", "l", "l.", "m" };
 
-void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) const {
+void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Accidental accidental,
+        int xPos, int alpha) const {
     const StaffNote& pitch = pitchMap[note.pitch()];
     float yPos = pitch.position * 3 - 48.25; // middle C 60 positioned at 39 maps to 66
     float staffLine = yPos - 3;
@@ -70,16 +69,18 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
     }
     nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0xBf, (3 == note.channel) * 0x7f,
             (2 == note.channel) * 0x7f, alpha));
-    switch (pitch.accidental) {
+    switch (accidental) {
+        case NO_ACCIDENTAL:
+            break;
         case SHARP_ACCIDENTAL:
             nvgText(vg, xPos - 7, yPos + 1, "#", NULL);
-        break;
+            break;
         case FLAT_ACCIDENTAL:
             nvgText(vg, xPos - 7, yPos + 1, "$", NULL);
-        break;
+            break;
         case NATURAL_ACCIDENTAL:
             nvgText(vg, xPos - 7, yPos + 1, "%", NULL);
-        break;
+            break;
     }
     static_assert(sizeof(upFlagNoteSymbols) / sizeof(char*) == noteDurations.size(),
             "symbol duration mismatch");
@@ -92,7 +93,27 @@ void NoteTakerDisplay::drawNote(NVGcontext *vg, const DisplayNote& note, int xPo
     nvgText(vg, xPos, yPos, noteStr, nullptr);
 }
 
-void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPos, int alpha) const {
+void NoteTakerDisplay::drawBarNote(NVGcontext* vg, const DisplayNote& note, int xPos,
+        int alpha) {
+    const Accidental lookup[][3]= {
+    // next:      no                  #                b           last:
+        { NO_ACCIDENTAL,      SHARP_ACCIDENTAL, FLAT_ACCIDENTAL }, // no
+        { NATURAL_ACCIDENTAL, NO_ACCIDENTAL,    FLAT_ACCIDENTAL }, // #
+        { NATURAL_ACCIDENTAL, SHARP_ACCIDENTAL, NO_ACCIDENTAL   }, // b
+        { NO_ACCIDENTAL,      SHARP_ACCIDENTAL, FLAT_ACCIDENTAL }, // natural
+    };
+    const StaffNote& pitch = pitchMap[note.pitch()];
+    Accidental accidental = lookup[accidentals[pitch.position]][pitch.accidental];
+    drawNote(vg, note, accidental, xPos, alpha);
+    accidentals[pitch.position] = accidental;
+}
+
+void NoteTakerDisplay::drawFreeNote(NVGcontext* vg, const DisplayNote& note, int xPos,
+        int alpha) const {
+    drawNote(vg, note, (Accidental) pitchMap[note.pitch()].accidental, xPos, alpha);
+}
+
+void NoteTakerDisplay::drawRest(NVGcontext* vg, const DisplayNote& note, int xPos, int alpha) const {
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
     unsigned symbol = note.rest();
     float yPos = 36 * 3 - 49;
@@ -113,17 +134,16 @@ void NoteTakerDisplay::drawRest(NVGcontext *vg, const DisplayNote& note, int xPo
     } while (symbol);
 }
 
-void NoteTakerDisplay::draw(NVGcontext *vg) {
+void NoteTakerDisplay::draw(NVGcontext* vg) {
     if (!module->allNotes.size()) {
         return;  // do nothing if we're not set up yet
     }
-
+    accidentals.fill(NO_ACCIDENTAL);
     nvgScissor(vg, 0, 0, box.size.x, box.size.y);
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, box.size.x, box.size.y);
     nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
     nvgFill(vg);
-
     // draw bevel
     const float bevel = 2;
     nvgBeginPath(vg);
@@ -154,7 +174,6 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     nvgLineTo(vg, box.size.x - bevel, bevel);
     nvgFillColor(vg, nvgRGB(0x5f, 0x5f, 0x5f));
     nvgFill(vg);
-
     // draw vertical line at end of staff lines
     nvgBeginPath(vg);
     nvgMoveTo(vg, 3 - xAxisOffset, 36);
@@ -180,15 +199,16 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     nvgText(vg, 5 - xAxisOffset, 92, ")", NULL);
     // draw selection rect
     nvgBeginPath(vg);
-    int xStart = this->xPos(module->selectStart);
     if (module->selectButton->editStart()) {
-        if (module->selectStart == 0) {
-            nvgRect(vg, this->xPos(1) - 10, 0, 4, box.size.y);
-        } else {
-            nvgRect(vg, xStart + 13, 0, 4, box.size.y);
-        }
+        int xStart = this->xPos(module->selectStart + 1);
+        nvgRect(vg, xStart - 2, 2, 4, box.size.y - 4);
     } else {
-        nvgRect(vg, xStart - 4, 0, this->xPos(module->selectEnd) - xStart, box.size.y);
+        int xStart = this->xPos(module->selectStart);
+        bool timeSignatureEdit = TIME_SIGNATURE == module->allNotes[module->selectStart].type
+                && module->selectStart + 1 == module->selectEnd && !module->selectButton->ledOn;
+        int yTop = timeSignatureEdit ? (1 - (int) module->verticalWheel->value) * 12 + 35 : 2;
+        int yHeight = timeSignatureEdit ? 13 : box.size.y - 4;
+        nvgRect(vg, xStart, yTop, this->xPos(module->selectEnd) - xStart, yHeight);
     }
     unsigned selectChannels = module->selectChannels;
     nvgFillColor(vg, nvgRGBA((2 == selectChannels) * 0xBf, (8 == selectChannels) * 0x7f,
@@ -199,10 +219,10 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
         const DisplayNote& note = module->allNotes[index];
         switch (note.type) {
             case NOTE_ON:
-                this->drawNote(vg, note, this->xPos(index), 0xFF);
+                this->drawBarNote(vg, note, this->xPos(index) + 8, 0xFF);              
             break;
             case REST_TYPE:
-                this->drawRest(vg, note, this->xPos(index), 0xFF);
+                this->drawRest(vg, note, this->xPos(index) + 8, 0xFF);
             break;
             case MIDI_HEADER:
             break;
@@ -210,14 +230,15 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
                 // to do
             break;
             case TIME_SIGNATURE: {
-                debug("draw time signature %d %d\n", note.numerator(), note.denominator());
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
                 std::string numerator = std::to_string(note.numerator());
-                int xPos = this->xPos(index) - 8 * (numerator.size() - 1);
-                nvgText(vg, xPos, 36 * 3 - 49, numerator.c_str(), NULL);
-                std::string denominator = std::to_string(note.denominator());
-                xPos = this->xPos(index) - 8 * (denominator.size() - 1);
-                nvgText(vg, xPos, 44 * 3 - 49, denominator.c_str(), NULL);
+                int xPos = this->xPos(index) - 4 * (numerator.size() - 1) + 3;
+                nvgText(vg, xPos, 32 * 3 - 49, numerator.c_str(), NULL);
+                nvgText(vg, xPos, 44 * 3 - 49, numerator.c_str(), NULL);
+                std::string denominator = std::to_string(1 << note.denominator());
+                xPos = this->xPos(index) - 4 * (denominator.size() - 1) + 3;
+                nvgText(vg, xPos, 36 * 3 - 49, denominator.c_str(), NULL);
+                nvgText(vg, xPos, 48 * 3 - 49, denominator.c_str(), NULL);
             } break;
             case MIDI_TEMPO:
             break;
@@ -241,7 +262,7 @@ void NoteTakerDisplay::draw(NVGcontext *vg) {
     dirty = false;
 }
 
-void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext *vg) const {
+void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) const {
     if (dynamicPitchAlpha > 0) {
         DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON };
         note.setPitch((int) module->verticalWheel->value);
@@ -250,7 +271,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext *vg) const {
         nvgRect(vg, box.size.x - 16, 2, 14, box.size.y - 4);
         nvgFillColor(vg, nvgRGB(0xFF, 0xFF, 0xFF));
         nvgFill(vg);
-        this->drawNote(vg, note, box.size.x - 10, dynamicPitchAlpha);
+        this->drawFreeNote(vg, note, box.size.x - 10, dynamicPitchAlpha);
     }
     if (dynamicTempoAlpha > 0) {
         nvgBeginPath(vg);
@@ -268,7 +289,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext *vg) const {
     }
 }
 
-void NoteTakerDisplay::drawFileControl(NVGcontext *vg) const {
+void NoteTakerDisplay::drawFileControl(NVGcontext* vg) const {
         // draw vertical control
     nvgFontFaceId(vg, module->textFont->handle);
     nvgFontSize(vg, 16);
@@ -339,7 +360,7 @@ void NoteTakerDisplay::drawFileControl(NVGcontext *vg) const {
     nvgStroke(vg);
 }
 
-void NoteTakerDisplay::drawSustainControl(NVGcontext *vg) const {
+void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
     // draw vertical control
     nvgBeginPath(vg);
     nvgRect(vg, box.size.x - 35, 25, 35, box.size.y - 30);
@@ -485,7 +506,7 @@ void NoteTakerDisplay::updateXPosition() {
             case MIDI_HEADER:
                 assert(!pos);
                 assert(!index);
-                pos = 128 * xAxisScale;
+                pos = 96 * xAxisScale;
                 break;
             case NOTE_ON:
                 // to do : if note is very short, pad it a bit
@@ -495,8 +516,13 @@ void NoteTakerDisplay::updateXPosition() {
                 break;
             case TIME_SIGNATURE:
                 // to do : add space to draw time signature (guess for now)
-                pos += 80 * xAxisScale;
+                pos += 48 * xAxisScale;
                 break;
+#if 0
+            case BAR_MARKER:
+                pos += 24 * xAxisScale;
+                break;
+#endif
             case TRACK_END:
                 debug("[%u] xPos %d start %d", index, xPositions[index],
                         module->allNotes[index].startTime);

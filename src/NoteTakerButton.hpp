@@ -105,20 +105,9 @@ struct EditButton : NoteTakerButton {
         nvgLineTo(vg, 19 + af, 52 - af);
         nvgFillColor(vg, nvgRGB(0xCC, 0xCC, 0xCC));
         nvgFill(vg);
-    }
-
-    void onDragStart(EventDragStart &e) override;
-};
-
-struct EditLEDButton : EditButton {
-
-    EditLEDButton() {
-        hasLed = true;
-    }
-
-    void draw(NVGcontext *vg) override {
-        EditButton::draw(vg);
-        this->drawLED(vg);
+        if (hasLed) {
+            this->drawLED(vg);
+        }
     }
 
     void drawLED(NVGcontext *vg) {
@@ -136,6 +125,15 @@ struct EditLEDButton : EditButton {
 
     virtual NVGcolor ledColor() const {
         return nvgRGB(0xF7, 0x37, 0x17);
+    }
+
+    void onDragStart(EventDragStart &e) override;
+};
+
+struct EditLEDButton : EditButton {
+
+    EditLEDButton() {
+        hasLed = true;
     }
 
 };
@@ -241,6 +239,7 @@ struct PartButton : EditLEDButton {
     }
 };
 
+// shared by time signature and rest, but not insert
 struct AdderButton : EditButton {
     // locals are not read/written to json; in a struct as a convenience, not persistent
     unsigned insertLoc;

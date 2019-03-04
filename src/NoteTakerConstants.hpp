@@ -12,6 +12,9 @@ constexpr uint8_t midiChannelPressure = 0xD0;
 constexpr uint8_t midiPitchWheel = 0xE0;
 constexpr uint8_t midiSystem = 0xF0;
 
+constexpr uint8_t midiTimeSignatureHi = 0xFF;
+constexpr uint8_t midiTimeSignatureLo = 0x58;
+
 // control change codes
 constexpr uint8_t midiReleaseMax = 0x57;
 constexpr uint8_t midiReleaseMin = 0x58;
@@ -21,6 +24,8 @@ constexpr uint8_t midiSustainMax = 0x5A;
 constexpr uint8_t stdKeyPressure = 0x64;
 constexpr int stdTimePerQuarterNote = 0x60;
 constexpr int stdMSecsPerQuarterNote = 500000;  // 120 beats / minute
+constexpr uint8_t stdTimeSignatureClocksPerQuarterNote = 0x24;
+constexpr uint8_t stdTimeSignature32ndNotesInQuarter = 0x08;
 
 constexpr unsigned CHANNEL_COUNT = 16;      // MIDI channels
 constexpr unsigned ALL_CHANNELS = 0xFFFF;   // one bit set per MIDI channels

@@ -61,14 +61,9 @@ bool DisplayNote::isValid() const {
             }
         break;
         case TIME_SIGNATURE: {
-            // although midi doesn't prohibit weird time signatures, look for
-            // common ones to help validate that the file is parsed correctly
-            // allowed: 2/2 n/4 (n = 2 3 4 5 6 7 9 11) m/8 (m = 3 5 6 7 9 11 12)
             int num = data[0];
             int denom = data[1];
-            if ((denom == 1 && num != 2)  // allow 2/2
-                    || (denom == 2 && (num < 2 || num > 11 || (num > 7 && !(num & 1))))
-                    || (denom == 3 && (num < 3 || num > 12 || num == 4 || num == 8))) {
+            if ((unsigned) num > 99 || (unsigned) denom > 99) {
                 debug("invalid time signature %d/%d\n", data[0], data[1]);
                 return false;
             }

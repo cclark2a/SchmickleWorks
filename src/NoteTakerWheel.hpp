@@ -3,6 +3,16 @@
 #include "SchmickleWorks.hpp"
 
 struct NoteTakerWheel : Knob, FramebufferWidget {
+    float lastRealValue = INT_MAX;  // manually maintained
+    int lastValue = INT_MAX;
+    Vec size;
+    int shadow;
+
+    virtual std::string debugString() const {
+        return std::to_string(value) + " (" + std::to_string(minValue) + ", "
+                + std::to_string(maxValue) + ")";
+    }
+
     void drawGear(NVGcontext *vg, float frame);
 
     void fromJson(json_t* root) {
@@ -55,13 +65,7 @@ struct NoteTakerWheel : Knob, FramebufferWidget {
     int wheelValue() const {
         return lastValue;
     }
-
-    float lastRealValue = INT_MAX;  // manually maintained
-    int lastValue = INT_MAX;
-    Vec size;
-    int shadow;
 };
-
 
 struct HorizontalWheel : NoteTakerWheel {
     HorizontalWheel() {
@@ -69,6 +73,10 @@ struct HorizontalWheel : NoteTakerWheel {
         size.y = box.size.y = 17;
         speed = 1;
         shadow = 3;
+    }
+
+    std::string debugString() const override {
+        return "horz " + NoteTakerWheel::debugString();
     }
 
     void draw(NVGcontext *vg) override {
@@ -84,6 +92,10 @@ struct VerticalWheel : NoteTakerWheel {
         size.x = box.size.y = 100;
         speed = .1;
         shadow = 1;
+    }
+
+    std::string debugString() const override {
+        return "vert " + NoteTakerWheel::debugString();
     }
 
     void draw(NVGcontext *vg) override {

@@ -5,9 +5,17 @@
 struct DisplayNote;
 struct NoteTaker;
 
+enum Accidental : uint8_t {
+    NO_ACCIDENTAL,
+    SHARP_ACCIDENTAL,
+    FLAT_ACCIDENTAL,
+    NATURAL_ACCIDENTAL,
+};
+
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTaker* module;
     vector<int> xPositions;  // where note is drawn (computed cache, not saved)
+    array<Accidental, 75> accidentals;  // marks when accidental was used in bar
     float xAxisOffset = 0;
     float xAxisScale = 0.25;
     int dynamicPitchAlpha = 0;
@@ -28,7 +36,9 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawDynamicPitchTempo(NVGcontext* ) const;
     void drawFileControl(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
-    void drawNote(NVGcontext* , const DisplayNote& , int offset, int alpha) const;
+    void drawBarNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha);
+    void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
+    void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha) const;
     void drawRest(NVGcontext* , const DisplayNote& , int offset, int alpha) const;
     void drawVerticalControl(NVGcontext* ) const;
     int duration(unsigned index) const;

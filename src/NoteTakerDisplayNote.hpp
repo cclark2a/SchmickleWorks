@@ -165,7 +165,8 @@ struct DisplayNote {
     }
 
     bool isSelectable(unsigned selectChannels) const {
-        return REST_TYPE == type || (NOTE_ON == type && (selectChannels & (1 << channel)));
+        return REST_TYPE == type || TIME_SIGNATURE == type
+                || (NOTE_ON == type && (selectChannels & (1 << channel)));
     }
 
     json_t* toJson() const;

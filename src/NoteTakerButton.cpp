@@ -143,6 +143,7 @@ void AdderButton::onDragEndPreamble(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     SelectButton* selectButton = nt->selectButton;
     startTime = 0;
+    // shiftTime, duration set by caller
     // to do : salt this away so it can be shared with time signature
     if (nt->isEmpty()) {
         insertLoc = nt->allNotes.size() - 1;
@@ -156,7 +157,7 @@ void AdderButton::onDragEndPreamble(EventDragEnd& e) {
         duration = nt->allNotes[nt->selectEnd].startTime - nt->allNotes[nt->selectStart].startTime;
         if (selectButton->editStart()) { // insert right of selection
             insertLoc = nt->selectEnd;
-            shiftLoc = nt->selectEnd;
+            shiftLoc = nt->selectEnd + 1;
             shiftTime = duration;
             startTime = nt->allNotes[nt->selectEnd].startTime;
         } else {  // replace selection with one rest
@@ -167,6 +168,8 @@ void AdderButton::onDragEndPreamble(EventDragEnd& e) {
             shiftTime = 0;
         }
     }
+    debug("insertLoc %u shiftLoc %u startTime %d shiftTime %d duration %d", insertLoc, shiftLoc,
+            startTime, shiftTime, duration);
 }
 
 void AdderButton::onDragEnd(EventDragEnd& e) {
@@ -175,9 +178,10 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
         NoteTaker::ShiftNotes(nt->allNotes, shiftLoc, shiftTime);
     }
     nt->selectButton->reset();
+    NoteTakerButton::onDragEnd(e);
+    nt->display->xPositionsInvalid = true;
     nt->setSelect(insertLoc, insertLoc + 1);
     nt->setWheelRange();  // range is larger
-    NoteTakerButton::onDragEnd(e);
     nt->debugDump();
 }
 
@@ -342,7 +346,7 @@ void TimeButton::onDragEnd(EventDragEnd &e) {
     shiftTime = duration = 0;
     onDragEndPreamble(e);
     // to do : insert one note ala rest
-    DisplayNote timeSignature = { startTime, 0, { 4, 4, 0, 0}, 0, TIME_SIGNATURE };
+    DisplayNote timeSignature = { startTime, 0, {4, 2, 24, 8}, 255, TIME_SIGNATURE };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, timeSignature);
     shiftTime = duration = 0;
     AdderButton::onDragEnd(e);
