@@ -56,7 +56,7 @@ std::string DisplayNote::debugString() const {
 
 
 void NoteTaker::debugDump(bool validatable) const {
-    debug("display xOffset: %d", display->xAxisOffset);
+    debug("display xOffset: %g", display->xAxisOffset);
     debug("select s/e %u %u display s/e %u %u chans 0x%02x tempo %d ppq %d",
             selectStart, selectEnd, displayStart, displayEnd, selectChannels, tempo, ppq);
     NoteTaker::DebugDump(allNotes, &display->xPositions, selectStart, selectEnd);

@@ -340,6 +340,27 @@ void SustainButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
 
+// insert key signature
+void KeyButton::onDragEnd(EventDragEnd &e) {
+    NoteTaker* nt = nModule();
+    shiftTime = duration = 0;
+    onDragEndPreamble(e);
+    // to do : insert one note ala rest
+    DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE };
+    nt->allNotes.insert(nt->allNotes.begin() + insertLoc, keySignature);
+    shiftTime = duration = 0;
+    AdderButton::onDragEnd(e);
+}
+
+void KeyButton::draw(NVGcontext* vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 6 + af, 33 - af, "#", NULL);
+    nvgText(vg, 10 + af, 41 - af, "$", NULL);
+}
+
 // insert time signature
 void TimeButton::onDragEnd(EventDragEnd &e) {
     NoteTaker* nt = nModule();

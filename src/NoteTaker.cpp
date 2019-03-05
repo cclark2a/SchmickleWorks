@@ -261,6 +261,8 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     debug("setSelect displayStart %u displayEnd %u", displayStart, displayEnd);
     bool recomputeDisplayOffset = display->xPos(displayStart) < 0
             || display->xPos(displayEnd) > display->box.size.x;
+    debug("display->xPos(displayStart) %d display->xPos(displayEnd) %d display->box.size.x %g",
+            display->xPos(displayStart), display->xPos(displayEnd), display->box.size.x);
     bool offsetFromEnd = false;
     if (displayStartTime > selectStartTime || selectEndTime > displayEndTime) {
         recomputeDisplayOffset = true;
@@ -310,7 +312,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     if (recomputeDisplayOffset) {
         if (offsetFromEnd) {
             display->xAxisOffset = std::max(display->endTime(start)
-                    - display->box.size.x, 0.f);
+                    + (selectButton->editStart() ? 8 : 0) - display->box.size.x, 0.f);
         } else if (display->startTime(displayEnd) <= display->box.size.x) {
             display->xAxisOffset = 0;
         } else {

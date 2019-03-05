@@ -6,6 +6,7 @@
 struct CutButton;
 struct FileButton;
 struct InsertButton;
+struct KeyButton;
 struct PartButton;
 struct RestButton;
 struct RunButton;
@@ -66,6 +67,7 @@ struct NoteTaker : Module {
     CutButton* cutButton = nullptr;
     FileButton* fileButton = nullptr;
     InsertButton* insertButton = nullptr;
+    KeyButton* keyButton = nullptr;
     PartButton* partButton = nullptr;
     RestButton* restButton = nullptr;
     RunButton* runButton = nullptr;

@@ -6,6 +6,12 @@ struct BarPosition;
 struct DisplayNote;
 struct NoteTaker;
 
+const uint8_t TREBLE_TOP = 29;  // smaller values need additional staff lines and/or 8/15va
+const uint8_t C_5 = 32;
+const uint8_t MIDDLE_C = 39;
+const uint8_t C_3 = 46;
+const uint8_t BASS_BOTTOM = 49; // larger values need additional staff lines and/or 8/15vb
+
 enum Accidental : uint8_t {
     NO_ACCIDENTAL,
     SHARP_ACCIDENTAL,
@@ -38,9 +44,9 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawFileControl(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
     void drawBar(NVGcontext* , int xPos);
-    void drawBarNote(NVGcontext* , const BarPosition& , const DisplayNote& note, int xPos,
+    void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& note, int xPos,
             int alpha);
-    void drawBarRest(NVGcontext* , const BarPosition& , const DisplayNote& , int offset,
+    void drawBarRest(NVGcontext* , BarPosition& , const DisplayNote& , int offset,
             int alpha) const;
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
     void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha) const;
@@ -96,6 +102,10 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return xPositions[start];
     }
 
+    bool stemUp(int position) const {
+        return (position <= MIDDLE_C && position > C_5) || position >= C_3;
+    }
+
     // to do : make this more efficient
    // there may be more than two tied notes: subtract note times to figure number
    static unsigned TiedCount(int barDuration, int duration) {
@@ -119,6 +129,10 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
 
     int xPos(int index) const {
         return xPositions[index] - xAxisOffset;
+    }
+
+    float yPos(int position) const {
+        return position * 3 - 48.25;   // middle C 60 positioned at 39 maps to 66
     }
 
 };

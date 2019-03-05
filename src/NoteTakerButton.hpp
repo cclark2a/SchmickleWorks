@@ -305,6 +305,11 @@ struct SustainButton : EditLEDButton {
     void onDragEnd(EventDragEnd &e) override;
 };
 
+struct KeyButton : AdderButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
 struct TimeButton : AdderButton {
     void draw(NVGcontext* vg) override;
     void onDragEnd(EventDragEnd &e) override;

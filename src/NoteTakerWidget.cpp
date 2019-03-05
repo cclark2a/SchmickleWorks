@@ -63,9 +63,10 @@ struct NoteTakerWidget : ModuleWidget {
         module->timeButton = ParamWidget::create<TimeButton>(Vec(62, 252),
                 module, NoteTaker::TIME_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->timeButton);
+        module->keyButton = ParamWidget::create<KeyButton>(Vec(94, 252),
+                module, NoteTaker::TIME_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->keyButton);
 
-        addParam(ParamWidget::create<EditButton>(Vec(94, 252), module, NoteTaker::BUTTON_9,
-                0.0f, 1.0f, 0.0f));
         addParam(ParamWidget::create<EditButton>(Vec(126, 252), module, NoteTaker::BUTTON_10,
                 0.0f, 1.0f, 0.0f));
         addParam(ParamWidget::create<EditButton>(Vec(158, 252), module, NoteTaker::BUTTON_11,
