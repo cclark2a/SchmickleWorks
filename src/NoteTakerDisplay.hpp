@@ -2,6 +2,7 @@
 
 #include "SchmickleWorks.hpp"
 
+struct BarPosition;
 struct DisplayNote;
 struct NoteTaker;
 
@@ -36,13 +37,17 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawDynamicPitchTempo(NVGcontext* ) const;
     void drawFileControl(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
-    void drawBarNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha);
+    void drawBar(NVGcontext* , int xPos);
+    void drawBarNote(NVGcontext* , const BarPosition& , const DisplayNote& note, int xPos,
+            int alpha);
+    void drawBarRest(NVGcontext* , const BarPosition& , const DisplayNote& , int offset,
+            int alpha) const;
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
     void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha) const;
-    void drawRest(NVGcontext* , const DisplayNote& , int offset, int alpha) const;
     void drawVerticalControl(NVGcontext* ) const;
     int duration(unsigned index) const;
 
+    // to do : make this more efficient
     static unsigned DurationIndex(int duration) {
         for (unsigned i = 0; i < noteDurations.size(); ++i) {
             if (duration <= noteDurations[i]) {
@@ -54,10 +59,6 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
 
     int endTime(unsigned end) const {
         return xPositions[end] + this->duration(end);
-    }
-
-    int startTime(unsigned start) const {
-        return xPositions[start];
     }
 
     void fromJson(json_t* root) {
@@ -89,6 +90,22 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
             result += DurationIndex(duration);
         }
         return result;
+    }
+
+    int startTime(unsigned start) const {
+        return xPositions[start];
+    }
+
+    // to do : make this more efficient
+   // there may be more than two tied notes: subtract note times to figure number
+   static unsigned TiedCount(int barDuration, int duration) {
+        unsigned count = 0;
+        do {
+            unsigned index = DurationIndex(std::min(barDuration, duration));
+            duration -= noteDurations[index];
+            ++count;
+        } while (duration > noteDurations[0]);
+        return count;
     }
 
     json_t *toJson() const {

@@ -141,6 +141,8 @@ void NoteTaker::updateHorizontal() {
                     case TIME_SIGNATURE:
                         if (selectStart + 1 == selectEnd) {
                             note.data[1 - (int) verticalWheel->value] = wheelValue;
+                            display->xPositionsInvalid = true;
+                            display->updateXPosition();
                         }
                         break;
                     default:
