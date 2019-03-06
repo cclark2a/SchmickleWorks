@@ -136,6 +136,7 @@ void NoteTaker::validate() const {
                 }
                 channelTimes[note.channel] = note.endTime();
                 break;
+            case KEY_SIGNATURE:
             case TIME_SIGNATURE:
                 if (!sawHeader) {
                     debug("missing midi header before time signature");

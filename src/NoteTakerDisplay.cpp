@@ -3,13 +3,7 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
-// map midi note for C major to drawable position
-struct StaffNote {
-    uint8_t position;  // 0 == G9, 38 == middle C (C4), 74 == C-1
-    uint8_t accidental; // 0 none, 1 sharp, 2 flat, 3 natural
-};
-
-// drawing notes must line up with extra bar space added by updateXPosition
+/// drawing notes must line up with extra bar space added by updateXPosition
 struct BarPosition {
     int count = 0;           // number of bars before current time signature
     int duration = INT_MAX;  // midi time of one bar
@@ -52,12 +46,22 @@ struct BarPosition {
 
 const int CLEF_WIDTH = 96;
 const int TIME_SIGNATURE_WIDTH = 48;
+// key signature width is variable, from 0 (C) to NOTE_WIDTH*14+18 (C# to Cb, 7 naturals, 7 flats, space for 2 bars)
+const int ACCIDENTAL_WIDTH = 12;
 const int BAR_WIDTH = 12;
+const int DOUBLE_BAR_WIDTH = 18;  // for key change
 const int NOTE_WIDTH = 16;
 
+//  major: G D A E B F# C#
+const uint8_t trebleSharpKeys[] = { 29, 32, 28, 31, 34, 30, 33 };
+//  major: F Bb Eb Ab Db Gb Cb
+const uint8_t trebleFlatKeys[] =  { 33, 30, 34, 31, 35, 32, 36 };
+const uint8_t bassSharpKeys[] =   { 43, 46, 42, 45, 48, 44, 47 };
+const uint8_t bassFlatKeys[] =    { 47, 44, 48, 45, 49, 46, 50 };
+
 // C major only, for now
-// Given a MIDI pitch 0 - 127, looks up staff line position and presence of accidental (# only for now)
-const StaffNote pitchMap[] = {
+// Given a MIDI pitch 0 - 127, looks up staff line position and presence of accidental
+const StaffNote sharpMap[] = {
 //     C        C#       D        D#       E        F        F#       G        G#       A        A#       B
     {74, 0}, {74, 1}, {73, 0}, {73, 1}, {72, 0}, {71, 0}, {71, 1}, {70, 0}, {70, 1}, {69, 0}, {69, 1}, {68, 0}, // C-1
     {67, 0}, {67, 1}, {66, 0}, {66, 1}, {65, 0}, {64, 0}, {64, 1}, {63, 0}, {63, 1}, {62, 0}, {62, 1}, {61, 0}, // C0
@@ -72,10 +76,72 @@ const StaffNote pitchMap[] = {
     { 4, 0}, { 4, 1}, { 3, 0}, { 3, 1}, { 2, 0}, { 1, 0}, { 1, 1}, { 0, 0}                                      // C9
 };
 
+const StaffNote flatMap[] = {
+//     C        Db       D        Eb       E        F        Gb       G        Ab       A        Bb       B
+    {74, 0}, {73, 2}, {73, 0}, {72, 2}, {72, 0}, {71, 0}, {70, 2}, {70, 0}, {69, 2}, {69, 0}, {68, 2}, {68, 0}, // C-1
+    {67, 0}, {66, 2}, {66, 0}, {65, 2}, {65, 0}, {64, 0}, {63, 2}, {63, 0}, {62, 2}, {62, 0}, {61, 2}, {61, 0}, // C0
+    {60, 0}, {59, 2}, {59, 0}, {58, 2}, {58, 0}, {57, 0}, {56, 2}, {56, 0}, {55, 2}, {55, 0}, {54, 2}, {54, 0}, // C1
+    {53, 0}, {52, 2}, {52, 0}, {51, 2}, {51, 0}, {50, 0}, {49, 2}, {49, 0}, {48, 2}, {48, 0}, {47, 2}, {47, 0}, // C2
+    {46, 0}, {45, 2}, {45, 0}, {44, 2}, {44, 0}, {43, 0}, {42, 2}, {42, 0}, {41, 2}, {41, 0}, {40, 2}, {40, 0}, // C3
+    {39, 0}, {38, 2}, {38, 0}, {37, 2}, {37, 0}, {36, 0}, {35, 2}, {35, 0}, {34, 2}, {34, 0}, {33, 2}, {33, 0}, // C4 (middle)
+    {32, 0}, {32, 2}, {31, 0}, {30, 2}, {30, 0}, {29, 0}, {28, 2}, {28, 0}, {27, 2}, {27, 0}, {26, 2}, {26, 0}, // C5
+    {25, 0}, {24, 2}, {24, 0}, {23, 2}, {23, 0}, {22, 0}, {21, 2}, {21, 0}, {20, 2}, {20, 0}, {19, 2}, {19, 0}, // C6
+    {18, 0}, {17, 2}, {17, 0}, {16, 2}, {16, 0}, {15, 0}, {14, 2}, {14, 0}, {13, 2}, {13, 0}, {12, 2}, {12, 0}, // C7
+    {11, 0}, {10, 2}, {10, 0}, { 9, 2}, { 9, 0}, { 8, 0}, { 7, 2}, { 7, 0}, { 6, 2}, { 6, 0}, { 5, 2}, { 5, 0}, // C8
+    { 4, 0}, { 3, 2}, { 3, 0}, { 2, 2}, { 2, 0}, { 1, 0}, { 0, 2}, { 0, 0}                                      // C9
+};
+
 const char* upFlagNoteSymbols[] = {   "C", "D", "D.", "E", "E.", "F", "F.", "G", "G.", "H", "H.",
                                            "I", "I.", "J", "J.", "K", "K.", "L", "L.", "M" };
 const char* downFlagNoteSymbols[] = { "c", "d", "d.", "e", "e.", "f", "f.", "g", "g.", "h", "h.",
                                            "i", "i.", "j", "j.", "k", "k.", "l", "l.", "m" };
+
+NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m)
+    : module(m)
+    , pitchMap(sharpMap) {
+    box.pos = pos;
+    box.size = size;
+}
+
+// mark all accidentals in the selected key signature
+void NoteTakerDisplay::applyKeySignature() {
+    if (!keySignature) {
+        return;
+    }
+    Accidental mark;
+    unsigned keySig;
+    const uint8_t* accKeys;
+    if (keySignature > 0) {
+        mark = SHARP_ACCIDENTAL;
+        keySig = keySignature;
+        accKeys = trebleSharpKeys;
+    } else {
+        mark = FLAT_ACCIDENTAL;
+        keySig = -keySignature;
+        accKeys = trebleFlatKeys;
+    }
+    // mark complete octaves
+    for (unsigned index = 0; index < 70; index += 7) {
+        for (unsigned inner = 0; inner < keySig; ++inner) {
+            uint8_t acc = accKeys[inner] % 7;
+            accidentals[index + acc] = mark;
+        }
+    }
+    // mark partial octave
+    for (unsigned inner = 0; inner < keySig; ++inner) {
+        uint8_t acc = accKeys[inner] % 7;
+        if (acc < 75) {
+            accidentals[70 + acc] = mark;
+        }
+    }
+}
+
+void NoteTakerDisplay::setKeySignature(int key) {
+    keySignature = key;
+    pitchMap = key >= 0 ? sharpMap : flatMap;
+    accidentals.fill(NO_ACCIDENTAL);
+    this->applyKeySignature();
+}
 
 void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Accidental accidental,
         int xPos, int alpha) const {
@@ -289,10 +355,15 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
         nvgRect(vg, xStart - 2, 2, 4, box.size.y - 4);
     } else {
         int xStart = this->xPos(module->selectStart);
-        bool timeSignatureEdit = TIME_SIGNATURE == module->allNotes[module->selectStart].type
-                && module->selectStart + 1 == module->selectEnd && !module->selectButton->ledOn;
-        int yTop = timeSignatureEdit ? (1 - (int) module->verticalWheel->value) * 12 + 35 : 2;
-        int yHeight = timeSignatureEdit ? 13 : box.size.y - 4;
+        int yTop = 2;
+        int yHeight = box.size.y - 4;
+        if (module->selectStart + 1 == module->selectEnd && !module->selectButton->ledOn) {
+            DisplayType noteType = module->allNotes[module->selectStart].type;
+            if (TIME_SIGNATURE == noteType) {
+                yTop = (1 - (int) module->verticalWheel->value) * 12 + 35;
+                yHeight = 13;
+            }
+        }
         nvgRect(vg, xStart, yTop, this->xPos(module->selectEnd) - xStart, yHeight);
     }
     unsigned selectChannels = module->selectChannels;
@@ -308,6 +379,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
         bar.next(note);
         while (nextBar <= this->xPos(index)) {
             accidentals.fill(NO_ACCIDENTAL);
+            this->applyKeySignature();
             // note : separate multiplies avoids rounding error
             nextBar += bar.duration * xAxisScale + BAR_WIDTH * xAxisScale;
         }
@@ -316,6 +388,9 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
                 const StaffNote& pitch = pitchMap[note.pitch()];
                 accidentals[pitch.position] = (Accidental) pitch.accidental;
             } break;
+            case KEY_SIGNATURE:
+                this->setKeySignature(note.key());
+                break;
             case TIME_SIGNATURE: {
                 int xPos = this->xPos(index);
                 if (bar.setSignature(note)) {
@@ -334,6 +409,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
         while (nextBar <= this->xPos(index)) {
             this->drawBar(vg, nextBar);
             accidentals.fill(NO_ACCIDENTAL);
+            this->applyKeySignature();
             // note : separate multiplies avoids rounding error
             nextBar += bar.duration * xAxisScale + BAR_WIDTH * xAxisScale;
         }
@@ -347,9 +423,32 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
             break;
             case MIDI_HEADER:
             break;
-            case KEY_SIGNATURE:
-                // to do
-            break;
+            case KEY_SIGNATURE: {
+                int xPos = this->xPos(index);
+                this->setKeySignature(note.key());
+                if (note.startTime) {
+                    this->drawBar(vg, xPos);
+                    this->drawBar(vg, xPos + 2);
+                    xPos += DOUBLE_BAR_WIDTH * xAxisScale;
+                }
+                const char* mark;
+                unsigned keySig;
+                const uint8_t* accKeys;
+                if (keySignature > 0) {
+                    mark = "#";
+                    keySig = keySignature;
+                    accKeys = trebleSharpKeys;
+                } else {
+                    mark = "$";
+                    keySig = -keySignature;
+                    accKeys = trebleFlatKeys;
+                }
+                nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
+                for (unsigned index = 0; index < keySig; ++index) {
+                    nvgText(vg, xPos, accKeys[index] * 3 - 48, mark, NULL);
+                    xPos += ACCIDENTAL_WIDTH * xAxisScale;
+                }
+            } break;
             case TIME_SIGNATURE: {
                 int xPos = this->xPos(index);
                 if (bar.setSignature(note)) {
@@ -655,6 +754,12 @@ void NoteTakerDisplay::updateXPosition() {
                             bar.end, bar.trailer, notesTied);
                 }
                 } break;
+            case KEY_SIGNATURE:
+                if (note.startTime) {
+                    pos += DOUBLE_BAR_WIDTH * xAxisScale;
+                }
+                pos += abs(note.key()) * ACCIDENTAL_WIDTH * xAxisScale;
+                break;
             case TIME_SIGNATURE:
                 pos += TIME_SIGNATURE_WIDTH * xAxisScale;  // add space to draw time signature
                 bar.setSignature(note);

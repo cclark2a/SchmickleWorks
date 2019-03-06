@@ -15,6 +15,9 @@ constexpr uint8_t midiSystem = 0xF0;
 constexpr uint8_t midiTimeSignatureHi = 0xFF;
 constexpr uint8_t midiTimeSignatureLo = 0x58;
 
+constexpr uint8_t midiKeySignatureHi = 0xFF;
+constexpr uint8_t midiKeySignatureLo = 0x59;
+
 // control change codes
 constexpr uint8_t midiReleaseMax = 0x57;
 constexpr uint8_t midiReleaseMin = 0x58;

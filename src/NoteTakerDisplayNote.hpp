@@ -65,9 +65,19 @@ struct DisplayNote {
         return data[0];
     }
 
+    void setKey(int k) {
+        data[0] = k;
+        assertValid(KEY_SIGNATURE);
+    }
+
     int numerator() const {
         assertValid(TIME_SIGNATURE);
         return data[0];
+    }
+
+    void setNumerator(int n) {
+        data[0] = n;
+        assertValid(TIME_SIGNATURE);
     }
 
     int note() const {
@@ -93,6 +103,11 @@ struct DisplayNote {
     int denominator() const {
         assertValid(TIME_SIGNATURE);
         return data[1];
+    }
+
+    void setDenominator(int d) {
+        data[1] = d;
+        assertValid(TIME_SIGNATURE);
     }
 
     int minor() const {
@@ -165,7 +180,7 @@ struct DisplayNote {
     }
 
     bool isSelectable(unsigned selectChannels) const {
-        return REST_TYPE == type || TIME_SIGNATURE == type
+        return REST_TYPE == type || TIME_SIGNATURE == type || KEY_SIGNATURE == type
                 || (NOTE_ON == type && (selectChannels & (1 << channel)));
     }
 

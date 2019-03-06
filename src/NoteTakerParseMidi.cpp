@@ -284,13 +284,8 @@ void NoteTakerParseMidi::parseMidi() {
                             break;
                             case 0x59:  // key signature
                                 displayNote.type = KEY_SIGNATURE;
-                                for (int i = 0; i < 2; ++i) {
-                                    if (!midi_check7bits(iter)) {
-                                        debug("midi_check7bits 13");
-                                        return;
-                                    }
-                                    displayNote.data[i] = *iter++;
-                                }
+                                displayNote.data[0] = (signed char) *iter++;
+                                displayNote.data[1] = *iter++;
                                 if (!displayNote.isValid()) {
                                     debug("invalid %s 3", displayNote.debugString().c_str());
                                     return;

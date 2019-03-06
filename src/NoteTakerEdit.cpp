@@ -74,6 +74,14 @@ void NoteTaker::setWheelRange() {
             case REST_TYPE:
                 value = note->rest();
                 break;
+            case KEY_SIGNATURE:
+                // don't know what (if anything) horizontal wheel should do; vertical wheel chooses key
+                if (selectStart + 1 == selectEnd) {
+                    verticalWheel->setLimits(-7, 7);
+                    verticalWheel->setValue(note->key());
+                    verticalWheel->speed = 1;
+                }
+                break;
             case TIME_SIGNATURE:
                 if (selectStart + 1 == selectEnd) {
                     horizontalWheel->setLimits(1, 99.99);   // denom limit 0 to 6 (2^N, 1 to 64)
@@ -87,7 +95,6 @@ void NoteTaker::setWheelRange() {
             default:
                 assert(0);
         }
-        // what to do when time signature is selected? set wheels to do nothing?
         horizontalWheel->setValue(value);
     } else {
         int index = this->noteToWheel(*note);
@@ -138,9 +145,16 @@ void NoteTaker::updateHorizontal() {
                     case REST_TYPE:
                         note.setRest(wheelValue);
                         break;
+                    case KEY_SIGNATURE:
+                        // n/a
+                        break;
                     case TIME_SIGNATURE:
                         if (selectStart + 1 == selectEnd) {
-                            note.data[1 - (int) verticalWheel->value] = wheelValue;
+                            if ((int) verticalWheel->value) {
+                                note.setNumerator(wheelValue);
+                            } else {
+                                note.setDenominator(wheelValue);
+                            }
                             display->xPositionsInvalid = true;
                             display->updateXPosition();
                         }
@@ -148,7 +162,7 @@ void NoteTaker::updateHorizontal() {
                     default:
                         assert(0);
                 }
-                if (TIME_SIGNATURE != note.type) {
+                if (KEY_SIGNATURE != note.type && TIME_SIGNATURE != note.type) {
                     int duration = noteDurations[wheelValue];
                     diff += duration - note.duration;
                     note.duration = duration;
@@ -223,17 +237,24 @@ void NoteTaker::updateVertical() {
     int diff = 0;
     for (unsigned index = selectStart ; index < selectEnd; ++index) {
         DisplayNote& note = allNotes[index];
-        if (TIME_SIGNATURE == note.type && selectStart + 1 == selectEnd) {
-            if (!wheelValue) {
-                horizontalWheel->setLimits(0, 6.99);   // denom limit 0 to 6 (2^N, 1 to 64)
-                horizontalWheel->value = note.data[0];
-                horizontalWheel->speed = 1;
-            } else {
-                horizontalWheel->setLimits(1, 99.99);   // numer limit 0 to 99
-                horizontalWheel->value = note.data[1];
-                horizontalWheel->speed = .1;
+        if (selectStart + 1 == selectEnd) {
+            if (KEY_SIGNATURE == note.type) {
+                note.setKey(wheelValue);
+                display->xPositionsInvalid = true;
+                display->updateXPosition();
+                continue;
+            } else if (TIME_SIGNATURE == note.type) {
+                if (!wheelValue) {
+                    horizontalWheel->setLimits(0, 6.99);   // denom limit 0 to 6 (2^N, 1 to 64)
+                    horizontalWheel->value = note.numerator();
+                    horizontalWheel->speed = 1;
+                } else {
+                    horizontalWheel->setLimits(1, 99.99);   // numer limit 0 to 99
+                    horizontalWheel->value = note.denominator();
+                    horizontalWheel->speed = .1;
+                }
+                continue;
             }
-            continue;
         }
         if (NOTE_ON != note.type) {
             continue;

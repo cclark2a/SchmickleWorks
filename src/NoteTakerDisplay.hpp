@@ -19,26 +19,30 @@ enum Accidental : uint8_t {
     NATURAL_ACCIDENTAL,
 };
 
+// map midi note for C major to drawable position
+struct StaffNote {
+    uint8_t position;  // 0 == G9, 38 == middle C (C4), 74 == C-1
+    uint8_t accidental; // 0 none, 1 sharp, 2 flat, 3 natural
+};
+
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTaker* module;
     vector<int> xPositions;  // where note is drawn (computed cache, not saved)
     array<Accidental, 75> accidentals;  // marks when accidental was used in bar
+    const StaffNote* pitchMap = nullptr;
     float xAxisOffset = 0;
     float xAxisScale = 0.25;
     int dynamicPitchAlpha = 0;
     int dynamicTempoAlpha = 0;
+    int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
     bool loading = false;
     bool saving = false;
     bool xPositionsInvalid = false;
 
-    NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m)
-        : module(m) {
-        box.pos = pos;
-        box.size = size;
-    }
-    
+    NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
+    void applyKeySignature();
     void draw(NVGcontext* ) override;
     void drawDynamicPitchTempo(NVGcontext* ) const;
     void drawFileControl(NVGcontext* ) const;
@@ -97,6 +101,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         }
         return result;
     }
+
+    void setKeySignature(int key);
 
     int startTime(unsigned start) const {
         return xPositions[start];

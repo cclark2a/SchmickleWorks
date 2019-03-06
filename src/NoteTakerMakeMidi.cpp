@@ -39,7 +39,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 // 0x59 sustain min
                 // 0x5A sustain max
     // to do : allow sustain/release changes during playback?
-    for (unsigned index = 0; index < ALL_CHANNELS; ++index) {
+    for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
         const auto& chan = nt.channels[index];
         for (const auto& limit : NoteTakerChannelLimits) {
             if (!chan.isDefault(limit)) {
@@ -77,6 +77,14 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
             case REST_TYPE:
                 // assume there's nothing to do here
                 break;
+            case KEY_SIGNATURE:
+                add_delta(n.startTime, &lastTime);
+                add_one(midiKeySignatureHi);
+                add_one(midiKeySignatureLo);
+                add_one(2); // number of bytes of data to follow
+                add_one(n.key());
+                add_one(n.data[1]);  // to do : add struct accessor
+                break;
             case TIME_SIGNATURE:
                 add_delta(n.startTime, &lastTime);
                 add_one(midiTimeSignatureHi);
@@ -84,8 +92,8 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 add_one(4); // number of bytes of data to follow
                 add_one(n.numerator());
                 add_one(n.denominator());
-                add_one(stdTimeSignatureClocksPerQuarterNote);
-                add_one(stdTimeSignature32ndNotesInQuarter);
+                add_one(n.data[2]);  // to do : add struct accessor
+                add_one(n.data[3]);  // to do : add struct accessor
                 break;
             case TRACK_END:
                 for (auto last : lastNotes) {
