@@ -433,20 +433,25 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
                 }
                 const char* mark;
                 unsigned keySig;
-                const uint8_t* accKeys;
+                const uint8_t* accKeys, * bassKeys;
                 if (keySignature > 0) {
                     mark = "#";
                     keySig = keySignature;
                     accKeys = trebleSharpKeys;
+                    bassKeys = bassSharpKeys;
                 } else {
                     mark = "$";
                     keySig = -keySignature;
                     accKeys = trebleFlatKeys;
+                    bassKeys = bassFlatKeys;
                 }
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
-                for (unsigned index = 0; index < keySig; ++index) {
-                    nvgText(vg, xPos, accKeys[index] * 3 - 48, mark, NULL);
-                    xPos += ACCIDENTAL_WIDTH * xAxisScale;
+                for (auto keys : { accKeys, bassKeys }) {
+                    int xKeyPos = xPos;
+                    for (unsigned index = 0; index < keySig; ++index) {
+                        nvgText(vg, xKeyPos, keys[index] * 3 - 48, mark, NULL);
+                        xKeyPos += ACCIDENTAL_WIDTH * xAxisScale;
+                    }
                 }
             } break;
             case TIME_SIGNATURE: {
