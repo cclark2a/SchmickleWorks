@@ -266,7 +266,6 @@ struct RestButton : AdderButton {
 //   cut with select button off deletes current selection, does not modify clipboard
 //   select off discards clipboard
 //   if cut is saved in clipboard, insert adds clipboard as paste
-// to do : create font character for this
 struct CutButton : EditButton {
     void draw(NVGcontext* vg) override;
     void onDragEnd(EventDragEnd &e) override;
@@ -280,7 +279,7 @@ struct RunButton : NoteTakerButton {
         box.size.y = 45;
     }
 
-    // to do : make a button that depresses
+    // to do : make a run button that depresses
     void draw(NVGcontext* vg) override {
         nvgBeginPath(vg);
         nvgCircle(vg, 10, 10, 10);

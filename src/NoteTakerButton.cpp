@@ -45,11 +45,10 @@ void InsertButton::onDragEnd(EventDragEnd &e) {
     unsigned insertSize;
     int shiftTime;
     if (nt->isEmpty()) {
-    // to do: still need to figure out duration of note vs time of NOTE_OFF in midi
         insertLoc = nt->allNotes.size() - 1;
         assert(TRACK_END == nt->allNotes[insertLoc].type);
-        DisplayNote midC = { 0, stdTimePerQuarterNote,
-                { 60, 0, stdKeyPressure, stdKeyPressure}, (uint8_t) nt->firstChannel(), NOTE_ON  };
+        DisplayNote midC = { 0, stdTimePerQuarterNote, { 60, 0, stdKeyPressure, stdKeyPressure},
+                (uint8_t) nt->firstChannel(), NOTE_ON, false };
         midC.setNote(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
         insertSize = 1;
@@ -144,7 +143,6 @@ void AdderButton::onDragEndPreamble(EventDragEnd& e) {
     SelectButton* selectButton = nt->selectButton;
     startTime = 0;
     // shiftTime, duration set by caller
-    // to do : salt this away so it can be shared with time signature
     if (nt->isEmpty()) {
         insertLoc = nt->allNotes.size() - 1;
         assert(TRACK_END == nt->allNotes[insertLoc].type);
@@ -197,7 +195,7 @@ void RestButton::onDragEnd(EventDragEnd& e) {
     shiftTime = duration = stdTimePerQuarterNote;
     onDragEndPreamble(e);
     NoteTaker* nt = nModule();
-    DisplayNote rest = { startTime, duration, { 0, 0, 0, 0}, 0, REST_TYPE };
+    DisplayNote rest = { startTime, duration, { 0, 0, 0, 0}, 0, REST_TYPE, false };
     rest.setRest(NoteTakerDisplay::RestIndex(duration));
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);
     AdderButton::onDragEnd(e);
@@ -264,33 +262,14 @@ void SelectButton::setExtend() {
 
 void CutButton::draw(NVGcontext* vg) {
         EditButton::draw(vg);
-    #if 0
-        nvgTranslate(vg, af + 9, 27 - af);
-        nvgBeginPath(vg);
-        nvgMoveTo(vg, 0, -1);
-        nvgLineTo(vg, 2, -3);   
-        nvgLineTo(vg, 4, -3);
-        nvgLineTo(vg, 1,  0);
-        nvgLineTo(vg, 4,  3);
-        nvgLineTo(vg, 2,  3);
-        nvgLineTo(vg, 0,  1);
-        nvgLineTo(vg, -2,  3);
-        nvgLineTo(vg,  -4,  3);
-        nvgLineTo(vg, -1,  0);
-        nvgLineTo(vg, -4, -3);
-        nvgLineTo(vg, -2, -3);
-        nvgLineTo(vg, 0, -1);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
-        nvgFill(vg);
-    #else
     nvgFontFaceId(vg, nModule()->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, ";", NULL);
-    #endif
 }
 
 // to do : should a long press clear all?
+// maybe long press should put clear all: yes / no choice in display
 void CutButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isEmpty() || !nt->selectStart) {
@@ -345,8 +324,7 @@ void KeyButton::onDragEnd(EventDragEnd &e) {
     NoteTaker* nt = nModule();
     shiftTime = duration = 0;
     onDragEndPreamble(e);
-    // to do : insert one note ala rest
-    DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE };
+    DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, keySignature);
     shiftTime = duration = 0;
     AdderButton::onDragEnd(e);
@@ -366,8 +344,7 @@ void TimeButton::onDragEnd(EventDragEnd &e) {
     NoteTaker* nt = nModule();
     shiftTime = duration = 0;
     onDragEndPreamble(e);
-    // to do : insert one note ala rest
-    DisplayNote timeSignature = { startTime, 0, {4, 2, 24, 8}, 255, TIME_SIGNATURE };
+    DisplayNote timeSignature = { startTime, 0, {4, 2, 24, 8}, 255, TIME_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, timeSignature);
     shiftTime = duration = 0;
     AdderButton::onDragEnd(e);
@@ -391,7 +368,7 @@ void RunButton::onDragEnd(EventDragEnd &e) {
     nt->setWheelRange();
 }
 
-// todo : remove below
+// to do : remove below
 void DumpButton::onDragEnd(EventDragEnd& e) {
     nModule()->debugDump();
     NoteTakerButton::onDragEnd(e);

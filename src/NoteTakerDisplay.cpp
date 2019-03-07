@@ -413,7 +413,6 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
             // note : separate multiplies avoids rounding error
             nextBar += bar.duration * xAxisScale + BAR_WIDTH * xAxisScale;
         }
-        // to do :  draw tie as needed (possibly multiple)
         switch (note.type) {
             case NOTE_ON:
                 this->drawBarNote(vg, bar, note, this->xPos(index) + 8, 0xFF);              
@@ -496,7 +495,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
 
 void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) const {
     if (dynamicPitchAlpha > 0) {
-        DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON };
+        DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON, false };
         note.setPitch((int) module->verticalWheel->value);
         note.setNote(DurationIndex(note.duration));
         nvgBeginPath(vg);

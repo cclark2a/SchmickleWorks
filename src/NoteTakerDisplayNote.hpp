@@ -39,6 +39,7 @@ struct DisplayNote {
     int data[4];        // type-specific values
     uint8_t channel;    // set to 0xFF if type doesn't have channel
     DisplayType type;
+    bool selected;      // set if channel intersects selectChannels prior to channel edit
 
     void setChannel(uint8_t c) {
         channel = c;

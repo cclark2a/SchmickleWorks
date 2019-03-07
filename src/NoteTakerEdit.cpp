@@ -25,7 +25,7 @@ void NoteTaker::setVerticalWheelRange() {
         verticalWheel->speed = 1;
         return;
     }
-    if (partButton->ledOn && selectButton->ledOn) {
+    if (partButton->ledOn) {
         verticalWheel->setLimits(0, CV_OUTPUTS);
         verticalWheel->setValue(partButton->lastChannels);
         verticalWheel->speed = 1;
@@ -33,7 +33,7 @@ void NoteTaker::setVerticalWheelRange() {
     if (isEmpty()) {
         return;
     }
-    const DisplayNote* note = &allNotes[selectStart];
+    DisplayNote* note = &allNotes[selectStart];
     if (selectStart + 1 == selectEnd) {
         if (KEY_SIGNATURE == note->type) {
             verticalWheel->setLimits(-7, 7);
@@ -48,12 +48,22 @@ void NoteTaker::setVerticalWheelRange() {
             return;
         }
     }
-    if (!partButton->ledOn || !selectButton->ledOn) {
+    unsigned start = selectStart;
+    while (start < selectEnd && (NOTE_ON != note->type || !note->isSelectable(selectChannels))) {
+        note->selected = false;
+        note = &allNotes[++start];
+    }
+    bool validNote = start < selectEnd && NOTE_ON == note->type;
+    if (!partButton->ledOn) {
         verticalWheel->setLimits(0, 127);  // range for midi pitch
-        if (NOTE_ON == note->type) {
-            verticalWheel->setValue(note->pitch());
-        }
+        verticalWheel->setValue(validNote ? note->pitch() : 60);
         verticalWheel->speed = .1;
+    } else if (!selectButton->ledOn) {
+        verticalWheel->setValue(validNote ? note->channel : 1);
+        while (start < selectEnd) {
+            note->selected = NOTE_ON == note->type && note->isSelectable(selectChannels);
+            note = &allNotes[++start];
+        }
     }
 }
 
@@ -268,14 +278,14 @@ void NoteTaker::updateVertical() {
         DisplayNote& note = allNotes[index];
         switch (note.type) {
             case KEY_SIGNATURE:
-                if (selectStart + 1 == selectEnd) {
+                if (selectStart + 1 == selectEnd && !partButton->ledOn) {
                     note.setKey(wheelValue);
                     display->xPositionsInvalid = true;
                     display->updateXPosition();
                 }
                 break;
             case TIME_SIGNATURE:
-                if (selectStart + 1 == selectEnd && !selectButton->ledOn) {
+                if (selectStart + 1 == selectEnd && !partButton->ledOn && !selectButton->ledOn) {
                     if (!wheelValue) {
                         horizontalWheel->setLimits(0, 6.99);   // denom limit 0 to 6 (2^N, 1 to 64)
                         horizontalWheel->value = note.numerator();
@@ -288,6 +298,13 @@ void NoteTaker::updateVertical() {
                 }
                 break;
             case NOTE_ON: {
+                if (partButton->ledOn ? !note.selected : !note.isSelectable(selectChannels)) {
+                    continue;
+                }
+                if (partButton->ledOn) {
+                    note.setChannel(wheelValue);
+                    continue;
+                }
                 int value;
                 if (!diff) {
                     value = wheelValue;

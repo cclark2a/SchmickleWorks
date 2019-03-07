@@ -48,7 +48,7 @@ std::string DisplayNote::debugString() const {
             s += " 32ndsPerQuarter=" + std::to_string(notated32NotesPerQuarterNote());
         break;
         default:
-            // to do
+            debug("to do: add type %d %s\n", type, typeNames[type].name);
             break;
     }
     return s;

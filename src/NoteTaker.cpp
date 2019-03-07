@@ -7,7 +7,6 @@
 
 // to do:
 	// For more advanced Module features, read Rack's engine.hpp header file
-	// - toJson, fromJson: serialization of internal data
 	// - onSampleRateChange: event triggered by a change of sample rate
 	// - onReset, onRandomize, onCreate, onDelete: implements special behavior
     //   when user clicks these from the context menu
@@ -232,8 +231,6 @@ void NoteTaker::setScoreEmpty() {
     display->updateXPosition();
 }
 
-// to do : some staff notation takes no time but takes space (clef marks, time signatures)
-// need to include these when figuring how much area displayStart / displayEnd encompasses
 void NoteTaker::setSelect(unsigned start, unsigned end) {
     if (this->isEmpty()) {
         selectStart = selectEnd = displayStart = displayEnd = 0;
