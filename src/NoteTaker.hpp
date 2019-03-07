@@ -213,6 +213,8 @@ struct NoteTaker : Module {
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
     void setSelectStartAt(int midiTime);
+    void setHorizontalWheelRange();
+    void setVerticalWheelRange();
     void setWheelRange();
 
     void shiftNotes(unsigned start, int diff) {
