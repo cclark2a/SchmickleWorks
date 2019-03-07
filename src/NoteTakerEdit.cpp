@@ -34,36 +34,26 @@ void NoteTaker::setVerticalWheelRange() {
         return;
     }
     const DisplayNote* note = &allNotes[selectStart];
+    if (selectStart + 1 == selectEnd) {
+        if (KEY_SIGNATURE == note->type) {
+            verticalWheel->setLimits(-7, 7);
+            verticalWheel->setValue(note->key());
+            verticalWheel->speed = 1;
+            return;
+        }
+        if (TIME_SIGNATURE == note->type) {
+            verticalWheel->setLimits(0, 1);
+            verticalWheel->setValue(0);
+            verticalWheel->speed = 1;
+            return;
+        }
+    }
     if (!partButton->ledOn || !selectButton->ledOn) {
         verticalWheel->setLimits(0, 127);  // range for midi pitch
         if (NOTE_ON == note->type) {
             verticalWheel->setValue(note->pitch());
         }
         verticalWheel->speed = .1;
-    }
-    if (!selectButton->ledOn) {
-        switch (note->type) {
-            case NOTE_ON:
-            case REST_TYPE:
-                break;
-            case KEY_SIGNATURE:
-                // vertical wheel chooses key
-                if (selectStart + 1 == selectEnd) {
-                    verticalWheel->setLimits(-7, 7);
-                    verticalWheel->setValue(note->key());
-                    verticalWheel->speed = 1;
-                }
-                break;
-            case TIME_SIGNATURE:
-                if (selectStart + 1 == selectEnd) {
-                    verticalWheel->setLimits(0, 1);
-                    verticalWheel->setValue(0);
-                    verticalWheel->speed = 1;
-                }
-                break;
-            default:
-                assert(0);
-        }
     }
 }
 
@@ -95,49 +85,48 @@ void NoteTaker::setHorizontalWheelRange() {
     }
     const DisplayNote* note = &allNotes[selectStart];
     // horizontal wheel range and value
-    int wheelMin = selectButton->editStart() ? -1 : 0;
-    int wheelMax = (int) this->horizontalCount() + wheelMin;
-    if (!selectButton->ledOn) {
-        // range is 0 to NoteTakerDisplay.durations.size(); find value in array values
-        horizontalWheel->setLimits(0, noteDurations.size() - 1);
-    } else {
-        horizontalWheel->setLimits(wheelMin, wheelMax);
-    }
     float horzSpeed = 1;
+    int value = INT_MAX;
     if (!selectButton->ledOn) {
-        int value = 0;
-        switch (note->type) {
-            case NOTE_ON:
+        if (selectStart + 1 == selectEnd
+                && (KEY_SIGNATURE == note->type || TIME_SIGNATURE == note->type)) {
+            if (TIME_SIGNATURE == note->type) {
+                horizontalWheel->setLimits(1, 99.99);   // denom limit 0 to 6 (2^N, 1 to 64)
+                horzSpeed = .1;
+                value = note->numerator();
+            }
+            // otherwise, do nothing for key signature
+        } else {
+            unsigned start = selectStart;
+            while ((KEY_SIGNATURE == note->type || TIME_SIGNATURE == note->type)
+                    && start < selectEnd) {
+                note = &allNotes[++start];
+            }
+            if (NOTE_ON == note->type) {
                 value = note->note();
-                break;
-            case REST_TYPE:
+            } else if (REST_TYPE == note->type) {
                 value = note->rest();
-                break;
-            case KEY_SIGNATURE:
-                // don't know what (if anything) horizontal wheel should do
-                break;
-            case TIME_SIGNATURE:
-                if (selectStart + 1 == selectEnd) {
-                    horizontalWheel->setLimits(1, 99.99);   // denom limit 0 to 6 (2^N, 1 to 64)
-                    horzSpeed = .1;
-                    value = note->numerator();
-                }
-                break;
-            default:
-                assert(0);
+            }
+            if (INT_MAX != value) {
+                horizontalWheel->setLimits(0, noteDurations.size() - 1);
+            }
         }
-        horizontalWheel->setValue(value);
     } else {
-        int index = this->noteToWheel(*note);
-        if (index < wheelMin || index > wheelMax) {
-            debug("! note type %d index %d wheelMin %d wheelMax %d",
-                    note->type, index, wheelMin, wheelMax);
+        int wheelMin = selectButton->editStart() ? -1 : 0;
+        int wheelMax = (int) this->horizontalCount() + wheelMin;
+        horizontalWheel->setLimits(wheelMin, wheelMax);
+        value = this->noteToWheel(*note);
+        if (value < wheelMin || value > wheelMax) {
+            debug("! note type %d value %d wheelMin %d wheelMax %d",
+                    note->type, value, wheelMin, wheelMax);
             this->debugDump();
             assert(0);
         }
-        horizontalWheel->setValue(index);
     }
-    horizontalWheel->speed = horzSpeed;
+    if (INT_MAX != value) {
+        horizontalWheel->setValue(value);
+        horizontalWheel->speed = horzSpeed;
+    }
     return;
 }
 
@@ -286,7 +275,7 @@ void NoteTaker::updateVertical() {
                 }
                 break;
             case TIME_SIGNATURE:
-                if (selectStart + 1 == selectEnd) {
+                if (selectStart + 1 == selectEnd && !selectButton->ledOn) {
                     if (!wheelValue) {
                         horizontalWheel->setLimits(0, 6.99);   // denom limit 0 to 6 (2^N, 1 to 64)
                         horizontalWheel->value = note.numerator();

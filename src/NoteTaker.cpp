@@ -357,7 +357,8 @@ bool NoteTaker::setSelectStart(unsigned start) {
     unsigned end = start;
     do {
         ++end;
-    } while (allNotes[start].startTime == allNotes[end].startTime);
+    } while (allNotes[start].startTime == allNotes[end].startTime && NOTE_ON == allNotes[start].type
+            && NOTE_ON == allNotes[end].startTime);
     this->setSelect(start, end);
     return true;
 }
@@ -422,7 +423,7 @@ void NoteTaker::step() {
 }
 
 unsigned NoteTaker::wheelToNote(int value) const {
-    debug("wheelToNote start");
+    debug("wheelToNote start %d", value);
     this->debugDump(false);
     if (value < 0) {
         assert(selectButton->editStart());
