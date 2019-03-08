@@ -32,6 +32,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     const StaffNote* pitchMap = nullptr;
     float xAxisOffset = 0;
     float xAxisScale = 0.25;
+    float xControlOffset = 0;
     int dynamicPitchAlpha = 0;
     int dynamicTempoAlpha = 0;
     int keySignature = 0;
@@ -45,7 +46,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void applyKeySignature();
     void draw(NVGcontext* ) override;
     void drawDynamicPitchTempo(NVGcontext* ) const;
-    void drawFileControl(NVGcontext* ) const;
+    void drawFileControl(NVGcontext* );
     void drawSustainControl(NVGcontext* ) const;
     void drawBar(NVGcontext* , int xPos);
     void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& note, int xPos,
@@ -55,6 +56,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
     void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha) const;
     void drawVerticalControl(NVGcontext* ) const;
+    void drawVerticalLabel(NVGcontext* , const char* label,
+            bool enabled, bool selected, float y) const;
     int duration(unsigned index) const;
 
     // to do : make this more efficient
