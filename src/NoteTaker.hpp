@@ -86,9 +86,6 @@ struct NoteTaker : Module {
     // end of state saved into json
     float elapsedSeconds = 0;               // seconds into score
     float realSeconds = 0;                  // seconds for UI timers
-    const float fadeDuration = 1;
-    float dynamicPitchTimer = 0;
-    float dynamicTempoTimer = 0;
     bool playingSelection = false;          // if set, provides feedback when editing notes
     
     NoteTaker();

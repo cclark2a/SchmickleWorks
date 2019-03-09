@@ -16,7 +16,7 @@ void NoteTaker::setVerticalWheelRange() {
     if (fileButton->ledOn) {
         verticalWheel->setLimits(0, 10);
         verticalWheel->setValue(5);
-        verticalWheel->speed = 1;
+        verticalWheel->speed = 2;
         return;
     }
     if (sustainButton->ledOn) {

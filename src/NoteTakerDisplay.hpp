@@ -35,6 +35,9 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     float xControlOffset = 0;
     int dynamicPitchAlpha = 0;
     int dynamicTempoAlpha = 0;
+    const float fadeDuration = 1;
+    float dynamicPitchTimer = 0;
+    float dynamicTempoTimer = 0;
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
@@ -45,7 +48,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
     void applyKeySignature();
     void draw(NVGcontext* ) override;
-    void drawDynamicPitchTempo(NVGcontext* ) const;
+    void drawDynamicPitchTempo(NVGcontext* );
     void drawFileControl(NVGcontext* );
     void drawSustainControl(NVGcontext* ) const;
     void drawBar(NVGcontext* , int xPos);

@@ -365,7 +365,9 @@ void RunButton::onDragEnd(EventDragEnd &e) {
         nt->zeroGates();
     }
     NoteTakerButton::onDragEnd(e);
-    nt->setWheelRange();
+    if (!nt->fileButton->ledOn) {
+        nt->setWheelRange();
+    }
 }
 
 // to do : remove below

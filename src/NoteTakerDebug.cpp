@@ -31,22 +31,24 @@ std::string DisplayNote::debugString() const {
             s += " note=" + std::to_string(note());
             s += " onVelocity=" + std::to_string(onVelocity());
             s += " offVelocity=" + std::to_string(offVelocity());
-        break;
+            break;
         case REST_TYPE:
-        break;
+            break;
         case MIDI_HEADER:
             s += " format=" + std::to_string(format());
-        break;
+            break;
         case KEY_SIGNATURE:
             s += " key=" + std::to_string(key());
             s += " minor=" + std::to_string(minor());
-        break;
+            break;
         case TIME_SIGNATURE:
             s += " numerator=" + std::to_string(numerator());
             s += " denominator=" + std::to_string(denominator());
             s += " clocksPerClick=" + std::to_string(clocksPerClick());
             s += " 32ndsPerQuarter=" + std::to_string(notated32NotesPerQuarterNote());
-        break;
+            break;
+        case TRACK_END:
+            break;
         default:
             debug("to do: add type %d %s\n", type, typeNames[type].name);
             break;

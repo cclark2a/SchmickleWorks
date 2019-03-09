@@ -188,6 +188,7 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
     static_assert(sizeof(downFlagNoteSymbols) / sizeof(char*) == noteDurations.size(),
             "symbol duration mismatch");
     unsigned symbol = note.note();
+    nvgFontFaceId(vg, module->musicFont->handle);
     nvgFontSize(vg, 42);
     const char* noteStr = this->stemUp(pitch.position) ? upFlagNoteSymbols[symbol]
             : downFlagNoteSymbols[symbol];
@@ -264,6 +265,7 @@ void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const Displ
     unsigned symbol = note.rest();
     float yPos = 36 * 3 - 49;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
+    nvgFontFaceId(vg, module->musicFont->handle);
     nvgFontSize(vg, 42);
     do {
         unsigned restIndex = std::min((unsigned) sizeof(restSymbols) - 1, symbol);
@@ -356,7 +358,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
     } else {
         int xStart = this->xPos(module->selectStart);
         int yTop = 2;
-        int yHeight = box.size.y - 4;
+        int yHeight = box.size.y - (module->fileButton->ledOn ? 35 : 4);
         if (module->selectStart + 1 == module->selectEnd && !module->selectButton->ledOn) {
             DisplayType noteType = module->allNotes[module->selectStart].type;
             if (TIME_SIGNATURE == noteType) {
@@ -494,7 +496,18 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
     dirty = false;
 }
 
-void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) const {
+void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) {
+    if (!module->fileButton->ledOn) {
+        if (module->verticalWheel->hasChanged()) {
+            dynamicPitchTimer = module->realSeconds + fadeDuration;
+        }
+        if (module->horizontalWheel->lastRealValue != module->horizontalWheel->value) {
+            dynamicTempoTimer = module->realSeconds + fadeDuration;
+            module->horizontalWheel->lastRealValue = module->horizontalWheel->value;
+        }
+        dynamicTempoAlpha = (int) (255 * (dynamicTempoTimer - module->realSeconds) / fadeDuration);
+        dynamicPitchAlpha = (int) (255 * (dynamicPitchTimer - module->realSeconds) / fadeDuration);
+    }
     if (dynamicPitchAlpha > 0) {
         DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON, false };
         note.setPitch((int) module->verticalWheel->value);
@@ -550,12 +563,21 @@ void NoteTakerDisplay::drawFileControl(NVGcontext* vg) {
     this->drawVerticalLabel(vg, "load", loadEnabled, loading, 0);
     this->drawVerticalLabel(vg, "save", true, saving, box.size.y - 50);
     this->drawVerticalControl(vg);
+    if (loading || saving) {
+        float val = module->verticalWheel->value;
+        const float autoLoadSaveWheelSpeed = .2f;
+        module->verticalWheel->value += val > 5 ? -autoLoadSaveWheelSpeed : +autoLoadSaveWheelSpeed;
+        if (5 - autoLoadSaveWheelSpeed < val && val < 5 + autoLoadSaveWheelSpeed) {
+            loading = false;
+            saving = false;
+        }
+    }
     // draw horizontal control
     const float boxWidth = 25;
     float fSlot = module->horizontalWheel->value;
     int slot = (int) (fSlot + .5);
     nvgBeginPath(vg);
-    nvgRect(vg, 40 + (slot - (int) xControlOffset) * boxWidth, box.size.y - boxWidth - 5,
+    nvgRect(vg, 40 + (slot - xControlOffset) * boxWidth, box.size.y - boxWidth - 5,
             boxWidth, boxWidth);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgFill(vg);
@@ -606,22 +628,18 @@ void NoteTakerDisplay::drawFileControl(NVGcontext* vg) {
         module->horizontalWheel->value = std::max((float) slot, fSlot - .02f);
     }
     // xControlOffset draws current location, 0 to module->storage.size() - 4
-    if (module->horizontalWheel->value - xControlOffset > 4) {
-        xControlOffset += .02f;
-        debug("xControl bigger %g", xControlOffset);
+    if (module->horizontalWheel->value - xControlOffset > 3) {
+        xControlOffset += .04f;
     } else if (module->horizontalWheel->value < xControlOffset) {
-        xControlOffset -= .02f;
-        debug("xControl smaller %g", xControlOffset);
+        xControlOffset -= .04f;
     }
     if (xControlOffset != floorf(xControlOffset)) {
-        if (module->horizontalWheel->value - xControlOffset < 1
+        if (xControlOffset > 0 && (module->horizontalWheel->value - xControlOffset < 1
                 || (xControlOffset - floorf(xControlOffset) < .5
-                && module->horizontalWheel->value - xControlOffset < 3)) {
-            xControlOffset = std::max(floorf(xControlOffset), xControlOffset - .02f);
-            debug("xControl int smaller %g", xControlOffset);
+                && module->horizontalWheel->value - xControlOffset < 3))) {
+            xControlOffset = std::max(floorf(xControlOffset), xControlOffset - .04f);
         } else {
-            xControlOffset = std::min(ceilf(xControlOffset), xControlOffset + .02f);
-            debug("xControl int bigger %g", xControlOffset);
+            xControlOffset = std::min(ceilf(xControlOffset), xControlOffset + .04f);
         }
     }
     const int first = std::max(0, (int) (xControlOffset - 1));
@@ -661,7 +679,7 @@ void NoteTakerDisplay::drawFileControl(NVGcontext* vg) {
     }
     float wheel = module->horizontalWheel->value;
     nvgBeginPath(vg);
-    nvgRect(vg, 40 + (wheel - (int) xControlOffset) * boxWidth, box.size.y - boxWidth - 5,
+    nvgRect(vg, 40 + (wheel - xControlOffset) * boxWidth, box.size.y - boxWidth - 5,
             boxWidth, boxWidth);
     nvgStrokeWidth(vg, 2);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));

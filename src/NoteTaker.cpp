@@ -20,7 +20,7 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
 
 float NoteTaker::beatsPerHalfSecond() const {
     float deltaTime = stdMSecsPerQuarterNote / tempo;
-    if (this->isRunning()) {
+    if (this->isRunning() && !fileButton->ledOn) {
         // to do : rework so that tempo accels / decels elapsedSeconds
         int horzIndex = (int) horizontalWheel->value;
         int floor = noteDurations[horzIndex];
@@ -93,10 +93,13 @@ void NoteTaker::loadScore() {
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
     NoteTakerParseMidi parser(storage[index], allNotes, channels);
-    parser.parseMidi();
-
+    if (!parser.parseMidi()) {
+        this->setScoreEmpty();
+    }
     display->xPositionsInvalid = true;
-    this->setSelectStart(this->wheelToNote(0));
+    if (!this->isEmpty()) {
+        this->setSelectStart(this->wheelToNote(0));
+    }
 }
 
 int NoteTaker::noteToWheel(const DisplayNote& match) const {
@@ -133,6 +136,7 @@ void NoteTaker::outputNote(const DisplayNote& note, int midiTime) {
     assert(note.channel < CHANNEL_COUNT);
     channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
     channelInfo.noteEnd = note.endTime();
+#if 0 // avoid this since it slows down critical step time
     debug("outputNote time=%d dur=%d sustain=%d gateLow=%d midiTime=%d"
             " noteIndex=%d channelInfo.noteIndex=%d channelInfo.noteEnd=%d"
             " verticalWheel->value=%g",
@@ -144,20 +148,17 @@ void NoteTaker::outputNote(const DisplayNote& note, int midiTime) {
             horizontalWheel->maxValue);
     debug("y vert %g (%g %g)", verticalWheel->value, verticalWheel->minValue,
             verticalWheel->maxValue);
+#endif
     if (note.channel < CV_OUTPUTS) {
         outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
         const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
         float v_oct = inputs[V_OCT_INPUT].value;
-        if (this->isRunning()) {
-            if (verticalWheel->hasChanged()) {
-                dynamicPitchTimer = realSeconds + fadeDuration;
-            }
+        if (this->isRunning() && !fileButton->ledOn) {
             v_oct += (verticalWheel->wheelValue() - 60) / 12.f;
         }
         outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
     }
     channelInfo.noteIndex = this->noteIndex(note);
-    display->dirty = true;
 }
 
 void NoteTaker::outputNoteAt(int midiTime) {
@@ -180,6 +181,7 @@ void NoteTaker::playSelection() {
 }
 
 void NoteTaker::reset() {
+    debug("notetaker reset");
     allNotes.clear();
     clipboard.clear();
     for (auto channel : channels) {
@@ -225,7 +227,8 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
     NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels);
-    emptyParser.parseMidi();
+    bool success = emptyParser.parseMidi();
+    assert(success);
     this->resetButtons();
     display->xPositionsInvalid = true;
     display->updateXPosition();
@@ -372,18 +375,6 @@ void NoteTaker::step() {
     if (!runButton) {
         return;  // do nothing if we're not set up yet
     }
-    if (!allNotes.size()) {  // if all data got deleted, set up empty framework
-        this->setScoreEmpty();
-    }
-    if (!this->isRunning() && (display->loading || display->saving)) {
-        float val = verticalWheel->value;
-        verticalWheel->value += val > 5 ? -.0001f : +.0001f;
-        if (4.9999f < val && val < 5.0001f) {
-            display->loading = false;
-            display->saving = false;
-        }
-        return;
-    }
     if ((!this->isRunning() && !playingSelection) || this->isEmpty()) {
         return;
     }
@@ -408,13 +399,6 @@ void NoteTaker::step() {
     }
     if (this->isRunning()) {
         this->setSelectStartAt(midiTime);
-        if (horizontalWheel->lastRealValue != horizontalWheel->value) {
-            dynamicTempoTimer = realSeconds + fadeDuration;
-            horizontalWheel->lastRealValue = horizontalWheel->value;
-        }
-        display->dynamicTempoAlpha = (int) (255 * (dynamicTempoTimer - realSeconds) / fadeDuration);
-        display->dynamicPitchAlpha =
-                (int) (255 * (dynamicPitchTimer - realSeconds) / fadeDuration);
     }
     this->outputNoteAt(midiTime);
 }

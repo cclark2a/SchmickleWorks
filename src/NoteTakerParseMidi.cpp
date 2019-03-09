@@ -3,13 +3,13 @@
 #include "NoteTakerMakeMidi.hpp"
 #include "NoteTaker.hpp"
 
-void NoteTakerParseMidi::parseMidi() {
+bool NoteTakerParseMidi::parseMidi() {
     debug("parseMidi start");
     vector<DisplayNote> parsedNotes;
     int midiTime = 0;
     if (midi.size() < 14) {
         debug("MIDI file too small size=%llu\n", midi.size());
-        return;
+        return false;
     }
     vector<uint8_t>::const_iterator iter = midi.begin();
     if (!match_midi(iter, MThd)) {
@@ -19,12 +19,12 @@ void NoteTakerParseMidi::parseMidi() {
         debug("expect MIDI header, got %c%c%c%c (0x%02x%02x%02x%02x)\n", 
                 midi[0], midi[1], midi[2], midi[3],
                 midi[0], midi[1], midi[2], midi[3]);
-        return;
+        return false;
     }
     if (!match_midi(iter, MThd_length)) {
         debug("expect MIDI header size == 6, got (0x%02x%02x%02x%02x)\n", 
                 midi[4], midi[5], midi[6], midi[7]);
-        return;
+        return false;
     }
     DisplayNote displayNote;
     displayNote.startTime = 0;
@@ -36,7 +36,7 @@ void NoteTakerParseMidi::parseMidi() {
     }
     if (!displayNote.isValid()) {
         debug("invalid %s", displayNote.debugString().c_str());
-        return;
+        return false;
     }
     parsedNotes.push_back(displayNote);
     vector<uint8_t>::const_iterator trk = iter;
@@ -45,20 +45,20 @@ void NoteTakerParseMidi::parseMidi() {
         debug("expect MIDI track, got %c%c%c%c (0x%02x%02x%02x%02x)\n", 
                 trk[0], trk[1], trk[2], trk[3],
                 trk[0], trk[1], trk[2], trk[3]);
-        return;
+        return false;
     }
     int trackLength;
     if (!midi_size32(iter, &trackLength)) {
         debug("invalid track length");
-        return;
+        return false;
     }
     while (iter != midi.end()) {
         if (!midi_delta(iter, &midiTime)) {
-            return;
+            return false;
         }
         if (0 == (*iter & 0x80)) {
             debug("expected high bit set on channel voice message: %02x\n", *iter);
-            return;
+            return false;
         }
         displayNote.startTime = midiTime;
         displayNote.duration = -1;  // not known yet
@@ -69,12 +69,12 @@ void NoteTakerParseMidi::parseMidi() {
             case UNUSED: {  // midi note off
                 if (!midi_check7bits(iter)) {
                     debug("midi_check7bits 1");
-                    return;
+                    return false;
                 }
                 int pitch = *iter++;
                 if (!midi_check7bits(iter)) {
                     debug("midi_check7bits 2");
-                    return;
+                    return false;
                 }
                 int velocity = *iter++;
                 bool found = false;
@@ -110,12 +110,12 @@ void NoteTakerParseMidi::parseMidi() {
             case NOTE_ON: {
                 if (!midi_check7bits(iter)) {
                     debug("midi_check7bits 3");
-                    return;
+                    return false;
                 }
                 displayNote.setPitch(*iter++);
                 if (!midi_check7bits(iter)) {
                     debug("midi_check7bits 4");
-                    return;
+                    return false;
                 }
                 displayNote.setOnVelocity(*iter++);
                 DisplayNote& prior = parsedNotes.back();
@@ -137,7 +137,7 @@ void NoteTakerParseMidi::parseMidi() {
                 for (int i = 0; i < 2; i++) {
                     if (!midi_check7bits(iter)) {
                         debug("midi_check7bits 5");
-                        return;
+                        return false;
                     }
                     displayNote.data[i] = *iter++;
                 }
@@ -146,7 +146,7 @@ void NoteTakerParseMidi::parseMidi() {
             case CHANNEL_PRESSURE:
                 if (!midi_check7bits(iter)) {
                     debug("midi_check7bits 6");
-                    return;
+                    return false;
                 }
                 displayNote.data[0] = *iter++;
             break;
@@ -167,7 +167,7 @@ void NoteTakerParseMidi::parseMidi() {
                         for (int i = 0; i < 2; i++) {
                             if (!midi_check7bits(iter)) {
                                 debug("midi_check7bits 7");
-                                return;
+                                return false;
                             }
                             displayNote.data[i] = *iter++;
                         }
@@ -175,7 +175,7 @@ void NoteTakerParseMidi::parseMidi() {
                     case 0x3: // song select
                         if (!midi_check7bits(iter)) {
                             debug("midi_check7bits 8");
-                            return;
+                            return false;
                         }
                         displayNote.data[0] = *iter++;
                     break;
@@ -189,12 +189,12 @@ void NoteTakerParseMidi::parseMidi() {
                     case 0xF: // meta event
                         if (!midi_check7bits(iter)) {
                             debug("midi_check7bits 9");
-                            return;
+                            return false;
                         }
                         displayNote.data[0] = *iter++;
                         if (!midi_size8(iter, &displayNote.data[1])) {
                             debug("expected meta event length\n");
-                            return;
+                            return false;
                         }
                         switch (displayNote.data[0]) {
                             case 0x00:  // sequence number: 
@@ -203,14 +203,14 @@ void NoteTakerParseMidi::parseMidi() {
                                     for (int i = 2; i < 4; i++) {
                                         if (!midi_check7bits(iter)) {
                                             debug("midi_check7bits 10");
-                                            return;
+                                            return false;
                                         }
                                         displayNote.data[i] = *iter++;
                                     }
                                 } else if (0 != displayNote.data[1]) {
                                     debug("expected sequence number length of 0 or 2: %d\n",
                                             displayNote.data[1]);
-                                    return;
+                                    return false;
                                 }
                             break;
                             case 0x01: // text event
@@ -231,11 +231,11 @@ void NoteTakerParseMidi::parseMidi() {
                                 if (1 != displayNote.data[1]) {
                                     debug("expected channel prefix length == 1 %d\n",
                                             displayNote.data[1]);
-                                    return;
+                                    return false;
                                 }
                                 if (!midi_check7bits(iter)) {
                                     debug("midi_check7bits 11");
-                                    return;
+                                    return false;
                                 }
                                 displayNote.data[2] = *iter++;
                             break;
@@ -244,7 +244,7 @@ void NoteTakerParseMidi::parseMidi() {
                                 if (0 != displayNote.data[1]) {
                                     debug("expected end of track length == 0 %d\n",
                                             displayNote.data[1]);
-                                    return;
+                                    return false;
                                 }
                             break;
                             case 0x51:  // set tempo
@@ -252,18 +252,18 @@ void NoteTakerParseMidi::parseMidi() {
                                 if (3 != displayNote.data[1]) {
                                     debug("expected set tempo length == 3 %d\n",
                                             displayNote.data[1]);
-                                    return;
+                                    return false;
                                 }
                                 if (!midi_size24(iter, &displayNote.data[2])) {
                                     debug("midi_size24");
-                                    return;
+                                    return false;
                                 }
                             break;
                             case 0x54: // SMPTE offset
                                 if (5 != displayNote.data[1]) {
                                     debug("expected SMPTE offset length == 5 %d\n",
                                             displayNote.data[1]);
-                                    return;
+                                    return false;
                                 }
                                 displayNote.data[2] = iter - midi.begin();
                                 std::advance(iter, displayNote.data[1]);
@@ -273,13 +273,13 @@ void NoteTakerParseMidi::parseMidi() {
                                 for (int i = 0; i < 4; ++i) {
                                     if (!midi_check7bits(iter)) {
                                         debug("midi_check7bits 12");
-                                        return;
+                                        return false;
                                     }
                                     displayNote.data[i] = *iter++;
                                 }
                                 if (!displayNote.isValid()) {
                                     debug("invalid %s 2", displayNote.debugString().c_str());
-                                    return;
+                                    return false;
                                 }
                             break;
                             case 0x59:  // key signature
@@ -288,7 +288,7 @@ void NoteTakerParseMidi::parseMidi() {
                                 displayNote.data[1] = *iter++;
                                 if (!displayNote.isValid()) {
                                     debug("invalid %s 3", displayNote.debugString().c_str());
-                                    return;
+                                    return false;
                                 }
                             break;
                             case 0x7F: // sequencer specific meta event
@@ -307,13 +307,13 @@ void NoteTakerParseMidi::parseMidi() {
                     default:    
                         debug("unexpected real time message 0x%02x\n",
                                 0xF0 | displayNote.channel);
-                        return;
+                        return false;
                 }
                 displayNote.channel = 0xFF;
             break;
             default:
                 debug("unexpected byte %d\n", *iter);
-                return;
+                return false;
         }
         // hijack 0x00 0xBx 0x57-0x5A 0xXX to set sustain and release parameters
         // only intercepts if it occurs at time zero, and 0xXX value is in range
@@ -329,4 +329,5 @@ void NoteTakerParseMidi::parseMidi() {
     }
     NoteTaker::DebugDump(parsedNotes);
     displayNotes.swap(parsedNotes);
+    return true;
 }

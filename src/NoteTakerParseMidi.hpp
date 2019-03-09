@@ -12,7 +12,7 @@ public:
         , channels(c) {       
     }
 
-    void parseMidi();
+    bool parseMidi();
 private:
     const vector<uint8_t>& midi;
     vector<DisplayNote>& displayNotes;
