@@ -686,6 +686,13 @@ void NoteTakerDisplay::drawFileControl(NVGcontext* vg) {
     nvgStroke(vg);
 }
 
+void NoteTakerDisplay::drawPartControl(NVGcontext* vg) const {
+    this->drawVerticalLabel(vg, "locked", true, loading, 0);
+    this->drawVerticalLabel(vg, "editable", true, saving, box.size.y - 50);
+    this->drawVerticalControl(vg);
+
+}
+
 void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
     // draw vertical control
     nvgBeginPath(vg);

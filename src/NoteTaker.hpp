@@ -62,7 +62,7 @@ struct NoteTaker : Module {
     // state saved into json
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
-    array<NoteTakerChannel, CHANNEL_COUNT> channels;
+    array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
     NoteTakerDisplay* display = nullptr;
     CutButton* cutButton = nullptr;
     FileButton* fileButton = nullptr;
@@ -83,9 +83,10 @@ struct NoteTaker : Module {
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute
     int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
-    // end of state saved into json
+    // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
     float realSeconds = 0;                  // seconds for UI timers
+    // written outside of step
     bool playingSelection = false;          // if set, provides feedback when editing notes
     
     NoteTaker();

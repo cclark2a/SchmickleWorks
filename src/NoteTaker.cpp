@@ -392,13 +392,12 @@ void NoteTaker::step() {
         } else {
             // to do : add option to stop running
             elapsedSeconds = 0;
-            midiTime = 0;
-            displayStart = 0;
+            displayStart = 0;   // to do : don't write to same state in different threads
         }
         return;
     }
     if (this->isRunning()) {
-        this->setSelectStartAt(midiTime);
+        this->setSelectStartAt(midiTime);  // to do : don't write to same state in different threads
     }
     this->outputNoteAt(midiTime);
 }
