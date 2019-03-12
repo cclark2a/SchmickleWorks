@@ -14,7 +14,8 @@ struct SelectButton;
 struct SustainButton;
 struct TimeButton;
 struct NoteTakerDisplay;
-struct NoteTakerWheel;
+struct HorizontalWheel;
+struct VerticalWheel;
 
 struct NoteTaker : Module {
 	enum ParamIds {
@@ -74,8 +75,8 @@ struct NoteTaker : Module {
     SelectButton* selectButton = nullptr;
     SustainButton* sustainButton = nullptr;
     TimeButton* timeButton = nullptr;
-    NoteTakerWheel* horizontalWheel = nullptr;
-    NoteTakerWheel* verticalWheel = nullptr;
+    HorizontalWheel* horizontalWheel = nullptr;
+    VerticalWheel* verticalWheel = nullptr;
     unsigned displayStart = 0;              // index into allNotes of first visible note
     unsigned displayEnd = 0;
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)

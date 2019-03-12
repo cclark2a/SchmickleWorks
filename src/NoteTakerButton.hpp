@@ -4,6 +4,9 @@
 
 struct NoteTaker;
 
+// to do : turn off led buttons as needed : 
+// e.g., partButton and fileButton are exclusive
+
 struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
     int af = 0;  // animation frame, 0 to 1
     bool hasLed = false;
@@ -221,20 +224,20 @@ struct SelectButton : EditLEDButton {
 // stateful button that chooses if vertical wheel changes pitch or part
 // wheel up / down chooses one channel or chooses all channels
 struct PartButton : EditLEDButton {
-    unsigned lastChannels = 1; // saved channel last time part button pressed
+    unsigned addChannel = 1;  // channel for single note inserts
 
     void draw(NVGcontext *vg) override;
 
     void fromJson(json_t* root) override {
         NoteTakerButton::fromJson(root);
-        lastChannels = json_integer_value(json_object_get(root, "lastChannels"));
+        addChannel = json_integer_value(json_object_get(root, "addChannel"));
     }
 
     void onDragEnd(EventDragEnd &e) override;
 
     json_t *toJson() const override {
         json_t* root = NoteTakerButton::toJson();
-        json_object_set_new(root, "lastChannels", json_integer(lastChannels));
+        json_object_set_new(root, "addChannel", json_integer(addChannel));
         return root;
     }
 };

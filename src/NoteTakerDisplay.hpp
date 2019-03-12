@@ -41,8 +41,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
-    bool loading = false;
-    bool saving = false;
+    bool upSelected = false;
+    bool downSelected = false;
     bool xPositionsInvalid = false;
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);

@@ -83,6 +83,12 @@ struct HorizontalWheel : NoteTakerWheel {
         drawGear(vg, 1.f - fmodf(value + 1, 1));
     }
 
+    // all = -1, 0 to CV_OUTPUTS - 1, all = CV_OUTPUTS
+    int part() const {
+        float fslot = value + .5;
+        return fslot < 0 ? -1 : (int) fslot;
+    }
+
     void onDragMove(EventDragMove& e) override;
 };
 

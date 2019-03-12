@@ -85,7 +85,7 @@ bool NoteTaker::isRunning() const {
 }
 
 bool NoteTaker::isSelectable(const DisplayNote& note) const {
-    return note.isSelectable(selectButton->ledOn ? ALL_CHANNELS : selectChannels);
+    return note.isSelectable(selectChannels);
 }
 
 void NoteTaker::loadScore() {

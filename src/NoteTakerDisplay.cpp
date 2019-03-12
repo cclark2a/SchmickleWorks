@@ -417,10 +417,12 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
         }
         switch (note.type) {
             case NOTE_ON:
-                this->drawBarNote(vg, bar, note, this->xPos(index) + 8, 0xFF);              
+                this->drawBarNote(vg, bar, note, this->xPos(index) + 8,
+                        module->isSelectable(note) ? 0xff : 0x7f);              
             break;
             case REST_TYPE:
-                this->drawBarRest(vg, bar, note, this->xPos(index) + 8, 0xFF);
+                this->drawBarRest(vg, bar, note, this->xPos(index) + 8,
+                        module->isSelectable(note) ? 0xff : 0x7f);
             break;
             case MIDI_HEADER:
             break;
@@ -483,8 +485,20 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
                 assert(0); // incomplete
         }
     }
+    if (upSelected || downSelected) {
+        float val = module->verticalWheel->value;
+        const float autoLoadSaveWheelSpeed = .2f;
+        module->verticalWheel->value += val > 5 ? -autoLoadSaveWheelSpeed : +autoLoadSaveWheelSpeed;
+        if (5 - autoLoadSaveWheelSpeed < val && val < 5 + autoLoadSaveWheelSpeed) {
+            upSelected = false;
+            downSelected = false;
+        }
+    }
     if (module->fileButton->ledOn) {
         this->drawFileControl(vg);
+    }
+    if (module->partButton->ledOn) {
+        this->drawPartControl(vg);
     }
     if (module->sustainButton->ledOn) {
         this->drawSustainControl(vg);
@@ -560,18 +574,9 @@ void NoteTakerDisplay::drawVerticalLabel(NVGcontext* vg, const char* label, bool
 
 void NoteTakerDisplay::drawFileControl(NVGcontext* vg) {
     bool loadEnabled = (unsigned) module->horizontalWheel->value < module->storage.size();
-    this->drawVerticalLabel(vg, "load", loadEnabled, loading, 0);
-    this->drawVerticalLabel(vg, "save", true, saving, box.size.y - 50);
+    this->drawVerticalLabel(vg, "load", loadEnabled, upSelected, 0);
+    this->drawVerticalLabel(vg, "save", true, downSelected, box.size.y - 50);
     this->drawVerticalControl(vg);
-    if (loading || saving) {
-        float val = module->verticalWheel->value;
-        const float autoLoadSaveWheelSpeed = .2f;
-        module->verticalWheel->value += val > 5 ? -autoLoadSaveWheelSpeed : +autoLoadSaveWheelSpeed;
-        if (5 - autoLoadSaveWheelSpeed < val && val < 5 + autoLoadSaveWheelSpeed) {
-            loading = false;
-            saving = false;
-        }
-    }
     // draw horizontal control
     const float boxWidth = 25;
     float fSlot = module->horizontalWheel->value;
@@ -687,10 +692,54 @@ void NoteTakerDisplay::drawFileControl(NVGcontext* vg) {
 }
 
 void NoteTakerDisplay::drawPartControl(NVGcontext* vg) const {
-    this->drawVerticalLabel(vg, "locked", true, loading, 0);
-    this->drawVerticalLabel(vg, "editable", true, saving, box.size.y - 50);
+    int part = module->horizontalWheel->part();
+    bool lockEnable = part < 0 ? true : module->selectChannels & (1 << part);
+    bool editEnable = part < 0 ? true : !lockEnable;
+    // to do : locked disabled if channel is already locked, etc
+    this->drawVerticalLabel(vg, "lock", lockEnable, upSelected, 0);
+    this->drawVerticalLabel(vg, "edit", editEnable, downSelected, box.size.y - 50);
     this->drawVerticalControl(vg);
-
+    // draw horizontal control
+    const float boxWidth = 20;
+    const float boxHeight = 15;
+    nvgBeginPath(vg);
+//    nvgRect(vg, 40, box.size.y - boxHeight - 25, boxWidth * 4, 10);
+//    nvgRect(vg, 40, box.size.y - 15, boxWidth * 4, 10);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7f));
+    nvgFill(vg);
+    nvgFontFaceId(vg, module->textFont->handle);
+    nvgTextAlign(vg, NVG_ALIGN_CENTER);
+    nvgFontSize(vg, 13);
+    for (int index = -1; index < (int) CV_OUTPUTS; ++index) {
+        nvgBeginPath(vg);
+        nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 15,
+                boxWidth, boxHeight);
+        if (index >= 0 && ~(module->selectChannels & (1 << index))) {
+            nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 25,
+                   boxWidth, 10);            
+        }
+        if (index >= 0 && (module->selectChannels & (1 << index))) {
+            nvgRect(vg, 60 + index * boxWidth, box.size.y - 15,
+                   boxWidth, 10);            
+        }
+        nvgFillColor(vg, nvgRGBA((1 == index) * 0xBf, (3 == index) * 0x7f,
+                (2 == index) * 0x7f, index == part ? 0xaf : 0x6f));
+        nvgFill(vg);
+        nvgBeginPath(vg);
+        nvgCircle(vg, 60 + (index + 0.5f) * boxWidth,
+            box.size.y - boxHeight / 2 - 15, 7);
+        nvgFillColor(vg, nvgRGBA((1 == index) * 0xBf, (3 == index) * 0x7f,
+                (2 == index) * 0x7f, index == part ? 0xcf : 0x6f));
+        nvgFill(vg);
+        const char num[2] = { (char) ('1' + index), '\0' };
+        nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xbf));
+        const char* str = index < 0 ? "all" : num;
+        nvgText(vg, 60 + (index + 0.5f) * boxWidth, box.size.y - 18,
+                str, nullptr);
+    }
+    nvgFontSize(vg, 9);
+    nvgText(vg, 40 + boxWidth * 2.5, box.size.y - boxHeight - 18, "l  o  c  k  e  d", nullptr);
+    nvgText(vg, 40 + boxWidth * 2.5, box.size.y - 7, "e d i t a b l e", nullptr);
 }
 
 void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {

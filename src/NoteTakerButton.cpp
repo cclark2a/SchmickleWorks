@@ -130,10 +130,12 @@ void PartButton::onDragEnd(EventDragEnd &e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
-        lastChannels = nt->selectChannels;
-        nt->selectChannels = ALL_CHANNELS;
+        int part = nt->horizontalWheel->part();
+        if (part >= 0) {
+            addChannel = part;
+        }
     } else {
-        nt->selectChannels = lastChannels;
+        nt->horizontalWheel->value = addChannel;
     }
     nt->setWheelRange();  // range is larger
 }

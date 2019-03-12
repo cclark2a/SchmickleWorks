@@ -13,7 +13,7 @@ void NoteTaker::setVerticalWheelRange() {
         verticalWheel->speed = .1;
         return;
     }
-    if (fileButton->ledOn) {
+    if (fileButton->ledOn || partButton->ledOn) {
         verticalWheel->setLimits(0, 10);
         verticalWheel->setValue(5);
         verticalWheel->speed = 2;
@@ -24,11 +24,6 @@ void NoteTaker::setVerticalWheelRange() {
         verticalWheel->setValue(2.5f); // sustain min
         verticalWheel->speed = 1;
         return;
-    }
-    if (partButton->ledOn) {
-        verticalWheel->setLimits(0, CV_OUTPUTS);
-        verticalWheel->setValue(partButton->lastChannels);
-        verticalWheel->speed = 1;
     }
     if (isEmpty()) {
         return;
@@ -50,21 +45,12 @@ void NoteTaker::setVerticalWheelRange() {
     }
     unsigned start = selectStart;
     while (start < selectEnd && (NOTE_ON != note->type || !note->isSelectable(selectChannels))) {
-        note->selected = false;
         note = &allNotes[++start];
     }
     bool validNote = start < selectEnd && NOTE_ON == note->type;
-    if (!partButton->ledOn) {
-        verticalWheel->setLimits(0, 127);  // range for midi pitch
-        verticalWheel->setValue(validNote ? note->pitch() : 60);
-        verticalWheel->speed = .1;
-    } else if (!selectButton->ledOn) {
-        verticalWheel->setValue(validNote ? note->channel : 1);
-        while (start < selectEnd) {
-            note->selected = NOTE_ON == note->type && note->isSelectable(selectChannels);
-            note = &allNotes[++start];
-        }
-    }
+    verticalWheel->setLimits(0, 127);  // range for midi pitch
+    verticalWheel->setValue(validNote ? note->pitch() : 60);
+    verticalWheel->speed = .1;
 }
 
 void NoteTaker::setHorizontalWheelRange() {
@@ -151,8 +137,7 @@ void NoteTaker::updateHorizontal() {
     if (this->isRunning()) {
         return;
     }
-    if (fileButton->ledOn) {
-        // to do : nudge to next valid value once I figure out how that should work, exactly
+    if (fileButton->ledOn || partButton->ledOn) {
         return;
     }
     if (!horizontalWheel->hasChanged()) {
@@ -234,15 +219,33 @@ void NoteTaker::updateVertical() {
         return;
     }
     const int wheelValue = verticalWheel->wheelValue();
-    if (fileButton->ledOn) {
+    if (fileButton->ledOn || partButton->ledOn) {
         if (verticalWheel->value <= 2) {
-            display->saving = true;
-            this->saveScore();
+            display->downSelected = true;
+            if (fileButton->ledOn) {
+                this->saveScore();
+            } else {
+                int part = horizontalWheel->part();
+                if (part < 0) {
+                    selectChannels = ALL_CHANNELS;
+                } else {
+                    selectChannels |= 1 << part;
+                }
+            }
         }
         if (verticalWheel->value >= 8 && (unsigned) horizontalWheel->value < storage.size()) {
             debug("updateVertical loadScore");
-            display->loading = true;
-            this->loadScore();
+            display->upSelected = true;
+            if (fileButton->ledOn) {
+                this->loadScore();
+            } else {
+                int part = horizontalWheel->part();
+                if (part < 0) {
+                    selectChannels = 0;
+                } else {
+                    selectChannels &= ~(1 << part);
+                }
+            }
         }
         return;
     }
@@ -267,10 +270,6 @@ void NoteTaker::updateVertical() {
         }
         horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainDuration));
     }
-    if (partButton->ledOn && selectButton->ledOn) {
-        selectChannels = 1 << wheelValue;
-        return;
-    }
     // transpose selection
     // loop below computes diff of first note, and adds diff to subsequent notes in select
     int diff = 0;
@@ -278,14 +277,14 @@ void NoteTaker::updateVertical() {
         DisplayNote& note = allNotes[index];
         switch (note.type) {
             case KEY_SIGNATURE:
-                if (selectStart + 1 == selectEnd && !partButton->ledOn) {
+                if (selectStart + 1 == selectEnd) {
                     note.setKey(wheelValue);
                     display->xPositionsInvalid = true;
                     display->updateXPosition();
                 }
                 break;
             case TIME_SIGNATURE:
-                if (selectStart + 1 == selectEnd && !partButton->ledOn && !selectButton->ledOn) {
+                if (selectStart + 1 == selectEnd && !selectButton->ledOn) {
                     if (!wheelValue) {
                         horizontalWheel->setLimits(0, 6.99);   // denom limit 0 to 6 (2^N, 1 to 64)
                         horizontalWheel->value = note.numerator();
@@ -298,11 +297,7 @@ void NoteTaker::updateVertical() {
                 }
                 break;
             case NOTE_ON: {
-                if (partButton->ledOn ? !note.selected : !note.isSelectable(selectChannels)) {
-                    continue;
-                }
-                if (partButton->ledOn) {
-                    note.setChannel(wheelValue);
+                if (!note.isSelectable(selectChannels)) {
                     continue;
                 }
                 int value;
