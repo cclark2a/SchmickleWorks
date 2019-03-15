@@ -7,6 +7,7 @@ struct CutButton;
 struct FileButton;
 struct InsertButton;
 struct KeyButton;
+struct NoteTakerButton;
 struct PartButton;
 struct RestButton;
 struct RunButton;
@@ -87,10 +88,19 @@ struct NoteTaker : Module {
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
     float realSeconds = 0;                  // seconds for UI timers
-    // written outside of step
-    bool playingSelection = false;          // if set, provides feedback when editing notes
+    unsigned playStart = 0;                 // index of notes output
     
     NoteTaker();
+
+    bool advancePlayStart(int midiTime, unsigned lastNote) {
+        while (allNotes[playStart].endTime() <= midiTime) {
+            if (playStart == lastNote) {
+                return true;
+            }
+            ++playStart;
+        }
+        return false;
+    }
 
     void alignStart() {
         if (!selectStart && !this->isEmpty()) {
@@ -117,7 +127,7 @@ struct NoteTaker : Module {
         }
     }
 
-    void debugDump(bool validatable = true) const;
+    void debugDump(bool validatable = true, bool inWheel = false) const;
     static void DebugDump(const vector<DisplayNote>& , const vector<int>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
 
@@ -128,30 +138,11 @@ struct NoteTaker : Module {
         this->debugDump();
     }
 
-    // returns lowest numbered selectChannel, channel-wide edits affect all select
-    unsigned firstChannel() const {
-        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
-            if (selectChannels & (1 << index)) {
-                return index;
-            }
-        }
-        assert(0);  // at least one should always be selected
-        return INT_MAX;
-    }
-
     void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
-    unsigned isBestSelectStart(int midiTime) const;
     bool isEmpty() const;
     bool isRunning() const;
     bool isSelectable(const DisplayNote& note) const;
-
-    bool lastNoteEnded(unsigned index, int midiTime) const {
-        assert(index < allNotes.size());
-        const DisplayNote& last = allNotes[index];
-        return last.endTime() <= midiTime;
-    }
-
     void loadScore();
 
     static void MapChannel(vector<DisplayNote>& notes, unsigned channel) {
@@ -166,20 +157,36 @@ struct NoteTaker : Module {
         return (unsigned) (&note - &allNotes.front());
     }
 
-    int noteToWheel(unsigned index) const {
+    int noteToWheel(unsigned index, bool dbug = true) const {
         assert(index < allNotes.size());
-        return noteToWheel(allNotes[index]);
+        return noteToWheel(allNotes[index], dbug);
     }
 
-    int noteToWheel(const DisplayNote& ) const;
-    unsigned wheelToNote(int value) const;  // maps wheel value to index in allNotes
-    void outputNote(const DisplayNote& note, int midiTime);
-    void outputNoteAt(int midiTime);
+    int noteToWheel(const DisplayNote& , bool dbug = true) const;
     void playSelection();
     void readStorage();
     void reset() override;
-    void resetButtons();
+    void resetLedButtons(const NoteTakerButton* exceptFor = nullptr);
+
+    void resetRun() {
+        elapsedSeconds = 0;
+        playStart = 0;
+        this->setPlayStart();
+}
+
+    void resetControls();
     void saveScore();
+
+    unsigned selectEndPos(unsigned select) const {
+        const DisplayNote& first = allNotes[select];
+        const DisplayNote* test;
+        do {
+            test = &allNotes[++select];
+        } while (NOTE_ON == first.type && NOTE_ON == test->type
+                && first.startTime == test->startTime);
+        return select;
+    }
+
     void setScoreEmpty();
 
     void setGateLow(const DisplayNote& note) {
@@ -208,31 +215,26 @@ struct NoteTaker : Module {
         }
     }
 
+    void setPlayStart();
     void setSelect(unsigned start, unsigned end);
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
-    void setSelectStartAt(int midiTime);
     void setHorizontalWheelRange();
     void setVerticalWheelRange();
     void setWheelRange();
 
     void shiftNotes(unsigned start, int diff) {
-        if (ALL_CHANNELS == selectChannels) {
-            return ShiftNotes(allNotes, start, diff);
-        }
-        for (unsigned index = start; index < allNotes.size(); ++index) {
-            DisplayNote& note = allNotes[index];
-            if (note.isSelectable(selectChannels)) {
-                note.startTime += diff;
-            }
-            // to do : if adjusted note overlaps rest, reduce rest
-            //         if adjusted note overlaps measure, insert rest to create new one
-        }
+        debug("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
+        ShiftNotes(allNotes, start, diff, selectChannels);
     }
 
-    static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff) {
+    static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff,
+            unsigned selectChannels = ALL_CHANNELS) {
          for (unsigned index = start; index < notes.size(); ++index) {
-            notes[index].startTime += diff;
+            DisplayNote& note = notes[index];
+            if (0xFF == note.channel || note.isSelectable(selectChannels)) {
+                note.startTime += diff;
+            }
         }    
    }
 
@@ -242,6 +244,7 @@ struct NoteTaker : Module {
     void updateVertical();
     void updateXPosition();
     void validate() const;
+    unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in allNotes
     void writeStorage(unsigned index) const;
 
     void zeroGates() {

@@ -69,9 +69,15 @@ void NoteTaker::setHorizontalWheelRange() {
         horizontalWheel->speed = 1;
         return;
     }
+    if (partButton->ledOn) {
+        horizontalWheel->setLimits(-1, CV_OUTPUTS);
+        horizontalWheel->setValue(partButton->addChannel);
+        horizontalWheel->speed = 1;
+        return;
+    }
     if (sustainButton->ledOn) {
         horizontalWheel->setLimits(0, noteDurations.size() - 1);
-        int sustainMinDuration = channels[this->firstChannel()].sustainMin;
+        int sustainMinDuration = channels[partButton->addChannel].sustainMin;
         horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainMinDuration));
         horizontalWheel->speed = 1;
         return;
@@ -145,7 +151,7 @@ void NoteTaker::updateHorizontal() {
     }
     const int wheelValue = horizontalWheel->wheelValue();
     if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = channels[this->firstChannel()];
+        NoteTakerChannel& channel = channels[partButton->addChannel];
         channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value, noteDurations[wheelValue]);
         return;
     }
@@ -154,10 +160,11 @@ void NoteTaker::updateHorizontal() {
     }
     bool noteChanged = false;
     if (!selectButton->ledOn) {
-        int diff = 0;
+        array<int, CHANNEL_COUNT> diff;
+        diff.fill(0);
         for (unsigned index = selectStart; index < selectEnd; ++index) {
             DisplayNote& note = allNotes[index];
-            note.startTime += diff;
+            note.startTime += diff[note.channel];
             if (this->isSelectable(note)) {
                 switch (note.type) {
                     case NOTE_ON:
@@ -185,14 +192,18 @@ void NoteTaker::updateHorizontal() {
                 }
                 if (KEY_SIGNATURE != note.type && TIME_SIGNATURE != note.type) {
                     int duration = noteDurations[wheelValue];
-                    diff += duration - note.duration;
+                    diff[note.channel] += duration - note.duration;
                     note.duration = duration;
                 }
             }
         }
-        if (diff) {
-            this->shiftNotes(selectEnd, diff);
-            noteChanged = true;
+        for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
+            if (diff[chan]) {
+                ShiftNotes(allNotes, selectEnd, diff[chan], 1 << chan);
+                noteChanged = true;
+            }
+        }
+        if (noteChanged) {
             display->xPositionsInvalid = true;
             this->setSelect(selectStart, selectEnd);
         }
@@ -220,6 +231,7 @@ void NoteTaker::updateVertical() {
     }
     const int wheelValue = verticalWheel->wheelValue();
     if (fileButton->ledOn || partButton->ledOn) {
+        debug("updateVertical upSelected %d downSelected %d", display->upSelected, display->downSelected);
         if (verticalWheel->value <= 2) {
             display->downSelected = true;
             if (fileButton->ledOn) {
@@ -233,10 +245,10 @@ void NoteTaker::updateVertical() {
                 }
             }
         }
-        if (verticalWheel->value >= 8 && (unsigned) horizontalWheel->value < storage.size()) {
+        if (verticalWheel->value >= 8) {
             debug("updateVertical loadScore");
             display->upSelected = true;
-            if (fileButton->ledOn) {
+            if (fileButton->ledOn && (unsigned) horizontalWheel->value < storage.size()) {
                 this->loadScore();
             } else {
                 int part = horizontalWheel->part();
@@ -250,7 +262,7 @@ void NoteTaker::updateVertical() {
         return;
     }
     if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = channels[this->firstChannel()];
+        NoteTakerChannel& channel = channels[partButton->addChannel];
         int sustainDuration = INT_MAX;
         switch(wheelValue) {
             case 3: // to do : create enum to identify values

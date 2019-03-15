@@ -11,10 +11,6 @@ static void Press(NoteTaker* n, MomentarySwitch* ms) {
     n->debugDump();
 }
 
-static void ResetButtons(NoteTaker* n) {
-    n->resetButtons();
-}
-
 static void WheelUp(NoteTaker* n, float value) {
     n->verticalWheel->value = value;
     EventDragMove evm;
@@ -79,7 +75,7 @@ void UnitTest(NoteTaker* n) {
     assert(n->isEmpty());
 
     debug("press select button with empty score");
-    ResetButtons(n);
+    n->resetControls();
     assert(!n->selectButton->ledOn);
     ExerciseWheels(n);
     Press(n, n->selectButton);
@@ -94,7 +90,7 @@ void UnitTest(NoteTaker* n) {
     n->validate();
 
     debug("press part button with empty score");
-    ResetButtons(n);
+    n->resetControls();
     assert(!n->partButton->ledOn);
     ExerciseWheels(n);
     Press(n, n->partButton);
@@ -140,7 +136,4 @@ void UnitTest(NoteTaker* n) {
 
     debug("restore defaults");
     n->reset();
-//    n->setUpSampleNotes();
-    ResetButtons(n);
-//    n->setDisplayEnd();
 }

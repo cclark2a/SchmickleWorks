@@ -1,5 +1,7 @@
 #include "NoteTaker.hpp"
+#include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
+#include "NoteTakerWheel.hpp"
 
 struct DisplayTypeNames {
     DisplayType type;
@@ -56,13 +58,27 @@ std::string DisplayNote::debugString() const {
     return s;
 }
 
-
-void NoteTaker::debugDump(bool validatable) const {
-    debug("display xOffset: %g", display->xAxisOffset);
+void NoteTaker::debugDump(bool validatable, bool inWheel) const {
+    debug("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
+    debug("horz: %s vert: %s",
+            horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
     debug("select s/e %u %u display s/e %u %u chans 0x%02x tempo %d ppq %d",
             selectStart, selectEnd, displayStart, displayEnd, selectChannels, tempo, ppq);
     NoteTaker::DebugDump(allNotes, &display->xPositions, selectStart, selectEnd);
     this->debugDumpChannels();
+    if (!inWheel && selectButton->ledOn) {
+        std::string w2n;
+        for (int index = horizontalWheel->minValue; index < horizontalWheel->maxValue; ++index) {
+            w2n += " " + std::to_string(index) + "/" + std::to_string((int) this->wheelToNote(index, false));
+        }
+        debug("wheelToNote:%s", w2n.c_str());
+        std::string n2w;
+        unsigned idx = 0;
+        for (const auto& note : allNotes) {
+            n2w += " " + std::to_string(idx++) + "/" + std::to_string(this->noteToWheel(note, false));
+        }
+        debug("noteToWheel:%s", n2w.c_str());
+    }
     if (validatable) {
         this->validate();
     }
@@ -171,5 +187,9 @@ void NoteTaker::validate() const {
     }
     if (!malformed && !sawTrailer) {
         debug("missing trailer");
+        malformed = true;
+    }
+    if (malformed) {
+        assert(0);
     }
 }

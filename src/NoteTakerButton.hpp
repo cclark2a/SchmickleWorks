@@ -139,6 +139,27 @@ struct EditLEDButton : EditButton {
         hasLed = true;
     }
 
+    void reset() override {
+        if (ledOn) {
+            EventDragEnd e;
+            this->onDragEnd(e);
+        }
+        NoteTakerButton::reset();
+    }
+
+};
+
+// shared by time signature and rest, but not insert
+struct AdderButton : EditButton {
+    // locals are not read/written to json; in a struct as a convenience, not persistent
+    unsigned insertLoc;
+    unsigned shiftLoc;
+    int startTime;
+    int shiftTime;
+    int duration; 
+
+    void onDragEndPreamble(EventDragEnd &e);
+    void onDragEnd(EventDragEnd &e) override;
 };
 
 // by default, wheels control pitch, duration
@@ -169,10 +190,95 @@ struct EditLEDButton : EditButton {
 //              - enter / run (1st) extends selection
 //              - enter / run (2nd) copies selection to clipboard, turns off select
 
+// cut button, momentary (no led)
+//   cut with single select saves cut, deletes one note
+//   cut with extend select saves cut, deletes range, select select to single
+//   cut with select button off deletes current selection, does not modify clipboard
+//   select off discards clipboard
+//   if cut is saved in clipboard, insert adds clipboard as paste
+struct CutButton : EditButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+
+// to do : remove DumpButton
+// temporary button to dump notes for debugging
+struct DumpButton : EditButton {
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+struct FileButton : EditLEDButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
 // insert adds new note to right of select, defaulting to selected note / cut buffer
 // insert turns off select
 struct InsertButton : EditButton {
     void draw(NVGcontext *vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+struct KeyButton : AdderButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+// stateful button that chooses part to add, and parts to insert before
+// editStart / part / choose channel / add or cut
+// select / [ part / choose channels to copy ] / insert / part / choose where to insert / add
+// (no select) / part / choose channel / add or cut
+struct PartButton : EditLEDButton {
+    uint8_t addChannel = 0;  // channel for single note inserts
+    bool allChannels = true;  // if false, paste is moved to addChannel
+
+    void draw(NVGcontext *vg) override;
+
+    void fromJson(json_t* root) override {
+        NoteTakerButton::fromJson(root);
+        addChannel = json_integer_value(json_object_get(root, "addChannel"));
+        allChannels = json_boolean_value(json_object_get(root, "allChannels"));
+    }
+
+    void onDragEnd(EventDragEnd &e) override;
+
+    json_t *toJson() const override {
+        json_t* root = NoteTakerButton::toJson();
+        json_object_set_new(root, "addChannel", json_integer(addChannel));
+        json_object_set_new(root, "allChannels", json_boolean(allChannels));
+        return root;
+    }
+};
+
+// if selection, exchange note / reset
+// if insertion, insert/delete rest
+// if duration, horizontal changes rest size, vertical has no effect
+struct RestButton : AdderButton {
+    void draw(NVGcontext *vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+// to do : consider allowing quick on/off to advance to next note in selection
+struct RunButton : NoteTakerButton {
+    RunButton() {
+        hasLed = true;
+        box.size.x = 25;
+        box.size.y = 45;
+    }
+
+    // to do : make a run button that depresses
+    void draw(NVGcontext* vg) override {
+        nvgBeginPath(vg);
+        nvgCircle(vg, 10, 10, 10);
+        nvgFillColor(vg, nvgRGB(0, 0, 0));
+        nvgFill(vg);
+        nvgBeginPath(vg);
+        nvgCircle(vg, 10, 10, 5);
+        nvgFillColor(vg, ledOn ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
+        nvgFill(vg);
+    }
+
     void onDragEnd(EventDragEnd &e) override;
 };
 
@@ -221,104 +327,12 @@ struct SelectButton : EditLEDButton {
     }
 };
 
-// stateful button that chooses if vertical wheel changes pitch or part
-// wheel up / down chooses one channel or chooses all channels
-struct PartButton : EditLEDButton {
-    unsigned addChannel = 1;  // channel for single note inserts
-
-    void draw(NVGcontext *vg) override;
-
-    void fromJson(json_t* root) override {
-        NoteTakerButton::fromJson(root);
-        addChannel = json_integer_value(json_object_get(root, "addChannel"));
-    }
-
-    void onDragEnd(EventDragEnd &e) override;
-
-    json_t *toJson() const override {
-        json_t* root = NoteTakerButton::toJson();
-        json_object_set_new(root, "addChannel", json_integer(addChannel));
-        return root;
-    }
-};
-
-// shared by time signature and rest, but not insert
-struct AdderButton : EditButton {
-    // locals are not read/written to json; in a struct as a convenience, not persistent
-    unsigned insertLoc;
-    unsigned shiftLoc;
-    int startTime;
-    int shiftTime;
-    int duration; 
-
-    void onDragEndPreamble(EventDragEnd &e);
-    void onDragEnd(EventDragEnd &e) override;
-};
-
-// if selection, exchange note / reset
-// if insertion, insert/delete rest
-// if duration, horizontal changes rest size, vertical has no effect
-struct RestButton : AdderButton {
-    void draw(NVGcontext *vg) override;
-    void onDragEnd(EventDragEnd &e) override;
-};
-
-// cut button, momentary (no led)
-//   cut with single select saves cut, deletes one note
-//   cut with extend select saves cut, deletes range, select select to single
-//   cut with select button off deletes current selection, does not modify clipboard
-//   select off discards clipboard
-//   if cut is saved in clipboard, insert adds clipboard as paste
-struct CutButton : EditButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
-};
-
-// to do : consider allowing quick on/off to advance to next note in selection
-struct RunButton : NoteTakerButton {
-    RunButton() {
-        hasLed = true;
-        box.size.x = 25;
-        box.size.y = 45;
-    }
-
-    // to do : make a run button that depresses
-    void draw(NVGcontext* vg) override {
-        nvgBeginPath(vg);
-        nvgCircle(vg, 10, 10, 10);
-        nvgFillColor(vg, nvgRGB(0, 0, 0));
-        nvgFill(vg);
-        nvgBeginPath(vg);
-        nvgCircle(vg, 10, 10, 5);
-        nvgFillColor(vg, ledOn ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
-        nvgFill(vg);
-    }
-
-    void onDragEnd(EventDragEnd &e) override;
-};
-
-struct FileButton : EditLEDButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
-};
-
 struct SustainButton : EditLEDButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
-};
-
-struct KeyButton : AdderButton {
     void draw(NVGcontext* vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };
 
 struct TimeButton : AdderButton {
     void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
-};
-
-// to do : remove below
-// temporary button to dump notes for debugging
-struct DumpButton : EditButton {
     void onDragEnd(EventDragEnd &e) override;
 };

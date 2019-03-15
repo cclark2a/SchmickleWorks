@@ -3,143 +3,6 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
-void EditButton::onDragStart(EventDragStart &e) {
-    NoteTaker* nt = nModule();
-    nt->runButton->ledOn = false;
-    NoteTakerButton::onDragStart(e);
-}
-
-void InsertButton::draw(NVGcontext *vg) {
-    EditButton::draw(vg);
-#if 0
-    // replace this with a font character if one can be found
-    nvgTranslate(vg, af, 6 - af);
-    nvgBeginPath(vg);
-    nvgMoveTo(vg, 6, 20);
-    nvgLineTo(vg, 8, 20);
-    nvgArcTo(vg, 9, 20, 9, 21, 1);
-    nvgLineTo(vg, 9, 32);
-    nvgArcTo(vg, 9, 33, 8, 33, 1);
-    nvgLineTo(vg, 6, 33);
-    nvgMoveTo(vg, 12, 20);
-    nvgLineTo(vg, 10, 20);
-    nvgArcTo(vg, 9, 20, 9, 21, 1);
-    nvgMoveTo(vg, 12, 33);
-    nvgLineTo(vg, 10, 33);
-    nvgArcTo(vg, 9, 33, 9, 32, 1);
-    nvgStrokeColor(vg, nvgRGB(0, 0, 0));
-    nvgStrokeWidth(vg, .5);
-    nvgStroke(vg);
-#else
-    nvgFontFaceId(vg, nModule()->musicFont->handle);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgFontSize(vg, 24);
-    nvgText(vg, 8 + af, 41 - af, "H", NULL);
-#endif
-}
-
-void InsertButton::onDragEnd(EventDragEnd &e) {
-    NoteTaker* nt = nModule();
-    SelectButton* selectButton = nt->selectButton;
-    unsigned insertLoc;
-    unsigned insertSize;
-    int shiftTime;
-    if (nt->isEmpty()) {
-        insertLoc = nt->allNotes.size() - 1;
-        assert(TRACK_END == nt->allNotes[insertLoc].type);
-        DisplayNote midC = { 0, stdTimePerQuarterNote, { 60, 0, stdKeyPressure, stdKeyPressure},
-                (uint8_t) nt->firstChannel(), NOTE_ON, false };
-        midC.setNote(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
-        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
-        insertSize = 1;
-        shiftTime = stdTimePerQuarterNote;
-        debug("add to empty");
-    } else {
-        vector<DisplayNote>* copyFrom = nullptr;
-        vector<DisplayNote> span;
-        insertLoc = !nt->selectStart ? nt->wheelToNote(0) : nt->selectEnd;
-        if (selectButton->editStart() && !nt->clipboard.empty()) { // paste part of copy n paste
-            copyFrom = &nt->clipboard;
-            debug("paste from clipboard"); NoteTaker::DebugDump(nt->clipboard);
-        } else {
-            copyFrom = &span;
-            unsigned iStart = !nt->selectStart ? insertLoc : nt->selectStart;
-            unsigned iEnd = nt->selectEnd;
-            !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
-            debug("iStart=%u iEnd=%u", iStart, iEnd);
-            for (unsigned index = iStart; index < iEnd; ++index) {
-                const auto& note = nt->allNotes[index];
-                if (nt->selectChannels & (1 << note.channel)) {
-                    span.push_back(note);
-                }
-            }
-            if (span.empty()) {
-                int channel = -1;
-                for (unsigned index = iStart; index < iEnd; ++index) {
-                    const auto& note = nt->allNotes[index];
-                    if (channel < 0 || note.channel == channel) {
-                        span.push_back(note);
-                        channel = note.channel;
-                    }
-                }
-            }
-        }
-        NoteTaker::ShiftNotes(*copyFrom, 0, nt->allNotes[insertLoc].startTime
-                - copyFrom->front().startTime);
-        if (ALL_CHANNELS != nt->selectChannels) {
-            NoteTaker::MapChannel(*copyFrom, nt->firstChannel());
-        }
-        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, copyFrom->begin(),
-                copyFrom->end());
-        insertSize = copyFrom->size();
-        // include notes on other channels that fit within the start/end window
-        int lastEndTime = copyFrom->back().endTime();
-        debug("insertSize=%u lastEndTime=%d", insertSize, lastEndTime);
-        do {
-            const auto& note = nt->allNotes[insertLoc + insertSize];
-            if (NOTE_ON != note.type || note.endTime() > lastEndTime
-                    || note.channel == nt->firstChannel()) {
-                break;
-            }
-        } while (++insertSize);
-        shiftTime = copyFrom->back().startTime - copyFrom->front().startTime
-                + copyFrom->back().duration;
-        debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
-                insertLoc, insertSize, shiftTime, nt->selectStart, nt->selectEnd);
-        nt->debugDump(false);
-    }
-    selectButton->reset();
-    nt->shiftNotes(insertLoc + insertSize, shiftTime);
-    nt->display->xPositionsInvalid = true;
-    nt->setSelect(insertLoc, insertLoc + insertSize);
-    debug("insert final"); nt->debugDump();
-    nt->setWheelRange();  // range is larger
-    nt->playSelection();
-    NoteTakerButton::onDragEnd(e);
-}
-
-void PartButton::draw(NVGcontext *vg) {
-    EditLEDButton::draw(vg);
-    nvgFontFaceId(vg, nModule()->musicFont->handle);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgFontSize(vg, 24);
-    nvgText(vg, 8 + af, 41 - af, "\"", NULL);
-}
-
-void PartButton::onDragEnd(EventDragEnd &e) {
-    NoteTaker* nt = nModule();
-    NoteTakerButton::onDragEnd(e);
-    if (!ledOn) {
-        int part = nt->horizontalWheel->part();
-        if (part >= 0) {
-            addChannel = part;
-        }
-    } else {
-        nt->horizontalWheel->value = addChannel;
-    }
-    nt->setWheelRange();  // range is larger
-}
-
 void AdderButton::onDragEndPreamble(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     SelectButton* selectButton = nt->selectButton;
@@ -181,11 +44,206 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     nt->display->xPositionsInvalid = true;
     nt->setSelect(insertLoc, insertLoc + 1);
+    nt->resetLedButtons();
     nt->setWheelRange();  // range is larger
     nt->debugDump();
 }
 
-void RestButton::draw(NVGcontext *vg) {
+void CutButton::draw(NVGcontext* vg) {
+        EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 4 + af, 41 - af, ";", NULL);
+}
+
+// to do : should a long press clear all?
+// maybe long press should put clear all: yes / no choice in display
+void CutButton::onDragEnd(EventDragEnd& e) {
+    NoteTaker* nt = nModule();
+    if (nt->isEmpty() || !nt->selectStart) {
+        return;
+    }
+    SelectButton* selectButton = nt->selectButton;
+    if (selectButton->editEnd()) {
+        nt->copyNotes();
+    }
+    selectButton->setSingle();
+    unsigned start = nt->selectStart;
+    unsigned end = nt->selectEnd;
+    int shiftTime = nt->allNotes[start].startTime - nt->allNotes[end].startTime;
+    nt->eraseNotes(start, end);
+    NoteTaker::ShiftNotes(nt->allNotes, start, shiftTime);
+    int wheelIndex = nt->noteToWheel(start);
+    nt->display->xPositionsInvalid = true;
+    nt->setSelect(nt->wheelToNote(wheelIndex - 1), start);
+    nt->resetLedButtons();
+    nt->setWheelRange();  // range is smaller
+    NoteTakerButton::onDragEnd(e);
+}
+
+// to do : remove once button needs another use
+void DumpButton::onDragEnd(EventDragEnd& e) {
+    nModule()->debugDump();
+    NoteTakerButton::onDragEnd(e);
+}
+
+void EditButton::onDragStart(EventDragStart& e) {
+    NoteTaker* nt = nModule();
+    nt->runButton->ledOn = false;
+    NoteTakerButton::onDragStart(e);
+}
+
+void FileButton::onDragEnd(EventDragEnd& e) {
+    NoteTaker* nt = nModule();
+    NoteTakerButton::onDragEnd(e);
+    nt->resetLedButtons(this);
+    nt->setWheelRange();
+}
+
+void FileButton::draw(NVGcontext* vg) {
+    EditLEDButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 5 + af, 41 - af, ":", NULL);
+}
+
+void InsertButton::draw(NVGcontext* vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 8 + af, 41 - af, "H", NULL);
+}
+
+void InsertButton::onDragEnd(EventDragEnd& e) {
+    NoteTaker* nt = nModule();
+    SelectButton* selectButton = nt->selectButton;
+    nt->resetLedButtons(selectButton);  // turn off pitch, file, sustain
+    unsigned insertLoc;
+    unsigned insertSize;
+    int shiftTime;
+    if (nt->isEmpty()) {
+        insertLoc = nt->allNotes.size() - 1;
+        assert(TRACK_END == nt->allNotes[insertLoc].type);
+        DisplayNote midC = { 0, stdTimePerQuarterNote, { 60, 0, stdKeyPressure, stdKeyPressure},
+                nt->partButton->addChannel, NOTE_ON, false };
+        midC.setNote(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
+        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
+        insertSize = 1;
+        shiftTime = stdTimePerQuarterNote;
+        debug("add to empty");
+    } else {
+        vector<DisplayNote>* copyFrom = nullptr;
+        vector<DisplayNote> span;
+        insertLoc = !nt->selectStart ? nt->wheelToNote(0) : nt->selectEnd;
+        if (selectButton->editStart() && !nt->clipboard.empty()) { // paste part of copy n paste
+            copyFrom = &nt->clipboard;
+            debug("paste from clipboard"); NoteTaker::DebugDump(nt->clipboard);
+        } else {
+            copyFrom = &span;
+            unsigned iStart = !nt->selectStart ? insertLoc : nt->selectStart;
+            unsigned iEnd = nt->selectEnd;
+            !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
+            debug("iStart=%u iEnd=%u", iStart, iEnd);
+            for (unsigned index = iStart; index < iEnd; ++index) {
+                const auto& note = nt->allNotes[index];
+                if ((NOTE_ON == note.type && nt->isSelectable(note)) || REST_TYPE == note.type) {
+                    span.push_back(note);
+                }
+            }
+            if (span.empty()) {
+                debug("insert button : none selectable"); nt->debugDump();
+                for (unsigned index = iStart; index < nt->allNotes.size(); ++index) {
+                    const auto& note = nt->allNotes[index];
+                    if (NOTE_ON == note.type) {
+                        span.push_back(note);
+                        break;
+                    }
+                }
+                if (span.empty()) {
+                    for (unsigned index = iStart; --index > 0; ) {
+                        const auto& note = nt->allNotes[index];
+                        if (NOTE_ON == note.type) {
+                            span.push_back(note);
+                            break;
+                        }
+                    }
+                }
+                assert(!span.empty());
+            }
+        }
+        NoteTaker::ShiftNotes(*copyFrom, 0, nt->allNotes[insertLoc].startTime
+                - copyFrom->front().startTime);
+        if (!nt->partButton->allChannels) {
+            NoteTaker::MapChannel(*copyFrom, (unsigned) nt->partButton->addChannel);
+        }
+        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, copyFrom->begin(),
+                copyFrom->end());
+        insertSize = copyFrom->size();
+        // include notes on other channels that fit within the start/end window
+        shiftTime = copyFrom->back().startTime - copyFrom->front().startTime
+                + copyFrom->back().duration;
+        debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
+                insertLoc, insertSize, shiftTime, nt->selectStart, nt->selectEnd);
+        nt->debugDump(false);
+    }
+    nt->shiftNotes(insertLoc + insertSize, shiftTime);
+    nt->display->xPositionsInvalid = true;
+    nt->setSelect(insertLoc, insertLoc + insertSize);
+    debug("insert final");
+    nt->setWheelRange();  // range is larger
+    nt->playSelection();
+    NoteTakerButton::onDragEnd(e);
+    nt->debugDump(true);
+}
+
+// insert key signature
+void KeyButton::onDragEnd(EventDragEnd& e) {
+    NoteTaker* nt = nModule();
+    shiftTime = duration = 0;
+    onDragEndPreamble(e);
+    DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE, false };
+    nt->allNotes.insert(nt->allNotes.begin() + insertLoc, keySignature);
+    shiftTime = duration = 0;
+    AdderButton::onDragEnd(e);
+}
+
+void KeyButton::draw(NVGcontext* vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 6 + af, 33 - af, "#", NULL);
+    nvgText(vg, 10 + af, 41 - af, "$", NULL);
+}
+
+void PartButton::draw(NVGcontext* vg) {
+    EditLEDButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 8 + af, 41 - af, "\"", NULL);
+}
+
+void PartButton::onDragEnd(EventDragEnd& e) {
+    NoteTaker* nt = nModule();
+    NoteTakerButton::onDragEnd(e);
+    if (!ledOn) {
+        int part = nt->horizontalWheel->part();
+        allChannels = part < 0;
+        if (!allChannels) {
+            addChannel = (uint8_t) part;
+        }
+    }
+    debug("part button onDragEnd ledOn %d part %d allChannels %d addChannel %u",
+            ledOn, nt->horizontalWheel->part(), allChannels, addChannel);
+    nt->resetLedButtons(this);
+    nt->setWheelRange();  // range is larger
+}
+
+void RestButton::draw(NVGcontext* vg) {
     EditButton::draw(vg);
     nvgFontFaceId(vg, nModule()->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
@@ -203,7 +261,20 @@ void RestButton::onDragEnd(EventDragEnd& e) {
     AdderButton::onDragEnd(e);
 }
 
-void SelectButton::draw(NVGcontext *vg) {
+void RunButton::onDragEnd(EventDragEnd& e) {
+    NoteTaker* nt = nModule();
+    NoteTakerButton::onDragEnd(e);
+    if (!ledOn) {
+        nt->zeroGates();
+    } else {
+        nt->resetRun();
+    }
+    if (!nt->fileButton->ledOn && !nt->partButton->ledOn && !nt->sustainButton->ledOn) {
+        nt->setWheelRange();
+    }
+}
+
+void SelectButton::draw(NVGcontext* vg) {
     EditLEDButton::draw(vg);
     nvgFontFaceId(vg, nModule()->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
@@ -211,7 +282,7 @@ void SelectButton::draw(NVGcontext *vg) {
     nvgText(vg, 4 + af, 41 - af, "<", NULL);  // was \u00E0
 }
 
-void SelectButton::onDragEnd(EventDragEnd &e) {
+void SelectButton::onDragEnd(EventDragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     NoteTaker* nt = nModule();
     switch (state) {
@@ -246,6 +317,7 @@ void SelectButton::onDragEnd(EventDragEnd &e) {
         default:
             assert(0);
     }
+    nt->resetLedButtons(this);
     nt->setWheelRange();  // if state is single, set to horz from -1 to size
 }
 
@@ -262,54 +334,10 @@ void SelectButton::setExtend() {
     state = State::extend;
 }
 
-void CutButton::draw(NVGcontext* vg) {
-        EditButton::draw(vg);
-    nvgFontFaceId(vg, nModule()->musicFont->handle);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgFontSize(vg, 24);
-    nvgText(vg, 4 + af, 41 - af, ";", NULL);
-}
-
-// to do : should a long press clear all?
-// maybe long press should put clear all: yes / no choice in display
-void CutButton::onDragEnd(EventDragEnd& e) {
-    NoteTaker* nt = nModule();
-    if (nt->isEmpty() || !nt->selectStart) {
-        return;
-    }
-    SelectButton* selectButton = nt->selectButton;
-    if (selectButton->editEnd()) {
-        nt->copyNotes();
-    }
-    selectButton->setSingle();
-    unsigned start = nt->selectStart;
-    unsigned end = nt->selectEnd;
-    int shiftTime = nt->allNotes[start].startTime - nt->allNotes[end].startTime;
-    nt->eraseNotes(start, end);
-    NoteTaker::ShiftNotes(nt->allNotes, start, shiftTime);
-    int wheelIndex = nt->noteToWheel(start);
-    nt->display->xPositionsInvalid = true;
-    nt->setSelect(nt->wheelToNote(wheelIndex - 1), start);
-    nt->setWheelRange();  // range is smaller
-    NoteTakerButton::onDragEnd(e);
-}
-
-void FileButton::onDragEnd(EventDragEnd &e) {
-    NoteTakerButton::onDragEnd(e);
-    nModule()->setWheelRange();
-}
-
-void FileButton::draw(NVGcontext* vg) {
-    EditLEDButton::draw(vg);
-    nvgFontFaceId(vg, nModule()->musicFont->handle);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgFontSize(vg, 24);
-    nvgText(vg, 5 + af, 41 - af, ":", NULL);
-}
-
-void SustainButton::onDragEnd(EventDragEnd &e) {
+void SustainButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
+    nt->resetLedButtons(this);
     nt->setWheelRange();
 }
 
@@ -321,28 +349,8 @@ void SustainButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
 
-// insert key signature
-void KeyButton::onDragEnd(EventDragEnd &e) {
-    NoteTaker* nt = nModule();
-    shiftTime = duration = 0;
-    onDragEndPreamble(e);
-    DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE, false };
-    nt->allNotes.insert(nt->allNotes.begin() + insertLoc, keySignature);
-    shiftTime = duration = 0;
-    AdderButton::onDragEnd(e);
-}
-
-void KeyButton::draw(NVGcontext* vg) {
-    EditButton::draw(vg);
-    nvgFontFaceId(vg, nModule()->musicFont->handle);
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
-    nvgFontSize(vg, 24);
-    nvgText(vg, 6 + af, 33 - af, "#", NULL);
-    nvgText(vg, 10 + af, 41 - af, "$", NULL);
-}
-
 // insert time signature
-void TimeButton::onDragEnd(EventDragEnd &e) {
+void TimeButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     shiftTime = duration = 0;
     onDragEndPreamble(e);
@@ -360,22 +368,3 @@ void TimeButton::draw(NVGcontext* vg) {
     nvgText(vg, 8 + af, 33 - af, "4", NULL);
     nvgText(vg, 8 + af, 41 - af, "4", NULL);
 }
-
-void RunButton::onDragEnd(EventDragEnd &e) {
-    NoteTaker* nt = nModule();
-    if (ledOn) {    // will be off
-        nt->zeroGates();
-    }
-    NoteTakerButton::onDragEnd(e);
-    if (!nt->fileButton->ledOn) {
-        nt->setWheelRange();
-    }
-}
-
-// to do : remove below
-void DumpButton::onDragEnd(EventDragEnd& e) {
-    nModule()->debugDump();
-    NoteTakerButton::onDragEnd(e);
-}
-
-extern void UnitTest(NoteTaker* );

@@ -26,7 +26,7 @@ struct StaffNote {
 };
 
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
-    NoteTaker* module;
+    NoteTaker* nt;
     vector<int> xPositions;  // where note is drawn (computed cache, not saved)
     array<Accidental, 75> accidentals;  // marks when accidental was used in bar
     const StaffNote* pitchMap = nullptr;
@@ -48,6 +48,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
     void applyKeySignature();
     void draw(NVGcontext* ) override;
+    void drawBevel(NVGcontext* ) const;
     void drawDynamicPitchTempo(NVGcontext* );
     void drawFileControl(NVGcontext* );
     void drawSustainControl(NVGcontext* ) const;
@@ -56,9 +57,13 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
             int alpha);
     void drawBarRest(NVGcontext* , BarPosition& , const DisplayNote& , int offset,
             int alpha) const;
+    void drawClefs(NVGcontext* ) const;
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
     void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha) const;
+    void drawNotes(NVGcontext* , BarPosition& bar, int nextBar);
     void drawPartControl(NVGcontext* ) const;
+    void drawSelectionRect(NVGcontext* ) const;
+    void drawStaffLines(NVGcontext* ) const;
     void drawVerticalControl(NVGcontext* ) const;
     void drawVerticalLabel(NVGcontext* , const char* label,
             bool enabled, bool selected, float y) const;
@@ -95,6 +100,24 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         return index;
     }
 
+    void recenterVerticalWheel();
+
+    void reset() {
+        xAxisOffset = 0;
+        xAxisScale = 0.25;
+        xControlOffset = 0;
+        dynamicPitchAlpha = 0;
+        dynamicTempoAlpha = 0;
+        dynamicPitchTimer = 0;
+        dynamicTempoTimer = 0;
+        keySignature = 0;
+        lastTranspose = 60;
+        lastTempo = stdTimePerQuarterNote;
+        upSelected = false;
+        downSelected = false;
+        xPositionsInvalid = true;
+    }
+
     static unsigned RestIndex(int duration) {
         assert(duration > 0);
         unsigned result = ((unsigned) duration / noteDurations[7]);  // number of whole notes
@@ -110,6 +133,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     }
 
     void setKeySignature(int key);
+    void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
 
     int startTime(unsigned start) const {
         return xPositions[start];

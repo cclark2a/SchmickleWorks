@@ -164,22 +164,6 @@ struct DisplayNote {
         return startTime <= midiTime && endTime() > midiTime;
     }
 
-    bool isBestSelectStart(const DisplayNote** bestPtr, int midiTime) const {
-        const DisplayNote* best = *bestPtr;
-        if (!best) {
-            *bestPtr = this;
-            return true;
-        }
-        if (best->isActive(midiTime)) {
-            return false;
-        }
-        if (startTime > best->startTime && startTime <= midiTime) {
-            *bestPtr = this;
-            return true;
-        }
-        return false;
-    }
-
     bool isSelectable(unsigned selectChannels) const {
         return REST_TYPE == type || TIME_SIGNATURE == type || KEY_SIGNATURE == type
                 || (NOTE_ON == type && (selectChannels & (1 << channel)));
