@@ -14,7 +14,7 @@ void AdderButton::onDragEndPreamble(EventDragEnd& e) {
         shiftLoc = insertLoc + 1;
     } else if (!nt->selectStart) {  // insert left of first note
         assert(selectButton->editStart());
-        insertLoc = nt->wheelToNote(0);
+        insertLoc = nt->wheelToNote(1);
         shiftLoc = nt->selectEnd;
     } else {
         duration = nt->allNotes[nt->selectEnd].startTime - nt->allNotes[nt->selectStart].startTime;
@@ -125,8 +125,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     unsigned insertSize;
     int shiftTime;
     if (nt->isEmpty()) {
-        insertLoc = nt->allNotes.size() - 1;
-        assert(TRACK_END == nt->allNotes[insertLoc].type);
+        insertLoc = nt->atMidiTime(0);
         DisplayNote midC = { 0, stdTimePerQuarterNote, { 60, 0, stdKeyPressure, stdKeyPressure},
                 nt->partButton->addChannel, NOTE_ON, false };
         midC.setNote(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
@@ -137,7 +136,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     } else {
         vector<DisplayNote>* copyFrom = nullptr;
         vector<DisplayNote> span;
-        insertLoc = !nt->selectStart ? nt->wheelToNote(0) : nt->selectEnd;
+        insertLoc = !nt->selectStart ? nt->wheelToNote(1) : nt->selectEnd;
         if (selectButton->editStart() && !nt->clipboard.empty()) { // paste part of copy n paste
             copyFrom = &nt->clipboard;
             debug("paste from clipboard"); NoteTaker::DebugDump(nt->clipboard);
@@ -174,8 +173,13 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                 assert(!span.empty());
             }
         }
-        NoteTaker::ShiftNotes(*copyFrom, 0, nt->allNotes[insertLoc].startTime
-                - copyFrom->front().startTime);
+        // insertLoc may be different channel, so can't use that start time by itself
+        // shift to selectStart time, but not less than previous end (if any) on same channel
+        int priorEnd = nt->lastEndTime(insertLoc);
+        int insertTime = nt->allNotes[insertLoc].startTime;
+        int nextStart = nt->nextStartTime(insertLoc);
+        debug("priorEnd %d insertTime %d nextStart %d", priorEnd, insertTime, nextStart);
+        NoteTaker::ShiftNotes(*copyFrom, 0, priorEnd - copyFrom->front().startTime);
         if (!nt->partButton->allChannels) {
             NoteTaker::MapChannel(*copyFrom, (unsigned) nt->partButton->addChannel);
         }
@@ -183,13 +187,18 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                 copyFrom->end());
         insertSize = copyFrom->size();
         // include notes on other channels that fit within the start/end window
-        shiftTime = copyFrom->back().startTime - copyFrom->front().startTime
-                + copyFrom->back().duration;
+        // shift by copyFrom duration less next start (if any) on same channel minus selectStart time
+        shiftTime = copyFrom->back().endTime() - copyFrom->front().startTime;
+        int availableShiftTime = nextStart - insertTime;
+        debug("shift time %d available %d", shiftTime, availableShiftTime);
+        shiftTime = std::max(0, shiftTime - availableShiftTime);
         debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
                 insertLoc, insertSize, shiftTime, nt->selectStart, nt->selectEnd);
         nt->debugDump(false);
     }
-    nt->shiftNotes(insertLoc + insertSize, shiftTime);
+    if (shiftTime) {
+        nt->shiftNotes(insertLoc + insertSize, shiftTime);
+    }
     nt->display->xPositionsInvalid = true;
     nt->setSelect(insertLoc, insertLoc + insertSize);
     debug("insert final");
@@ -231,10 +240,9 @@ void PartButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
-        int part = nt->horizontalWheel->part();
-        allChannels = part < 0;
         if (!allChannels) {
-            addChannel = (uint8_t) part;
+            // allChannels, addChannel updated interactively so it is visible in UI
+            nt->selectChannels |= 1 << addChannel;
         }
     }
     debug("part button onDragEnd ledOn %d part %d allChannels %d addChannel %u",
@@ -303,9 +311,9 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
             singlePos = start;
             if (TRACK_END == nt->allNotes[start].type) {
                 end = start;
-                start = nt->isEmpty() ? 0 : nt->wheelToNote(wheelIndex);
+                start = nt->selectStart;
             } else {
-                end = nt->wheelToNote(wheelIndex + 2);
+                end = nt->atMidiTime(nt->allNotes[start].endTime());
             }
             nt->setSelect(start, end);
         } break;

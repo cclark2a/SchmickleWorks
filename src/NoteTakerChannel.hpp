@@ -20,6 +20,7 @@ struct NoteTakerChannel {
     int releaseMin;  // midi time for smallest interval gate goes low
     int sustainMin;  // midi time for smallest interval gate goes high
     int sustainMax;
+    // written by step:
     unsigned noteIndex; // the note currently playing on this channel
     int gateLow;        // midi time when gate goes low (start + sustain)
     int noteEnd;        // midi time when note expires (start + duration)

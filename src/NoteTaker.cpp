@@ -78,12 +78,12 @@ void NoteTaker::loadScore() {
     }
     display->xPositionsInvalid = true;
     if (!this->isEmpty()) {
-        this->setSelectStart(this->wheelToNote(0));
+        this->setSelectStart(this->wheelToNote(1));
     }
 }
 
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
-    int count = -2;
+    int count = -1;
     int lastTime = -1;
     DisplayType lastType = UNUSED;
     for (auto& note : allNotes) {
@@ -102,7 +102,7 @@ int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
         debugDump(false, true);
         assert(0);
     }
-    return -2;
+    return -1;
 }
 
 void NoteTaker::playSelection() {
@@ -133,6 +133,7 @@ void NoteTaker::reset() {
     displayStart = displayEnd = selectStart = selectEnd = 0;
     this->resetRun();
     selectChannels = ALL_CHANNELS;
+    this->setScoreEmpty();
     Module::reset();
 }
 
@@ -141,11 +142,19 @@ void NoteTaker::resetControls() {
     for (NoteTakerButton* button : {
             (NoteTakerButton*) cutButton, (NoteTakerButton*) insertButton,
             (NoteTakerButton*) restButton, (NoteTakerButton*) timeButton }) {
-        button->reset();
+        if (button) {
+            button->reset();
+        }
     }
-    horizontalWheel->reset();
-    verticalWheel->reset();
-    display->reset();
+    if (horizontalWheel) {
+        horizontalWheel->reset();
+    }
+    if (verticalWheel) {
+        verticalWheel->reset();
+    }
+    if (display) {
+        display->reset();
+    }
 }
 
 void NoteTaker::resetLedButtons(const NoteTakerButton* exceptFor) {
@@ -153,7 +162,7 @@ void NoteTaker::resetLedButtons(const NoteTakerButton* exceptFor) {
                 (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
                 (NoteTakerButton*) runButton, (NoteTakerButton*) selectButton,
                 (NoteTakerButton*) sustainButton }) {
-        if (exceptFor != button) {
+        if (button && exceptFor != button) {
             button->reset();
         }
     }
@@ -172,7 +181,6 @@ void NoteTaker::saveScore() {
 }
 
 void NoteTaker::setScoreEmpty() {
-    this->reset();
     vector<uint8_t> emptyMidi;
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
@@ -180,10 +188,13 @@ void NoteTaker::setScoreEmpty() {
     bool success = emptyParser.parseMidi();
     assert(success);
     this->resetControls();
-    display->updateXPosition();
+    if (display) {
+        display->updateXPosition();
+    }
 }
 
 void NoteTaker::setSelect(unsigned start, unsigned end) {
+    display->updateXPosition();
     if (this->isEmpty()) {
         selectStart = selectEnd = displayStart = displayEnd = 0;
         return;
@@ -191,7 +202,6 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     assert(start < end);
     assert(allNotes.size() >= 2);
     assert(end <= allNotes.size() - 1);
-    display->updateXPosition();
     int selectStartTime = display->startTime(start);
     int selectEndTime = display->endTime(end - 1);
     if (!displayEnd || allNotes.size() <= displayEnd) {
@@ -274,7 +284,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     selectEnd = end;
 }
 
-bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
+void NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
     debug("setSelectEnd wheelValue=%d end=%u singlePos=%u selectStart=%u selectEnd=%u", 
             wheelValue, end, selectButton->singlePos, selectStart, selectEnd);
     if (end < selectButton->singlePos) {
@@ -296,7 +306,6 @@ bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
         debug("setSelectEnd > s:%u e:%u", selectStart, selectEnd);
     }
     assert(selectEnd != selectStart);
-    return true;
 }
 
 bool NoteTaker::setSelectStart(unsigned start) {
@@ -348,20 +357,25 @@ void NoteTaker::step() {
             continue;
         }
         auto& channelInfo = channels[note.channel];
-        if (this->noteIndex(note) == channelInfo.noteIndex) {
+        unsigned noteIndex = this->noteIndex(note);
+        if (noteIndex == channelInfo.noteIndex) {
             if (midiTime < channelInfo.noteEnd) {
                 continue;
+            }
+        } else {
+            channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
+            channelInfo.noteEnd = note.endTime();
+            channelInfo.noteIndex = noteIndex;
+            if (note.channel < CV_OUTPUTS) {
+                outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
             }
         }
         if (running) {
             selStart = std::min(selStart, start);
             selEnd = std::max(selEnd, start + 1);
         }
-        assert(note.channel < CHANNEL_COUNT);
-        channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
-        channelInfo.noteEnd = note.endTime();
+        // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
         if (note.channel < CV_OUTPUTS) {
-            outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
             const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             float v_oct = inputs[V_OCT_INPUT].value;
             if (this->isRunning() && !fileButton->ledOn) {
@@ -369,7 +383,6 @@ void NoteTaker::step() {
             }
             outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
         }
-        channelInfo.noteIndex = this->noteIndex(note);
     }
     if (running) {
         // to do : don't write to same state in different threads
@@ -382,9 +395,9 @@ void NoteTaker::step() {
 
 // counts to nth selectable note; returns index into notes array
 unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
-    assert(!dbug || value >= 0 || selectButton->editStart());
+    assert(!dbug || value > 0 || selectButton->editStart());
     assert(!dbug || value < (int) allNotes.size());
-    int count = value + 1;
+    int count = value;
     int lastTime = -1;
     DisplayType lastType = UNUSED;
     for (auto& note : allNotes) {

@@ -35,15 +35,15 @@ static void ExerciseWheels(NoteTaker* n) {
 }
 
 static void AddTwoNotes(NoteTaker* n) {
-    n->setScoreEmpty();
+    n->reset();
     Press(n, n->insertButton);
     Press(n, n->insertButton);
-    unsigned note1 = n->wheelToNote(0);
+    unsigned note1 = n->wheelToNote(1);
     WheelUp(n, n->allNotes[note1].pitch() + 1);
 }
 
 void UnitTest(NoteTaker* n) {
-    n->setScoreEmpty();
+    n->reset();
 
     debug("delete a note with empty score");
     Press(n, n->cutButton);
@@ -64,10 +64,10 @@ void UnitTest(NoteTaker* n) {
 
     debug("add two notes with empty score, check order");
     AddTwoNotes(n);
-    unsigned note1 = n->wheelToNote(0);
+    unsigned note1 = n->wheelToNote(1);
     assert(4 == n->allNotes.size());
     assert(2 == n->horizontalCount());
-    unsigned note2 = n->wheelToNote(1);
+    unsigned note2 = n->wheelToNote(2);
     assert(n->allNotes[note1].pitch() < n->allNotes[note2].pitch());
     Press(n, n->cutButton);
     assert(!n->isEmpty());
@@ -108,9 +108,9 @@ void UnitTest(NoteTaker* n) {
     debug("duplicate");
     AddTwoNotes(n);
     Press(n, n->selectButton);
-    WheelLeft(n, -1);
+    WheelLeft(n, 0);
     Press(n, n->selectButton);
-    WheelLeft(n, 2);
+    WheelLeft(n, 3);
     Press(n, n->insertButton);
     assert(6 == n->allNotes.size());
     assert(4 == n->horizontalCount());
@@ -118,21 +118,21 @@ void UnitTest(NoteTaker* n) {
     debug("copy and paste");
     AddTwoNotes(n);
     Press(n, n->selectButton);
-    WheelLeft(n, 0);
-    debug("cnp wheel left 0");
+    WheelLeft(n, 1);
+    debug("cnp wheel left 1");
     n->debugDump();
     Press(n, n->selectButton);
-    WheelLeft(n, 2);
-    debug("cnp wheel left 2");
+    WheelLeft(n, 3);
+    debug("cnp wheel left 3");
     n->debugDump();
     Press(n, n->selectButton);
     Press(n, n->selectButton);
-    WheelLeft(n, 0);
-    debug("cnp wheel left 0");
+    WheelLeft(n, 1);
+    debug("cnp wheel left 1");
     n->debugDump();
     Press(n, n->insertButton);
-    assert(5 == n->allNotes.size());
-    assert(3 == n->horizontalCount());
+    assert(6 == n->allNotes.size());
+    assert(4 == n->horizontalCount());
 
     debug("restore defaults");
     n->reset();

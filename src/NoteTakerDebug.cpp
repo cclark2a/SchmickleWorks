@@ -62,13 +62,15 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
     debug("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
     debug("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
-    debug("select s/e %u %u display s/e %u %u chans 0x%02x tempo %d ppq %d",
-            selectStart, selectEnd, displayStart, displayEnd, selectChannels, tempo, ppq);
+    debug("select s/e %u %u display s/e %u %u chans 0x%02x part.addChan %d part.allChan %d tempo %d"
+            " ppq %d",
+            selectStart, selectEnd, displayStart, displayEnd, selectChannels, 
+            partButton->addChannel, partButton->allChannels, tempo, ppq);
     NoteTaker::DebugDump(allNotes, &display->xPositions, selectStart, selectEnd);
     this->debugDumpChannels();
     if (!inWheel && selectButton->ledOn) {
         std::string w2n;
-        for (int index = horizontalWheel->minValue; index < horizontalWheel->maxValue; ++index) {
+        for (int index = horizontalWheel->minValue; index <= horizontalWheel->maxValue; ++index) {
             w2n += " " + std::to_string(index) + "/" + std::to_string((int) this->wheelToNote(index, false));
         }
         debug("wheelToNote:%s", w2n.c_str());

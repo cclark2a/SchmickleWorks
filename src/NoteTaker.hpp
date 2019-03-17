@@ -104,10 +104,23 @@ struct NoteTaker : Module {
 
     void alignStart() {
         if (!selectStart && !this->isEmpty()) {
-            unsigned start = this->wheelToNote(0);
+            unsigned start = this->wheelToNote(1);
             unsigned end = std::max(start + 1, selectEnd);
             this->setSelect(start, end);
         }
+    }
+
+    unsigned atMidiTime(int midiTime) const {
+        for (unsigned index = 0; index < allNotes.size(); ++index) {
+            const DisplayNote& note = allNotes[index];
+            if (midiTime < note.startTime || TRACK_END == note.type
+                    || ((NOTE_ON == note.type || REST_TYPE == note.type) 
+                    && midiTime == note.startTime)) {
+                return index;
+            }
+        }
+        assert(0);  // should have hit track end
+        return 0;
     }
 
     float beatsPerHalfSecond() const;
@@ -143,6 +156,18 @@ struct NoteTaker : Module {
     bool isEmpty() const;
     bool isRunning() const;
     bool isSelectable(const DisplayNote& note) const;
+
+    int lastEndTime(unsigned end) const {
+        int result = 0;
+        for (unsigned index = 0; index < end; ++index) {
+            const DisplayNote& note = allNotes[index];
+            if (this->isSelectable(note)) {
+                result = std::max(result, note.endTime());
+            }
+        }
+        return result;
+    }
+
     void loadScore();
 
     static void MapChannel(vector<DisplayNote>& notes, unsigned channel) {
@@ -151,6 +176,16 @@ struct NoteTaker : Module {
                 note.channel = channel;
              }
         }    
+    }
+
+    int nextStartTime(unsigned start) const {
+        for (unsigned index = start; index < allNotes.size(); ++index) {
+            const DisplayNote& note = allNotes[index];
+            if (this->isSelectable(note)) {
+                return note.startTime;
+            }
+        }
+        return allNotes.back().startTime;
     }
 
     unsigned noteIndex(const DisplayNote& note) const {
@@ -164,6 +199,7 @@ struct NoteTaker : Module {
 
     int noteToWheel(const DisplayNote& , bool dbug = true) const;
     void playSelection();
+
     void readStorage();
     void reset() override;
     void resetLedButtons(const NoteTakerButton* exceptFor = nullptr);
@@ -196,20 +232,33 @@ struct NoteTaker : Module {
     }
 
     void setExpiredGatesLow(int midiTime) {
+        // to do : remove debugging code
+        static int debugLastGateLow = -1;
+        static int debugLastNoteEnd = -1;
+        static int debugMidiTime = -1;
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto &chan = channels[channel];
             if (!chan.noteEnd) {
                 continue;
             }
+            if ((chan.gateLow && chan.gateLow < midiTime) || chan.noteEnd < midiTime) {
+                if (debugLastGateLow != chan.gateLow
+                        || debugLastNoteEnd != chan.noteEnd
+                        || (midiTime != debugMidiTime && midiTime != debugMidiTime + 1)) {
+                    debugLastGateLow = chan.gateLow;
+                    debugLastNoteEnd = chan.noteEnd;
+                    debug("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
+                            channel, chan.gateLow, chan.noteEnd, chan.noteIndex, midiTime);
+                }
+                debugMidiTime = midiTime;
+            }
             if (chan.gateLow && chan.gateLow < midiTime) {
-                debug("expire gateLow=%d midiTime=%d", chan.gateLow, midiTime);
                 chan.gateLow = 0;
                 if (channel < CV_OUTPUTS) {
                     outputs[GATE1_OUTPUT + channel].value = 0;
                 }
             }
             if (chan.noteEnd < midiTime) {
-                debug("expire noteEnd=%d midiTime=%d", chan.noteEnd, midiTime);
                 chan.noteEnd = 0;
             }
         }
@@ -217,7 +266,7 @@ struct NoteTaker : Module {
 
     void setPlayStart();
     void setSelect(unsigned start, unsigned end);
-    bool setSelectEnd(int wheelValue, unsigned end);
+    void setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
     void setHorizontalWheelRange();
     void setVerticalWheelRange();
@@ -228,14 +277,33 @@ struct NoteTaker : Module {
         ShiftNotes(allNotes, start, diff, selectChannels);
     }
 
+    // shift track end only if another shifted note bumps it out
     static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff,
             unsigned selectChannels = ALL_CHANNELS) {
-         for (unsigned index = start; index < notes.size(); ++index) {
+        // After channel-specific notes are shifted, notes that affect all channels
+        // may also need to be shifted. Since they are in the stream in time order,
+        // move them enough to keep the order ascending.
+        // to do : optimize this so that loop starts on last element (in time) of insertion
+        int latest = 0;
+        for (unsigned index = 0; index < start; ++index) {
+            latest = std::max(latest, notes[index].endTime());
+        }
+        // Note that this logic assumes that notes can't overlap time or key signatures
+        // prior to shifting.
+        // to do : enforce that added time and key signatures clip any long notes before them
+        for (unsigned index = start; index < notes.size(); ++index) {
             DisplayNote& note = notes[index];
-            if (0xFF == note.channel || note.isSelectable(selectChannels)) {
+            if (0xFF == note.channel) {
+                if (diff < 0) { // move as much as diff allows without overlapping
+                    note.startTime = std::max(latest, note.startTime + diff);
+                } else { // move as little as possible, but no more than diff
+                    note.startTime = std::min(latest, note.startTime + diff);
+                }
+            } else if (note.isSelectable(selectChannels)) {
                 note.startTime += diff;
             }
-        }    
+            latest = std::max(latest, note.endTime());
+        }
    }
 
 	void step() override;

@@ -415,17 +415,17 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
 
 void NoteTakerDisplay::drawSelectionRect(NVGcontext* vg) const {
     // draw selection rect
-    nvgBeginPath(vg);
+    int xStart = this->xPos(nt->selectEndPos(nt->selectStart)) - 2;
+    int width = 4;
+    int yTop = 2;
+    int yHeight = box.size.y - 4;
+    unsigned channel;
     if (nt->selectButton->editStart()) {
-        int xStart = this->xPos(nt->selectEndPos(nt->selectStart));
-        nvgRect(vg, xStart - 2, 2, 4, box.size.y - 4);
-        uint8_t addChannel = nt->partButton->addChannel;
-        nvgFillColor(vg, nvgRGBA((1 == addChannel) * 0xBf, (3 == addChannel) * 0x7f,
-                (2 == addChannel) * 0x7f, 0x1f));
+        channel = 1 << nt->partButton->addChannel;
     } else {
-        int xStart = this->xPos(nt->selectStart);
-        int yTop = 2;
-        int yHeight = box.size.y - (nt->fileButton->ledOn ? 35 : 4);
+        if (nt->fileButton->ledOn) {
+            yHeight = box.size.y - 35;
+        }
         if (nt->selectStart + 1 == nt->selectEnd && !nt->selectButton->ledOn) {
             DisplayType noteType = nt->allNotes[nt->selectStart].type;
             if (TIME_SIGNATURE == noteType) {
@@ -433,12 +433,16 @@ void NoteTakerDisplay::drawSelectionRect(NVGcontext* vg) const {
                 yHeight = 13;
             }
         }
-        nvgRect(vg, xStart, yTop, this->xPos(nt->selectEndPos(nt->selectEnd - 1)) - xStart,
-                yHeight);
-        unsigned selectChannels = nt->selectChannels;
-        nvgFillColor(vg, nvgRGBA((2 == selectChannels) * 0xBf, (8 == selectChannels) * 0x7f,
-                (4 == selectChannels) * 0x7f, ALL_CHANNELS == selectChannels ? 0x3f : 0x1f));
+        if (nt->selectEnd > 0) {
+            xStart = this->xPos(nt->selectStart);
+            width = this->xPos(nt->selectEndPos(nt->selectEnd - 1)) - xStart;
+        }
+        channel = nt->selectChannels;
     }
+    nvgBeginPath(vg);
+    nvgRect(vg, xStart, yTop, width, yHeight);
+    nvgFillColor(vg, nvgRGBA((2 == channel) * 0xBf, (8 == channel) * 0x7f,
+            (4 == channel) * 0x7f, ALL_CHANNELS == channel ? 0x3f : 0x1f));
     nvgFill(vg);
 }
 
@@ -695,16 +699,16 @@ void NoteTakerDisplay::drawPartControl(NVGcontext* vg) const {
     nvgFill(vg);
     nvgFontFaceId(vg, nt->textFont->handle);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
-    nvgFontSize(vg, 13);
     for (int index = -1; index < (int) CV_OUTPUTS; ++index) {
         nvgBeginPath(vg);
         nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 15,
                 boxWidth, boxHeight);
-        if (index >= 0 && ~(nt->selectChannels & (1 << index))) {
+        bool chanLocked = ~nt->selectChannels & (1 << index);
+        if (index >= 0 && chanLocked) {
             nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 25,
                    boxWidth, 10);            
         }
-        if (index >= 0 && (nt->selectChannels & (1 << index))) {
+        if (index >= 0 && !chanLocked) {
             nvgRect(vg, 60 + index * boxWidth, box.size.y - 15,
                    boxWidth, 10);            
         }
@@ -720,12 +724,22 @@ void NoteTakerDisplay::drawPartControl(NVGcontext* vg) const {
         const char num[2] = { (char) ('1' + index), '\0' };
         nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xbf));
         const char* str = index < 0 ? "all" : num;
+        nvgFontSize(vg, 13);
         nvgText(vg, 60 + (index + 0.5f) * boxWidth, box.size.y - 18,
                 str, nullptr);
+        if (0 <= index) {
+            nvgSave(vg);
+            nvgScissor(vg, 60 + index * boxWidth, box.size.y - boxHeight - 25, boxWidth,
+                    boxHeight + 20);
+            nvgFontSize(vg, 9);
+            nvgFillColor(vg, chanLocked ? nvgRGBA(0xff, 0xff, 0xff, 0xbf) : nvgRGBA(0, 0, 0, 0xbf));
+            nvgText(vg, 40 + boxWidth * 3, box.size.y - boxHeight - 18,
+                                                            "l    o    c    k    e    d", nullptr);
+            nvgFillColor(vg, !chanLocked ? nvgRGBA(0xff, 0xff, 0xff, 0xbf) : nvgRGBA(0, 0, 0, 0xbf));
+            nvgText(vg, 40 + boxWidth * 3, box.size.y - 7, "e   d   i   t   a   b   l   e", nullptr);
+            nvgRestore(vg);
+        }
     }
-    nvgFontSize(vg, 9);
-    nvgText(vg, 40 + boxWidth * 2.5, box.size.y - boxHeight - 18, "l  o  c  k  e  d", nullptr);
-    nvgText(vg, 40 + boxWidth * 2.5, box.size.y - 7, "e d i t a b l e", nullptr);
 }
 
 void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
@@ -861,7 +875,6 @@ int NoteTakerDisplay::duration(unsigned index) const {
 
 void NoteTakerDisplay::recenterVerticalWheel() {
     if (upSelected || downSelected) {
-        debug("draw upSelected %d downSelected %d", upSelected, downSelected);
         float val = nt->verticalWheel->value;
         const float autoLoadSaveWheelSpeed = .2f;
         nt->verticalWheel->value += val > 5 ? -autoLoadSaveWheelSpeed : +autoLoadSaveWheelSpeed;
