@@ -31,6 +31,23 @@ float NoteTaker::beatsPerHalfSecond() const {
     return deltaTime;
 }
 
+void NoteTaker::eraseNotes(unsigned start, unsigned end) {
+    debug("eraseNotes start %u end %u", start, end);
+    int endTime = allNotes[end].startTime;
+    for (auto iter = allNotes.begin() + end; iter-- != allNotes.begin() + start; ) {
+        if (iter->isSelectable(selectChannels)) {
+            int overlap = iter->endTime() - endTime;
+            if (overlap <= 0) {
+                allNotes.erase(iter);
+            } else {
+                iter->duration = overlap;
+                iter->startTime = endTime;
+            }
+        }
+    }
+    this->debugDump(true, true);  // wheel range is inconsistent here
+}
+
 // to compute range for horizontal wheel when selecting notes
 // to do : horizontalCount, noteToWheel, wheelToNote share loop logic. Consolidate?
 unsigned NoteTaker::horizontalCount() const {

@@ -136,13 +136,7 @@ struct NoteTaker : Module {
     static void DebugDump(const vector<DisplayNote>& , const vector<int>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
 
-    void eraseNotes(unsigned start, unsigned end) {
-        this->debugDump();
-        debug("eraseNotes start %u end %u", start, end);
-        allNotes.erase(allNotes.begin() + start, allNotes.begin() + end);
-        this->debugDump();
-    }
-
+    void eraseNotes(unsigned start, unsigned end);
     void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
     bool isEmpty() const;

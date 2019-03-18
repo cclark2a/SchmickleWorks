@@ -81,26 +81,6 @@ struct DisplayNote {
         assertValid(TIME_SIGNATURE);
     }
 
-    int note() const {
-        assertValid(NOTE_ON);
-        return data[1];
-    }
-
-    void setNote(int note) {
-        data[1] = note;
-        assertValid(NOTE_ON);
-    }
-
-    int rest() const {
-        assertValid(REST_TYPE);
-        return data[1];
-    }
-
-    void setRest(int note) {
-        data[1] = note;
-        assertValid(REST_TYPE);
-    }
-
     int denominator() const {
         assertValid(TIME_SIGNATURE);
         return data[1];

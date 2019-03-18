@@ -51,10 +51,8 @@ void NoteTaker::setHorizontalWheelRange() {
                     && start < selectEnd) {
                 note = &allNotes[++start];
             }
-            if (NOTE_ON == note->type) {
-                value = note->note();
-            } else if (REST_TYPE == note->type) {
-                value = note->rest();
+            if (NOTE_ON == note->type || REST_TYPE == note->type) {
+                value = NoteTakerDisplay::DurationIndex(note->duration);
             }
             if (INT_MAX != value) {
                 horizontalWheel->setLimits(0, noteDurations.size() - 0.001f);
@@ -179,12 +177,12 @@ void NoteTaker::updateHorizontal() {
             if (this->isSelectable(note)) {
                 switch (note.type) {
                     case NOTE_ON:
+                    case REST_TYPE: {
                         assert((unsigned) wheelValue < noteDurations.size());
-                        note.setNote(wheelValue);
-                        break;
-                    case REST_TYPE:
-                        note.setRest(wheelValue);
-                        break;
+                        int duration = noteDurations[wheelValue];
+                        diff[note.channel] += duration - note.duration;
+                        note.duration = duration;
+                        } break;
                     case KEY_SIGNATURE:
                         break;
                     case TIME_SIGNATURE:
@@ -200,11 +198,6 @@ void NoteTaker::updateHorizontal() {
                         break;
                     default:
                         assert(0);
-                }
-                if (KEY_SIGNATURE != note.type && TIME_SIGNATURE != note.type) {
-                    int duration = noteDurations[wheelValue];
-                    diff[note.channel] += duration - note.duration;
-                    note.duration = duration;
                 }
             }
         }

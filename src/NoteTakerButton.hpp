@@ -301,7 +301,7 @@ struct SelectButton : EditLEDButton {
     };
 
     unsigned selStart = 1;   // note index where extend grows from, >= 1
-    bool saveZero = false;   // set if single was at left-most position
+    bool saveZero = true;    // set if single was at left-most position
     State state = State::single;
 
     void draw(NVGcontext *vg) override;
@@ -319,13 +319,14 @@ struct SelectButton : EditLEDButton {
 
     void reset() override {
         selStart = 1;
-        saveZero = false;
+        saveZero = true;
         state = State::single;
         EditLEDButton::reset();
         af = 1;
         ledOn = true;
     }
 
+    void setExtend();
     void setSingle();
 
     NVGcolor ledColor() const override {

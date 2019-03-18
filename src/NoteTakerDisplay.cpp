@@ -187,7 +187,7 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
             "symbol duration mismatch");
     static_assert(sizeof(downFlagNoteSymbols) / sizeof(char*) == noteDurations.size(),
             "symbol duration mismatch");
-    unsigned symbol = note.note();
+    unsigned symbol = DurationIndex(note.duration);
     nvgFontFaceId(vg, nt->musicFont->handle);
     nvgFontSize(vg, 42);
     const char* noteStr = this->stemUp(pitch.position) ? upFlagNoteSymbols[symbol]
@@ -232,7 +232,6 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
             copy.duration = barSide < bar.end ? bar.duration : bar.trailer;
         }
         while (copy.duration >= noteDurations[0]) {
-            copy.setNote(DurationIndex(copy.duration));
             drawNote(vg, copy, accidental, xPos, alpha);
             // to do : advance by at least NOTE_WIDTH (need corresponding change in calc x pos)
             if (INT_MAX != lastXPos) {  // draw tie from last note to here
@@ -248,7 +247,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
             }
             lastXPos = xPos;
             xPos += copy.duration * xAxisScale;
-            copy.duration -= noteDurations[copy.note()];
+            copy.duration -= DurationIndex(copy.duration);
             accidental = NO_ACCIDENTAL;
         }
         if (barSide < bar.end || bar.trailer > 0) {
@@ -262,7 +261,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
 void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const DisplayNote& note,
         int xPos, int alpha) const {
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
-    unsigned symbol = note.rest();
+    unsigned symbol = DurationIndex(note.duration);
     float yPos = 36 * 3 - 49;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
     nvgFontFaceId(vg, nt->musicFont->handle);
@@ -515,7 +514,6 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) {
     if (dynamicPitchAlpha > 0) {
         DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON, false };
         note.setPitch((int) nt->verticalWheel->value);
-        note.setNote(DurationIndex(note.duration));
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 16, 2, 14, box.size.y - 4);
         nvgFillColor(vg, nvgRGB(0xFF, 0xFF, 0xFF));

@@ -96,7 +96,6 @@ bool NoteTakerParseMidi::parseMidi() {
                                 ri->startTime, midiTime);
                     }
                     ri->duration = midiTime - ri->startTime;
-                    ri->setNote(NoteTakerDisplay::DurationIndex(ri->duration));
                     ri->setOffVelocity(velocity);
                     found = true;
                     break;
@@ -127,7 +126,6 @@ bool NoteTakerParseMidi::parseMidi() {
                     rest.type = REST_TYPE;
                     rest.channel = 0xFF;
                     memset(rest.data, 0, sizeof(rest.data));
-                    rest.setRest(NoteTakerDisplay::DurationIndex(rest.duration));
                     parsedNotes.push_back(rest);
                 }
             } break;

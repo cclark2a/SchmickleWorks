@@ -30,7 +30,6 @@ std::string DisplayNote::debugString() const {
     switch (type) {
         case NOTE_ON:
             s += " pitch=" + std::to_string(pitch());
-            s += " note=" + std::to_string(note());
             s += " onVelocity=" + std::to_string(onVelocity());
             s += " offVelocity=" + std::to_string(offVelocity());
             break;
