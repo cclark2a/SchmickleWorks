@@ -102,14 +102,6 @@ struct NoteTaker : Module {
         return false;
     }
 
-    void alignStart() {
-        if (!selectStart && !this->isEmpty()) {
-            unsigned start = this->wheelToNote(1);
-            unsigned end = std::max(start + 1, selectEnd);
-            this->setSelect(start, end);
-        }
-    }
-
     unsigned atMidiTime(int midiTime) const {
         for (unsigned index = 0; index < allNotes.size(); ++index) {
             const DisplayNote& note = allNotes[index];

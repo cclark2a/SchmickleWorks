@@ -76,16 +76,16 @@ void UnitTest(NoteTaker* n) {
 
     debug("press select button with empty score");
     n->resetControls();
-    assert(!n->selectButton->ledOn);
+    assert(n->selectButton->editStart());
     ExerciseWheels(n);
     Press(n, n->selectButton);
     assert(n->selectButton->editStart());
     ExerciseWheels(n);
     Press(n, n->selectButton);
-    assert(n->selectButton->editEnd());
+    assert(n->selectButton->editStart());
     ExerciseWheels(n);
     Press(n, n->selectButton);
-    assert(!n->selectButton->ledOn && SelectButton::State::ledOff == n->selectButton->state);
+    assert(n->selectButton->editStart());
     ExerciseWheels(n);
     n->validate();
 
@@ -107,7 +107,6 @@ void UnitTest(NoteTaker* n) {
 
     debug("duplicate");
     AddTwoNotes(n);
-    Press(n, n->selectButton);
     WheelLeft(n, 0);
     Press(n, n->selectButton);
     WheelLeft(n, 3);
@@ -117,9 +116,8 @@ void UnitTest(NoteTaker* n) {
 
     debug("copy and paste");
     AddTwoNotes(n);
-    Press(n, n->selectButton);
-    WheelLeft(n, 1);
-    debug("cnp wheel left 1");
+    WheelLeft(n, 0);
+    debug("cnp wheel left 0");
     n->debugDump();
     Press(n, n->selectButton);
     WheelLeft(n, 3);

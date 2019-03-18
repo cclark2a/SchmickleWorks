@@ -68,16 +68,19 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     if (selectButton->editEnd()) {
         nt->copyNotes();
     }
-    selectButton->setSingle();
     unsigned start = nt->selectStart;
     unsigned end = nt->selectEnd;
     int shiftTime = nt->allNotes[start].startTime - nt->allNotes[end].startTime;
     nt->eraseNotes(start, end);
     NoteTaker::ShiftNotes(nt->allNotes, start, shiftTime);
-    int wheelIndex = nt->noteToWheel(start);
     nt->display->xPositionsInvalid = true;
-    nt->setSelect(nt->wheelToNote(wheelIndex - 1), start);
     nt->resetLedButtons();
+    assert(!selectButton->saveZero);
+    // set selection to previous selectable note, or zero if none
+    int wheel = nt->noteToWheel(nt->selectStart);
+    unsigned previous = nt->wheelToNote(wheel - 1, false); // disable dbug, select button is in flux
+    nt->selectStart = previous;
+    selectButton->setSingle();
     nt->setWheelRange();  // range is smaller
     NoteTakerButton::onDragEnd(e);
 }
@@ -120,7 +123,7 @@ void InsertButton::draw(NVGcontext* vg) {
 void InsertButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     SelectButton* selectButton = nt->selectButton;
-    nt->resetLedButtons(selectButton);  // turn off pitch, file, sustain
+    nt->resetLedButtons();  // turn off pitch, file, sustain
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
@@ -296,31 +299,29 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
     switch (state) {
         case State::ledOff: {
             assert(ledOn);
-            int wheelIndex = nt->noteToWheel(nt->selectStart);
-            state = State::single;
-            nt->setSelect(nt->wheelToNote(wheelIndex - 1), nt->wheelToNote(wheelIndex));
+            this->setSingle();
         } break;
         case State::single: {
             assert(!ledOn);
-            int wheelIndex = nt->noteToWheel(nt->selectStart);
-            state = State::extend;
             af = 1;
             ledOn = true;
-            unsigned start = nt->wheelToNote(wheelIndex + 1);
-            unsigned end;
-            singlePos = start;
-            if (TRACK_END == nt->allNotes[start].type) {
-                end = start;
-                start = nt->selectStart;
-            } else {
-                end = nt->atMidiTime(nt->allNotes[start].endTime());
+            if (!nt->horizontalCount()) {
+                break;  // can't start selection if there's nothing to select
             }
-            nt->setSelect(start, end);
+            int wheelStart = nt->noteToWheel(nt->selectStart);
+            saveZero = !wheelStart;
+            state = State::extend;
+            int wheelIndex = std::max(1, wheelStart);
+            selStart = nt->wheelToNote(wheelIndex);
+            assert(MIDI_HEADER != nt->allNotes[selStart].type);
+            assert(TRACK_END != nt->allNotes[selStart].type);
+            unsigned end = nt->atMidiTime(nt->allNotes[selStart].endTime());
+            nt->setSelect(selStart, end);
         } break;
         case State::extend:
             assert(!ledOn);
             nt->copyNotes();
-            this->reset();
+            state = State::ledOff;
         break;
         default:
             assert(0);
@@ -329,17 +330,13 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
     nt->setWheelRange();  // if state is single, set to horz from -1 to size
 }
 
-void SelectButton::reset() {
-    nModule()->alignStart();
-    state = State::ledOff;
-    NoteTakerButton::reset();
-}
-
-void SelectButton::setExtend() {
-    nModule()->alignStart();
+void SelectButton::setSingle() {
+    state = State::single;
     af = 1;
     ledOn = true;
-    state = State::extend;
+    NoteTaker* nt = nModule();
+    unsigned start = saveZero ? nt->wheelToNote(0) : nt->selectStart;
+    nt->setSelect(start, start + 1);
 }
 
 void SustainButton::onDragEnd(EventDragEnd& e) {

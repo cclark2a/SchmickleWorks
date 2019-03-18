@@ -243,6 +243,12 @@ struct PartButton : EditLEDButton {
 
     void onDragEnd(EventDragEnd &e) override;
 
+    void reset() override {
+        addChannel = 0;
+        allChannels = true;
+        EditLEDButton::reset();
+    }
+
     json_t *toJson() const override {
         json_t* root = NoteTakerButton::toJson();
         json_object_set_new(root, "addChannel", json_integer(addChannel));
@@ -294,8 +300,9 @@ struct SelectButton : EditLEDButton {
         extend,
     };
 
-    unsigned singlePos = 0;
-    State state = State::ledOff;
+    unsigned selStart = 1;   // note index where extend grows from, >= 1
+    bool saveZero = false;   // set if single was at left-most position
+    State state = State::single;
 
     void draw(NVGcontext *vg) override;
     bool editEnd() const { return ledOn && State::extend == state; }
@@ -304,13 +311,22 @@ struct SelectButton : EditLEDButton {
     void fromJson(json_t* root) override {
         NoteTakerButton::fromJson(root);
         state = (State) json_integer_value(json_object_get(root, "state"));
-        singlePos = json_integer_value(json_object_get(root, "singlePos"));
+        selStart = json_integer_value(json_object_get(root, "selStart"));
+        saveZero = json_integer_value(json_object_get(root, "saveZero"));
     }
 
     void onDragEnd(EventDragEnd &e) override;
-    void reset() override;
-    void setExtend();
-    void setSingle() { state = State::single; ledOn = true; }
+
+    void reset() override {
+        selStart = 1;
+        saveZero = false;
+        state = State::single;
+        EditLEDButton::reset();
+        af = 1;
+        ledOn = true;
+    }
+
+    void setSingle();
 
     NVGcolor ledColor() const override {
         if (State::extend == state) {
@@ -322,7 +338,8 @@ struct SelectButton : EditLEDButton {
     json_t *toJson() const override {
         json_t* root = NoteTakerButton::toJson();
         json_object_set_new(root, "state", json_integer((int) state));
-        json_object_set_new(root, "singlePos", json_integer(singlePos));
+        json_object_set_new(root, "selStart", json_integer(selStart));
+        json_object_set_new(root, "saveZero", json_integer(saveZero));
         return root;
     }
 };

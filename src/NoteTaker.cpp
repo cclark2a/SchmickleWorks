@@ -141,7 +141,8 @@ void NoteTaker::resetControls() {
     this->resetLedButtons();
     for (NoteTakerButton* button : {
             (NoteTakerButton*) cutButton, (NoteTakerButton*) insertButton,
-            (NoteTakerButton*) restButton, (NoteTakerButton*) timeButton }) {
+            (NoteTakerButton*) restButton, (NoteTakerButton*) selectButton,
+            (NoteTakerButton*) timeButton }) {
         if (button) {
             button->reset();
         }
@@ -157,11 +158,13 @@ void NoteTaker::resetControls() {
     }
 }
 
+// never turns off select button, since it cannot be turned off if score is empty,
+// and it contains state that should not be arbitrarily deleted. select button
+// is explicitly reset only when notetaker overall state is reset
 void NoteTaker::resetLedButtons(const NoteTakerButton* exceptFor) {
     for (NoteTakerButton* button : {
                 (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
-                (NoteTakerButton*) runButton, (NoteTakerButton*) selectButton,
-                (NoteTakerButton*) sustainButton }) {
+                (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton }) {
         if (button && exceptFor != button) {
             button->reset();
         }
@@ -285,24 +288,19 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
 }
 
 void NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
-    debug("setSelectEnd wheelValue=%d end=%u singlePos=%u selectStart=%u selectEnd=%u", 
-            wheelValue, end, selectButton->singlePos, selectStart, selectEnd);
-    if (end < selectButton->singlePos) {
-        this->setSelect(end, selectButton->singlePos);
+    debug("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
+            wheelValue, end, selectButton->selStart, selectStart, selectEnd);
+    if (end < selectButton->selStart) {
+        this->setSelect(end, selectButton->selStart);
         debug("setSelectEnd < s:%u e:%u", selectStart, selectEnd);
-   } else if (end == selectButton->singlePos) {
-        unsigned start = selectButton->singlePos;
-        unsigned end;
-        if (TRACK_END == allNotes[start].type) {
-            end = start;
-            start = isEmpty() ? 0 : wheelToNote(wheelValue - 1);
-        } else {
-            end = this->wheelToNote(wheelValue + 1);
-        }
+   } else if (end == selectButton->selStart) {
+        unsigned start = selectButton->selStart;
+        assert(TRACK_END != allNotes[start].type);
+        unsigned end = this->wheelToNote(wheelValue + 1);
         this->setSelect(start, end);
         debug("setSelectEnd == s:%u e:%u", selectStart, selectEnd);
     } else {
-        this->setSelect(selectButton->singlePos, end);
+        this->setSelect(selectButton->selStart, end);
         debug("setSelectEnd > s:%u e:%u", selectStart, selectEnd);
     }
     assert(selectEnd != selectStart);

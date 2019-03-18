@@ -65,7 +65,7 @@ void NoteTaker::setHorizontalWheelRange() {
         }
     } else {
         int wheelMin = selectButton->editStart() ? 0 : 1;
-        int wheelMax = (int) this->horizontalCount() + .999f;
+        float wheelMax = this->horizontalCount() + .999f;
         horizontalWheel->setLimits(wheelMin, wheelMax);
         value = this->noteToWheel(*note);
         if (value < wheelMin || value > wheelMax) {
@@ -219,26 +219,20 @@ void NoteTaker::updateHorizontal() {
     } else {
     // value should range from 0 to max - 1, where max is number of starts for active channels
     // if insert mode, value ranges from -1 to max - 1
-        unsigned index = this->wheelToNote(wheelValue);
+        unsigned start = this->wheelToNote(wheelValue);
+        debug("start %u wheelValue %d", start, wheelValue);
         if (selectButton->editEnd()) {
-            this->setSelectEnd(wheelValue, index);
-            noteChanged = true;
+            noteChanged = start != selectEnd;
+            this->setSelectEnd(wheelValue, start);
         } else {
-            unsigned start;
-            debug("index %u wheelValue %d", index, wheelValue);
-            if (index) {
-                start = this->wheelToNote(wheelValue - 1);
-            } else {
-                start = 0;
-                index = 1;
-            }
-            debug("start %u index %u", start, index);
-            if (start != index) {
-                this->setSelect(start, index);
-                noteChanged = true;
-            }
+            unsigned end = this->wheelToNote(wheelValue + 1);
+            debug("end %u", end);
+            noteChanged = start != selectStart || end != selectEnd;
+            this->setSelect(start, end);
         }
-        this->setVerticalWheelRange();
+        if (noteChanged) {
+            this->setVerticalWheelRange();
+        }
     }
     if (noteChanged) {
         this->playSelection();
