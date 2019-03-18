@@ -137,25 +137,21 @@ void NoteTaker::reset() {
     Module::reset();
 }
 
-void NoteTaker::resetControls() {
+bool NoteTaker::resetControls() {
+    if (!display) {
+        return false;
+    }
     this->resetLedButtons();
     for (NoteTakerButton* button : {
             (NoteTakerButton*) cutButton, (NoteTakerButton*) insertButton,
             (NoteTakerButton*) restButton, (NoteTakerButton*) selectButton,
             (NoteTakerButton*) timeButton }) {
-        if (button) {
-            button->reset();
-        }
+        button->reset();
     }
-    if (horizontalWheel) {
-        horizontalWheel->reset();
-    }
-    if (verticalWheel) {
-        verticalWheel->reset();
-    }
-    if (display) {
-        display->reset();
-    }
+    horizontalWheel->reset();
+    verticalWheel->reset();
+    display->reset();
+    return true;
 }
 
 // never turns off select button, since it cannot be turned off if score is empty,
@@ -165,7 +161,7 @@ void NoteTaker::resetLedButtons(const NoteTakerButton* exceptFor) {
     for (NoteTakerButton* button : {
                 (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
                 (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton }) {
-        if (button && exceptFor != button) {
+        if (exceptFor != button) {
             button->reset();
         }
     }
@@ -190,10 +186,11 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels);
     bool success = emptyParser.parseMidi();
     assert(success);
-    this->resetControls();
-    if (display) {
-        display->updateXPosition();
+    if (!this->resetControls()) {
+        return;
     }
+    this->setWheelRange();
+    display->updateXPosition();
 }
 
 void NoteTaker::setSelect(unsigned start, unsigned end) {
@@ -287,23 +284,27 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     selectEnd = end;
 }
 
-void NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
+bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
     debug("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
             wheelValue, end, selectButton->selStart, selectStart, selectEnd);
+    bool changed = true;
     if (end < selectButton->selStart) {
         this->setSelect(end, selectButton->selStart);
         debug("setSelectEnd < s:%u e:%u", selectStart, selectEnd);
-   } else if (end == selectButton->selStart) {
+    } else if (end == selectButton->selStart) {
         unsigned start = selectButton->selStart;
         assert(TRACK_END != allNotes[start].type);
         unsigned end = this->wheelToNote(wheelValue + 1);
         this->setSelect(start, end);
         debug("setSelectEnd == s:%u e:%u", selectStart, selectEnd);
-    } else {
+    } else if (end != selectEnd) {
         this->setSelect(selectButton->selStart, end);
         debug("setSelectEnd > s:%u e:%u", selectStart, selectEnd);
+    } else {
+        changed = false;
     }
     assert(selectEnd != selectStart);
+    return changed;
 }
 
 bool NoteTaker::setSelectStart(unsigned start) {
@@ -393,8 +394,8 @@ void NoteTaker::step() {
 
 // counts to nth selectable note; returns index into notes array
 unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
-    assert(!dbug || value > 0 || selectButton->editStart());
-    assert(!dbug || value < (int) allNotes.size());
+    assert(value >= 0);
+    assert(value < (int) allNotes.size());
     int count = value;
     int lastTime = -1;
     DisplayType lastType = UNUSED;

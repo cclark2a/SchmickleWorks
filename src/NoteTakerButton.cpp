@@ -78,7 +78,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     assert(!selectButton->saveZero);
     // set selection to previous selectable note, or zero if none
     int wheel = nt->noteToWheel(nt->selectStart);
-    unsigned previous = nt->wheelToNote(wheel - 1, false); // disable dbug, select button is in flux
+    unsigned previous = nt->wheelToNote(wheel - 1);
     nt->selectStart = previous;
     selectButton->setSingle();
     nt->setWheelRange();  // range is smaller

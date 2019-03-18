@@ -32,14 +32,11 @@ void NoteTaker::setHorizontalWheelRange() {
         horizontalWheel->speed = 1;
         return;
     }
-    if (isEmpty()) {
-        return;
-    }
-    const DisplayNote* note = &allNotes[selectStart];
     // horizontal wheel range and value
     float horzSpeed = 1;
     int value = INT_MAX;
     if (!selectButton->ledOn) {
+        const DisplayNote* note = &allNotes[selectStart];
         if (selectStart + 1 == selectEnd
                 && (KEY_SIGNATURE == note->type || TIME_SIGNATURE == note->type)) {
             if (TIME_SIGNATURE == note->type) {
@@ -67,12 +64,17 @@ void NoteTaker::setHorizontalWheelRange() {
         int wheelMin = selectButton->editStart() ? 0 : 1;
         float wheelMax = this->horizontalCount() + .999f;
         horizontalWheel->setLimits(wheelMin, wheelMax);
-        value = this->noteToWheel(*note);
-        if (value < wheelMin || value > wheelMax) {
-            debug("! note type %d value %d wheelMin %d wheelMax %d",
-                    note->type, value, wheelMin, wheelMax);
-            this->debugDump();
-            assert(0);
+        if (this->isEmpty()) {
+            value = 0;
+        } else {
+            const DisplayNote* note = &allNotes[selectStart];
+            value = this->noteToWheel(*note);
+            if (value < wheelMin || value > wheelMax) {
+                debug("! note type %d value %d wheelMin %d wheelMax %d",
+                        note->type, value, wheelMin, wheelMax);
+                this->debugDump();
+                assert(0);
+            }
         }
     }
     if (INT_MAX != value) {
@@ -217,21 +219,24 @@ void NoteTaker::updateHorizontal() {
             this->setSelect(selectStart, selectEnd);
         }
     } else {
-    // value should range from 0 to max - 1, where max is number of starts for active channels
-    // if insert mode, value ranges from -1 to max - 1
-        unsigned start = this->wheelToNote(wheelValue);
-        debug("start %u wheelValue %d", start, wheelValue);
+        unsigned start, end;
         if (selectButton->editEnd()) {
-            noteChanged = start != selectEnd;
-            this->setSelectEnd(wheelValue, start);
+            int wheelStart = this->noteToWheel(
+                    selectButton->selStart - (int) selectButton->saveZero) + 1;
+            start = this->wheelToNote(std::min(wheelValue, wheelStart));
+            end = this->wheelToNote(std::max(wheelValue + 1, wheelStart));
+            debug("start %u end %u wheelValue %d wheelStart %d",
+                    start, end, wheelValue, wheelStart);
         } else {
-            unsigned end = this->wheelToNote(wheelValue + 1);
-            debug("end %u", end);
-            noteChanged = start != selectStart || end != selectEnd;
-            this->setSelect(start, end);
+            start = this->wheelToNote(wheelValue);
+            end = this->wheelToNote(wheelValue + 1);
+            debug("start %u end %u wheelValue %d", start, end, wheelValue);
         }
-        if (noteChanged) {
+        assert(start < end);
+        if (start != selectStart || end != selectEnd) {
+            this->setSelect(start, end);
             this->setVerticalWheelRange();
+            noteChanged = true;
         }
     }
     if (noteChanged) {

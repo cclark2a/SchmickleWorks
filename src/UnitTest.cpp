@@ -109,7 +109,7 @@ void UnitTest(NoteTaker* n) {
     AddTwoNotes(n);
     WheelLeft(n, 0);
     Press(n, n->selectButton);
-    WheelLeft(n, 3);
+    WheelLeft(n, 2);
     Press(n, n->insertButton);
     assert(6 == n->allNotes.size());
     assert(4 == n->horizontalCount());
@@ -120,8 +120,8 @@ void UnitTest(NoteTaker* n) {
     debug("cnp wheel left 0");
     n->debugDump();
     Press(n, n->selectButton);
-    WheelLeft(n, 3);
-    debug("cnp wheel left 3");
+    WheelLeft(n, 2);
+    debug("cnp wheel left 2");
     n->debugDump();
     Press(n, n->selectButton);
     Press(n, n->selectButton);

@@ -202,7 +202,7 @@ struct NoteTaker : Module {
         this->setPlayStart();
 }
 
-    void resetControls();
+    bool resetControls();
     void saveScore();
 
     unsigned selectEndPos(unsigned select) const {
@@ -258,7 +258,7 @@ struct NoteTaker : Module {
 
     void setPlayStart();
     void setSelect(unsigned start, unsigned end);
-    void setSelectEnd(int wheelValue, unsigned end);
+    bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
     void setHorizontalWheelRange();
     void setVerticalWheelRange();

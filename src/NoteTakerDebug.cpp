@@ -68,16 +68,19 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
             partButton->addChannel, partButton->allChannels, tempo, ppq);
     NoteTaker::DebugDump(allNotes, &display->xPositions, selectStart, selectEnd);
     this->debugDumpChannels();
-    if (!inWheel && selectButton->ledOn) {
+    if (!inWheel && selectButton->ledOn && !partButton->ledOn && !sustainButton->ledOn
+            && !fileButton->ledOn) {
         std::string w2n;
         for (int index = horizontalWheel->minValue; index <= horizontalWheel->maxValue; ++index) {
-            w2n += " " + std::to_string(index) + "/" + std::to_string((int) this->wheelToNote(index, false));
+            w2n += " " + std::to_string(index) + "/"
+                    + std::to_string((int) this->wheelToNote(index, false));
         }
         debug("wheelToNote:%s", w2n.c_str());
         std::string n2w;
         unsigned idx = 0;
         for (const auto& note : allNotes) {
-            n2w += " " + std::to_string(idx++) + "/" + std::to_string(this->noteToWheel(note, false));
+            n2w += " " + std::to_string(idx++) + "/"
+                    + std::to_string(this->noteToWheel(note, false));
         }
         debug("noteToWheel:%s", n2w.c_str());
     }
