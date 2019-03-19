@@ -326,6 +326,7 @@ struct SelectButton : EditLEDButton {
         ledOn = true;
     }
 
+    void setOff();
     void setExtend();
     void setSingle();
 

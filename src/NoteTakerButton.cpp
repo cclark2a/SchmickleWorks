@@ -3,36 +3,18 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
+// try to get rest working as well as note
 void AdderButton::onDragEndPreamble(EventDragEnd& e) {
     NoteTaker* nt = nModule();
-    SelectButton* selectButton = nt->selectButton;
-    startTime = 0;
-    // shiftTime, duration set by caller
-    if (nt->isEmpty()) {
-        insertLoc = nt->allNotes.size() - 1;
-        assert(TRACK_END == nt->allNotes[insertLoc].type);
-        shiftLoc = insertLoc + 1;
-    } else if (!nt->selectStart) {  // insert left of first note
-        assert(selectButton->editStart());
-        insertLoc = nt->wheelToNote(1);
-        shiftLoc = nt->selectEnd;
-    } else {
-        duration = nt->allNotes[nt->selectEnd].startTime - nt->allNotes[nt->selectStart].startTime;
-        if (selectButton->editStart()) { // insert right of selection
-            insertLoc = nt->selectEnd;
-            shiftLoc = nt->selectEnd + 1;
-            shiftTime = duration;
-            startTime = nt->allNotes[nt->selectEnd].startTime;
-        } else {  // replace selection with one rest
-            startTime = nt->allNotes[nt->selectStart].startTime;
-            nt->eraseNotes(nt->selectStart, nt->selectEnd);
-            insertLoc = nt->selectStart;
-            shiftLoc = insertLoc + 1;
-            shiftTime = 0;
-        }
+    if (!nt->selectButton->editStart()) {
+        EventDragEnd e;
+        nt->cutButton->onDragEnd(e);
     }
-    debug("insertLoc %u shiftLoc %u startTime %d shiftTime %d duration %d", insertLoc, shiftLoc,
-            startTime, shiftTime, duration);
+    // shiftTime set by caller
+    insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
+    shiftLoc = insertLoc + 1;
+    startTime = nt->allNotes[insertLoc].startTime;
+    debug("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
 }
 
 void AdderButton::onDragEnd(EventDragEnd& e) {
@@ -40,7 +22,7 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     if (shiftTime) {
         NoteTaker::ShiftNotes(nt->allNotes, shiftLoc, shiftTime);
     }
-    nt->selectButton->reset();
+    nt->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
     nt->display->xPositionsInvalid = true;
     nt->setSelect(insertLoc, insertLoc + 1);
@@ -76,10 +58,10 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     nt->shiftNotes(start, shiftTime);
     nt->display->xPositionsInvalid = true;
     nt->resetLedButtons();
-    assert(!selectButton->saveZero);
     // set selection to previous selectable note, or zero if none
     int wheel = nt->noteToWheel(nt->selectStart);
     unsigned previous = nt->wheelToNote(wheel - 1);
+    nt->selectEnd = nt->selectStart;
     nt->selectStart = previous;
     selectButton->setSingle();
     nt->setWheelRange();  // range is smaller
@@ -156,7 +138,9 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     span.push_back(note);
                 }
             }
-            if (span.empty()) {
+            bool onlyRest = 1 == span.size() && REST_TYPE == span[0].type;
+            if (span.empty() || onlyRest) {
+                span.clear();
                 debug("insert button : none selectable"); nt->debugDump();
                 for (unsigned index = iStart; index < nt->allNotes.size(); ++index) {
                     const auto& note = nt->allNotes[index];
@@ -165,7 +149,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                         break;
                     }
                 }
-                if (span.empty()) {
+                if (span.empty() || onlyRest) {
                     for (unsigned index = iStart; --index > 0; ) {
                         const auto& note = nt->allNotes[index];
                         if (NOTE_ON == note.type) {
@@ -268,10 +252,10 @@ void RestButton::draw(NVGcontext* vg) {
 }
 
 void RestButton::onDragEnd(EventDragEnd& e) {
-    shiftTime = duration = stdTimePerQuarterNote;
     onDragEndPreamble(e);
+    DisplayNote rest = { startTime, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, REST_TYPE, false };
+    shiftTime = rest.duration;
     NoteTaker* nt = nModule();
-    DisplayNote rest = { startTime, duration, { 0, 0, 0, 0}, 0, REST_TYPE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);
     AdderButton::onDragEnd(e);
 }
@@ -338,6 +322,12 @@ void SelectButton::setExtend() {
     state = State::extend;
     af = 1;
     ledOn = true;
+}
+
+void SelectButton::setOff() {
+    state = State::ledOff;
+    af = 0;
+    ledOn = false;
 }
 
 void SelectButton::setSingle() {
