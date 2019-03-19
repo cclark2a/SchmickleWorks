@@ -189,10 +189,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     }
     nt->display->xPositionsInvalid = true;
     nt->setSelect(insertLoc, insertLoc + insertSize);
-    if (pasteFromClipboard) {
-        selectButton->setExtend();
-    }
-    selectButton->saveZero = false;
+    selectButton->setOff();
     debug("insert final");
     nt->setWheelRange();  // range is larger
     nt->playSelection();
