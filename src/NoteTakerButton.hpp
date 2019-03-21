@@ -243,10 +243,10 @@ struct PartButton : EditLEDButton {
 
     void onDragEnd(EventDragEnd &e) override;
 
-    void reset() override {
+    // note: not reset because turning off button is separate from resetting channel state
+    void resetChannels() {
         addChannel = 0;
         allChannels = true;
-        EditLEDButton::reset();
     }
 
     json_t *toJson() const override {

@@ -39,8 +39,6 @@ void CutButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, ";", NULL);
 }
 
-// to do : should a long press clear all?
-// maybe long press should put clear all: yes / no choice in display
 void CutButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
@@ -48,8 +46,14 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     if (selectButton->editStart() && selectButton->saveZero) {
         return;
     }
-    if (selectButton->editEnd()) {
+    FileButton* fileButton = nt->fileButton;
+    if (selectButton->editEnd() || fileButton->ledOn) {
+        // allows add to undo accidental cut / clear all
         nt->copyNotes();
+    }
+    if (fileButton->ledOn) {
+        nt->setScoreEmpty();
+        return;
     }
     unsigned start = nt->selectStart;
     unsigned end = nt->selectEnd;
@@ -59,9 +63,9 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     nt->display->xPositionsInvalid = true;
     nt->resetLedButtons();
     // set selection to previous selectable note, or zero if none
-    int wheel = nt->noteToWheel(nt->selectStart);
+    int wheel = nt->noteToWheel(start);
     unsigned previous = nt->wheelToNote(wheel - 1);
-    nt->selectEnd = nt->selectStart;
+    nt->selectEnd = start;
     nt->selectStart = previous;
     selectButton->setSingle();
     nt->setWheelRange();  // range is smaller
@@ -109,7 +113,6 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
-    bool pasteFromClipboard = false;
     if (nt->isEmpty()) {
         insertLoc = nt->atMidiTime(0);
         DisplayNote midC = { 0, stdTimePerQuarterNote, { 60, 0, stdKeyPressure, stdKeyPressure},
@@ -119,22 +122,18 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         shiftTime = stdTimePerQuarterNote;
         debug("add to empty");
     } else {
-        vector<DisplayNote>* copyFrom = nullptr;
         vector<DisplayNote> span;
+        // insert loc is where the new note goes, but not when the new note goes; 
+        // the new start time is 'last end time(insert loc)'
         insertLoc = !nt->selectStart ? nt->wheelToNote(1) : nt->selectEnd;
-        pasteFromClipboard = selectButton->editStart() && !nt->clipboard.empty();
-        if (pasteFromClipboard) {
-            copyFrom = &nt->clipboard;
-            debug("paste from clipboard"); NoteTaker::DebugDump(nt->clipboard);
-        } else {
-            copyFrom = &span;
+        if (!selectButton->editStart() || nt->clipboard.empty() || !nt->extractClipboard(&span)) {
             unsigned iStart = !nt->selectStart ? insertLoc : nt->selectStart;
             unsigned iEnd = nt->selectEnd;
             !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
             debug("iStart=%u iEnd=%u", iStart, iEnd);
             for (unsigned index = iStart; index < iEnd; ++index) {
                 const auto& note = nt->allNotes[index];
-                if ((NOTE_ON == note.type && nt->isSelectable(note)) || REST_TYPE == note.type) {
+                if (nt->isSelectable(note)) {
                     span.push_back(note);
                 }
             }
@@ -167,16 +166,13 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         int insertTime = nt->allNotes[insertLoc].startTime;
         int nextStart = nt->nextStartTime(insertLoc);
         debug("priorEnd %d insertTime %d nextStart %d", priorEnd, insertTime, nextStart);
-        NoteTaker::ShiftNotes(*copyFrom, 0, priorEnd - copyFrom->front().startTime);
-        if (!nt->partButton->allChannels) {
-            NoteTaker::MapChannel(*copyFrom, (unsigned) nt->partButton->addChannel);
-        }
-        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, copyFrom->begin(),
-                copyFrom->end());
-        insertSize = copyFrom->size();
+        NoteTaker::ShiftNotes(span, 0, priorEnd - span.front().startTime);
+        nt->allNotes.insert(nt->allNotes.begin() + insertLoc, span.begin(), span.end());
+        insertSize = span.size();
         // include notes on other channels that fit within the start/end window
-        // shift by copyFrom duration less next start (if any) on same channel minus selectStart time
-        shiftTime = copyFrom->back().endTime() - copyFrom->front().startTime;
+        // shift by span duration less next start (if any) on same channel minus selectStart time
+        shiftTime = (priorEnd - insertTime)
+                + (NoteTaker::LastEndTime(span) - span.front().startTime);
         int availableShiftTime = nextStart - insertTime;
         debug("shift time %d available %d", shiftTime, availableShiftTime);
         shiftTime = std::max(0, shiftTime - availableShiftTime);
@@ -188,7 +184,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         nt->shiftNotes(insertLoc + insertSize, shiftTime);
     }
     nt->display->xPositionsInvalid = true;
-    nt->setSelect(insertLoc, insertLoc + insertSize);
+    nt->setSelect(insertLoc, nt->nextAfter(insertLoc + insertSize));
     selectButton->setOff();
     debug("insert final");
     nt->setWheelRange();  // range is larger
@@ -250,9 +246,10 @@ void RestButton::draw(NVGcontext* vg) {
 
 void RestButton::onDragEnd(EventDragEnd& e) {
     onDragEndPreamble(e);
-    DisplayNote rest = { startTime, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, REST_TYPE, false };
-    shiftTime = rest.duration;
     NoteTaker* nt = nModule();
+    DisplayNote rest = { startTime, stdTimePerQuarterNote, { 0, 0, 0, 0},
+            nt->partButton->addChannel, REST_TYPE, false };
+    shiftTime = rest.duration;
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);
     AdderButton::onDragEnd(e);
 }
@@ -284,7 +281,9 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
     switch (state) {
         case State::ledOff: {
             assert(ledOn);
-            this->setSingle();
+            state = State::single; // does not call setSingle because saveZero should not change
+            unsigned start = saveZero ? nt->wheelToNote(0) : nt->selectStart;
+            nt->setSelect(start, nt->nextAfter(start + 1));
         } break;
         case State::single: {
             assert(!ledOn);
@@ -306,7 +305,7 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
         case State::extend:
             assert(!ledOn);
             nt->copyNotes();
-            state = State::ledOff;
+            state = State::ledOff; // does not call setOff because saveZero should not change
         break;
         default:
             assert(0);
@@ -322,18 +321,18 @@ void SelectButton::setExtend() {
 }
 
 void SelectButton::setOff() {
+    saveZero = false;
     state = State::ledOff;
     af = 0;
     ledOn = false;
 }
 
 void SelectButton::setSingle() {
+    NoteTaker* nt = nModule();
+    saveZero = !nt->noteToWheel(nt->selectStart);
     state = State::single;
     af = 1;
     ledOn = true;
-    NoteTaker* nt = nModule();
-    unsigned start = saveZero ? nt->wheelToNote(0) : nt->selectStart;
-    nt->setSelect(start, start + 1);
 }
 
 void SustainButton::onDragEnd(EventDragEnd& e) {

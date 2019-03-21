@@ -106,8 +106,7 @@ struct NoteTaker : Module {
         for (unsigned index = 0; index < allNotes.size(); ++index) {
             const DisplayNote& note = allNotes[index];
             if (midiTime < note.startTime || TRACK_END == note.type
-                    || ((NOTE_ON == note.type || REST_TYPE == note.type) 
-                    && midiTime == note.startTime)) {
+                    || (note.isNoteOrRest() && midiTime == note.startTime)) {
                 return index;
             }
         }
@@ -137,6 +136,7 @@ struct NoteTaker : Module {
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
 
     void eraseNotes(unsigned start, unsigned end);
+    bool extractClipboard(vector<DisplayNote>* ) const;
     void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
     bool isEmpty() const;
@@ -154,14 +154,43 @@ struct NoteTaker : Module {
         return result;
     }
 
+    static int LastEndTime(const vector<DisplayNote>& notes) {
+        int result = 0;
+        for (auto& note : notes) {
+            result = std::max(result, note.endTime());
+        }
+        return result;
+    }
+
     void loadScore();
 
     static void MapChannel(vector<DisplayNote>& notes, unsigned channel) {
          for (auto& note : notes) {
-             if (NOTE_ON == note.type) {
+             if (note.isNoteOrRest()) {
                 note.channel = channel;
              }
         }    
+    }
+
+    // to do : figure out how to safely delineate start and end for insertion
+    // probably don't need nextAfter and nextStartTime, both
+    unsigned nextAfter(unsigned start) const {
+        if (!start) {
+            return start;
+        }
+        int priorTime = allNotes[start - 1].startTime;
+        int startTime = allNotes[start].startTime;
+        if (priorTime < startTime) {
+            return start;
+        }
+        for (unsigned index = start; index < allNotes.size(); ++index) {
+            const DisplayNote& note = allNotes[index];
+            if (note.startTime > startTime) {
+                return index;
+            }
+        }
+        assert(0);
+        return INT_MAX;
     }
 
     int nextStartTime(unsigned start) const {
@@ -204,7 +233,7 @@ struct NoteTaker : Module {
         const DisplayNote* test;
         do {
             test = &allNotes[++select];
-        } while (NOTE_ON == first.type && NOTE_ON == test->type
+        } while (first.isNoteOrRest() && test->isNoteOrRest()
                 && first.startTime == test->startTime);
         return select;
     }

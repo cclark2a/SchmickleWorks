@@ -51,7 +51,7 @@ void NoteTaker::setHorizontalWheelRange() {
                     && start < selectEnd) {
                 note = &allNotes[++start];
             }
-            if (NOTE_ON == note->type || REST_TYPE == note->type) {
+            if (note->isNoteOrRest()) {
                 value = NoteTakerDisplay::DurationIndex(note->duration);
             }
             if (INT_MAX != value) {
@@ -123,7 +123,7 @@ void NoteTaker::setVerticalWheelRange() {
         }
     }
     unsigned start = selectStart;
-    while (start < selectEnd && (NOTE_ON != note->type || !note->isSelectable(selectChannels))) {
+    while (start < selectEnd && !note->isSelectable(selectChannels)) {
         note = &allNotes[++start];
     }
     bool validNote = start < selectEnd && NOTE_ON == note->type;
@@ -222,7 +222,7 @@ void NoteTaker::updateHorizontal() {
                     start, end, wheelValue, wheelStart);
         } else {
             start = this->wheelToNote(wheelValue);
-            end = this->wheelToNote(wheelValue + 1);
+            end = this->nextAfter(start + 1);
             debug("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         assert(start < end);

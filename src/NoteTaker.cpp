@@ -48,22 +48,54 @@ void NoteTaker::eraseNotes(unsigned start, unsigned end) {
     this->debugDump(true, true);  // wheel range is inconsistent here
 }
 
+// for clipboard to be usable, either: all notes in clipboard are active, 
+// or: all notes in clipboard are with a single channel (to paste to same or another channel)
+// mono   locked
+// false  false   copy all notes unchanged (return true)
+// false  true    do nothing (return false)
+// true   false   copy all notes unchanged (return true)
+// true   true    copy all notes to unlocked channel (return true)
+bool NoteTaker::extractClipboard(vector<DisplayNote>* span) const {
+    bool mono = true;
+    bool locked = false;
+    int channel = -1;
+    for (auto& note : clipboard) {
+        if (!note.isNoteOrRest()) {
+            mono = false;
+            locked |= selectChannels != ALL_CHANNELS;
+            continue;
+        }
+        if (channel < 0) {
+            channel = note.channel;
+        } else {
+            mono &= channel == note.channel;
+            locked |= !(selectChannels & (1 << note.channel));
+        }
+    }
+    if (!mono && locked) {
+        return false;
+    }
+    *span = clipboard;
+    if (locked) {
+        MapChannel(*span, partButton->addChannel); 
+    }
+    return true;
+}
+
 // to compute range for horizontal wheel when selecting notes
 // to do : horizontalCount, noteToWheel, wheelToNote share loop logic. Consolidate?
 unsigned NoteTaker::horizontalCount() const {
     unsigned count = -1;
-    int lastTime = -1;
-    DisplayType lastType = UNUSED;
+    DisplayNote lastNote = {-1, 0, { 0, 0, 0, 0}, 0, UNUSED, false};
     for (auto& note : allNotes) {
         if (TRACK_END == note.type) {
             break;
         }
-        if (NOTE_ON != note.type || NOTE_ON != lastType ||
-                (this->isSelectable(note) && lastTime != note.startTime)) {
+        if (!note.isNoteOrRest() || !lastNote.isNoteOrRest() ||
+                (this->isSelectable(note) && lastNote.startTime != note.startTime)) {
             ++count;
         }
-        lastTime = note.startTime;
-        lastType = note.type;
+        lastNote = note;
     }
     return count;
 }
@@ -101,18 +133,16 @@ void NoteTaker::loadScore() {
 
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
     int count = -1;
-    int lastTime = -1;
-    DisplayType lastType = UNUSED;
+    DisplayNote lastNote = {-1, 0, { 0, 0, 0, 0}, 0, UNUSED, false};
     for (auto& note : allNotes) {
-        if (NOTE_ON != note.type || NOTE_ON != lastType ||
-                (this->isSelectable(note) && lastTime != note.startTime)) {
+        if (!note.isNoteOrRest() || !lastNote.isNoteOrRest() ||
+                (this->isSelectable(note) && lastNote.startTime != note.startTime)) {
             ++count;
         }
         if (&match == &note) {
             return count;
         }
-        lastTime = note.startTime;
-        lastType = note.type;
+        lastNote = note;
     }
     if (dbug) {
         debug("noteToWheel match %s", match.debugString().c_str());
@@ -165,6 +195,7 @@ bool NoteTaker::resetControls() {
             (NoteTakerButton*) timeButton }) {
         button->reset();
     }
+    partButton->resetChannels();
     horizontalWheel->reset();
     verticalWheel->reset();
     display->reset();
@@ -331,8 +362,8 @@ bool NoteTaker::setSelectStart(unsigned start) {
     unsigned end = start;
     do {
         ++end;
-    } while (allNotes[start].startTime == allNotes[end].startTime && NOTE_ON == allNotes[start].type
-            && NOTE_ON == allNotes[end].startTime);
+    } while (allNotes[start].startTime == allNotes[end].startTime && allNotes[start].isNoteOrRest()
+            && allNotes[end].isNoteOrRest());
     this->setSelect(start, end);
     return true;
 }
@@ -414,17 +445,15 @@ unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
     assert(value >= 0);
     assert(value < (int) allNotes.size());
     int count = value;
-    int lastTime = -1;
-    DisplayType lastType = UNUSED;
+    DisplayNote lastNote = {-1, 0, { 0, 0, 0, 0}, 0, UNUSED, false};
     for (auto& note : allNotes) {
-        if (NOTE_ON != note.type || NOTE_ON != lastType ||
-                (this->isSelectable(note) && lastTime != note.startTime)) {
+        if (!note.isNoteOrRest() || !lastNote.isNoteOrRest() ||
+                (this->isSelectable(note) && lastNote.startTime != note.startTime)) {
             if (--count < 0) {
                 return this->noteIndex(note);
             }
         }
-        lastTime = note.startTime;
-        lastType = note.type;
+        lastNote = note;
     }
     if (dbug) {
         debug("wheelToNote value %d", value);

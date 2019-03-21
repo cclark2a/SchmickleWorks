@@ -43,7 +43,7 @@ struct DisplayNote {
 
     void setChannel(uint8_t c) {
         channel = c;
-        assertValid(NOTE_ON);
+        assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);
     }
 
     int pitch() const {
@@ -145,8 +145,12 @@ struct DisplayNote {
     }
 
     bool isSelectable(unsigned selectChannels) const {
-        return REST_TYPE == type || TIME_SIGNATURE == type || KEY_SIGNATURE == type
-                || (NOTE_ON == type && (selectChannels & (1 << channel)));
+        return TIME_SIGNATURE == type || KEY_SIGNATURE == type
+                || (isNoteOrRest() && (selectChannels & (1 << channel)));
+    }
+
+    bool isNoteOrRest() const {
+        return NOTE_ON == type || REST_TYPE == type;
     }
 
     json_t* toJson() const;

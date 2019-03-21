@@ -142,18 +142,12 @@ void NoteTaker::validate() const {
                     malformed = true;
                 }
                 time = note.startTime;
-                if (REST_TYPE == note.type) {
-                    for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
-                        if (channelTimes[index] > note.startTime) {
-                            debug("rest channel time error");
-                            malformed = true;
-                        }
-                        channelTimes[index] = note.endTime();
-                    }
-                    break;
-                }
                 if (channelTimes[note.channel] > note.startTime) {
-                    debug("note channel time error");
+                    if (REST_TYPE == note.type) {
+                        debug("rest channel time error");
+                    } else {
+                        debug("note channel time error");
+                    }
                     malformed = true;
                 }
                 channelTimes[note.channel] = note.endTime();

@@ -43,7 +43,6 @@ static void AddTwoNotes(NoteTaker* n) {
 }
 
 void UnitTest(NoteTaker* n) {
-    if (true) return;  // to do : remove, temporary, while debugging
     n->reset();
 
     debug("delete a note with empty score");
