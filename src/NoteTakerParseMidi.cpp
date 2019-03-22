@@ -268,6 +268,7 @@ bool NoteTakerParseMidi::parseMidi() {
                             break;
                             case 0x58: // time signature
                                 displayNote.type = TIME_SIGNATURE;
+                                displayNote.duration = 0;
                                 for (int i = 0; i < 4; ++i) {
                                     if (!midi_check7bits(iter)) {
                                         debug("midi_check7bits 12");
@@ -282,6 +283,7 @@ bool NoteTakerParseMidi::parseMidi() {
                             break;
                             case 0x59:  // key signature
                                 displayNote.type = KEY_SIGNATURE;
+                                displayNote.duration = 0;
                                 displayNote.data[0] = (signed char) *iter++;
                                 displayNote.data[1] = *iter++;
                                 if (!displayNote.isValid()) {
@@ -324,6 +326,16 @@ bool NoteTakerParseMidi::parseMidi() {
             continue;
         }
         parsedNotes.push_back(displayNote);
+    }
+    int lastTime = -1;
+    for (const auto& note : parsedNotes) {
+        if (NOTE_ON == note.type && 0 >= note.duration) {
+            return false;
+        }
+        if (note.startTime < lastTime) {
+            return false;
+        }
+        lastTime = note.startTime;
     }
     NoteTaker::DebugDump(parsedNotes);
     displayNotes.swap(parsedNotes);

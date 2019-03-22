@@ -222,7 +222,7 @@ void NoteTaker::updateHorizontal() {
                     start, end, wheelValue, wheelStart);
         } else {
             start = this->wheelToNote(wheelValue);
-            end = this->nextAfter(start + 1);
+            end = this->nextAfter(start, 1);
             debug("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         assert(start < end);

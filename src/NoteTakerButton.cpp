@@ -6,12 +6,7 @@
 // try to get rest working as well as note
 void AdderButton::onDragEndPreamble(EventDragEnd& e) {
     NoteTaker* nt = nModule();
-    if (!nt->selectButton->editStart()) {
-        EventDragEnd e;
-        nt->cutButton->onDragEnd(e);
-    }
-    // shiftTime set by caller
-    insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
+    // insertLoc, shiftTime set by caller
     shiftLoc = insertLoc + 1;
     startTime = nt->allNotes[insertLoc].startTime;
     debug("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
@@ -42,18 +37,21 @@ void CutButton::draw(NVGcontext* vg) {
 void CutButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
+    FileButton* fileButton = nt->fileButton;
+    if (fileButton->ledOn) {
+        nt->copyNotes();  // allows add to undo accidental cut / clear all
+        nt->setScoreEmpty();
+        nt->display->xPositionsInvalid = true;
+        nt->setSelectStart(nt->atMidiTime(0));
+        nt->setWheelRange();
+        return;
+    }
     SelectButton* selectButton = nt->selectButton;
     if (selectButton->editStart() && selectButton->saveZero) {
         return;
     }
-    FileButton* fileButton = nt->fileButton;
-    if (selectButton->editEnd() || fileButton->ledOn) {
-        // allows add to undo accidental cut / clear all
+    if (selectButton->editEnd()) {
         nt->copyNotes();
-    }
-    if (fileButton->ledOn) {
-        nt->setScoreEmpty();
-        return;
     }
     unsigned start = nt->selectStart;
     unsigned end = nt->selectEnd;
@@ -113,7 +111,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
-    if (nt->isEmpty()) {
+    if (!nt->noteCount()) {
         insertLoc = nt->atMidiTime(0);
         DisplayNote midC = { 0, stdTimePerQuarterNote, { 60, 0, stdKeyPressure, stdKeyPressure},
                 nt->partButton->addChannel, NOTE_ON, false };
@@ -137,8 +135,8 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     span.push_back(note);
                 }
             }
-            bool onlyRest = 1 == span.size() && REST_TYPE == span[0].type;
-            if (span.empty() || onlyRest) {
+            bool notNote = 1 == span.size() && NOTE_ON != span[0].type;
+            if (span.empty() || notNote) {
                 span.clear();
                 debug("insert button : none selectable"); nt->debugDump();
                 for (unsigned index = iStart; index < nt->allNotes.size(); ++index) {
@@ -148,7 +146,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                         break;
                     }
                 }
-                if (span.empty() || onlyRest) {
+                if (span.empty() || notNote) {
                     for (unsigned index = iStart; --index > 0; ) {
                         const auto& note = nt->allNotes[index];
                         if (NOTE_ON == note.type) {
@@ -184,7 +182,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         nt->shiftNotes(insertLoc + insertSize, shiftTime);
     }
     nt->display->xPositionsInvalid = true;
-    nt->setSelect(insertLoc, nt->nextAfter(insertLoc + insertSize));
+    nt->setSelect(insertLoc, nt->nextAfter(insertLoc, insertSize));
     selectButton->setOff();
     debug("insert final");
     nt->setWheelRange();  // range is larger
@@ -197,6 +195,9 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
 void KeyButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     shiftTime = duration = 0;
+//    start here;
+    // insertLoc should place this in front
+    insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
     onDragEndPreamble(e);
     DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, keySignature);
@@ -245,8 +246,13 @@ void RestButton::draw(NVGcontext* vg) {
 }
 
 void RestButton::onDragEnd(EventDragEnd& e) {
-    onDragEndPreamble(e);
     NoteTaker* nt = nModule();
+    insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
+    if (!nt->selectButton->editStart()) {
+        EventDragEnd e;
+        nt->cutButton->onDragEnd(e);
+    }
+    onDragEndPreamble(e);
     DisplayNote rest = { startTime, stdTimePerQuarterNote, { 0, 0, 0, 0},
             nt->partButton->addChannel, REST_TYPE, false };
     shiftTime = rest.duration;
@@ -283,7 +289,7 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
             assert(ledOn);
             state = State::single; // does not call setSingle because saveZero should not change
             unsigned start = saveZero ? nt->wheelToNote(0) : nt->selectStart;
-            nt->setSelect(start, nt->nextAfter(start + 1));
+            nt->setSelect(start, nt->nextAfter(start, 1));
         } break;
         case State::single: {
             assert(!ledOn);
@@ -354,6 +360,8 @@ void SustainButton::draw(NVGcontext* vg) {
 void TimeButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     shiftTime = duration = 0;
+//    start here;
+    insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
     onDragEndPreamble(e);
     DisplayNote timeSignature = { startTime, 0, {4, 2, 24, 8}, 255, TIME_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, timeSignature);

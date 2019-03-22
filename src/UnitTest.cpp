@@ -44,7 +44,10 @@ static void AddTwoNotes(NoteTaker* n) {
 
 void UnitTest(NoteTaker* n) {
     n->reset();
-
+    n->display->xPositionsInvalid = true;
+    n->setSelectStart(n->atMidiTime(0));
+    n->setWheelRange();
+    
     debug("delete a note with empty score");
     Press(n, n->cutButton);
 

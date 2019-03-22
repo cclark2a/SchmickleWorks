@@ -247,7 +247,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
             }
             lastXPos = xPos;
             xPos += copy.duration * xAxisScale;
-            copy.duration -= DurationIndex(copy.duration);
+            copy.duration -= noteDurations[DurationIndex(copy.duration)];
             accidental = NO_ACCIDENTAL;
         }
         if (barSide < bar.end || bar.trailer > 0) {
@@ -956,7 +956,7 @@ void NoteTakerDisplay::updateXPosition() {
                 if (note.startTime) {
                     pos += DOUBLE_BAR_WIDTH * xAxisScale;
                 }
-                pos += abs(note.key()) * ACCIDENTAL_WIDTH * xAxisScale;
+                pos += abs(note.key()) * ACCIDENTAL_WIDTH * xAxisScale + 2;
                 break;
             case TIME_SIGNATURE:
                 pos += TIME_SIGNATURE_WIDTH * xAxisScale;  // add space to draw time signature

@@ -174,11 +174,14 @@ struct NoteTaker : Module {
 
     // to do : figure out how to safely delineate start and end for insertion
     // probably don't need nextAfter and nextStartTime, both
-    unsigned nextAfter(unsigned start) const {
-        if (!start) {
+    unsigned nextAfter(unsigned first, unsigned len) const {
+        assert(len);
+        unsigned start = first + len;
+        const auto& priorNote = allNotes[start - 1];
+        if (!priorNote.duration) {
             return start;
         }
-        int priorTime = allNotes[start - 1].startTime;
+        int priorTime = priorNote.startTime;
         int startTime = allNotes[start].startTime;
         if (priorTime < startTime) {
             return start;
@@ -201,6 +204,17 @@ struct NoteTaker : Module {
             }
         }
         return allNotes.back().startTime;
+    }
+
+    // to do : need only early exit if result > 0 ?
+    int noteCount() const {
+        int result = 0;
+        for (auto& note : allNotes) {
+            if (NOTE_ON == note.type && note.isSelectable(selectChannels)) {
+                ++result;
+            }
+        }
+        return result;
     }
 
     unsigned noteIndex(const DisplayNote& note) const {

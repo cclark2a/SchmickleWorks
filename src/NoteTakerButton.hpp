@@ -139,14 +139,6 @@ struct EditLEDButton : EditButton {
         hasLed = true;
     }
 
-    void reset() override {
-        if (ledOn) {
-            EventDragEnd e;
-            this->onDragEnd(e);
-        }
-        NoteTakerButton::reset();
-    }
-
 };
 
 // shared by time signature and rest, but not insert

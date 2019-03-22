@@ -118,7 +118,6 @@ bool NoteTaker::isSelectable(const DisplayNote& note) const {
 }
 
 void NoteTaker::loadScore() {
-    this->reset();
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
     NoteTakerParseMidi parser(storage[index], allNotes, channels);
@@ -126,9 +125,8 @@ void NoteTaker::loadScore() {
         this->setScoreEmpty();
     }
     display->xPositionsInvalid = true;
-    if (!this->isEmpty()) {
-        this->setSelectStart(this->wheelToNote(1));
-    }
+    this->setSelectStart(this->atMidiTime(0));
+    this->setWheelRange();
 }
 
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
@@ -177,10 +175,10 @@ void NoteTaker::reset() {
     for (auto channel : channels) {
         channel.reset();
     }
-    displayStart = displayEnd = selectStart = selectEnd = 0;
     this->resetRun();
     selectChannels = ALL_CHANNELS;
     this->setScoreEmpty();
+    this->resetControls();
     Module::reset();
 }
 
@@ -234,11 +232,6 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels);
     bool success = emptyParser.parseMidi();
     assert(success);
-    if (!this->resetControls()) {
-        return;
-    }
-    this->setWheelRange();
-    display->updateXPosition();
 }
 
 void NoteTaker::setSelect(unsigned start, unsigned end) {
@@ -356,9 +349,6 @@ bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
 }
 
 bool NoteTaker::setSelectStart(unsigned start) {
-    if (selectStart == start) {
-        return false;
-    }
     unsigned end = start;
     do {
         ++end;
@@ -434,7 +424,7 @@ void NoteTaker::step() {
     if (running) {
         // to do : don't write to same state in different threads
         // to do : select selStart through selEnd, move displayStart / end calc to display thread
-        if (INT_MAX != selStart) {
+        if (INT_MAX != selStart && selectStart != selStart) {
             (void) this->setSelectStart(selStart);
         }
     }
