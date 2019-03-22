@@ -282,7 +282,7 @@ void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const Displ
 }
 
 void NoteTakerDisplay::drawBevel(NVGcontext* vg) const {
-    const float bevel = 2;
+    const float bevel = -2;
     nvgBeginPath(vg);
     nvgMoveTo(vg, 0, 0);
     nvgLineTo(vg, 0, box.size.y);
@@ -416,8 +416,8 @@ void NoteTakerDisplay::drawSelectionRect(NVGcontext* vg) const {
     // draw selection rect
     int xStart = this->xPos(nt->selectEndPos(nt->selectStart)) - 2;
     int width = 4;
-    int yTop = 2;
-    int yHeight = box.size.y - 4;
+    int yTop = 0;
+    int yHeight = box.size.y;
     unsigned channel;
     if (nt->selectButton->editStart()) {
         channel = 1 << nt->partButton->addChannel;
@@ -457,7 +457,7 @@ void NoteTakerDisplay::drawStaffLines(NVGcontext* vg) const {
     for (int staff = 36; staff <= 72; staff += 36) {
         for (int y = staff; y <= staff + 24; y += 6) { 
 	        nvgMoveTo(vg, std::max(0.f, 3 - xAxisOffset), y);
-	        nvgLineTo(vg, box.size.x - 1, y);
+	        nvgLineTo(vg, box.size.x, y);
         }
     }
 	nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
@@ -469,12 +469,12 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
         return;  // do nothing if we're not set up yet
     }
     accidentals.fill(NO_ACCIDENTAL);
+    this->drawBevel(vg);
     nvgScissor(vg, 0, 0, box.size.x, box.size.y);
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, box.size.x, box.size.y);
     nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
     nvgFill(vg);
-    this->drawBevel(vg);
     this->drawStaffLines(vg);
     this->drawClefs(vg);
     this->drawSelectionRect(vg);
