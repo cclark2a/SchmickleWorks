@@ -21,7 +21,7 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     nt->display->xPositionsInvalid = true;
     nt->setSelect(insertLoc, insertLoc + 1);
-    nt->resetLedButtons();
+    nt->turnOffLedButtons();
     nt->setWheelRange();  // range is larger
     nt->debugDump();
 }
@@ -59,7 +59,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     nt->eraseNotes(start, end);
     nt->shiftNotes(start, shiftTime);
     nt->display->xPositionsInvalid = true;
-    nt->resetLedButtons();
+    nt->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
     int wheel = nt->noteToWheel(start);
     unsigned previous = nt->wheelToNote(wheel - 1);
@@ -84,7 +84,7 @@ void EditButton::onDragStart(EventDragStart& e) {
 void FileButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
-    nt->resetLedButtons(this);
+    nt->turnOffLedButtons(this);
     nt->setWheelRange();
 }
 
@@ -107,7 +107,7 @@ void InsertButton::draw(NVGcontext* vg) {
 void InsertButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     SelectButton* selectButton = nt->selectButton;
-    nt->resetLedButtons();  // turn off pitch, file, sustain
+    nt->turnOffLedButtons();  // turn off pitch, file, sustain
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
@@ -226,15 +226,20 @@ void PartButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
-        if (!allChannels) {
-            // allChannels, addChannel updated interactively so it is visible in UI
-            nt->selectChannels |= 1 << addChannel;
-        }
+        this->onTurnOff();
     }
     debug("part button onDragEnd ledOn %d part %d allChannels %d addChannel %u",
             ledOn, nt->horizontalWheel->part(), allChannels, addChannel);
-    nt->resetLedButtons(this);
+    nt->turnOffLedButtons(this);
     nt->setWheelRange();  // range is larger
+}
+
+void PartButton::onTurnOff() {
+    if (!allChannels) {
+        // allChannels, addChannel updated interactively so it is visible in UI
+        nModule()->selectChannels |= 1 << addChannel;
+    }
+    EditLEDButton::onTurnOff();
 }
 
 void RestButton::draw(NVGcontext* vg) {
@@ -316,7 +321,7 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
         default:
             assert(0);
     }
-    nt->resetLedButtons(this);
+    nt->turnOffLedButtons(this);
     nt->setWheelRange();  // if state is single, set to horz from -1 to size
 }
 
@@ -344,7 +349,7 @@ void SelectButton::setSingle() {
 void SustainButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
-    nt->resetLedButtons(this);
+    nt->turnOffLedButtons(this);
     nt->setWheelRange();
 }
 

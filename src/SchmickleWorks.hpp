@@ -2,6 +2,7 @@
 
 #include "rack.hpp"
 #include "dsp/digital.hpp"
+#include <algorithm>
 #include <array>
 #include <float.h>
 #include <limits.h>

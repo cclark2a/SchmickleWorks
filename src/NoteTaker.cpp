@@ -186,7 +186,7 @@ bool NoteTaker::resetControls() {
     if (!display) {
         return false;
     }
-    this->resetLedButtons();
+    this->turnOffLedButtons();
     for (NoteTakerButton* button : {
             (NoteTakerButton*) cutButton, (NoteTakerButton*) insertButton,
             (NoteTakerButton*) restButton, (NoteTakerButton*) selectButton,
@@ -203,12 +203,12 @@ bool NoteTaker::resetControls() {
 // never turns off select button, since it cannot be turned off if score is empty,
 // and it contains state that should not be arbitrarily deleted. select button
 // is explicitly reset only when notetaker overall state is reset
-void NoteTaker::resetLedButtons(const NoteTakerButton* exceptFor) {
+void NoteTaker::turnOffLedButtons(const NoteTakerButton* exceptFor) {
     for (NoteTakerButton* button : {
                 (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
                 (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton }) {
         if (exceptFor != button) {
-            button->reset();
+            button->onTurnOff();
         }
     }
 }

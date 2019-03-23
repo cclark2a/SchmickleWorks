@@ -41,6 +41,10 @@ struct DisplayNote {
     DisplayType type;
     bool selected;      // set if channel intersects selectChannels prior to channel edit
 
+    bool operator<(const DisplayNote& rhs) const {
+        return startTime < rhs.startTime;
+    }
+
     void setChannel(uint8_t c) {
         channel = c;
         assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);

@@ -231,7 +231,6 @@ struct NoteTaker : Module {
 
     void readStorage();
     void reset() override;
-    void resetLedButtons(const NoteTakerButton* exceptFor = nullptr);
 
     void resetRun() {
         elapsedSeconds = 0;
@@ -320,6 +319,7 @@ struct NoteTaker : Module {
         // Note that this logic assumes that notes can't overlap time or key signatures
         // prior to shifting.
         // to do : enforce that added time and key signatures clip any long notes before them
+        bool sort = false;
         for (unsigned index = start; index < notes.size(); ++index) {
             DisplayNote& note = notes[index];
             if (0xFF == note.channel) {
@@ -330,13 +330,27 @@ struct NoteTaker : Module {
                 }
             } else if (note.isSelectable(selectChannels)) {
                 note.startTime += diff;
+            } else {
+                sort = true;
             }
             latest = std::max(latest, note.endTime());
+        }
+        // don't use sort function to minimize reordering
+        if (sort) {
+            debug("pre insert sort");
+            DebugDump(notes);
+            for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
+                auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
+                std::rotate(insertion_point, it, it + 1);
+            }
+            debug("post insert sort");
+            DebugDump(notes);
         }
    }
 
 	void step() override;
     json_t *toJson() override;
+    void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
     void updateHorizontal();
     void updateVertical();
     void updateXPosition();

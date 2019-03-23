@@ -40,6 +40,11 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         }
     }
 
+    virtual void onTurnOff() {
+        ledOn = false;
+        af = 0;
+    }
+
     NoteTaker* nModule() {
         return (NoteTaker* ) module;
     }
@@ -49,8 +54,7 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
     }
 
     void reset() override {
-        ledOn = false;
-        af = 0;
+        NoteTakerButton::onTurnOff();
         MomentarySwitch::reset();
     }
 
@@ -234,6 +238,7 @@ struct PartButton : EditLEDButton {
     }
 
     void onDragEnd(EventDragEnd &e) override;
+    void onTurnOff() override;
 
     // note: not reset because turning off button is separate from resetting channel state
     void resetChannels() {
@@ -327,6 +332,11 @@ struct SelectButton : EditLEDButton {
     }
 
     void onDragEnd(EventDragEnd &e) override;
+
+    void onTurnOff() override {
+        state = State::ledOff;
+        EditLEDButton::onTurnOff();
+    }
 
     void reset() override {
         selStart = 1;
