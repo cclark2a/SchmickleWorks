@@ -18,8 +18,8 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
     this->readStorage();
 }
 
-float NoteTaker::beatsPerHalfSecond() const {
-    float deltaTime = stdMSecsPerQuarterNote / tempo;
+float NoteTaker::beatsPerHalfSecond(int localTempo) const {
+    float deltaTime = (float) stdMSecsPerQuarterNote / localTempo;
     if (this->isRunning() && !fileButton->ledOn) {
         // external clock input could work in one of three modes:
         // 1/2) input voltage overrides / multiplies wheel value
@@ -51,6 +51,28 @@ void NoteTaker::eraseNotes(unsigned start, unsigned end) {
         }
     }
     this->debugDump(true, true);  // wheel range is inconsistent here
+}
+
+int NoteTaker::externalTempo() {
+    if (inputs[CLOCK_INPUT].active) {
+        if (inputs[CLOCK_INPUT].value < 2) {
+            clockLowTime = realSeconds;
+        } else if (inputs[CLOCK_INPUT].value > 8) {
+            if (clockLowTime > clockHighTime) {
+                // upward edge, advance clock
+                if (!runButton->ledOn) {
+                    EventDragEnd e;
+                    runButton->onDragEnd(e);
+                } else {
+                    externalClockTempo = (int) ((realSeconds - lastClock) * 1000000);
+                }
+                lastClock = realSeconds;
+            }
+            clockHighTime = realSeconds;
+        }
+        return externalClockTempo;
+    }
+    return tempo;
 }
 
 // for clipboard to be usable, either: all notes in clipboard are active, 
@@ -366,14 +388,38 @@ bool NoteTaker::setSelectStart(unsigned start) {
 // since this runs on a high frequency thread, avoid state except to play notes
 void NoteTaker::step() {
     realSeconds += engineGetSampleTime();
+    if (eosTime < realSeconds) {
+        outputs[EOS_OUTPUT].value = 0;
+        eosTime = FLT_MAX;
+    }
+    if (clockOutTime < realSeconds) {
+        outputs[CLOCK_OUTPUT].value = 0;
+        clockOutTime = FLT_MAX;
+    }
+    int localTempo = this->externalTempo();
     if (!playStart) {
         return;  // do nothing if we're not set up yet
+    }
+    if (inputs[RESET_INPUT].active) {
+        if (inputs[RESET_INPUT].value < 2) {
+            resetLowTime = realSeconds;
+        } else if (inputs[RESET_INPUT].value > 8) {
+            if (resetLowTime > resetHighTime) {
+                this->resetRun();
+            }
+            resetHighTime = realSeconds;
+        }
     }
     // read data from display notes to determine pitch
     // note on event start changes cv and sets gate high
     // note on event duration sets gate low
-    elapsedSeconds += engineGetSampleTime() * this->beatsPerHalfSecond();
+    elapsedSeconds += engineGetSampleTime() * this->beatsPerHalfSecond(localTempo);
     int midiTime = SecondsToMidi(elapsedSeconds, ppq);
+    if (midiTime >= midiClockOut) {
+        midiClockOut += stdTimePerQuarterNote;
+        outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+        clockOutTime = 0.001f + realSeconds;
+    }
     this->setExpiredGatesLow(midiTime);
     bool running = this->isRunning();
     unsigned lastNote = running ? allNotes.size() - 1 : selectEnd - 1;
@@ -382,6 +428,8 @@ void NoteTaker::step() {
         if (running) {
             // to do : add option to stop running
             this->resetRun();
+            outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+            eosTime = realSeconds + 0.01f;
         } else {
             this->setExpiredGatesLow(INT_MAX);
         }

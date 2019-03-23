@@ -531,7 +531,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) {
         nvgText(vg, 5, 10, "H", nullptr);
         nvgFontFaceId(vg, nt->textFont->handle);
         nvgFontSize(vg, 12);
-        std::string tempoStr("= " + std::to_string((int) (120.f * nt->beatsPerHalfSecond())));
+        std::string tempoStr("= " + std::to_string((int) (120.f * nt->beatsPerHalfSecond(nt->tempo))));
         nvgText(vg, 9, 10, tempoStr.c_str(), nullptr);
     }
 }

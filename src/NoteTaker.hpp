@@ -97,7 +97,18 @@ struct NoteTaker : Module {
     float elapsedSeconds = 0;               // seconds into score
     float realSeconds = 0;                  // seconds for UI timers
     unsigned playStart = 0;                 // index of notes output
-    
+    // clock input state (not saved)
+    float clockLowTime = 0;
+    float clockHighTime = 0;
+    float lastClock = 0;
+    int externalClockTempo = stdMSecsPerQuarterNote;
+    // reset input state (not saved)
+    float resetLowTime = 0;
+    float resetHighTime = 0;
+    float eosTime = FLT_MAX;
+    int midiClockOut = INT_MAX;
+    float clockOutTime = FLT_MAX;
+
     NoteTaker();
 
     bool advancePlayStart(int midiTime, unsigned lastNote) {
@@ -122,7 +133,7 @@ struct NoteTaker : Module {
         return 0;
     }
 
-    float beatsPerHalfSecond() const;
+    float beatsPerHalfSecond(int tempo) const;
 
     void copyNotes() {
         clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
@@ -144,6 +155,7 @@ struct NoteTaker : Module {
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
 
     void eraseNotes(unsigned start, unsigned end);
+    int externalTempo();
     bool extractClipboard(vector<DisplayNote>* ) const;
     void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
@@ -241,10 +253,13 @@ struct NoteTaker : Module {
     void reset() override;
 
     void resetRun() {
+        midiClockOut = stdTimePerQuarterNote;
         elapsedSeconds = 0;
         playStart = 0;
+        outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+        clockOutTime = realSeconds + 0.001f;
         this->setPlayStart();
-}
+    }
 
     bool resetControls();
     void saveScore();
