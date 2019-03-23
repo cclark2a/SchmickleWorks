@@ -50,11 +50,15 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     if (selectButton->editStart() && selectButton->saveZero) {
         return;
     }
+    unsigned start = nt->selectStart;
+    unsigned end = nt->selectEnd;
+    if (!start || end <= 1) {
+        debug("*** selectButton should have been set to edit start, save zero");
+        return;
+    }
     if (selectButton->editEnd()) {
         nt->copyNotes();
     }
-    unsigned start = nt->selectStart;
-    unsigned end = nt->selectEnd;
     int shiftTime = nt->allNotes[start].startTime - nt->allNotes[end].startTime;
     nt->eraseNotes(start, end);
     nt->shiftNotes(start, shiftTime);
@@ -361,6 +365,30 @@ void SustainButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
 
+void TempoButton::onDragEnd(EventDragEnd& e) {
+    AdderButton::onDragEnd(e);
+}
+
+void TempoButton::draw(NVGcontext* vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 5 + af, 41 - af, "@", NULL);
+}
+
+void TieButton::onDragEnd(EventDragEnd& e) {
+    AdderButton::onDragEnd(e);
+}
+
+void TieButton::draw(NVGcontext* vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 1 + af, 41 - af, ">", NULL);
+}
+
 // insert time signature
 void TimeButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
@@ -381,4 +409,16 @@ void TimeButton::draw(NVGcontext* vg) {
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 33 - af, "4", NULL);
     nvgText(vg, 8 + af, 41 - af, "4", NULL);
+}
+
+void TrillButton::onDragEnd(EventDragEnd& e) {
+    AdderButton::onDragEnd(e);
+}
+
+void TrillButton::draw(NVGcontext* vg) {
+    EditButton::draw(vg);
+    nvgFontFaceId(vg, nModule()->musicFont->handle);
+    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgFontSize(vg, 24);
+    nvgText(vg, 8.5 + af, 41 - af, "?", NULL);
 }

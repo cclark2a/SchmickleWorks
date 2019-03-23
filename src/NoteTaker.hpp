@@ -13,7 +13,10 @@ struct RestButton;
 struct RunButton;
 struct SelectButton;
 struct SustainButton;
+struct TempoButton;
+struct TieButton;
 struct TimeButton;
+struct TrillButton;
 struct NoteTakerDisplay;
 struct HorizontalWheel;
 struct VerticalWheel;
@@ -29,10 +32,10 @@ struct NoteTaker : Module {
         FILE_BUTTON,
         SUSTAIN_BUTTON,
         TIME_BUTTON,
-        BUTTON_9,
-        BUTTON_10,
-        BUTTON_11,
-        BUTTON_12,
+        KEY_BUTTON,
+        TIE_BUTTON,
+        TRILL_BUTTON,
+        TEMPO_BUTTON,
         VERTICAL_WHEEL,
         HORIZONTAL_WHEEL,
 		NUM_PARAMS
@@ -52,6 +55,8 @@ struct NoteTaker : Module {
         GATE2_OUTPUT,
         GATE3_OUTPUT,
         GATE4_OUTPUT,
+        CLOCK_OUTPUT,
+        EOS_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
@@ -75,7 +80,10 @@ struct NoteTaker : Module {
     RunButton* runButton = nullptr;
     SelectButton* selectButton = nullptr;
     SustainButton* sustainButton = nullptr;
+    TempoButton* tempoButton = nullptr;
+    TieButton* tieButton = nullptr;
     TimeButton* timeButton = nullptr;
+    TrillButton* trillButton = nullptr;
     HorizontalWheel* horizontalWheel = nullptr;
     VerticalWheel* verticalWheel = nullptr;
     unsigned displayStart = 0;              // index into allNotes of first visible note

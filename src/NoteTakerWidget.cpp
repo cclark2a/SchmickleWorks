@@ -26,6 +26,10 @@ struct NoteTakerWidget : ModuleWidget {
                 NoteTaker::CLOCK_INPUT));
         addInput(Port::create<PJ301MPort>(Vec(204, 306), Port::INPUT, module, 
                 NoteTaker::RESET_INPUT));
+        addOutput(Port::create<PJ301MPort>(Vec(172, 338), Port::OUTPUT, module, 
+                NoteTaker::CLOCK_OUTPUT));
+        addOutput(Port::create<PJ301MPort>(Vec(204, 338), Port::OUTPUT, module, 
+                NoteTaker::EOS_OUTPUT));
 
         for (unsigned i = 0; i < CV_OUTPUTS; ++i) {
             addOutput(Port::create<PJ301MPort>(Vec(12 + i * 32, 306), Port::OUTPUT, module,
@@ -64,15 +68,18 @@ struct NoteTakerWidget : ModuleWidget {
                 module, NoteTaker::TIME_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->timeButton);
         module->keyButton = ParamWidget::create<KeyButton>(Vec(94, 252),
-                module, NoteTaker::TIME_BUTTON, 0.0f, 1.0f, 0.0f);
+                module, NoteTaker::KEY_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->keyButton);
+        module->tieButton = ParamWidget::create<TieButton>(Vec(126, 252),
+                module, NoteTaker::TIE_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->tieButton);
+        module->trillButton = ParamWidget::create<TrillButton>(Vec(158, 252),
+                module, NoteTaker::TRILL_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->trillButton);
+        module->tempoButton = ParamWidget::create<TempoButton>(Vec(190, 252),
+                module, NoteTaker::TEMPO_BUTTON, 0.0f, 1.0f, 0.0f);
+        addParam(module->tempoButton);
 
-        addParam(ParamWidget::create<EditButton>(Vec(126, 252), module, NoteTaker::BUTTON_10,
-                0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<EditButton>(Vec(158, 252), module, NoteTaker::BUTTON_11,
-                0.0f, 1.0f, 0.0f));
-        addParam(ParamWidget::create<DumpButton>(Vec(190, 252), module, NoteTaker::BUTTON_12,
-                0.0f, 1.0f, 0.0f));
         const bool runUnitTest = true;
         if (runUnitTest) {
             extern void UnitTest(NoteTaker* );

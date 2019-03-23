@@ -372,7 +372,23 @@ struct SustainButton : EditLEDButton {
     void onDragEnd(EventDragEnd &e) override;
 };
 
+struct TempoButton : AdderButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
+struct TieButton : AdderButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+
 struct TimeButton : AdderButton {
     void draw(NVGcontext* vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };
+
+struct TrillButton : AdderButton {
+    void draw(NVGcontext* vg) override;
+    void onDragEnd(EventDragEnd &e) override;
+};
+

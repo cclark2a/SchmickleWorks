@@ -13,7 +13,7 @@
 
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     this->reset();
-    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync2.ttf"));
+    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync3.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
     this->readStorage();
 }
@@ -21,11 +21,16 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
 float NoteTaker::beatsPerHalfSecond() const {
     float deltaTime = stdMSecsPerQuarterNote / tempo;
     if (this->isRunning() && !fileButton->ledOn) {
-        // to do : rework so that tempo accels / decels elapsedSeconds
-        int horzIndex = (int) horizontalWheel->value;
+        // external clock input could work in one of three modes:
+        // 1/2) input voltage overrides / multiplies wheel value
+        //   3) voltage step marks beat
+        // for 3), second step determines bphs -- tempo change always lags 1 beat
+        // playback continues for one beat after clock stops
+        float value = horizontalWheel->value;
+        int horzIndex = (int) value;
         int floor = noteDurations[horzIndex];
         int ceil = noteDurations[horzIndex + 1];
-        float interp = floor + (ceil - floor) * (horizontalWheel->value - horzIndex);
+        float interp = floor + (ceil - floor) * (value - horzIndex);
         deltaTime *= stdTimePerQuarterNote / interp;
     }
     return deltaTime;
