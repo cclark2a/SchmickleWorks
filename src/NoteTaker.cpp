@@ -205,6 +205,7 @@ void NoteTaker::reset() {
     this->resetRun();
     selectChannels = ALL_CHANNELS;
     this->setScoreEmpty();
+    selectStart = selectEnd = displayStart = displayEnd = 0;
     this->resetControls();
     Module::reset();
 }
