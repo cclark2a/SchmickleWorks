@@ -358,7 +358,7 @@ struct NoteTaker : Module {
             }
             latest = std::max(latest, note.endTime());
         }
-        // don't use sort function to minimize reordering
+        // don't use std::sort function; use insertion sort to minimize reordering
         if (sort) {
             debug("pre insert sort");
             DebugDump(notes);

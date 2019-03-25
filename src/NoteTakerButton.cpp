@@ -166,6 +166,9 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         // shift to selectStart time, but not less than previous end (if any) on same channel
         int priorEnd = nt->lastEndTime(insertLoc);
         int insertTime = nt->allNotes[insertLoc].startTime;
+        while (insertTime < priorEnd) {
+            insertTime = nt->allNotes[++insertLoc].startTime;
+        }
         int nextStart = nt->nextStartTime(insertLoc);
         debug("priorEnd %d insertTime %d nextStart %d", priorEnd, insertTime, nextStart);
         NoteTaker::ShiftNotes(span, 0, priorEnd - span.front().startTime);
