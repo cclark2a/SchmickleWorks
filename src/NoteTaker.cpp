@@ -447,6 +447,10 @@ void NoteTaker::step() {
         if (NOTE_ON != note.type) {
             continue;
         }
+        int endTime = note.endTime();
+        if (endTime <= midiTime) {
+            continue;
+        }
         auto& channelInfo = channels[note.channel];
         unsigned noteIndex = this->noteIndex(note);
         if (noteIndex == channelInfo.noteIndex) {
@@ -454,9 +458,13 @@ void NoteTaker::step() {
                 continue;
             }
         } else {
+            unsigned prior = channelInfo.noteIndex;
             channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
-            channelInfo.noteEnd = note.endTime();
+            channelInfo.noteEnd = endTime;
             channelInfo.noteIndex = noteIndex;
+            debug("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d",
+                    note.channel, channelInfo.gateLow, channelInfo.noteEnd, channelInfo.noteIndex,
+                    prior, midiTime);
             if (note.channel < CV_OUTPUTS) {
                 outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
             }

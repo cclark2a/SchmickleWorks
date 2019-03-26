@@ -284,22 +284,28 @@ struct NoteTaker : Module {
 
     void setExpiredGatesLow(int midiTime) {
         // to do : remove debugging code
-        static int debugLastGateLow = -1;
-        static int debugLastNoteEnd = -1;
+        static array<int, CHANNEL_COUNT> debugLastGateLow {-1, -1, -1, -1};
+        static array<int, CHANNEL_COUNT> debugLastNoteEnd {-1, -1, -1, -1};
+        static array<int, CHANNEL_COUNT> debugCount {-1, -1, -1, -1};
         static int debugMidiTime = -1;
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto &chan = channels[channel];
             if (!chan.noteEnd) {
                 continue;
             }
-            if ((chan.gateLow && chan.gateLow < midiTime) || chan.noteEnd < midiTime) {
-                if (debugLastGateLow != chan.gateLow
-                        || debugLastNoteEnd != chan.noteEnd
-                        || (midiTime != debugMidiTime && midiTime != debugMidiTime + 1)) {
-                    debugLastGateLow = chan.gateLow;
-                    debugLastNoteEnd = chan.noteEnd;
+            if ((chan.gateLow && chan.gateLow < midiTime)
+                    || chan.noteEnd < midiTime) {
+                if (debugLastGateLow[channel] != chan.gateLow
+                        || debugLastNoteEnd[channel] != chan.noteEnd
+                        || (midiTime != debugMidiTime && midiTime != debugMidiTime + 1)
+                        || debugCount[channel] > 500) {
+                    debugLastGateLow[channel] = chan.gateLow;
+                    debugLastNoteEnd[channel] = chan.noteEnd;
                     debug("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
                             channel, chan.gateLow, chan.noteEnd, chan.noteIndex, midiTime);
+                    debugCount[channel] = 0;
+                } else {
+                    ++debugCount[channel];
                 }
                 debugMidiTime = midiTime;
             }
