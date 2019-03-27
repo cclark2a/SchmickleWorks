@@ -73,7 +73,9 @@ private:
                 return false;
             }
             *result |= *iter++;
-            *result <<= 8;
+            if (i < 2) {
+                *result <<= 8;
+            }
         }
         return true;
     }
@@ -85,7 +87,9 @@ private:
                 return false;
             }
             *result |= *iter++;
-            *result <<= 8;
+            if (i < 3) {
+                *result <<= 8;
+            }
         }
         return true;
     }
