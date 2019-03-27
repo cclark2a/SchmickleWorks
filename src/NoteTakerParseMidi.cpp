@@ -360,7 +360,8 @@ bool NoteTakerParseMidi::parseMidi() {
     }
     int lastTime = -1;
     for (const auto& note : parsedNotes) {
-        if (NOTE_ON == note.type && 0 >= note.duration) {
+        // to do : shouldn't allow zero either, let it slide for now to debug 9.mid
+        if (NOTE_ON == note.type && 0 > note.duration) {
             debug("negative note on duration");
             NoteTaker::DebugDump(parsedNotes);
             return false;

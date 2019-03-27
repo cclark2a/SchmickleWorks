@@ -965,6 +965,9 @@ void NoteTakerDisplay::updateXPosition() {
             case TRACK_END:
                 debug("[%u] xPos %d start %d", index, xPositions[index], note.startTime);
                 break;
+            case MIDI_TEMPO:
+                // to do : incomplete
+                break;
             default:
                 // to do : incomplete
                 assert(0);
