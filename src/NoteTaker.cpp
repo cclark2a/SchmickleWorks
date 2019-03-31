@@ -28,10 +28,10 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         // playback continues for one beat after clock stops
         float value = horizontalWheel->value;
         int horzIndex = (int) value;
-        int floor = noteDurations[horzIndex];
-        int ceil = noteDurations[horzIndex + 1];
+        int floor = NoteDurations::ToStd(horzIndex);
+        int ceil = NoteDurations::ToStd(horzIndex + 1);
         float interp = floor + (ceil - floor) * (value - horzIndex);
-        deltaTime *= stdTimePerQuarterNote / interp;
+        deltaTime *= ppq / interp;
     }
     return deltaTime;
 }
@@ -147,21 +147,13 @@ bool NoteTaker::isSelectable(const DisplayNote& note) const {
 void NoteTaker::loadScore() {
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
-    NoteTakerParseMidi parser(storage[index], allNotes, channels);
-    // to do : dump storage[9] as hex to try to figure out where things go south
-    // maybe auto linefeed on 0x80 0x90 less delta, if there is one
-    // 0x0 before 0x80; (0x83, 0x60) or (0x87, 0x40) before 0x80 or 0x90
-    // 0xff 0x2f 0x0 // end of track
-    // 0xff 0x51 0x3 0x7 0xa1 0x0 // tempo
-    // 0x4d ... // Mthd or MTrk
-    // to do  in parse midi : read number of tracks in Mthd
-    //                        read ticks per quarter note in Mthd
+    NoteTakerParseMidi parser(storage[index], allNotes, channels, ppq);
+    DebugDumpRawMidi(storage[index]);
     if (!parser.parseMidi()) {
         this->setScoreEmpty();
     }
     display->xPositionsInvalid = true;
     this->setSelectStart(this->atMidiTime(0));
-    this->setWheelRange();
 }
 
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
@@ -265,7 +257,8 @@ void NoteTaker::setScoreEmpty() {
     vector<uint8_t> emptyMidi;
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels);
+    DebugDumpRawMidi(emptyMidi);
+    NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels, ppq);
     bool success = emptyParser.parseMidi();
     assert(success);
 }
@@ -280,7 +273,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     assert(allNotes.size() >= 2);
     assert(end <= allNotes.size() - 1);
     int selectStartTime = display->startTime(start);
-    int selectEndTime = display->endTime(end - 1);
+    int selectEndTime = display->endTime(end - 1, ppq);
     if (!displayEnd || allNotes.size() <= displayEnd) {
         displayEnd = allNotes.size() - 1;
     }
@@ -288,17 +281,19 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         displayStart = displayEnd - 1;
     }
     int displayStartTime = display->startTime(displayStart);
-    int displayEndTime = displayStartTime + display->box.size.x;
-    while (displayEnd < allNotes.size() - 1 && display->endTime(displayEnd) < displayEndTime) {
+    int displayWidthTime = display->box.size.x * ppq / stdTimePerQuarterNote;
+    int displayEndTime = displayStartTime + displayWidthTime;
+    while (displayEnd < allNotes.size() - 1
+            && display->endTime(displayEnd, ppq) < displayEndTime) {
         ++displayEnd;
     }
     debug("selectStartTime %d selectEndTime %d displayStartTime %d displayEndTime %d",
             selectStartTime, selectEndTime, displayStartTime, displayEndTime);
     debug("setSelect displayStart %u displayEnd %u", displayStart, displayEnd);
     bool recomputeDisplayOffset = display->xPos(displayStart) < 0
-            || display->xPos(displayEnd) > display->box.size.x;
-    debug("display->xPos(displayStart) %d display->xPos(displayEnd) %d display->box.size.x %g",
-            display->xPos(displayStart), display->xPos(displayEnd), display->box.size.x);
+            || display->xPos(displayEnd) > displayWidthTime;
+    debug("display->xPos(displayStart) %d display->xPos(displayEnd) %d displayWidthTime %g",
+            display->xPos(displayStart), display->xPos(displayEnd), displayWidthTime);
     bool offsetFromEnd = false;
     if (displayStartTime > selectStartTime || selectEndTime > displayEndTime) {
         recomputeDisplayOffset = true;
@@ -317,8 +312,8 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
             }
         } else if (displayStartTime > selectStartTime || selectStartTime > displayEndTime
                 || ((displayStartTime > selectEndTime || selectEndTime > displayEndTime)
-                && display->duration(start) < display->box.size.x)) {
-            if (display->endTime(start) > displayEndTime) {
+                && display->duration(start, ppq) < displayWidthTime)) {
+            if (display->endTime(start, ppq) > displayEndTime) {
                 displayEnd = start + 1;
                 displayStart = start;
                 recomputeStart = true;
@@ -326,30 +321,30 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
                 debug("2 displayStart %u displayEnd %u", displayStart, displayEnd);
             } else if (selectStartTime < displayStartTime) {
                 displayStart = start;   // if start isn't fully visible
-                displayEnd = display->lastAt(start);
+                displayEnd = display->lastAt(start, ppq);
                 debug("3 displayStart %u displayEnd %u", displayStart, displayEnd);
             }
         }
         if (recomputeStart) {
-            int endTime = display->endTime(displayStart);
+            int endTime = display->endTime(displayStart, ppq);
             while (displayStart
-                    && endTime - display->startTime(displayStart) < display->box.size.x) {
+                    && endTime - display->startTime(displayStart) < displayWidthTime) {
                 --displayStart;
             }
             if (displayStart < allNotes.size() - 1
-                    && endTime - display->startTime(displayStart) > display->box.size.x) {
+                    && endTime - display->startTime(displayStart) > displayWidthTime) {
                 ++displayStart;
             }
             debug("displayStart %u displayEnd %u endTime %d boxWidth %g xPos %d",
-                    displayStart, displayEnd, endTime, display->box.size.x,
+                    displayStart, displayEnd, endTime, displayWidthTime,
                     display->startTime(displayStart));
         }
     }
     if (recomputeDisplayOffset) {
         if (offsetFromEnd) {
-            display->xAxisOffset = std::max(display->endTime(start)
-                    + (selectButton->editStart() ? 8 : 0) - display->box.size.x, 0.f);
-        } else if (display->startTime(displayEnd) <= display->box.size.x) {
+            display->xAxisOffset = std::max(display->endTime(start, ppq)
+                    + (selectButton->editStart() ? 8 : 0) - displayWidthTime, 0);
+        } else if (display->startTime(displayEnd) <= displayWidthTime) {
             display->xAxisOffset = 0;
         } else {
             display->xAxisOffset = display->startTime(displayStart);
@@ -425,7 +420,7 @@ void NoteTaker::step() {
     elapsedSeconds += engineGetSampleTime() * this->beatsPerHalfSecond(localTempo);
     int midiTime = SecondsToMidi(elapsedSeconds, ppq);
     if (midiTime >= midiClockOut) {
-        midiClockOut += stdTimePerQuarterNote;
+        midiClockOut += ppq;
         outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
         clockOutTime = 0.001f + realSeconds;
     }
@@ -470,7 +465,7 @@ void NoteTaker::step() {
             channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
             channelInfo.noteEnd = endTime;
             channelInfo.noteIndex = noteIndex;
-            debug("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d",
+            if (false) debug("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d",
                     note.channel, channelInfo.gateLow, channelInfo.noteEnd, channelInfo.noteIndex,
                     prior, midiTime);
             if (note.channel < CV_OUTPUTS) {

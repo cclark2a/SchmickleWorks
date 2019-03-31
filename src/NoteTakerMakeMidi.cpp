@@ -46,7 +46,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 add_size8(0);
                 add_one(midiControlChange + index);
                 add_one(midiReleaseMax + (int) limit);
-                add_one(NoteTakerDisplay::DurationIndex(chan.getLimit(limit)));
+                add_one(NoteDurations::FromMidi(chan.getLimit(limit), nt.ppq));
             }
         }
     }

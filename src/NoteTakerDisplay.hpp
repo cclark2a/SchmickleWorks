@@ -67,20 +67,10 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawVerticalControl(NVGcontext* ) const;
     void drawVerticalLabel(NVGcontext* , const char* label,
             bool enabled, bool selected, float y) const;
-    int duration(unsigned index) const;
+    int duration(unsigned index, int ppq) const;
 
-    // to do : make this more efficient
-    static unsigned DurationIndex(int duration) {
-        for (unsigned i = 0; i < noteDurations.size(); ++i) {
-            if (duration <= noteDurations[i]) {
-                return i;
-            }
-        }
-        return noteDurations.size() - 1;
-    }
-
-    int endTime(unsigned end) const {
-        return xPositions[end] + this->duration(end);
+    int endTime(unsigned end, int ppq) const {
+        return xPositions[end] + this->duration(end, ppq);
     }
 
     void fromJson(json_t* root) {
@@ -88,9 +78,9 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         xAxisScale = json_real_value(json_object_get(root, "xAxisScale"));
     }
 
-    unsigned lastAt(unsigned start) const {
+    unsigned lastAt(unsigned start, int ppq) const {
         assert(start < xPositions.size());
-        int endTime = this->startTime(start) + box.size.x;
+        int endTime = this->startTime(start) + box.size.x * ppq / stdTimePerQuarterNote;
         unsigned index;
         for (index = start; index < xPositions.size(); ++index) {
             if (this->startTime(index) >= endTime) {
@@ -118,20 +108,6 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         xPositionsInvalid = true;
     }
 
-    static unsigned RestIndex(int duration) {
-        assert(duration > 0);
-        unsigned result = ((unsigned) duration / noteDurations[7]);  // number of whole notes
-        duration -= result * noteDurations[7];
-        result *= 2;  // skip dotted whole note
-        if (result) {
-            result += 5; // make 1 whole note return index of 7
-        }
-        if (duration > 0) {
-            result += DurationIndex(duration);
-        }
-        return result;
-    }
-
     void setKeySignature(int key);
     void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
 
@@ -145,13 +121,12 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
 
     // to do : make this more efficient
    // there may be more than two tied notes: subtract note times to figure number
-   static unsigned TiedCount(int barDuration, int duration) {
+   static unsigned TiedCount(int barDuration, int duration, int ppq) {
         unsigned count = 0;
         do {
-            unsigned index = DurationIndex(std::min(barDuration, duration));
-            duration -= noteDurations[index];
+            duration -= NoteDurations::Closest(std::min(barDuration, duration), ppq);
             ++count;
-        } while (duration > noteDurations[0]);
+        } while (duration > NoteDurations::ToMidi(0, ppq));
         return count;
     }
 

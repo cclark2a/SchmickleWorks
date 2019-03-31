@@ -37,7 +37,8 @@ bool NoteTakerParseMidi::parseMidi() {
         debug("invalid %s", displayNote.debugString().c_str());
         return false;
     }
-    int midiFormat = displayNote.data[0];
+    int midiFormat = displayNote.format();
+    int ppq = displayNote.ppq();
     int trackCount = -1;
     parsedNotes.push_back(displayNote);
     do {
@@ -67,20 +68,19 @@ bool NoteTakerParseMidi::parseMidi() {
             } else if (!midi_delta(iter, &midiTime)) {
                 return false;
             }
-            debug("midiTime %d", midiTime);
             if (0 == (*iter & 0x80)) {
                 debug("expected high bit set on channel voice message: %02x", *iter);
                 return false;
             }
             displayNote.startTime = midiTime;
             displayNote.duration = -1;  // not known yet
-            displayNote.type = (DisplayType) ((*iter >> 4) & 0x7);
-            displayNote.channel = *iter++ & 0x0F;
+            memset(displayNote.data, 0, sizeof(displayNote.data));
+            displayNote.channel = *iter & 0x0F;
             if (!displayNote.channel && trackCount > 0) {
                 displayNote.channel = trackCount;
             }
-            memset(displayNote.data, 0, sizeof(displayNote.data));
-            debug ("displayNote.type 0x%02x", displayNote.type);
+            displayNote.type = (DisplayType) ((*iter++ >> 4) & 0x7);
+            displayNote.selected = false;
             switch(displayNote.type) {
                 case UNUSED: {  // midi note off
                     if (!midi_check7bits(iter)) {
@@ -93,12 +93,8 @@ bool NoteTakerParseMidi::parseMidi() {
                         return false;
                     }
                     int velocity = *iter++;
-                    bool found = false;
                     for (auto ri = parsedNotes.rbegin(); ri != parsedNotes.rend(); ++ri) {
                         if (ri->type != NOTE_ON) {
-                            continue;
-                        }
-                        if (ri->duration != -1) {
                             continue;
                         }
                         if (displayNote.channel != ri->channel) {
@@ -110,15 +106,17 @@ bool NoteTakerParseMidi::parseMidi() {
                         if (midiTime <= ri->startTime) {
                             debug("unexpected note duration start=%d end=%d",
                                     ri->startTime, midiTime);
+                            return false;
                         }
+                        if (!ri->bumpDownNoteOnCount()) {
+                            debug("note off w/o note on");
+                            break;
+                        }
+                        debug("%u note off %s", &*ri - &parsedNotes.front(), 
+                                ri->debugString().c_str());
                         ri->duration = midiTime - ri->startTime;
                         ri->setOffVelocity(velocity);
-                        found = true;
                         break;
-                    }
-                    if (!found) {
-                        debug("note: note off channel=%d pitch=%d not found",
-                                displayNote.channel, pitch);
                     }
                     trackLength -= iter - messageStart;
                     continue;  // do not store note off
@@ -134,17 +132,29 @@ bool NoteTakerParseMidi::parseMidi() {
                         return false;
                     }
                     displayNote.setOnVelocity(*iter++);
-                    DisplayNote& prior = parsedNotes.back();
-                    if (prior.duration >= 0 && prior.endTime() < displayNote.startTime) {
-                        // to do : create constructor so this can call emplace_back ?
-                        DisplayNote rest;
-                        rest.startTime = prior.endTime();
-                        rest.duration = displayNote.startTime - rest.startTime;
-                        rest.type = REST_TYPE;
-                        rest.channel = 0xFF;
-                        memset(rest.data, 0, sizeof(rest.data));
-                        parsedNotes.push_back(rest);
+                    bool ignoreThisNote = false;
+                    for (auto ri = parsedNotes.rbegin(); ri != parsedNotes.rend(); ++ri) {
+                        if (ri->type != NOTE_ON) {
+                            continue;
+                        }
+                        if (displayNote.channel != ri->channel) {
+                            continue;
+                        }
+                        if (displayNote.pitch() != ri->pitch()) {
+                            continue;
+                        }
+                        if ((ignoreThisNote = -1 == ri->duration)) {
+                            debug("%u note ignore %s", &*ri - &parsedNotes.front(),
+                                    ri->debugString().c_str());
+                            ri->bumpUpNoteOnCount();
+                        }
+                        break;
                     }
+                    if (ignoreThisNote) {
+                        debug("duplicate note on ignored");
+                        continue;
+                    }
+                    displayNote.bumpUpNoteOnCount();
                 } break;
                 case KEY_PRESSURE:
                 case CONTROL_CHANGE:
@@ -272,12 +282,12 @@ bool NoteTakerParseMidi::parseMidi() {
                                                 displayNote.data[1]);
                                         return false;
                                     }
-                                    if (!midi_size24(iter, &displayNote.data[2])) {
+                                    if (!midi_size24(iter, &displayNote.data[0])) {
                                         debug("midi_size24");
                                         return false;
                                     }
                                     skipFirstDeltaTime = !displayNote.startTime && 1 == midiFormat;
-                                    debug("tempo %d", displayNote.data[2]);
+                                    debug("tempo %d", displayNote.data[0]);
                                 break;
                                 case 0x54: // SMPTE offset
                                     if (5 != displayNote.data[1]) {
@@ -337,19 +347,19 @@ bool NoteTakerParseMidi::parseMidi() {
                     debug("unexpected byte %d", *iter);
                     return false;
             }
-            debug("length used %d", iter - messageStart);
             trackLength -= iter - messageStart;
             // hijack 0x00 0xBx 0x57-0x5A 0xXX to set sustain and release parameters
             // only intercepts if it occurs at time zero, and 0xXX value is in range
             if (CONTROL_CHANGE == displayNote.type && 0 == displayNote.startTime &&
                     midiReleaseMax <= displayNote.data[0] && displayNote.data[0] <= midiSustainMax &&
-                    (unsigned) displayNote.data[1] < noteDurations.size()) {
+                    (unsigned) displayNote.data[1] < NoteDurations::Count()) {
                 channels[displayNote.channel].setLimit(
                         (NoteTakerChannel::Limit) (displayNote.data[0] - midiReleaseMax),
-                        noteDurations[displayNote.data[1]]);
+                        NoteDurations::ToMidi(displayNote.data[1], ppq));
                 continue;
             }
-            if (!midiFormat || !trackCount || displayNote.isNoteOrRest()) {
+            if (!midiFormat || !trackCount || NOTE_ON == displayNote.type) {
+                debug("push %s", displayNote.debugString().c_str());
                 parsedNotes.push_back(displayNote);
             }
         }
@@ -358,22 +368,43 @@ bool NoteTakerParseMidi::parseMidi() {
         auto const insertion_point = std::upper_bound(parsedNotes.begin(), it, *it);
         std::rotate(insertion_point, it, it + 1);
     }
-    int lastTime = -1;
+    // insert rests
+    int lastNoteEnd = 0;
+    vector<DisplayNote> withRests;
+    withRests.reserve(parsedNotes.size());
     for (const auto& note : parsedNotes) {
+        if (NOTE_ON == note.type && lastNoteEnd < note.startTime) {
+            // to do : create constructor so this can call emplace_back ?
+            DisplayNote rest;
+            rest.startTime = lastNoteEnd;
+            rest.duration = note.startTime - lastNoteEnd;
+            memset(rest.data, 0, sizeof(rest.data));
+            rest.channel = 0xFF;
+            rest.type = REST_TYPE;
+            rest.selected = false;
+            withRests.push_back(rest);
+        }
+        withRests.push_back(note);
+        lastNoteEnd = std::max(lastNoteEnd, note.endTime());
+    }
+    int lastTime = -1;
+    for (const auto& note : withRests) {
         // to do : shouldn't allow zero either, let it slide for now to debug 9.mid
-        if (NOTE_ON == note.type && 0 > note.duration) {
-            debug("negative note on duration");
-            NoteTaker::DebugDump(parsedNotes);
+        if (NOTE_ON == note.type && 0 >= note.duration) {
+            debug("non-positive note on duration");
+            NoteTaker::DebugDump(withRests);
             return false;
         }
         if (note.startTime < lastTime) {
             debug("notes out of time order");
-            NoteTaker::DebugDump(parsedNotes);
+            NoteTaker::DebugDump(withRests);
             return false;
         }
         lastTime = note.startTime;
     }
-    NoteTaker::DebugDump(parsedNotes);
-    displayNotes.swap(parsedNotes);
+    NoteTaker::DebugDump(withRests);
+    displayNotes.swap(withRests);
+    ntPpq = ppq;
+    debug("ntPpq %d", ntPpq);
     return true;
 }

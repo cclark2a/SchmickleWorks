@@ -12,7 +12,12 @@ struct BarPosition {
     int start;               // number of bars in current time signature
     int end;                 // number of bars though current note duration
     int leader;              // duration of note part before first bar
+    int ppq;
     int trailer;             // remaining duration of note after last bar
+
+    BarPosition(NoteTaker& nt) {
+        ppq = nt.ppq;
+    }
 
     void next(const DisplayNote& note) {
         inSignature = note.startTime - base;
@@ -24,11 +29,11 @@ struct BarPosition {
         int noteEndTime = inSignature + note.duration;
         end = noteEndTime / duration;
         trailer = noteEndTime - end * duration;
-        int result = NoteTakerDisplay::TiedCount(duration, leader);
+        int result = NoteTakerDisplay::TiedCount(duration, leader, ppq);
         if (start != end) {
             result += end - start - 1;
             if (trailer) {
-                result += NoteTakerDisplay::TiedCount(duration, trailer);
+                result += NoteTakerDisplay::TiedCount(duration, trailer, ppq);
             }
         }
         return result;
@@ -39,7 +44,7 @@ struct BarPosition {
         // see if introducing new signature adds a bar
         bool drawBar = inSignature > 0 && inSignature < duration;
         count += drawBar;
-        duration = stdTimePerQuarterNote * 4 * note.numerator() / (1 << note.denominator());
+        duration = ppq * 4 * note.numerator() / (1 << note.denominator());
         return drawBar;
     }
 };
@@ -183,11 +188,9 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
             nvgText(vg, xPos - 7, yPos + 1, "%", NULL);
             break;
     }
-    static_assert(sizeof(upFlagNoteSymbols) / sizeof(char*) == noteDurations.size(),
-            "symbol duration mismatch");
-    static_assert(sizeof(downFlagNoteSymbols) / sizeof(char*) == noteDurations.size(),
-            "symbol duration mismatch");
-    unsigned symbol = DurationIndex(note.duration);
+    assert(sizeof(upFlagNoteSymbols) / sizeof(char*) == NoteDurations::Count());
+    assert(sizeof(downFlagNoteSymbols) / sizeof(char*) == NoteDurations::Count());
+    unsigned symbol = NoteDurations::FromMidi(note.duration, nt->ppq);
     nvgFontFaceId(vg, nt->musicFont->handle);
     nvgFontSize(vg, 42);
     const char* noteStr = this->stemUp(pitch.position) ? upFlagNoteSymbols[symbol]
@@ -231,7 +234,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
         if (barSide > bar.start) {
             copy.duration = barSide < bar.end ? bar.duration : bar.trailer;
         }
-        while (copy.duration >= noteDurations[0]) {
+        while (copy.duration >= NoteDurations::ToMidi(0, nt->ppq)) {
             drawNote(vg, copy, accidental, xPos, alpha);
             // to do : advance by at least NOTE_WIDTH (need corresponding change in calc x pos)
             if (INT_MAX != lastXPos) {  // draw tie from last note to here
@@ -247,7 +250,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
             }
             lastXPos = xPos;
             xPos += copy.duration * xAxisScale;
-            copy.duration -= noteDurations[DurationIndex(copy.duration)];
+            copy.duration -= NoteDurations::Closest(copy.duration, nt->ppq);
             accidental = NO_ACCIDENTAL;
         }
         if (barSide < bar.end || bar.trailer > 0) {
@@ -261,7 +264,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
 void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const DisplayNote& note,
         int xPos, int alpha) const {
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
-    unsigned symbol = DurationIndex(note.duration);
+    unsigned symbol = NoteDurations::FromMidi(note.duration, nt->ppq);
     float yPos = 36 * 3 - 49;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
     nvgFontFaceId(vg, nt->musicFont->handle);
@@ -276,7 +279,7 @@ void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const Displ
             float yDot = yPos - 9;
             nvgText(vg, xDot, yDot, ".", nullptr);
         }
-        xPos += noteDurations[restIndex] * xAxisScale;
+        xPos += NoteDurations::ToMidi(restIndex, nt->ppq) * xAxisScale;
         symbol -= restIndex;
     } while (symbol);
 }
@@ -478,7 +481,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
     this->drawStaffLines(vg);
     this->drawClefs(vg);
     this->drawSelectionRect(vg);
-    BarPosition bar;
+    BarPosition bar(*nt);
     int nextBar = INT_MAX;
     this->setUpAccidentals(vg, bar, nextBar);
     this->drawNotes(vg, bar, nextBar);
@@ -512,7 +515,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) {
         dynamicPitchAlpha = (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration);
     }
     if (dynamicPitchAlpha > 0) {
-        DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON, false };
+        DisplayNote note = {0, nt->ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
         note.setPitch((int) nt->verticalWheel->value);
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 16, 2, 14, box.size.y - 4);
@@ -834,19 +837,19 @@ void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
     nvgFontSize(vg, 24);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 2 == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
-            DurationIndex(channel.sustainMin)], nullptr);
+            NoteDurations::FromMidi(channel.sustainMin, nt->ppq)], nullptr);
     if (susMax) {
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 3 == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin, box.size.y - 18, downFlagNoteSymbols[
-                DurationIndex(channel.sustainMax)], nullptr);
+                NoteDurations::FromMidi(channel.sustainMax, nt->ppq)], nullptr);
     }
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 1 == select ? 0xFF : 0x7f));
     nvgText(vg, 42 + susMin + susMax, box.size.y - 18, downFlagNoteSymbols[
-            DurationIndex(channel.releaseMin)], nullptr);
+            NoteDurations::FromMidi(channel.releaseMin, nt->ppq)], nullptr);
     if (relMax) {
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0 == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin + susMax + relMin, box.size.y - 18, downFlagNoteSymbols[
-                DurationIndex(channel.releaseMax)], nullptr);
+                NoteDurations::FromMidi(channel.releaseMax, nt->ppq)], nullptr);
     }
 }
 
@@ -867,7 +870,7 @@ void NoteTakerDisplay::drawVerticalControl(NVGcontext* vg) const {
     nvgFill(vg);
 }
 
-int NoteTakerDisplay::duration(unsigned index) const {
+int NoteTakerDisplay::duration(unsigned index, int ppq) const {
     return nt->allNotes[index].duration * xAxisScale;
 }
 
@@ -924,15 +927,15 @@ void NoteTakerDisplay::updateXPosition() {
     debug("updateXPosition invalid");
     xPositionsInvalid = false;
     xPositions.resize(nt->allNotes.size());
-    BarPosition bar;
+    BarPosition bar(*nt);
     int pos = 0;
     for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
         const DisplayNote& note = nt->allNotes[index];
         bar.next(note);
         debug("inSignature %d start %d note.startTime %d base %d duration %d leader %d",
                 bar.inSignature, bar.start, note.startTime, bar.base, bar.duration, bar.leader);
-        xPositions[index] = (note.startTime + (bar.count + bar.start) * BAR_WIDTH) * xAxisScale
-                + pos;
+        xPositions[index] = (note.ppqStart(nt->ppq) + (bar.count + bar.start) * BAR_WIDTH)
+                * xAxisScale + pos;
         switch (note.type) {
             case MIDI_HEADER:
                 assert(!pos);
@@ -947,9 +950,9 @@ void NoteTakerDisplay::updateXPosition() {
                 int notesTied = bar.notesTied(note);
                 if (notesTied > 1) {
                     int extraWidth = NOTE_WIDTH * (notesTied - 1);  // guess at how wide a note is
-                    pos += (int) std::max(0.f, (extraWidth - note.duration) * xAxisScale);
-                    debug("end %d trailer %d notesTied",
-                            bar.end, bar.trailer, notesTied);
+                    pos += (int) std::max(0.f,
+                            (extraWidth - note.ppqDuration(nt->ppq)) * xAxisScale);
+                    debug("end %d trailer %d notesTied", bar.end, bar.trailer, notesTied);
                 }
                 } break;
             case KEY_SIGNATURE:
@@ -963,7 +966,7 @@ void NoteTakerDisplay::updateXPosition() {
                 bar.setSignature(note);
                 break;
             case TRACK_END:
-                debug("[%u] xPos %d start %d", index, xPositions[index], note.startTime);
+                debug("[%u] xPos %d start %d", index, xPositions[index], note.ppqStart(nt->ppq));
                 break;
             case MIDI_TEMPO:
                 // to do : incomplete

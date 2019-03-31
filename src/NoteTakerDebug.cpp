@@ -37,6 +37,8 @@ std::string DisplayNote::debugString() const {
             break;
         case MIDI_HEADER:
             s += " format=" + std::to_string(format());
+            s += " tracks=" + std::to_string(tracks());
+            s += " ppq=" + std::to_string(ppq());
             break;
         case KEY_SIGNATURE:
             s += " key=" + std::to_string(key());
@@ -47,6 +49,9 @@ std::string DisplayNote::debugString() const {
             s += " denominator=" + std::to_string(denominator());
             s += " clocksPerClick=" + std::to_string(clocksPerClick());
             s += " 32ndsPerQuarter=" + std::to_string(notated32NotesPerQuarterNote());
+            break;
+        case MIDI_TEMPO:
+            s += " tphs=" + std::to_string(tphs());
             break;
         case TRACK_END:
             break;
@@ -111,6 +116,38 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<int>* x
     }
 }
 
+    // to do : dump storage[9] as hex to try to figure out where things go south
+    // maybe auto linefeed on 0x80 0x90 less delta, if there is one
+    // 0x0 before 0x80; (0x83, 0x60) or (0x87, 0x40) before 0x80 or 0x90
+    // 0xff 0x2f 0x0 // end of track
+    // 0xff 0x51 0x3 0x7 0xa1 0x0 // tempo
+    // 0x4d ... // Mthd or MTrk
+void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
+    std::string s;
+    unsigned line = v.size();
+    for (unsigned i = 0; i < v.size(); ++i) {
+        uint8_t u = v[i];
+        if (--line && 0xFF != u) {
+            s += ", ";
+        } else {
+            debug("%s", s.c_str());
+            s = "";
+        }
+        const char h[] = "0123456789ABCDEF";
+        s += "0x";
+        s += h[u >> 4];
+        s += h[u & 0xf];
+        
+        if (0x4d == u) {
+            line = std::min(line, 13u);
+        }
+        if (0x80 == u || 0x90 == u) {
+            line = std::min(line, 3u);
+        }
+    }
+    debug("%s", s.c_str());
+}
+
 void NoteTaker::validate() const {
     int time = 0;
     array<int, CHANNEL_COUNT> channelTimes;
@@ -154,6 +191,7 @@ void NoteTaker::validate() const {
                 break;
             case KEY_SIGNATURE:
             case TIME_SIGNATURE:
+            case MIDI_TEMPO:
                 if (!sawHeader) {
                     debug("missing midi header before time signature");
                     malformed = true;

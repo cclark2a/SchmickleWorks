@@ -8,8 +8,8 @@ void NoteTaker::setHorizontalWheelRange() {
         return;
     }
     if (this->isRunning()) {
-        horizontalWheel->setLimits(0, (noteDurations.size() - 1) - .001f); // tempo relative to quarter note
-        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(stdTimePerQuarterNote));
+        horizontalWheel->setLimits(0, (NoteDurations::Count() - 1) - .001f); // tempo relative to quarter note
+        horizontalWheel->setValue(NoteDurations::FromStd(stdTimePerQuarterNote));
         horizontalWheel->speed = 1;
         return;
     }
@@ -26,9 +26,9 @@ void NoteTaker::setHorizontalWheelRange() {
         return;
     }
     if (sustainButton->ledOn) {
-        horizontalWheel->setLimits(0, noteDurations.size() - 1);
+        horizontalWheel->setLimits(0, NoteDurations::Count() - 1);
         int sustainMinDuration = channels[partButton->addChannel].sustainMin;
-        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainMinDuration));
+        horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, ppq));
         horizontalWheel->speed = 1;
         return;
     }
@@ -52,10 +52,10 @@ void NoteTaker::setHorizontalWheelRange() {
                 note = &allNotes[++start];
             }
             if (note->isNoteOrRest()) {
-                value = NoteTakerDisplay::DurationIndex(note->duration);
+                value = NoteDurations::FromMidi(note->duration, ppq);
             }
             if (INT_MAX != value) {
-                horizontalWheel->setLimits(0, noteDurations.size() - 0.001f);
+                horizontalWheel->setLimits(0, NoteDurations::Count() - 0.001f);
             }
         }
     } else {
@@ -161,7 +161,8 @@ void NoteTaker::updateHorizontal() {
     const int wheelValue = horizontalWheel->wheelValue();
     if (sustainButton->ledOn) {
         NoteTakerChannel& channel = channels[partButton->addChannel];
-        channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value, noteDurations[wheelValue]);
+        channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value,
+                NoteDurations::ToMidi(wheelValue, ppq));
         return;
     }
     if (isEmpty()) {
@@ -178,8 +179,8 @@ void NoteTaker::updateHorizontal() {
                 switch (note.type) {
                     case NOTE_ON:
                     case REST_TYPE: {
-                        assert((unsigned) wheelValue < noteDurations.size());
-                        int duration = noteDurations[wheelValue];
+                        assert((unsigned) wheelValue < NoteDurations::Count());
+                        int duration = NoteDurations::ToMidi(wheelValue, ppq);
                         diff[note.channel] += duration - note.duration;
                         note.duration = duration;
                         } break;
@@ -195,6 +196,11 @@ void NoteTaker::updateHorizontal() {
                             display->xPositionsInvalid = true;
                             display->updateXPosition();
                         }
+                        break;
+                    case MIDI_TEMPO:
+                        // to do : incomplete
+                        // show tempo in bpm
+                        // tphs * 3 / 12500 == bpm
                         break;
                     default:
                         assert(0);
@@ -293,7 +299,7 @@ void NoteTaker::updateVertical() {
             default:
                 assert(0);
         }
-        horizontalWheel->setValue(NoteTakerDisplay::DurationIndex(sustainDuration));
+        horizontalWheel->setValue(NoteDurations::FromMidi(sustainDuration, ppq));
     }
     // transpose selection
     // loop below computes diff of first note, and adds diff to subsequent notes in select

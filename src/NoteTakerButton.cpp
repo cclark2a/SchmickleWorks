@@ -117,11 +117,11 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     int shiftTime;
     if (!nt->noteCount()) {
         insertLoc = nt->atMidiTime(0);
-        DisplayNote midC = { 0, stdTimePerQuarterNote, { 60, 0, stdKeyPressure, stdKeyPressure},
+        DisplayNote midC = { 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
                 nt->partButton->addChannel, NOTE_ON, false };
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
         insertSize = 1;
-        shiftTime = stdTimePerQuarterNote;
+        shiftTime = nt->ppq;
         debug("add to empty");
     } else {
         vector<DisplayNote> span;
@@ -265,7 +265,7 @@ void RestButton::onDragEnd(EventDragEnd& e) {
         nt->cutButton->onDragEnd(e);
     }
     onDragEndPreamble(e);
-    DisplayNote rest = { startTime, stdTimePerQuarterNote, { 0, 0, 0, 0},
+    DisplayNote rest = { startTime, nt->ppq, { 0, 0, 0, 0},
             nt->partButton->addChannel, REST_TYPE, false };
     shiftTime = rest.duration;
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);

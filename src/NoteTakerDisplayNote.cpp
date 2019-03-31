@@ -21,7 +21,7 @@ bool DisplayNote::isValid() const {
                 debug("invalid note pitch %d\n", data[0]);
                 return false;
             }
-            if ((unsigned) data[1] >= noteDurations.size()) {
+            if ((unsigned) data[1] >= NoteDurations::Count()) {
                 debug("invalid on note index %d\n", data[1]);
                 return false;
             }
@@ -74,6 +74,14 @@ bool DisplayNote::isValid() const {
                 debug("invalid 32nds/quarter ntoe %d\n", data[3]);
             }
             } break;
+        case MIDI_TEMPO: {
+            int ticks = data[0];
+            if (ticks <= 0) {
+                debug("invalid ticks per second %d\n", data[0]);
+                return false;
+            }
+            break;
+        }
         default:
             debug("to do: validate %d\n", type);
             assert(0);

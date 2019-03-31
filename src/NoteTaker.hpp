@@ -153,6 +153,7 @@ struct NoteTaker : Module {
     void debugDump(bool validatable = true, bool inWheel = false) const;
     static void DebugDump(const vector<DisplayNote>& , const vector<int>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
+    static void DebugDumpRawMidi(vector<uint8_t>& v);
 
     void eraseNotes(unsigned start, unsigned end);
     int externalTempo();
@@ -253,7 +254,7 @@ struct NoteTaker : Module {
     void reset() override;
 
     void resetRun() {
-        midiClockOut = stdTimePerQuarterNote;
+        midiClockOut = ppq;
         elapsedSeconds = 0;
         playStart = 0;
         outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
@@ -301,7 +302,7 @@ struct NoteTaker : Module {
                         || debugCount[channel] > 500) {
                     debugLastGateLow[channel] = chan.gateLow;
                     debugLastNoteEnd[channel] = chan.noteEnd;
-                    debug("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
+                    if (false) debug("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
                             channel, chan.gateLow, chan.noteEnd, chan.noteIndex, midiTime);
                     debugCount[channel] = 0;
                 } else {

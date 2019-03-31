@@ -85,6 +85,33 @@ struct DisplayNote {
         assertValid(TIME_SIGNATURE);
     }
 
+    int tphs() const {
+        assertValid(MIDI_TEMPO);
+        return data[0];
+    }
+
+    // during parsing, tracks if there are multiple note on w/o note off
+    int noteOnCount() {
+        assertValid(NOTE_ON);
+        return data[1];
+    }
+
+    bool bumpDownNoteOnCount() {
+        assertValid(NOTE_ON);
+        --data[1];
+        return 0 <= data[1];
+    }
+
+    void bumpUpNoteOnCount() {
+        assertValid(NOTE_ON);
+        ++data[1];
+    }
+
+    int tracks() const {
+        assertValid(MIDI_HEADER);
+        return data[1];
+    }
+
     int denominator() const {
         assertValid(TIME_SIGNATURE);
         return data[1];
@@ -108,6 +135,12 @@ struct DisplayNote {
     void setOnVelocity(int velocity) {
         data[2] = velocity;
         assertValid(NOTE_ON);
+    }
+
+    int ppq() const {
+        assertValid(MIDI_HEADER);
+        assert(!(data[1] & 0x8000));
+        return data[2];
     }
 
     int clocksPerClick() const {
@@ -155,6 +188,18 @@ struct DisplayNote {
 
     bool isNoteOrRest() const {
         return NOTE_ON == type || REST_TYPE == type;
+    }
+
+    int ppqDuration(int ppq) const {
+        return this->duration * stdTimePerQuarterNote / ppq;
+    }
+
+    int ppqEnd(int ppq) const {
+        return this->endTime() * stdTimePerQuarterNote / ppq;
+    }
+
+    int ppqStart(int ppq) const {
+        return startTime * stdTimePerQuarterNote / ppq;
     }
 
     json_t* toJson() const;

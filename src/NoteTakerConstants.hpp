@@ -37,25 +37,11 @@ constexpr unsigned ALL_CV_CHANNELS = 0x0F;  // one bit set per CV output
 constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
 constexpr unsigned CV_OUTPUTS = 4;
 
-static constexpr const std::array<int, 20> noteDurations = {
-       3, //        128th note
-       6, //         64th
-       9, // dotted  64th
-      12, //         32nd
-      18, // dotted  32nd
-      24, //         16th
-      36, // dotted  16th
-      48, //          8th
-      72, // dotted   8th
-      96, //        quarter note
-     144, // dotted quarter     
-     192, //        half
-     288, // dotted half
-     384, //        whole note
-     576, // dotted whole
-     768, //        double whole
-    1052, //        triple whole (dotted double whole)
-    1536, //     quadruple whole
-    2304, //      sextuple whole (dotted quadruple whole)
-    3072, //       octuple whole
+struct NoteDurations {
+    static int Closest(int midi, int ppq);
+    static unsigned Count();
+    static unsigned FromMidi(int midi, int ppq);
+    static unsigned FromStd(int duration);
+    static int ToMidi(unsigned index, int ppq);
+    static int ToStd(unsigned index);
 };

@@ -6,10 +6,11 @@
 class NoteTakerParseMidi {
 public:
     NoteTakerParseMidi(const vector<uint8_t>& m, vector<DisplayNote>& d,
-            array<NoteTakerChannel, CHANNEL_COUNT>& c)
+            array<NoteTakerChannel, CHANNEL_COUNT>& c, int& p)
         : midi(m)
         , displayNotes(d)
-        , channels(c) {       
+        , channels(c)
+        , ntPpq(p) {       
     }
 
     bool parseMidi();
@@ -17,6 +18,7 @@ private:
     const vector<uint8_t>& midi;
     vector<DisplayNote>& displayNotes;
     array<NoteTakerChannel, CHANNEL_COUNT>& channels;
+    int& ntPpq;
 
     template<std::size_t size>
     bool match_midi(vector<uint8_t>::const_iterator& iter, const std::array<uint8_t, size>& data) {
