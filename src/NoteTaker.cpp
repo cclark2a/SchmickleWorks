@@ -21,6 +21,7 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
 float NoteTaker::beatsPerHalfSecond(int localTempo) const {
     float deltaTime = (float) stdMSecsPerQuarterNote / localTempo;
     if (this->isRunning() && !fileButton->ledOn) {
+        // to do : decide how external clock works
         // external clock input could work in one of three modes:
         // 1/2) input voltage overrides / multiplies wheel value
         //   3) voltage step marks beat
@@ -31,7 +32,7 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         int floor = NoteDurations::ToStd(horzIndex);
         int ceil = NoteDurations::ToStd(horzIndex + 1);
         float interp = floor + (ceil - floor) * (value - horzIndex);
-        deltaTime *= ppq / interp;
+        deltaTime *= stdTimePerQuarterNote / interp;
     }
     return deltaTime;
 }
@@ -281,7 +282,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         displayStart = displayEnd - 1;
     }
     int displayStartTime = display->startTime(displayStart);
-    int displayWidthTime = display->box.size.x * ppq / stdTimePerQuarterNote;
+    int displayWidthTime = display->box.size.x;
     int displayEndTime = displayStartTime + displayWidthTime;
     while (displayEnd < allNotes.size() - 1
             && display->endTime(displayEnd, ppq) < displayEndTime) {

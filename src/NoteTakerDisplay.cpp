@@ -515,7 +515,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) {
         dynamicPitchAlpha = (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration);
     }
     if (dynamicPitchAlpha > 0) {
-        DisplayNote note = {0, nt->ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
+        DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON, false };
         note.setPitch((int) nt->verticalWheel->value);
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 16, 2, 14, box.size.y - 4);
@@ -871,7 +871,7 @@ void NoteTakerDisplay::drawVerticalControl(NVGcontext* vg) const {
 }
 
 int NoteTakerDisplay::duration(unsigned index, int ppq) const {
-    return nt->allNotes[index].duration * xAxisScale;
+    return nt->allNotes[index].duration * stdTimePerQuarterNote / ppq * xAxisScale;
 }
 
 void NoteTakerDisplay::recenterVerticalWheel() {

@@ -23,7 +23,6 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     nt->setSelect(insertLoc, insertLoc + 1);
     nt->turnOffLedButtons();
     nt->setWheelRange();  // range is larger
-    nt->debugDump();
 }
 
 void CutButton::draw(NVGcontext* vg) {
@@ -368,8 +367,13 @@ void SustainButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
 
+// to do : when implementing tempo for real, find another home for debug dump (secret button?)
 void TempoButton::onDragEnd(EventDragEnd& e) {
-    AdderButton::onDragEnd(e);
+    if (false) {
+        AdderButton::onDragEnd(e);
+    } else {
+        nModule()->debugDump();
+    }
 }
 
 void TempoButton::draw(NVGcontext* vg) {
