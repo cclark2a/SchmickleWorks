@@ -3,6 +3,49 @@
 #include "NoteTakerMakeMidi.hpp"
 #include "NoteTaker.hpp"
 
+// At least in the case of Google's Bach Doodle, Midi may be missing some or all
+// of the delta time. To work around this, scan forward after the delta time to 
+// see if the next part is a note on or note off. Use the location of this to
+// limit the number of bytes delta time can consume.
+static vector<uint8_t>::const_iterator find_next_note(const vector<uint8_t>& midi,
+        vector<uint8_t>::const_iterator& iter) {
+    // look for note on or note off within 4 bytes
+    vector<uint8_t>::const_iterator noteIter = midi.end();
+    vector<uint8_t>::const_iterator limit = midi.begin()
+            + std::min((int) midi.size() - 3, (int) (iter - midi.begin() + 4));
+    for (auto testIter = iter; testIter < limit; ++testIter) {
+        if ((testIter[0] & 0xE0) == 0x80  // tests for note on and note off
+                && !(testIter[1] & 0x80) && !(testIter[2] & 0x80)) {
+            noteIter = testIter;
+            break;
+        }
+    }
+    if (noteIter + 2 >= midi.end()) {
+        debug ("no note after delta");
+        return midi.end();
+    }
+    if ((*noteIter & midiCVMask) == midiNoteOn) { // if note on, look for note off within 16 bytes
+        limit = midi.begin() + std::min((int) midi.size() - 3, (int) (noteIter - midi.begin() + 16));
+        for (auto offIter = noteIter + 3; offIter < limit; ++offIter) {
+            if (offIter[0] == (noteIter[0] & 0xEF) && offIter[1] == noteIter[1]
+                    && !(offIter[2] & 0x80)) {
+                return noteIter;
+            }
+        }
+    } else { // if note off, look for note on in previous 16 bytes
+        assert((*noteIter & midiCVMask) == midiNoteOff);
+        limit = midi.begin() + std::max(0, (int) (noteIter - midi.begin() - 16));
+        for (auto onIter = noteIter - 3; onIter >= limit; --onIter) {
+            if (onIter[0] == (noteIter[0] | 0x10) && onIter[1] == noteIter[1]
+                    && !(onIter[2] & 0x80)) {
+                return noteIter;
+            }
+        }
+    }
+    debug ("no note after delta 3");
+    return midi.end();
+}
+
 bool NoteTakerParseMidi::parseMidi() {
     debug("parseMidi start");
     vector<DisplayNote> parsedNotes;
@@ -20,7 +63,8 @@ bool NoteTakerParseMidi::parseMidi() {
                 midi[0], midi[1], midi[2], midi[3]);
         return false;
     }
-    if (!match_midi(iter, MThd_length)) {
+    int MThd_length = 0;
+    if (!midi_size32(iter, &MThd_length) || 6 != MThd_length) {
         debug("expect MIDI header size == 6, got (0x%02x%02x%02x%02x)", 
                 midi[4], midi[5], midi[6], midi[7]);
         return false;
@@ -43,7 +87,6 @@ bool NoteTakerParseMidi::parseMidi() {
     parsedNotes.push_back(displayNote);
     do {
         bool trackEnded = false;
-        bool skipFirstDeltaTime = false;
         vector<uint8_t>::const_iterator trk = iter;
         // parse track header before parsing channel voice messages
         if (!match_midi(iter, MTrk)) {
@@ -60,16 +103,27 @@ bool NoteTakerParseMidi::parseMidi() {
         ++trackCount;
         int midiTime = 0;
         debug("trackLength %d", trackLength);
+        // find next note; note on followed by note off, within a short distance
+        // don't allow delta time to include next note
         while (!trackEnded && trackLength) {
             const auto messageStart = iter;
-            if (skipFirstDeltaTime) {
-                midiTime = 0;
-                skipFirstDeltaTime = false;
-            } else if (!midi_delta(iter, &midiTime)) {
-                return false;
-            }
+            vector<uint8_t>::const_iterator limit = find_next_note(midi, iter);
+            midiTime += this->safeMidi_size8(limit, iter, ppq);
             if (0 == (*iter & 0x80)) {
-                debug("expected high bit set on channel voice message: %02x", *iter);
+                debug("%d expected high bit set on channel voice message: %02x", midiTime, *iter);
+                std::string s;
+                auto start = std::max(&midi.front(), &*iter - 5);
+                auto end = std::min(&midi.back(), &*iter + 5);
+                const char hex[] = "0123456789ABCDEF";
+                for (auto i = start; i <= end; ++i) {
+                    if (i == &*iter) s += "[";
+                    s += "0x";
+                    s += hex[*i >> 4];
+                    s += hex[*i & 0xf];
+                    if (i == &*iter) s += "]";
+                    s += ", ";
+                }
+                debug("%s", s.c_str());
                 return false;
             }
             displayNote.startTime = midiTime;
@@ -103,18 +157,17 @@ bool NoteTakerParseMidi::parseMidi() {
                         if (pitch != ri->pitch()) {
                             continue;
                         }
-                        if (midiTime <= ri->startTime) {
-                            debug("unexpected note duration start=%d end=%d",
-                                    ri->startTime, midiTime);
-                            return false;
+                        int duration = midiTime - ri->startTime;
+                        if (duration <= 0) {
+                            continue;
                         }
-                        if (!ri->bumpDownNoteOnCount()) {
-                            debug("note off w/o note on");
-                            break;
+                        if (ri->duration > 0) {
+                            debug("unexpected note on %s", ri->debugString().c_str());
+                            return false;
                         }
                         debug("%u note off %s", &*ri - &parsedNotes.front(), 
                                 ri->debugString().c_str());
-                        ri->duration = midiTime - ri->startTime;
+                        ri->duration = duration;
                         ri->setOffVelocity(velocity);
                         break;
                     }
@@ -132,29 +185,6 @@ bool NoteTakerParseMidi::parseMidi() {
                         return false;
                     }
                     displayNote.setOnVelocity(*iter++);
-                    bool ignoreThisNote = false;
-                    for (auto ri = parsedNotes.rbegin(); ri != parsedNotes.rend(); ++ri) {
-                        if (ri->type != NOTE_ON) {
-                            continue;
-                        }
-                        if (displayNote.channel != ri->channel) {
-                            continue;
-                        }
-                        if (displayNote.pitch() != ri->pitch()) {
-                            continue;
-                        }
-                        if ((ignoreThisNote = -1 == ri->duration)) {
-                            debug("%u note ignore %s", &*ri - &parsedNotes.front(),
-                                    ri->debugString().c_str());
-                            ri->bumpUpNoteOnCount();
-                        }
-                        break;
-                    }
-                    if (ignoreThisNote) {
-                        debug("duplicate note on ignored");
-                        continue;
-                    }
-                    displayNote.bumpUpNoteOnCount();
                 } break;
                 case KEY_PRESSURE:
                 case CONTROL_CHANGE:
@@ -266,7 +296,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                     }
                                     displayNote.data[2] = *iter++;
                                 break;
-                                case 0x2F: // end of track (required)
+                                case midiEndOfTrack: // (required)
                                     displayNote.type = TRACK_END;
                                     if (0 != displayNote.data[1]) {
                                         debug("expected end of track length == 0 %d",
@@ -275,8 +305,9 @@ bool NoteTakerParseMidi::parseMidi() {
                                     }
                                     trackEnded = true;
                                 break;
-                                case 0x51:  // set tempo
+                                case midiSetTempo:
                                     displayNote.type = MIDI_TEMPO;
+                                    displayNote.duration = 0;
                                     if (3 != displayNote.data[1]) {
                                         debug("expected set tempo length == 3 %d",
                                                 displayNote.data[1]);
@@ -286,7 +317,6 @@ bool NoteTakerParseMidi::parseMidi() {
                                         debug("midi_size24");
                                         return false;
                                     }
-                                    skipFirstDeltaTime = !displayNote.startTime && 1 == midiFormat;
                                     debug("tempo %d", displayNote.data[0]);
                                 break;
                                 case 0x54: // SMPTE offset
@@ -298,7 +328,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                     displayNote.data[2] = iter - midi.begin();
                                     std::advance(iter, displayNote.data[1]);
                                 break;
-                                case 0x58: // time signature
+                                case midiTimeSignature:
                                     displayNote.type = TIME_SIGNATURE;
                                     displayNote.duration = 0;
                                     for (int i = 0; i < 4; ++i) {
@@ -313,7 +343,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                         return false;
                                     }
                                 break;
-                                case 0x59:  // key signature
+                                case midiKeySignature:
                                     displayNote.type = KEY_SIGNATURE;
                                     displayNote.duration = 0;
                                     displayNote.data[0] = (signed char) *iter++;
@@ -407,4 +437,15 @@ bool NoteTakerParseMidi::parseMidi() {
     ntPpq = ppq;
     debug("ntPpq %d", ntPpq);
     return true;
+}
+
+int NoteTakerParseMidi::safeMidi_size8(vector<uint8_t>::const_iterator& limit,
+        vector<uint8_t>::const_iterator& iter, int ppq) {
+    int value;
+    // if value is not well-formed, add a zero byte
+    if (!Midi_Size8(limit, iter, &value) && iter[-1] & 0x80) {
+        value <<= 7;
+        value = NoteDurations::Closest(value, ppq);
+    }
+    return value;
 }

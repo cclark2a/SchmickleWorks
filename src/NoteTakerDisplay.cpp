@@ -149,10 +149,10 @@ void NoteTakerDisplay::setKeySignature(int key) {
 }
 
 void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Accidental accidental,
-        int xPos, int alpha) const {
+        int xPos, int alpha, int size) const {
     const StaffNote& pitch = pitchMap[note.pitch()];
     float yPos = this->yPos(pitch.position);
-    float staffLine = yPos - 3;
+    float staffLine = pitch.position * 3 - 51;
     int staffLineCount = 0;
     if (pitch.position < TREBLE_TOP) {
         staffLineCount = (TREBLE_TOP - pitch.position) / 2;
@@ -170,29 +170,24 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
             nvgLineTo(vg, xPos + 8, staffLine);
             staffLine += 6;
         } while (--staffLineCount);
+        nvgStrokeWidth(vg, 0.5);
         nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
         nvgStroke(vg);
     }
     nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0xBf, (3 == note.channel) * 0x7f,
             (2 == note.channel) * 0x7f, alpha));
-    switch (accidental) {
-        case NO_ACCIDENTAL:
-            break;
-        case SHARP_ACCIDENTAL:
-            nvgText(vg, xPos - 7, yPos + 1, "#", NULL);
-            break;
-        case FLAT_ACCIDENTAL:
-            nvgText(vg, xPos - 7, yPos + 1, "$", NULL);
-            break;
-        case NATURAL_ACCIDENTAL:
-            nvgText(vg, xPos - 7, yPos + 1, "%", NULL);
-            break;
+    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontSize(vg, size);
+    if (24 == size) {   // to do : something better than this
+        yPos -= 1;
+    }
+    if  (NO_ACCIDENTAL != accidental) {
+        const char accidents[] = " #$%";
+        nvgText(vg, xPos - 7, yPos + 1, &accidents[accidental], &accidents[accidental + 1]);
     }
     assert(sizeof(upFlagNoteSymbols) / sizeof(char*) == NoteDurations::Count());
     assert(sizeof(downFlagNoteSymbols) / sizeof(char*) == NoteDurations::Count());
     unsigned symbol = NoteDurations::FromMidi(note.duration, nt->ppq);
-    nvgFontFaceId(vg, nt->musicFont->handle);
-    nvgFontSize(vg, 42);
     const char* noteStr = this->stemUp(pitch.position) ? upFlagNoteSymbols[symbol]
             : downFlagNoteSymbols[symbol];
     nvgText(vg, xPos, yPos, noteStr, nullptr);
@@ -224,7 +219,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
     accidentals[pitch.position] = (Accidental) pitch.accidental;
     int tied = bar.notesTied(note);
     if (1 == tied) {
-        drawNote(vg, note, accidental, xPos, alpha);
+        drawNote(vg, note, accidental, xPos, alpha, 42);
         return;
     }
     DisplayNote copy = note;
@@ -235,7 +230,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
             copy.duration = barSide < bar.end ? bar.duration : bar.trailer;
         }
         while (copy.duration >= NoteDurations::ToMidi(0, nt->ppq)) {
-            drawNote(vg, copy, accidental, xPos, alpha);
+            drawNote(vg, copy, accidental, xPos, alpha, 42);
             // to do : advance by at least NOTE_WIDTH (need corresponding change in calc x pos)
             if (INT_MAX != lastXPos) {  // draw tie from last note to here
                 // if notes' stems go down, draw arc above; otherwise, draw arc below
@@ -328,7 +323,7 @@ void NoteTakerDisplay::drawClefs(NVGcontext* vg) const {
 
 void NoteTakerDisplay::drawFreeNote(NVGcontext* vg, const DisplayNote& note,
         int xPos, int alpha) const {
-    drawNote(vg, note, (Accidental) pitchMap[note.pitch()].accidental, xPos, alpha);
+    drawNote(vg, note, (Accidental) pitchMap[note.pitch()].accidental, xPos, alpha, 24);
 }
 
 void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) {
@@ -515,18 +510,18 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) {
         dynamicPitchAlpha = (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration);
     }
     if (dynamicPitchAlpha > 0) {
-        DisplayNote note = {0, stdTimePerQuarterNote, { 0, 0, 0, 0}, 0, NOTE_ON, false };
+        DisplayNote note = {0, nt->ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
         note.setPitch((int) nt->verticalWheel->value);
         nvgBeginPath(vg);
-        nvgRect(vg, box.size.x - 16, 2, 14, box.size.y - 4);
-        nvgFillColor(vg, nvgRGB(0xFF, 0xFF, 0xFF));
+        nvgRect(vg, box.size.x - 10, 2, 10, box.size.y - 4);
+        nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicPitchAlpha));
         nvgFill(vg);
-        this->drawFreeNote(vg, note, box.size.x - 10, dynamicPitchAlpha);
+        this->drawFreeNote(vg, note, box.size.x - 7, dynamicPitchAlpha);
     }
     if (dynamicTempoAlpha > 0) {
         nvgBeginPath(vg);
         nvgRect(vg, 2, 2, 30, 12);
-        nvgFillColor(vg, nvgRGB(0xFF, 0xFF, 0xFF));
+        nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicTempoAlpha));
         nvgFill(vg);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicTempoAlpha));
         nvgFontFaceId(vg, nt->musicFont->handle);
@@ -932,8 +927,10 @@ void NoteTakerDisplay::updateXPosition() {
     for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
         const DisplayNote& note = nt->allNotes[index];
         bar.next(note);
-        debug("inSignature %d start %d note.startTime %d base %d duration %d leader %d",
-                bar.inSignature, bar.start, note.startTime, bar.base, bar.duration, bar.leader);
+        if (INT_MAX != bar.duration) {
+            debug("inSignature %d start %d note.startTime %d base %d duration %d leader %d",
+                    bar.inSignature, bar.start, note.startTime, bar.base, bar.duration, bar.leader);
+        }
         xPositions[index] = (note.ppqStart(nt->ppq) + (bar.count + bar.start) * BAR_WIDTH)
                 * xAxisScale + pos;
         switch (note.type) {

@@ -52,53 +52,59 @@ private:
         return true;
     }
 
-    bool midi_size8(vector<uint8_t>::const_iterator& iter, int* result) const {
+    static bool Midi_Size8(vector<uint8_t>::const_iterator end,
+            vector<uint8_t>::const_iterator& iter, int* result) {
         *result = 0;
+        uint8_t byte;
         do {
-            uint8_t byte = *iter++;
-            *result += byte & 0x7F;
-            if (0 == (byte & 0x80)) {
-                break;
-            }
-            if (iter == midi.end()) {
+            if (iter == end) {
                 return false;
             }
+            byte = *iter++;
             *result <<= 7;
-        } while (true);
+            *result |= byte & 0x7F;
+        } while (byte & 0x80);
         return true;
     }
 
+    bool midi_size8(vector<uint8_t>::const_iterator& iter, int* result) const {
+        return Midi_Size8(midi.end(), iter, result);
+    }
+
     bool midi_size24(vector<uint8_t>::const_iterator& iter, int* result) const {
+        if (iter + 3 >= midi.end()) {
+            return false;
+        }
         *result = 0;
         for (int i = 0; i < 3; ++i) {
-            if (iter == midi.end()) {
-                return false;
-            }
+            *result <<= 8;
             *result |= *iter++;
-            if (i < 2) {
-                *result <<= 8;
-            }
         }
         return true;
     }
 
     bool midi_size32(vector<uint8_t>::const_iterator& iter, int* result) const {
+        if (iter + 4 >= midi.end()) {
+            return false;
+        }
         *result = 0;
         for (int i = 0; i < 4; ++i) {
-            if (iter == midi.end()) {
-                return false;
-            }
+            *result <<= 8;
             *result |= *iter++;
-            if (i < 3) {
-                *result <<= 8;
-            }
         }
         return true;
     }
 
-    void read_midi16(vector<uint8_t>::const_iterator& iter, int* store) {
+    bool read_midi16(vector<uint8_t>::const_iterator& iter, int* store) {
+        if (iter + 1 >= midi.end()) {
+            return false;
+        }
         *store = *iter++ << 8;
         *store |= *iter++;
+        return true;
     }
+
+    int safeMidi_size8(vector<uint8_t>::const_iterator& limit,
+            vector<uint8_t>::const_iterator& iter, int ppq);
 
 };

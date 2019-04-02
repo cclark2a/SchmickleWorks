@@ -59,7 +59,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
             int alpha) const;
     void drawClefs(NVGcontext* ) const;
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
-    void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha) const;
+    void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha,
+            int size) const;
     void drawNotes(NVGcontext* , BarPosition& bar, int nextBar);
     void drawPartControl(NVGcontext* ) const;
     void drawSelectionRect(NVGcontext* ) const;

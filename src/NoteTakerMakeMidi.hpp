@@ -12,24 +12,8 @@ inline float MidiToSeconds(int midiTime, int ppq) {
     return (float) midiTime / ppq / 1000000 * stdMSecsPerQuarterNote;
 }
 
-static constexpr array<uint8_t, 4> MThd = {0x4D, 0x54, 0x68, 0x64}; // MIDI file header
-static constexpr array<uint8_t, 4> MThd_length = {0x00, 0x00, 0x00, 0x06}; // number of bytes of data to follow
-static constexpr array<uint8_t, 6> MThd_data = {0x00, 0x00,  // format 0
-                                   0x00, 0x01,  // one track
-                                   0x00, 0x60}; /// 96 per quarter-note
-static constexpr array<uint8_t, 4> MTrk = {0x4D, 0x54, 0x72, 0x6B}; // MIDI track header
-static constexpr array<uint8_t, 8> midiDefaultTimeSignature = {0x00, // delta time
-                                   0xFF, 0x58, // time signature
-                                   0x04, // number of bytes of data to follow
-                                   0x04, // four beats per measure
-                                   0x02, // beat per quarter note
-                                   0x18, // clocks per quarter note
-                                   0x08}; // number of 32nd notes in a quarter note
-static constexpr array<uint8_t, 7> midiDefaultTempo = {0x00, // delta time
-                                   0xFF, 0x51, // tempo
-                                   0x03, // number of bytes of data to follow
-                                   0x07, 0xA1, 0x20}; // 500,000 usec/quarter note (120 beats/min)
-static constexpr array<uint8_t, 3> MTrk_end = {0xFF, 0x2F, 00}; // end of track
+static constexpr array<uint8_t, 4> MThd = {'M', 'T', 'h', 'd'}; // MIDI file header
+static constexpr array<uint8_t, 4> MTrk = {'M', 'T', 'r', 'k'}; // MIDI track header
 
 class NoteTakerMakeMidi {
 public:
@@ -53,12 +37,27 @@ private:
         target->push_back(c);
     }
 
-    void add_size32(int size) {
-        assert(size > 0);
-        int shift = 24;
+    void add_bits(unsigned size, int bits) {
+        assert(16 == size || 24 == size || 32 == size);
+        assert(bits >= 0);
+        int shift = size - 8;
         do {
-            target->push_back((size >> shift) & 0xFF);
+            target->push_back((bits >> shift) & 0xFF);
         } while ((shift -= 8) >= 0);
+    }
+
+    void add_size16(int size) {
+        assert(size <= 0xffff);
+        add_bits(16, size);
+    }
+
+    void add_size24(int size) {
+        assert(size <= 0xffffff);
+        add_bits(24, size);
+    }
+
+    void add_size32(int size) {
+        add_bits(32, size);
     }
 
     void add_size8(int size) {
@@ -73,16 +72,21 @@ private:
         } while ((buffer >>= 8));
     }
 
-    void add_track_end() {
-        target->insert(temp.end(), MTrk_end.begin(), MTrk_end.end());
+    void add_track_end(const DisplayNote& n, int& lastTime) {
+        add_delta(n.startTime, &lastTime);
+        add_one(midiMetaEvent);
+        add_one(midiEndOfTrack);
+        add_one(0);  // number of bytes of data to follow
     }
 
-    void standardHeader(vector<uint8_t>& midi) {
+    void standardHeader(vector<uint8_t>& midi, int ppq) {
         target = &midi;
         target->clear();
         target->insert(target->end(), MThd.begin(), MThd.end());
-        target->insert(target->end(), MThd_length.begin(), MThd_length.end());
-        target->insert(target->end(), MThd_data.begin(), MThd_data.end());
+        add_size32(6);  // number of bytes of data to follow
+        add_size16(0);  // hardcode to format 0; to do : support writing format 1 ?
+        add_size16(1);  // hardcode to 1 track
+        add_size16(ppq);
         target->insert(target->end(), MTrk.begin(), MTrk.end());
     // defer adding until size of data is known
         temp.clear();
@@ -92,6 +96,6 @@ private:
     void standardTrailer(vector<uint8_t>& midi) {
         target = &midi;
         add_size32(temp.size());
-        midi.insert(midi.end(), temp.begin(), temp.end());
+        midi.insert(target->end(), temp.begin(), temp.end());
     }
 };

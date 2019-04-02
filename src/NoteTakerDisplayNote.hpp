@@ -90,23 +90,6 @@ struct DisplayNote {
         return data[0];
     }
 
-    // during parsing, tracks if there are multiple note on w/o note off
-    int noteOnCount() {
-        assertValid(NOTE_ON);
-        return data[1];
-    }
-
-    bool bumpDownNoteOnCount() {
-        assertValid(NOTE_ON);
-        --data[1];
-        return 0 <= data[1];
-    }
-
-    void bumpUpNoteOnCount() {
-        assertValid(NOTE_ON);
-        ++data[1];
-    }
-
     int tracks() const {
         assertValid(MIDI_HEADER);
         return data[1];

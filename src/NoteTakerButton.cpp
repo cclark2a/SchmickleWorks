@@ -278,6 +278,8 @@ void RunButton::onDragEnd(EventDragEnd& e) {
         nt->zeroGates();
     } else {
         nt->resetRun();
+        nt->horizontalWheel->lastRealValue = INT_MAX;
+        nt->verticalWheel->lastValue = INT_MAX;
     }
     if (!nt->fileButton->ledOn && !nt->partButton->ledOn && !nt->sustainButton->ledOn) {
         nt->setWheelRange();

@@ -95,7 +95,7 @@ struct NoteTaker : Module {
     int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
-    float realSeconds = 0;                  // seconds for UI timers
+    double realSeconds = 0;                 // seconds for UI timers
     unsigned playStart = 0;                 // index of notes output
     // clock input state (not saved)
     float clockLowTime = 0;

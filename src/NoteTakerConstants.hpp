@@ -12,11 +12,11 @@ constexpr uint8_t midiChannelPressure = 0xD0;
 constexpr uint8_t midiPitchWheel = 0xE0;
 constexpr uint8_t midiSystem = 0xF0;
 
-constexpr uint8_t midiTimeSignatureHi = 0xFF;
-constexpr uint8_t midiTimeSignatureLo = 0x58;
-
-constexpr uint8_t midiKeySignatureHi = 0xFF;
-constexpr uint8_t midiKeySignatureLo = 0x59;
+constexpr uint8_t midiMetaEvent = 0xFF;
+constexpr uint8_t midiEndOfTrack = 0x2F;
+constexpr uint8_t midiSetTempo = 0x51;
+constexpr uint8_t midiTimeSignature = 0x58;
+constexpr uint8_t midiKeySignature = 0x59;
 
 // control change codes
 constexpr uint8_t midiReleaseMax = 0x57;

@@ -12,9 +12,10 @@ const NoteTakerChannel::Limit NoteTakerChannelLimits[] = {
 };
 
 void NoteTakerMakeMidi::createEmpty(vector<uint8_t>& midi) {
-    this->standardHeader(midi);
-    add_size8(0);
-    add_track_end();
+    this->standardHeader(midi, stdTimePerQuarterNote);
+    DisplayNote dummy = { 0, 0, { 0, 0, 0, 0}, 0, UNUSED, false }; // to do : empty constructor?
+    int last = 0;
+    add_track_end(dummy, last);
     this->standardTrailer(midi);
 }
 
@@ -24,7 +25,8 @@ struct LastNote {
     }
 
     bool operator<(const LastNote& n) const { 
-        return note->endTime() < n.note->endTime();
+        return note->endTime() < n.note->endTime() ||
+                (note->endTime() == n.note->endTime() && note->channel < n.note->channel);
     }
 
     const DisplayNote* note;
@@ -32,7 +34,7 @@ struct LastNote {
 
 void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi) {
     // to do : allow custom ticks / quarter note (hardcoded to 96)
-    this->standardHeader(midi);
+    this->standardHeader(midi, nt.ppq);
     // after header, write channel dur/sus as control change 0xBx
                 // 0x57 release max mapped to duration index
                 // 0x58 release min
@@ -60,6 +62,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 while (!lastNotes.empty()) {
                     auto off = lastNotes.begin()->note;
                     if (off->endTime() > n.startTime) {
+                        debug("%u break off %s", lastNotes.size(), off->debugString().c_str());
                         break;
                     }
                     add_delta(off->endTime(), &lastTime);
@@ -67,33 +70,42 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                     add_one(off->pitch());
                     add_one(off->offVelocity());
                     lastNotes.erase(lastNotes.begin());
+                    debug("%u write off %s", lastNotes.size(), off->debugString().c_str());
                 }
                 add_delta(n.startTime, &lastTime);
                 add_one(midiNoteOn + n.channel);
                 add_one(n.pitch());
                 add_one(n.onVelocity());
                 lastNotes.insert(LastNote(&n));
+                debug("%u write on %s", lastNotes.size(), n.debugString().c_str());
                 break;
             case REST_TYPE:
                 // assume there's nothing to do here
                 break;
             case KEY_SIGNATURE:
                 add_delta(n.startTime, &lastTime);
-                add_one(midiKeySignatureHi);
-                add_one(midiKeySignatureLo);
+                add_one(midiMetaEvent);
+                add_one(midiKeySignature);
                 add_one(2); // number of bytes of data to follow
                 add_one(n.key());
-                add_one(n.data[1]);  // to do : add struct accessor
+                add_one(n.minor());
                 break;
             case TIME_SIGNATURE:
                 add_delta(n.startTime, &lastTime);
-                add_one(midiTimeSignatureHi);
-                add_one(midiTimeSignatureLo);
+                add_one(midiMetaEvent);
+                add_one(midiTimeSignature);
                 add_one(4); // number of bytes of data to follow
                 add_one(n.numerator());
                 add_one(n.denominator());
-                add_one(n.data[2]);  // to do : add struct accessor
-                add_one(n.data[3]);  // to do : add struct accessor
+                add_one(n.clocksPerClick());
+                add_one(n.notated32NotesPerQuarterNote());
+                break;
+            case MIDI_TEMPO:
+                add_delta(n.startTime, &lastTime);
+                add_one(midiMetaEvent);
+                add_one(midiSetTempo);
+                add_one(3); // number of bytes of data to follow
+                add_size24(n.tphs());
                 break;
             case TRACK_END:
                 for (auto last : lastNotes) {
@@ -103,8 +115,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                     add_one(off->pitch());
                     add_one(off->offVelocity());
                 }
-                add_size8(0);
-                add_track_end();
+                add_track_end(n, lastTime);
                 break;
             default:
                 // to do : incomplete

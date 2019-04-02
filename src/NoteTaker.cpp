@@ -15,7 +15,6 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
     this->reset();
     musicFont = Font::load(assetPlugin(plugin, "res/MusiSync3.ttf"));
     textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
-    this->readStorage();
 }
 
 float NoteTaker::beatsPerHalfSecond(int localTempo) const {
@@ -209,6 +208,7 @@ void NoteTaker::reset() {
     selectStart = selectEnd = displayStart = displayEnd = 0;
     this->resetControls();
     Module::reset();
+    this->readStorage();
 }
 
 bool NoteTaker::resetControls() {
@@ -481,7 +481,7 @@ void NoteTaker::step() {
         if (note.channel < CV_OUTPUTS) {
             const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             float v_oct = inputs[V_OCT_INPUT].value;
-            if (this->isRunning() && !fileButton->ledOn) {
+            if (running && !fileButton->ledOn) {
                 v_oct += (verticalWheel->wheelValue() - 60) / 12.f;
             }
             outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
