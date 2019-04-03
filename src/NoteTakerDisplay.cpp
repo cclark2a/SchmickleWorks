@@ -44,7 +44,7 @@ struct BarPosition {
         // see if introducing new signature adds a bar
         bool drawBar = inSignature > 0 && inSignature < duration;
         count += drawBar;
-        duration = ppq * 4 * note.numerator() / (1 << note.denominator());
+        duration = stdTimePerQuarterNote * 4 * note.numerator() / (1 << note.denominator());
         return drawBar;
     }
 };
@@ -331,6 +331,7 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
         const DisplayNote& note = nt->allNotes[index];
         bar.next(note);
         // draw bar once as needed (multiple notes may start at same bar)
+    //    debug("%u drawNotes nextBar %d xPos %d", index, nextBar, this->xPos(index));
         while (nextBar <= this->xPos(index)) {
             this->drawBar(vg, nextBar);
             accidentals.fill(NO_ACCIDENTAL);

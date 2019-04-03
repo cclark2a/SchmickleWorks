@@ -84,7 +84,9 @@ bool NoteTakerParseMidi::parseMidi() {
     int midiFormat = displayNote.format();
     int ppq = displayNote.ppq();
     int trackCount = -1;
+    int midiTime;
     parsedNotes.push_back(displayNote);
+    DisplayNote trackEnd = {-1, 0, {0, 0, 0, 0}, 0xFF, TRACK_END, false};  // for missing end
     do {
         bool trackEnded = false;
         vector<uint8_t>::const_iterator trk = iter;
@@ -101,8 +103,9 @@ bool NoteTakerParseMidi::parseMidi() {
             return false;
         }
         ++trackCount;
-        int midiTime = 0;
+        midiTime = 0;
         debug("trackLength %d", trackLength);
+        unsigned lowNibble;
         // find next note; note on followed by note off, within a short distance
         // don't allow delta time to include next note
         while (!trackEnded && trackLength) {
@@ -130,6 +133,7 @@ bool NoteTakerParseMidi::parseMidi() {
             displayNote.duration = -1;  // not known yet
             memset(displayNote.data, 0, sizeof(displayNote.data));
             displayNote.channel = *iter & 0x0F;
+            lowNibble = displayNote.channel;
             if (!displayNote.channel && trackCount > 0) {
                 displayNote.channel = trackCount;
             }
@@ -206,8 +210,9 @@ bool NoteTakerParseMidi::parseMidi() {
                     displayNote.data[0] = *iter++;
                 break;
                 case MIDI_SYSTEM:
-                    debug("system message 0x%02x", displayNote.channel);
-                    switch (displayNote.channel) {
+                    displayNote.channel = 0xFF;
+                    debug("system message 0x%02x", lowNibble);
+                    switch (lowNibble) {
                         case 0x0:  // system exclusive
                             displayNote.data[0] = iter - midi.begin();  // offset of message start
                             while (++iter != midi.end() && 0 == (*iter & 0x80))
@@ -297,11 +302,16 @@ bool NoteTakerParseMidi::parseMidi() {
                                     displayNote.data[2] = *iter++;
                                 break;
                                 case midiEndOfTrack: // (required)
+                                // keep track of the last track end, and write that one
+                                // note that track end sets duration of all active notes later
                                     displayNote.type = TRACK_END;
                                     if (0 != displayNote.data[1]) {
                                         debug("expected end of track length == 0 %d",
                                                 displayNote.data[1]);
                                         return false;
+                                    }
+                                    if (displayNote.startTime > trackEnd.startTime) {
+                                        trackEnd = displayNote;
                                     }
                                     trackEnded = true;
                                 break;
@@ -367,11 +377,9 @@ bool NoteTakerParseMidi::parseMidi() {
 
                         break;
                         default:    
-                            debug("unexpected real time message 0x%02x",
-                                    0xF0 | displayNote.channel);
+                            debug("unexpected real time message 0x%02x", 0xF0 | lowNibble);
                             return false;
                     }
-                    displayNote.channel = 0xFF;
                 break;
                 default:
                     debug("unexpected byte %d", *iter);
@@ -383,14 +391,30 @@ bool NoteTakerParseMidi::parseMidi() {
             if (CONTROL_CHANGE == displayNote.type && 0 == displayNote.startTime &&
                     midiReleaseMax <= displayNote.data[0] && displayNote.data[0] <= midiSustainMax &&
                     (unsigned) displayNote.data[1] < NoteDurations::Count()) {
-                channels[displayNote.channel].setLimit(
+                channels[lowNibble].setLimit(
                         (NoteTakerChannel::Limit) (displayNote.data[0] - midiReleaseMax),
                         NoteDurations::ToMidi(displayNote.data[1], ppq));
                 continue;
             }
-            if (!midiFormat || !trackCount || NOTE_ON == displayNote.type) {
+            if ((!midiFormat || !trackCount || NOTE_ON == displayNote.type)
+                    && TRACK_END != displayNote.type) {
                 debug("push %s", displayNote.debugString().c_str());
                 parsedNotes.push_back(displayNote);
+            }
+        }
+        // if there are missing note off, set note on duration to current time
+        int lastTime = midiTime;
+        for (auto ri = parsedNotes.rbegin(); ri != parsedNotes.rend(); ++ri) {
+            if (ri->startTime > lastTime) {
+                break;
+            }
+            lastTime = ri->startTime;
+            if (ri->type != NOTE_ON) {
+                continue;
+            }
+            if (0 > ri->duration) {
+                ri->duration = midiTime - ri->startTime;
+                debug("missing note off for %d", ri->debugString().c_str());
             }
         }
     } while (iter != midi.end());
@@ -398,6 +422,10 @@ bool NoteTakerParseMidi::parseMidi() {
         auto const insertion_point = std::upper_bound(parsedNotes.begin(), it, *it);
         std::rotate(insertion_point, it, it + 1);
     }
+    if (trackEnd.startTime < 0) {
+        trackEnd.startTime = midiTime;
+    }
+    parsedNotes.push_back(trackEnd);
     // insert rests
     int lastNoteEnd = 0;
     vector<DisplayNote> withRests;
