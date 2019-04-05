@@ -15,7 +15,7 @@ struct BarPosition {
     int ppq;
     int trailer;             // remaining duration of note after last bar
 
-    BarPosition(NoteTaker& nt) {
+    BarPosition(const NoteTaker& nt) {
         ppq = nt.ppq;
     }
 
@@ -44,7 +44,7 @@ struct BarPosition {
         // see if introducing new signature adds a bar
         bool drawBar = inSignature > 0 && inSignature < duration;
         count += drawBar;
-        duration = stdTimePerQuarterNote * 4 * note.numerator() / (1 << note.denominator());
+        duration = ppq * 4 * note.numerator() / (1 << note.denominator());
         return drawBar;
     }
 };
@@ -193,10 +193,31 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
     nvgText(vg, xPos, yPos, noteStr, nullptr);
 }
 
-void NoteTakerDisplay::drawBar(NVGcontext* vg, int xPos) {
+void NoteTakerDisplay::drawBar(NVGcontext* vg, int midiTime) {
+    assert(midiTime <= nt->allNotes.back().startTime);
+    // to do : optimize with binary search ?
+    int prior = -1;
+    for (const auto& note : nt->allNotes) {
+        if (note.startTime >= midiTime) {
+            break;
+        }
+        prior++;
+    }
+    int start = nt->allNotes[prior].startTime;
+    int end = nt->allNotes[prior + 1].startTime;
+    if (false) debug("midi %d prior %d start %s end %s", midiTime, prior, 
+            nt->allNotes[prior].debugString().c_str(),
+            nt->allNotes[prior + 1].debugString().c_str());
+    assert(start < midiTime && midiTime <= end);
+    int xStart = xPositions[prior];
+    int xEnd = xPositions[prior + 1];
+    assert(xStart < xEnd);
+    // to do : first approximation : may need to adjust to allow for accidentals
+    float xPos = xStart + (xEnd - xStart) * (midiTime - start) / (end - start);
+    xPos -= xAxisOffset;
     nvgBeginPath(vg);
-    nvgMoveTo(vg, xPos + 2, 36);
-    nvgLineTo(vg, xPos + 2, 96);
+    nvgMoveTo(vg, xPos, 36);
+    nvgLineTo(vg, xPos, 96);
     nvgStrokeWidth(vg, 0.5);
 	nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
     nvgStroke(vg);
@@ -332,12 +353,9 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
         bar.next(note);
         // draw bar once as needed (multiple notes may start at same bar)
     //    debug("%u drawNotes nextBar %d xPos %d", index, nextBar, this->xPos(index));
-        while (nextBar <= this->xPos(index)) {
+        while (nextBar <= note.startTime) {
             this->drawBar(vg, nextBar);
-            accidentals.fill(NO_ACCIDENTAL);
-            this->applyKeySignature();
-            // note : separate multiplies avoids rounding error
-            nextBar += bar.duration * xAxisScale + BAR_WIDTH * xAxisScale;
+            this->restartBar(bar, nextBar);
         }
         switch (note.type) {
             case NOTE_ON:
@@ -389,7 +407,7 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
                 }
                 // note : separate multiplies avoids rounding error
                 // to do : use nvgTextAlign() and nvgTextBounds() instead of hard-coding
-                nextBar = xPos + TIME_SIGNATURE_WIDTH * xAxisScale + bar.duration * xAxisScale;
+                nextBar = note.startTime + bar.duration;
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
                 std::string numerator = std::to_string(note.numerator());
                 xPos += -4 * (numerator.size() - 1) + 3;
@@ -882,17 +900,20 @@ void NoteTakerDisplay::recenterVerticalWheel() {
     }
 }
 
+void NoteTakerDisplay::restartBar(BarPosition& bar, int& nextBar) {
+    accidentals.fill(NO_ACCIDENTAL);
+    this->applyKeySignature();
+    nextBar += bar.duration;
+}
+
 void NoteTakerDisplay::setUpAccidentals(NVGcontext* vg, BarPosition& bar, int& nextBar) {
     // draw notes
     // to do : could optimize this to skip notes except for bar prior to displayStart
     for (unsigned index = 0; index < nt->displayStart; ++index) {
         const DisplayNote& note = nt->allNotes[index];
         bar.next(note);
-        while (nextBar <= this->xPos(index)) {
-            accidentals.fill(NO_ACCIDENTAL);
-            this->applyKeySignature();
-            // note : separate multiplies avoids rounding error
-            nextBar += bar.duration * xAxisScale + BAR_WIDTH * xAxisScale;
+        while (nextBar <= note.startTime) {
+            this->restartBar(bar, nextBar);
         }
         switch (note.type) {
             case NOTE_ON: {
@@ -902,13 +923,10 @@ void NoteTakerDisplay::setUpAccidentals(NVGcontext* vg, BarPosition& bar, int& n
             case KEY_SIGNATURE:
                 this->setKeySignature(note.key());
                 break;
-            case TIME_SIGNATURE: {
-                int xPos = this->xPos(index);
-                if (bar.setSignature(note)) {
-                    xPos += BAR_WIDTH * xAxisScale;
-                }
-                nextBar = xPos + TIME_SIGNATURE_WIDTH * xAxisScale + bar.duration * xAxisScale;
-            } break;
+            case TIME_SIGNATURE:
+                (void) bar.setSignature(note);
+                nextBar = note.startTime + bar.duration;
+                break;
             default:
                 ;
         }
@@ -929,8 +947,9 @@ void NoteTakerDisplay::updateXPosition() {
         const DisplayNote& note = nt->allNotes[index];
         bar.next(note);
         if (INT_MAX != bar.duration) {
-            debug("inSignature %d start %d note.startTime %d base %d duration %d leader %d",
-                    bar.inSignature, bar.start, note.startTime, bar.base, bar.duration, bar.leader);
+            debug("inSignature %d start %d note.startTime %d base %d duration %d leader %d ppq %d",
+                    bar.inSignature, bar.start, note.startTime, bar.base, bar.duration, bar.leader,
+                    bar.ppq);
         }
         xPositions[index] = (note.ppqStart(nt->ppq) + (bar.count + bar.start) * BAR_WIDTH)
                 * xAxisScale + pos;

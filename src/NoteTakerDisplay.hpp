@@ -109,6 +109,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         xPositionsInvalid = true;
     }
 
+    void restartBar(BarPosition& bar, int& nextBar);
     void setKeySignature(int key);
     void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
 

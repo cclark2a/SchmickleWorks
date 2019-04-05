@@ -270,87 +270,81 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         selectStart = selectEnd = displayStart = displayEnd = 0;
         return;
     }
+ //   start here;
+    // think about whether : the whole selection fits on the screen
+    // the last note fits on the screen if increasing the end
+    // the first note fits on the screen if decreasing start
     assert(start < end);
     assert(allNotes.size() >= 2);
     assert(end <= allNotes.size() - 1);
     int selectStartTime = display->startTime(start);
     int selectEndTime = display->endTime(end - 1, ppq);
-    if (!displayEnd || allNotes.size() <= displayEnd) {
-        displayEnd = allNotes.size() - 1;
-    }
-    if (displayEnd <= displayStart) {
-        displayStart = displayEnd - 1;
-    }
-    int displayStartTime = display->startTime(displayStart);
-    int displayWidthTime = display->box.size.x;
-    int displayEndTime = displayStartTime + displayWidthTime;
-    while (displayEnd < allNotes.size() - 1
-            && display->endTime(displayEnd, ppq) < displayEndTime) {
-        ++displayEnd;
-    }
+    int selectWidth = selectEndTime - selectStartTime;
+    int displayStartTime = display->xAxisOffset;
+    const int boxWidth = display->box.size.x;
+    int displayEndTime = displayStartTime + boxWidth;
     debug("selectStartTime %d selectEndTime %d displayStartTime %d displayEndTime %d",
             selectStartTime, selectEndTime, displayStartTime, displayEndTime);
-    debug("setSelect displayStart %u displayEnd %u", displayStart, displayEnd);
-    bool recomputeDisplayOffset = display->xPos(displayStart) < 0
-            || display->xPos(displayEnd) > displayWidthTime;
-    debug("display->xPos(displayStart) %d display->xPos(displayEnd) %d displayWidthTime %g",
-            display->xPos(displayStart), display->xPos(displayEnd), displayWidthTime);
-    bool offsetFromEnd = false;
-    if (displayStartTime > selectStartTime || selectEndTime > displayEndTime) {
-        recomputeDisplayOffset = true;
+    debug("setSelect old displayStart %u displayEnd %u", displayStart, displayEnd);
+    // note condition to require the first quarter note of a very long note to be visible
+    int displayQuarterNoteWidth = stdTimePerQuarterNote * display->xAxisScale;
+    bool longVisible = selectWidth <= boxWidth
+            || selectStartTime + displayQuarterNoteWidth < displayEndTime;
+    bool startIsVisible = displayStartTime <= selectStartTime && selectStartTime < displayEndTime
+            && longVisible;
+    bool endShouldBeVisible = selectEndTime <= displayEndTime || selectWidth > boxWidth;
+    bool recomputeDisplayOffset = !startIsVisible || !endShouldBeVisible;
+    bool recomputeDisplayEnd = recomputeDisplayOffset
+            || !displayEnd || allNotes.size() <= displayEnd;
+    if (recomputeDisplayOffset) {
         // scroll small selections to center?
         // move larger selections the smallest amount?
         // prefer to show start? end?
         // while playing, scroll a 'page' at a time?
         // allow for smooth scrolling?
-        bool recomputeStart = false;
-        if (selectEnd != end && selectStart == start) { // only end moved
-            if (displayStartTime > selectEndTime || selectEndTime > displayEndTime) {
-                displayEnd = end;  // if end isn't visible
-                displayStart = displayEnd - 1;
-                recomputeStart = true;
-                debug("1 displayStart %u displayEnd %u", displayStart, displayEnd);
-            }
-        } else if (displayStartTime > selectStartTime || selectStartTime > displayEndTime
-                || ((displayStartTime > selectEndTime || selectEndTime > displayEndTime)
-                && display->duration(start, ppq) < displayWidthTime)) {
-            if (display->endTime(start, ppq) > displayEndTime) {
-                displayEnd = start + 1;
-                displayStart = start;
-                recomputeStart = true;
-                offsetFromEnd = true;
+        // compute xAxisOffset first; then use that and boxWidth to figure displayStart, displayEnd
+        if (selectStartTime < displayStartTime) {
+            display->xAxisOffset = selectStartTime;
+            debug("0 xAxisOffset %g", display->xAxisOffset);
+        } else if (!longVisible) {
+            display->xAxisOffset = selectStartTime - boxWidth + displayQuarterNoteWidth;
+            debug("1 xAxisOffset %g", display->xAxisOffset);
+            assert(display->xAxisOffset > 0);
+        } else {
+            assert(displayStartTime > selectEndTime || selectEndTime > displayEndTime);
+            if (selectEnd != end && selectStart == start) { // only end moved
+                display->xAxisOffset = display->duration(end - 1, ppq) > boxWidth ?
+                    display->startTime(end - 1) :  // show beginning of end
+                    std::max(0, selectEndTime - boxWidth);  // show all of end
+                debug("1 xAxisOffset %g", display->xAxisOffset);
+            } else  {
+                display->xAxisOffset = std::max(0, std::min(display->xPositions.back() - boxWidth,
+                        selectStartTime - boxWidth + displayQuarterNoteWidth));
                 debug("2 displayStart %u displayEnd %u", displayStart, displayEnd);
-            } else if (selectStartTime < displayStartTime) {
-                displayStart = start;   // if start isn't fully visible
-                displayEnd = display->lastAt(start, ppq);
-                debug("3 displayStart %u displayEnd %u", displayStart, displayEnd);
             }
-        }
-        if (recomputeStart) {
-            int endTime = display->endTime(displayStart, ppq);
-            while (displayStart
-                    && endTime - display->startTime(displayStart) < displayWidthTime) {
-                --displayStart;
-            }
-            if (displayStart < allNotes.size() - 1
-                    && endTime - display->startTime(displayStart) > displayWidthTime) {
-                ++displayStart;
-            }
-            debug("displayStart %u displayEnd %u endTime %d boxWidth %g xPos %d",
-                    displayStart, displayEnd, endTime, displayWidthTime,
-                    display->startTime(displayStart));
         }
     }
-    if (recomputeDisplayOffset) {
-        if (offsetFromEnd) {
-            display->xAxisOffset = std::max(display->endTime(start, ppq)
-                    + (selectButton->editStart() ? 8 : 0) - displayWidthTime, 0);
-        } else if (display->startTime(displayEnd) <= displayWidthTime) {
-            display->xAxisOffset = 0;
-        } else {
-            display->xAxisOffset = display->startTime(displayStart);
+    assert(display->xAxisOffset <= std::max(0, display->xPositions.back() - boxWidth));
+    if (recomputeDisplayEnd) {
+        displayStartTime = std::max(0.f, display->xAxisOffset - displayQuarterNoteWidth);
+        displayStart = std::max(allNotes.size() - 1, (size_t) displayStart);
+        while (displayStart && display->startTime(displayStart) >= displayStartTime) {
+            --displayStart;
         }
-        debug("display->xAxisOffset %g", display->xAxisOffset);
+        while (display->startTime(displayStart + 1) < displayStartTime) {
+            ++displayStart;
+        }
+        displayEndTime = std::min((float) display->xPositions.back(),
+                display->xAxisOffset + boxWidth);
+        while ((unsigned) displayEnd < allNotes.size() - 1
+                && display->startTime(displayEnd) < displayEndTime) {
+            ++displayEnd;
+        }
+        while (display->startTime(displayEnd - 1) >= displayEndTime) {
+            --displayEnd;
+        }
+        debug("displayStartTime %d displayEndTime %d", displayStartTime, displayEndTime);
+        debug("displayStart %u displayEnd %u", displayStart, displayEnd);
     }
     debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
     selectStart = start;
