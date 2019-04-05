@@ -42,6 +42,15 @@ struct NoteDurations {
     static unsigned Count();
     static unsigned FromMidi(int midi, int ppq);
     static unsigned FromStd(int duration);
+        
+    static int InMidi(int std, int ppq) {
+        return std * ppq / stdTimePerQuarterNote;
+    }
+
+    static int InStd(int midi, int ppq) {
+        return midi * stdTimePerQuarterNote / ppq;
+    }
+
     static int ToMidi(unsigned index, int ppq);
     static int ToStd(unsigned index);
 };

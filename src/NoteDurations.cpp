@@ -34,7 +34,7 @@ unsigned NoteDurations::Count() {
 }
 
 unsigned NoteDurations::FromMidi(int midi, int ppq) {
-    return FromStd(midi * stdTimePerQuarterNote / ppq);
+    return FromStd(InStd(midi, ppq));
 }
 
     // to do : make this more efficient
@@ -48,7 +48,7 @@ unsigned NoteDurations::FromStd(int duration) {
 }
 
 int NoteDurations::ToMidi(unsigned index, int ppq) {
-    return ToStd(index) * ppq / stdTimePerQuarterNote;
+    return InMidi(ToStd(index), ppq);
 }
 
 int NoteDurations::ToStd(unsigned index) {

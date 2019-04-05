@@ -14,6 +14,7 @@ void NoteTaker::setHorizontalWheelRange() {
         return;
     }
     if (fileButton->ledOn) {
+        // to do : here, and in other places: set speed proportional to limits
         horizontalWheel->setLimits(0, storage.size());
         horizontalWheel->setValue(0);
         horizontalWheel->speed = 1;

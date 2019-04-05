@@ -252,16 +252,8 @@ struct NoteTaker : Module {
 
     void readStorage();
     void reset() override;
-
-    void resetRun() {
-        midiClockOut = ppq;
-        elapsedSeconds = 0;
-        playStart = 0;
-        outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
-        clockOutTime = realSeconds + 0.001f;
-        this->setPlayStart();
-    }
-
+    void resetRun();
+    void resetState();
     bool resetControls();
     void saveScore();
 

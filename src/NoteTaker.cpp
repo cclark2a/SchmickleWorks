@@ -181,21 +181,15 @@ void NoteTaker::playSelection() {
     this->zeroGates();
     elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime, ppq);
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
-    playStart = 0;
     this->setPlayStart();
 }
 
-// to do : could optimize with binary search
-void NoteTaker::setPlayStart() {
-    this->zeroGates();
-    if (playStart >= allNotes.size()) {
-        return;
-    }
-    int midiTime = SecondsToMidi(elapsedSeconds, ppq);
-    this->advancePlayStart(midiTime, INT_MAX);
+void NoteTaker::reset() {
+    this->resetState();
+    this->readStorage();
 }
 
-void NoteTaker::reset() {
+void NoteTaker::resetState() {
     debug("notetaker reset");
     allNotes.clear();
     clipboard.clear();
@@ -208,7 +202,6 @@ void NoteTaker::reset() {
     selectStart = selectEnd = displayStart = displayEnd = 0;
     this->resetControls();
     Module::reset();
-    this->readStorage();
 }
 
 bool NoteTaker::resetControls() {
@@ -229,19 +222,18 @@ bool NoteTaker::resetControls() {
     return true;
 }
 
-// never turns off select button, since it cannot be turned off if score is empty,
-// and it contains state that should not be arbitrarily deleted. select button
-// is explicitly reset only when notetaker overall state is reset
-void NoteTaker::turnOffLedButtons(const NoteTakerButton* exceptFor) {
-    for (NoteTakerButton* button : {
-                (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
-                (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton }) {
-        if (exceptFor != button) {
-            button->onTurnOff();
-        }
+void NoteTaker::resetRun() {
+    midiClockOut = ppq;
+    elapsedSeconds = 0;
+    outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+    clockOutTime = realSeconds + 0.001f;
+    displayStart = displayEnd = 0;
+    if (display) {
+        display->resetXAxisOffset();
     }
+    this->setPlayStart();
 }
-
+    
 void NoteTaker::saveScore() {
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index <= storage.size());
@@ -254,6 +246,17 @@ void NoteTaker::saveScore() {
     this->writeStorage(index);
 }
 
+// to do : could optimize with binary search
+void NoteTaker::setPlayStart() {
+    playStart = 0;
+    this->zeroGates();
+    if (playStart >= allNotes.size()) {
+        return;
+    }
+    int midiTime = SecondsToMidi(elapsedSeconds, ppq);
+    this->advancePlayStart(midiTime, INT_MAX);
+}
+
 void NoteTaker::setScoreEmpty() {
     vector<uint8_t> emptyMidi;
     NoteTakerMakeMidi makeMidi;
@@ -264,69 +267,69 @@ void NoteTaker::setScoreEmpty() {
     assert(success);
 }
 
+ //   to do
+    // think about whether : the whole selection fits on the screen
+    // the last note fits on the screen if increasing the end
+    // the first note fits on the screen if decreasing start
+        // scroll small selections to center?
+        // move larger selections the smallest amount?
+        // prefer to show start? end?
+        // while playing, scroll a 'page' at a time?
 void NoteTaker::setSelect(unsigned start, unsigned end) {
     display->updateXPosition();
     if (this->isEmpty()) {
         selectStart = selectEnd = displayStart = displayEnd = 0;
         return;
     }
- //   start here;
-    // think about whether : the whole selection fits on the screen
-    // the last note fits on the screen if increasing the end
-    // the first note fits on the screen if decreasing start
     assert(start < end);
     assert(allNotes.size() >= 2);
     assert(end <= allNotes.size() - 1);
     int selectStartTime = display->startTime(start);
     int selectEndTime = display->endTime(end - 1, ppq);
     int selectWidth = selectEndTime - selectStartTime;
-    int displayStartTime = display->xAxisOffset;
     const int boxWidth = display->box.size.x;
-    int displayEndTime = displayStartTime + boxWidth;
-    debug("selectStartTime %d selectEndTime %d displayStartTime %d displayEndTime %d",
-            selectStartTime, selectEndTime, displayStartTime, displayEndTime);
+    int displayEndTime = display->xAxisOffset + boxWidth;
+    debug("selectStartTime %d selectEndTime %d display->xAxisOffset %d displayEndTime %d",
+            selectStartTime, selectEndTime, display->xAxisOffset, displayEndTime);
     debug("setSelect old displayStart %u displayEnd %u", displayStart, displayEnd);
     // note condition to require the first quarter note of a very long note to be visible
-    int displayQuarterNoteWidth = stdTimePerQuarterNote * display->xAxisScale;
-    bool longVisible = selectWidth <= boxWidth
-            || selectStartTime + displayQuarterNoteWidth < displayEndTime;
-    bool startIsVisible = displayStartTime <= selectStartTime && selectStartTime < displayEndTime
-            && longVisible;
-    bool endShouldBeVisible = selectEndTime <= displayEndTime || selectWidth > boxWidth;
+    const int displayQuarterNoteWidth = stdTimePerQuarterNote * display->xAxisScale;
+    const int displayStartMargin = selectButton->editStart() ? 0 : displayQuarterNoteWidth;
+    const int displayEndMargin = displayQuarterNoteWidth * 2 - displayStartMargin;
+    bool startIsVisible = display->xAxisOffset + displayStartMargin <= selectStartTime
+            && selectStartTime + displayStartMargin <= displayEndTime;
+    bool endShouldBeVisible = selectEndTime + displayEndMargin <= displayEndTime
+            || selectWidth > boxWidth;
     bool recomputeDisplayOffset = !startIsVisible || !endShouldBeVisible;
     bool recomputeDisplayEnd = recomputeDisplayOffset
             || !displayEnd || allNotes.size() <= displayEnd;
     if (recomputeDisplayOffset) {
-        // scroll small selections to center?
-        // move larger selections the smallest amount?
-        // prefer to show start? end?
-        // while playing, scroll a 'page' at a time?
-        // allow for smooth scrolling?
         // compute xAxisOffset first; then use that and boxWidth to figure displayStart, displayEnd
-        if (selectStartTime < displayStartTime) {
-            display->xAxisOffset = selectStartTime;
-            debug("0 xAxisOffset %g", display->xAxisOffset);
-        } else if (!longVisible) {
-            display->xAxisOffset = selectStartTime - boxWidth + displayQuarterNoteWidth;
+        float oldX = display->xAxisOffset;
+        if (selectEnd != end && selectStart == start) { // only end moved
+            display->xAxisOffset = (display->duration(end - 1, ppq) > boxWidth ?
+                display->startTime(end - 1) :  // show beginning of end
+                selectEndTime - boxWidth) + displayEndMargin;  // show all of end
             debug("1 xAxisOffset %g", display->xAxisOffset);
-            assert(display->xAxisOffset > 0);
+        } else if (display->xAxisOffset > selectStartTime - displayStartMargin) { // left to start
+            display->xAxisOffset = selectStartTime - displayStartMargin;
+            debug("2 xAxisOffset %g", display->xAxisOffset);
+        } else {    // scroll enough to show start on right
+            display->xAxisOffset = selectStartTime - boxWidth + displayEndMargin;
+            debug("3 xAxisOffset %g", display->xAxisOffset);
+        }
+        display->xAxisOffset = std::max(0.f,
+                std::min((float) display->xPositions.back() - boxWidth, display->xAxisOffset));
+        display->dynamicXOffsetTimer = oldX - display->xAxisOffset;
+        if (fabsf(display->dynamicXOffsetTimer) <= 5) {
+            display->dynamicXOffsetTimer = 0;
         } else {
-            assert(displayStartTime > selectEndTime || selectEndTime > displayEndTime);
-            if (selectEnd != end && selectStart == start) { // only end moved
-                display->xAxisOffset = display->duration(end - 1, ppq) > boxWidth ?
-                    display->startTime(end - 1) :  // show beginning of end
-                    std::max(0, selectEndTime - boxWidth);  // show all of end
-                debug("1 xAxisOffset %g", display->xAxisOffset);
-            } else  {
-                display->xAxisOffset = std::max(0, std::min(display->xPositions.back() - boxWidth,
-                        selectStartTime - boxWidth + displayQuarterNoteWidth));
-                debug("2 displayStart %u displayEnd %u", displayStart, displayEnd);
-            }
+            display->dynamicXOffsetStep = -display->dynamicXOffsetTimer / 24;
         }
     }
     assert(display->xAxisOffset <= std::max(0, display->xPositions.back() - boxWidth));
     if (recomputeDisplayEnd) {
-        displayStartTime = std::max(0.f, display->xAxisOffset - displayQuarterNoteWidth);
+        float displayStartTime = std::max(0.f, display->xAxisOffset - displayQuarterNoteWidth);
         displayStart = std::max(allNotes.size() - 1, (size_t) displayStart);
         while (displayStart && display->startTime(displayStart) >= displayStartTime) {
             --displayStart;
@@ -335,7 +338,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
             ++displayStart;
         }
         displayEndTime = std::min((float) display->xPositions.back(),
-                display->xAxisOffset + boxWidth);
+                display->xAxisOffset + boxWidth + displayQuarterNoteWidth);
         while ((unsigned) displayEnd < allNotes.size() - 1
                 && display->startTime(displayEnd) < displayEndTime) {
             ++displayEnd;
@@ -486,6 +489,19 @@ void NoteTaker::step() {
         // to do : select selStart through selEnd, move displayStart / end calc to display thread
         if (INT_MAX != selStart && selectStart != selStart) {
             (void) this->setSelectStart(selStart);
+        }
+    }
+}
+
+// never turns off select button, since it cannot be turned off if score is empty,
+// and it contains state that should not be arbitrarily deleted. select button
+// is explicitly reset only when notetaker overall state is reset
+void NoteTaker::turnOffLedButtons(const NoteTakerButton* exceptFor) {
+    for (NoteTakerButton* button : {
+                (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
+                (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton }) {
+        if (exceptFor != button) {
+            button->onTurnOff();
         }
     }
 }

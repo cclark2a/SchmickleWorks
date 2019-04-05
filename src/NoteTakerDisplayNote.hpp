@@ -90,6 +90,17 @@ struct DisplayNote {
         return data[0];
     }
 
+    // if set, gate is kept high through next note (no midi note off until after next note on?)
+    bool slur() const {
+        assertValid(NOTE_ON);
+        return data[1];
+    }
+
+    void setSlur(bool slur) {
+        data[1] = slur;
+        assertValid(NOTE_ON);
+    }
+
     int tracks() const {
         assertValid(MIDI_HEADER);
         return data[1];
@@ -173,16 +184,12 @@ struct DisplayNote {
         return NOTE_ON == type || REST_TYPE == type;
     }
 
-    int ppqDuration(int ppq) const {
-        return this->duration * stdTimePerQuarterNote / ppq;
+    int stdDuration(int ppq) const {
+        return NoteDurations::InStd(this->duration, ppq);
     }
 
-    int ppqEnd(int ppq) const {
-        return this->endTime() * stdTimePerQuarterNote / ppq;
-    }
-
-    int ppqStart(int ppq) const {
-        return startTime * stdTimePerQuarterNote / ppq;
+    int stdStart(int ppq) const {
+        return NoteDurations::InStd(startTime, ppq);
     }
 
     json_t* toJson() const;

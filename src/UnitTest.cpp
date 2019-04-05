@@ -35,7 +35,7 @@ static void ExerciseWheels(NoteTaker* n) {
 }
 
 static void AddTwoNotes(NoteTaker* n) {
-    n->reset();
+    n->resetState();
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     unsigned note1 = n->wheelToNote(1);
@@ -43,7 +43,7 @@ static void AddTwoNotes(NoteTaker* n) {
 }
 
 void UnitTest(NoteTaker* n) {
-    n->reset();
+    n->resetState();
     n->display->xPositionsInvalid = true;
     n->setSelectStart(n->atMidiTime(0));
     n->setWheelRange();
@@ -138,5 +138,5 @@ void UnitTest(NoteTaker* n) {
     assert(4 == n->horizontalCount());
 
     debug("restore defaults");
-    n->reset();
+    n->resetState();
 }

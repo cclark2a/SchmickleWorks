@@ -116,12 +116,6 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<int>* x
     }
 }
 
-    // to do : dump storage[9] as hex to try to figure out where things go south
-    // maybe auto linefeed on 0x80 0x90 less delta, if there is one
-    // 0x0 before 0x80; (0x83, 0x60) or (0x87, 0x40) before 0x80 or 0x90
-    // 0xff 0x2f 0x0 // end of track
-    // 0xff 0x51 0x3 0x7 0xa1 0x0 // tempo
-    // 0x4d ... // Mthd or MTrk
 void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
     std::string s;
     unsigned line = v.size();

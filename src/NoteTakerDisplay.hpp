@@ -38,6 +38,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     const float fadeDuration = 1;
     float dynamicPitchTimer = 0;
     float dynamicTempoTimer = 0;
+    float dynamicXOffsetTimer = 0;
+    float dynamicXOffsetStep = 0;
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
@@ -48,16 +50,15 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
     void applyKeySignature();
     void draw(NVGcontext* ) override;
-    void drawBevel(NVGcontext* ) const;
-    void drawDynamicPitchTempo(NVGcontext* );
-    void drawFileControl(NVGcontext* );
-    void drawSustainControl(NVGcontext* ) const;
     void drawBar(NVGcontext* , int xPos);
     void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& note, int xPos,
             int alpha);
     void drawBarRest(NVGcontext* , BarPosition& , const DisplayNote& , int offset,
             int alpha) const;
+    void drawBevel(NVGcontext* ) const;
     void drawClefs(NVGcontext* ) const;
+    void drawDynamicPitchTempo(NVGcontext* );
+    void drawFileControl(NVGcontext* );
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
     void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha,
             int size) const;
@@ -65,6 +66,8 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawPartControl(NVGcontext* ) const;
     void drawSelectionRect(NVGcontext* ) const;
     void drawStaffLines(NVGcontext* ) const;
+    void drawSustainControl(NVGcontext* ) const;
+    void drawTieControl(NVGcontext* ) const;
     void drawVerticalControl(NVGcontext* ) const;
     void drawVerticalLabel(NVGcontext* , const char* label,
             bool enabled, bool selected, float y) const;
@@ -81,7 +84,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
 
     unsigned lastAt(unsigned start, int ppq) const {
         assert(start < xPositions.size());
-        int endTime = this->startTime(start) + box.size.x * ppq / stdTimePerQuarterNote;
+        int endTime = this->startTime(start) + NoteDurations::InMidi(box.size.x, ppq);
         unsigned index;
         for (index = start; index < xPositions.size(); ++index) {
             if (this->startTime(index) >= endTime) {
@@ -107,9 +110,18 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         upSelected = false;
         downSelected = false;
         xPositionsInvalid = true;
+        this->resetXAxisOffset();
     }
 
     void restartBar(BarPosition& bar, int& nextBar);
+
+    void resetXAxisOffset() {
+        xAxisOffset = 0;
+        dynamicXOffsetTimer = 0;
+        dynamicXOffsetStep = 0;
+    }
+
+    void scroll(NVGcontext* );
     void setKeySignature(int key);
     void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
 
@@ -140,10 +152,6 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     }
 
     void updateXPosition();
-
-    int xPos(int index) const {
-        return xPositions[index] - xAxisOffset;
-    }
 
     float yPos(int position) const {
         return position * 3 - 48.25;   // middle C 60 positioned at 39 maps to 66

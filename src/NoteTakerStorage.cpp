@@ -107,6 +107,7 @@ struct NoteTakerStorage {
 // sets up 10 empty slots in addition to any read slots
 void NoteTaker::readStorage() {
     unsigned limit = 10;
+    storage.clear();
     for (unsigned index = 0; index < limit; ++index) {
         vector<uint8_t> midi;
         if (NoteTakerStorage::ReadMidi(&midi, index)) {
