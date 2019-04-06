@@ -66,8 +66,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     // set selection to previous selectable note, or zero if none
     int wheel = nt->noteToWheel(start);
     unsigned previous = nt->wheelToNote(wheel - 1);
-    nt->selectEnd = start;
-    nt->selectStart = previous;
+    nt->setSelect(previous, start);
     selectButton->setSingle();
     nt->setWheelRange();  // range is smaller
 }
@@ -184,17 +183,9 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                 insertLoc, insertSize, shiftTime, nt->selectStart, nt->selectEnd);
         nt->debugDump(false);
     }
-    if (shiftTime) {
-        nt->shiftNotes(insertLoc + insertSize, shiftTime);
-    }
-    nt->display->xPositionsInvalid = true;
-    nt->setSelect(insertLoc, nt->nextAfter(insertLoc, insertSize));
     selectButton->setOff();
-    debug("insert final");
-    nt->setWheelRange();  // range is larger
-    nt->playSelection();
+    nt->insertFinal(shiftTime, insertLoc, insertSize);
     NoteTakerButton::onDragEnd(e);
-    nt->debugDump(true);
 }
 
 // insert key signature

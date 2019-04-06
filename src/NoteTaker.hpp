@@ -98,16 +98,16 @@ struct NoteTaker : Module {
     double realSeconds = 0;                 // seconds for UI timers
     unsigned playStart = 0;                 // index of notes output
     // clock input state (not saved)
-    float clockLowTime = 0;
-    float clockHighTime = 0;
+    float clockHighTime = FLT_MAX;
     float lastClock = 0;
     int externalClockTempo = stdMSecsPerQuarterNote;
     // reset input state (not saved)
-    float resetLowTime = 0;
-    float resetHighTime = 0;
+    float resetHighTime = FLT_MAX;
     float eosTime = FLT_MAX;
     int midiClockOut = INT_MAX;
     float clockOutTime = FLT_MAX;
+    bool sawClockLow = false;
+    bool sawResetLow = false;
 
     NoteTaker();
 
@@ -156,10 +156,11 @@ struct NoteTaker : Module {
     static void DebugDumpRawMidi(vector<uint8_t>& v);
 
     void eraseNotes(unsigned start, unsigned end);
-    int externalTempo();
+    int externalTempo(bool clockEdge);
     bool extractClipboard(vector<DisplayNote>* ) const;
     void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
+    void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
     bool isEmpty() const;
     bool isRunning() const;
     bool isSelectable(const DisplayNote& note) const;

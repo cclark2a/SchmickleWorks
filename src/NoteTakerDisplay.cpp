@@ -497,6 +497,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
     nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
     nvgFill(vg);
     this->drawStaffLines(vg);
+    nvgSave(vg);
     this->scroll(vg);
     this->drawClefs(vg);
     this->drawSelectionRect(vg);
@@ -504,6 +505,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
     int nextBar = INT_MAX;
     this->setUpAccidentals(vg, bar, nextBar);
     this->drawNotes(vg, bar, nextBar);
+    nvgRestore(vg);
     this->recenterVerticalWheel();
     if (nt->fileButton->ledOn) {
         this->drawFileControl(vg);

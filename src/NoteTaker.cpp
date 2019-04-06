@@ -53,22 +53,17 @@ void NoteTaker::eraseNotes(unsigned start, unsigned end) {
     this->debugDump(true, true);  // wheel range is inconsistent here
 }
 
-int NoteTaker::externalTempo() {
+int NoteTaker::externalTempo(bool clockEdge) {
     if (inputs[CLOCK_INPUT].active) {
-        if (inputs[CLOCK_INPUT].value < 2) {
-            clockLowTime = realSeconds;
-        } else if (inputs[CLOCK_INPUT].value > 8) {
-            if (clockLowTime > clockHighTime) {
-                // upward edge, advance clock
-                if (!runButton->ledOn) {
-                    EventDragEnd e;
-                    runButton->onDragEnd(e);
-                } else {
-                    externalClockTempo = (int) ((realSeconds - lastClock) * 1000000);
-                }
-                lastClock = realSeconds;
+        if (clockEdge) {
+            // upward edge, advance clock
+            if (!runButton->ledOn) {
+                EventDragEnd e;
+                runButton->onDragEnd(e);
+            } else {
+                externalClockTempo = lastClock ? (int) ((realSeconds - lastClock) * 1000000) : tempo;
             }
-            clockHighTime = realSeconds;
+            lastClock = realSeconds;
         }
         return externalClockTempo;
     }
@@ -127,6 +122,19 @@ unsigned NoteTaker::horizontalCount() const {
     return count;
 }
 
+void NoteTaker::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSize) {
+    if (shiftTime) {
+        this->shiftNotes(insertLoc + insertSize, shiftTime);
+    }
+    this->display->xPositionsInvalid = true;
+    displayEnd = 0;  // force recompute of display end
+    this->setSelect(insertLoc, this->nextAfter(insertLoc, insertSize));
+    debug("insert final");
+    this->setWheelRange();  // range is larger
+    this->playSelection();
+    this->debugDump(true);
+}
+
 bool NoteTaker::isEmpty() const {
     for (auto& note : allNotes) {
         if (this->isSelectable(note)) {
@@ -152,6 +160,7 @@ void NoteTaker::loadScore() {
     if (!parser.parseMidi()) {
         this->setScoreEmpty();
     }
+    this->resetRun();
     display->xPositionsInvalid = true;
     this->setSelectStart(this->atMidiTime(0));
 }
@@ -199,7 +208,7 @@ void NoteTaker::resetState() {
     this->resetRun();
     selectChannels = ALL_CHANNELS;
     this->setScoreEmpty();
-    selectStart = selectEnd = displayStart = displayEnd = 0;
+    selectStart = selectEnd = 0;
     this->resetControls();
     Module::reset();
 }
@@ -223,11 +232,18 @@ bool NoteTaker::resetControls() {
 }
 
 void NoteTaker::resetRun() {
-    midiClockOut = ppq;
-    elapsedSeconds = 0;
     outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
-    clockOutTime = realSeconds + 0.001f;
     displayStart = displayEnd = 0;
+    elapsedSeconds = 0;
+    clockHighTime = FLT_MAX;
+    lastClock = 0;
+    externalClockTempo = stdMSecsPerQuarterNote;
+    resetHighTime = FLT_MAX;
+    eosTime = FLT_MAX;
+    midiClockOut = ppq;
+    clockOutTime = realSeconds + 0.001f;
+    sawClockLow = false;
+    sawResetLow = false;
     if (display) {
         display->resetXAxisOffset();
     }
@@ -300,7 +316,8 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
             && selectStartTime + displayStartMargin <= displayEndTime;
     bool endShouldBeVisible = selectEndTime + displayEndMargin <= displayEndTime
             || selectWidth > boxWidth;
-    bool recomputeDisplayOffset = !startIsVisible || !endShouldBeVisible;
+    bool recomputeDisplayOffset = !startIsVisible || !endShouldBeVisible
+            || display->xAxisOffset > std::max(0, display->xPositions.back() - boxWidth);
     bool recomputeDisplayEnd = recomputeDisplayOffset
             || !displayEnd || allNotes.size() <= displayEnd;
     if (recomputeDisplayOffset) {
@@ -398,19 +415,65 @@ void NoteTaker::step() {
         outputs[CLOCK_OUTPUT].value = 0;
         clockOutTime = FLT_MAX;
     }
-    int localTempo = this->externalTempo();
-    if (!playStart) {
+    if (!runButton) {
         return;  // do nothing if we're not set up yet
     }
+    bool running = this->isRunning();
+    float clockCycle = 0;
+    int localTempo;
+    if (inputs[CLOCK_INPUT].active) {
+        sawClockLow |= inputs[CLOCK_INPUT].value < 2;
+        if (inputs[CLOCK_INPUT].value > 8 && sawClockLow) {
+            clockCycle = std::max(0., realSeconds - clockHighTime);
+            sawClockLow = false;
+            clockHighTime = realSeconds;
+        }
+    }
+    float resetCycle = 0;
     if (inputs[RESET_INPUT].active) {
-        if (inputs[RESET_INPUT].value < 2) {
-            resetLowTime = realSeconds;
-        } else if (inputs[RESET_INPUT].value > 8) {
-            if (resetLowTime > resetHighTime) {
-                this->resetRun();
-            }
+        sawResetLow |= inputs[RESET_INPUT].value < 2;
+        if (inputs[RESET_INPUT].value > 8 && sawResetLow) {
+            resetCycle = std::max(0., realSeconds - resetHighTime);
+            sawResetLow = false;
             resetHighTime = realSeconds;
         }
+    }
+    if (clockCycle && !running && selectButton->editStart() && inputs[CLOCK_INPUT].active
+            && inputs[V_OCT_INPUT].active) {
+        int duration = 0;
+        if (inputs[RESET_INPUT].active) {
+            sawResetLow = inputs[RESET_INPUT].value < 2;
+            if (inputs[RESET_INPUT].value > 8 && sawResetLow) {
+                if (realSeconds > resetHighTime) {
+                    // insert note with pitch v/oct and duration quantized by clock step
+                    duration = ppq * (realSeconds - resetHighTime) / clockCycle;
+                }
+                sawResetLow = false;
+                resetHighTime = realSeconds;
+            }
+        } else {
+            duration = ppq;   // on clock step, insert quarter note with pitch set from v/oct input
+        }        
+        if (duration) { // to do : make bias common const (if it really is one)
+            const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
+            int midiNote = (int) ((inputs[V_OCT_INPUT].value - bias) * 12);
+            unsigned insertLoc = !this->noteCount() ? this->atMidiTime(0) : !selectStart ?
+                    this->wheelToNote(1) : selectEnd;
+            int startTime = allNotes[insertLoc].startTime;
+            DisplayNote note = { startTime, duration, { midiNote, 0, stdKeyPressure, stdKeyPressure},
+                    partButton->addChannel, NOTE_ON, false };
+            allNotes.insert(allNotes.begin() + insertLoc, note);
+            this->insertFinal(duration, insertLoc, 1);
+        }
+        localTempo = tempo;
+    } else {
+        localTempo = this->externalTempo(clockCycle);
+        if (resetCycle) {
+            this->resetRun();
+        }
+    }
+    if (!playStart) {
+        return;
     }
     // read data from display notes to determine pitch
     // note on event start changes cv and sets gate high
@@ -423,7 +486,6 @@ void NoteTaker::step() {
         clockOutTime = 0.001f + realSeconds;
     }
     this->setExpiredGatesLow(midiTime);
-    bool running = this->isRunning();
     unsigned lastNote = running ? allNotes.size() - 1 : selectEnd - 1;
     if (this->advancePlayStart(midiTime, lastNote)) {
         playStart = 0;
@@ -476,12 +538,12 @@ void NoteTaker::step() {
         }
         // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
         if (note.channel < CV_OUTPUTS) {
-            const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-            float v_oct = inputs[V_OCT_INPUT].value;
+            float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             if (running && !fileButton->ledOn) {
-                v_oct += (verticalWheel->wheelValue() - 60) / 12.f;
+                bias += inputs[V_OCT_INPUT].value;
+                bias += (verticalWheel->wheelValue() - 60) / 12.f;
             }
-            outputs[CV1_OUTPUT + note.channel].value = bias + v_oct + note.pitch() / 12.f;
+            outputs[CV1_OUTPUT + note.channel].value = bias + note.pitch() / 12.f;
         }
     }
     if (running) {
