@@ -57,6 +57,6 @@ struct NoteDurations {
     static bool TripletPart(int midi, int ppq);
 };
 
- static unsigned gcd(unsigned one, unsigned two) {
+ static inline unsigned gcd(unsigned one, unsigned two) {
     return !two ? one : gcd(two, one % two);
 }
