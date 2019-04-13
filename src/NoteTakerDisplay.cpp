@@ -147,12 +147,12 @@ void NoteTakerDisplay::applyKeySignature() {
     }
 }
 
-void NoteTakerDisplay::closeBeam(unsigned first) {
+void NoteTakerDisplay::closeBeam(unsigned first, unsigned limit) {
     assert(PositionType::left == cache[first].beamPosition);
     int chan = nt->allNotes[first].channel;
     unsigned last = first;
     unsigned index = first;
-    while (++index < cache.size()) {
+    while (++index < limit) {
         if (chan == nt->allNotes[index].channel) {
             assert(PositionType::mid == cache[index].beamPosition);
             last = index;
@@ -309,6 +309,7 @@ void NoteTakerDisplay::drawBeam(NVGcontext* vg, int start, float alpha) const {
     int sx = cache[start].xPosition + xOffset;
     int ex = cache[index].xPosition + xOffset;
     int y = cache[start].stemUp ? yMin - 22 : yMax + 14;
+    y -= std::max(0, ((int) beamMax - 3) * yOffset);
     nvgFillColor(vg, nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha));
     for (unsigned count = 0; count < beamMin; ++count) {
         draw_one_beam(vg, sx, ex, yOffset, &y);
@@ -1207,8 +1208,9 @@ void NoteTakerDisplay::updateXPosition() {
                 noteCache.stemUp = this->stemUp(pitch.position);
             }
                 // fall through ...
-            case REST_TYPE: {
-                posAdjust = std::max(posAdjust, 15 - note.duration * xAxisScale);
+            case REST_TYPE: {  // add space if note is dotted (any symbol mapping will do)
+                int adjust = strlen(upFlagNoteSymbols[noteCache.symbol]) == 2 ? 19 : 15; 
+                posAdjust = std::max(posAdjust, adjust - note.duration * xAxisScale);
                 posAdjustTime = note.startTime;
                 if (allowTriplets && NoteDurations::TripletPart(note.duration, nt->ppq)) {
                     noteCache.tupletPosition = PositionType::left;  // remember for later
@@ -1285,19 +1287,27 @@ void NoteTakerDisplay::updateXPosition() {
         }
         // mark beams as well : limit beam to quarter note
         unsigned& beamStart = beamStarts[note.channel];
+        bool checkForStart = true;
         if (INT_MAX != beamStart) {
             bool stemsMatch = cache[beamStart].stemUp == noteCache.stemUp;
-            int onBeat = note.endTime() % nt->ppq;
-            debug("beam onBeat %d stemsMatch %d", onBeat, stemsMatch);
-            if (!onBeat || !stemsMatch) {
-                noteCache.beamPosition = PositionType::right;
-                debug("beam end %s", note.debugString().c_str());
+            if (!stemsMatch || note.duration >= nt->ppq) {
+                this->closeBeam(beamStart, index);
                 beamStart = INT_MAX;
             } else {
-                noteCache.beamPosition = PositionType::mid;
-                debug("beam mid %s", note.debugString().c_str());
+                int onBeat = note.endTime() % nt->ppq;
+                debug("beam onBeat %d stemsMatch %d", onBeat, stemsMatch);
+                if (!onBeat) {
+                    noteCache.beamPosition = PositionType::right;
+                    debug("beam end %s", note.debugString().c_str());
+                    beamStart = INT_MAX;
+                } else {
+                    noteCache.beamPosition = PositionType::mid;
+                    debug("beam mid %s", note.debugString().c_str());
+                }
+                checkForStart = false;
             }
-        } else if (note.duration < nt->ppq) {
+        } 
+        if (checkForStart && note.duration < nt->ppq) {
             // to do : if 4:4 time, allow beaming up to half note ?
             beamStart = index;
             noteCache.beamPosition = PositionType::left;
@@ -1316,7 +1326,7 @@ void NoteTakerDisplay::updateXPosition() {
     }
     for (auto beamStart : beamStarts) {
         if (INT_MAX != beamStart) {
-            this->closeBeam(beamStart);
+            this->closeBeam(beamStart, cache.size());
             debug("beam unmatched %s", nt->allNotes[beamStart].debugString().c_str());
         }
     }

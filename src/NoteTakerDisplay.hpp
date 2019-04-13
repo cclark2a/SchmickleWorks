@@ -58,7 +58,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         }
     }
 
-    void closeBeam(unsigned index);
+    void closeBeam(unsigned start, unsigned limit);
     void draw(NVGcontext* ) override;
     void drawBar(NVGcontext* , int xPos);
     void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& , const NoteCache& ,
