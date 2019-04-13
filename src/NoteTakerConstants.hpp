@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include "SchmickleWorks.hpp"
 
 constexpr uint8_t midiCVMask = 0xF0;
 constexpr uint8_t midiNoteOff = 0x80;
@@ -38,6 +38,7 @@ constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
 constexpr unsigned CV_OUTPUTS = 4;
 
 struct NoteDurations {
+    static int Beams(unsigned index);
     static int Closest(int midi, int ppq);
     static unsigned Count();
     static unsigned FromMidi(int midi, int ppq);
@@ -53,4 +54,9 @@ struct NoteDurations {
 
     static int ToMidi(unsigned index, int ppq);
     static int ToStd(unsigned index);
+    static bool TripletPart(int midi, int ppq);
 };
+
+ static unsigned gcd(unsigned one, unsigned two) {
+    return !two ? one : gcd(two, one % two);
+}

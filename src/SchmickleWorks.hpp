@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <float.h>
+#include <functional>
 #include <limits.h>
 #include <stdint.h>
 #include "NoteTakerConstants.hpp"

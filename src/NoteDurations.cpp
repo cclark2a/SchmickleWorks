@@ -25,6 +25,17 @@ static constexpr const std::array<int, 20> noteDurations = {
     3072, //       octuple whole
 };
 
+static constexpr const std::array<int, 20> beams = {
+    5,  4,  4,  3,  3,
+    2,  2,  1,  1,  0,
+    0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0, 
+};
+
+int NoteDurations::Beams(unsigned index) {
+    return beams[index];
+}
+
 int NoteDurations::Closest(int midi, int ppq) {
     return ToMidi(FromMidi(midi, ppq), ppq);
 }
@@ -53,4 +64,10 @@ int NoteDurations::ToMidi(unsigned index, int ppq) {
 
 int NoteDurations::ToStd(unsigned index) {
     return noteDurations[index];
+}
+
+bool NoteDurations::TripletPart(int midi, int ppq) {
+    int inStd = InStd(midi, ppq);
+    assert(inStd);
+    return !(inStd & (inStd - 1));  // true if only top bit is set
 }

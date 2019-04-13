@@ -19,7 +19,7 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     }
     nt->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
-    nt->display->xPositionsInvalid = true;
+    nt->display->invalidateCache();
     nt->setSelect(insertLoc, insertLoc + 1);
     nt->turnOffLedButtons();
     nt->setWheelRange();  // range is larger
@@ -40,7 +40,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     if (fileButton->ledOn) {
         nt->copyNotes();  // allows add to undo accidental cut / clear all
         nt->setScoreEmpty();
-        nt->display->xPositionsInvalid = true;
+        nt->display->invalidateCache();
         nt->setSelectStart(nt->atMidiTime(0));
         nt->setWheelRange();
         return;
@@ -61,7 +61,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     int shiftTime = nt->allNotes[start].startTime - nt->allNotes[end].startTime;
     nt->eraseNotes(start, end);
     nt->shiftNotes(start, shiftTime);
-    nt->display->xPositionsInvalid = true;
+    nt->display->invalidateCache();
     nt->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
     int wheel = nt->noteToWheel(start);
@@ -378,7 +378,10 @@ void TempoButton::draw(NVGcontext* vg) {
 }
 
 void TieButton::onDragEnd(EventDragEnd& e) {
-    AdderButton::onDragEnd(e);
+    NoteTaker* nt = nModule();
+    NoteTakerButton::onDragEnd(e);
+    nt->turnOffLedButtons(this);
+    nt->setWheelRange();
 }
 
 void TieButton::draw(NVGcontext* vg) {

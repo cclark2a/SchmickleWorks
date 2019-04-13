@@ -126,7 +126,7 @@ void NoteTaker::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSi
     if (shiftTime) {
         this->shiftNotes(insertLoc + insertSize, shiftTime);
     }
-    this->display->xPositionsInvalid = true;
+    display->invalidateCache();
     displayEnd = 0;  // force recompute of display end
     this->setSelect(insertLoc, this->nextAfter(insertLoc, insertSize));
     debug("insert final");
@@ -161,8 +161,101 @@ void NoteTaker::loadScore() {
         this->setScoreEmpty();
     }
     this->resetRun();
-    display->xPositionsInvalid = true;
+    display->invalidateCache();
     this->setSelectStart(this->atMidiTime(0));
+}
+
+// to do : allow for triplet + slurred ?
+void NoteTaker::makeNormal() {
+    // to do : if notes are slurred (missing note off) or odd timed (triplets) restore
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        DisplayNote& note = allNotes[index];
+        if (note.isSelectable(selectChannels)) {
+            note.setSlur(false);
+        }
+    }
+}
+
+void NoteTaker::makeSlur() {
+    // to do
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        DisplayNote& note = allNotes[index];
+        if (note.isSelectable(selectChannels)) {
+            note.setSlur(true);
+        }
+    }
+}
+
+// if current selection includes durations not in std note durations, do nothing
+// the assumption is that in this case, durations have already been tupletized 
+void NoteTaker::makeTuplet() {
+    int smallest = NoteDurations::ToMidi(NoteDurations::Count() - 1, ppq);
+    int beats = 0;
+    auto addBeat = [&](int duration) {
+        if (NoteDurations::Closest(duration, ppq) != duration) {
+            debug("can't tuple nonstandard duration %d ppq %d", duration, ppq);
+            return false;
+        }
+        int divisor = (int) gcd(smallest, duration);
+        if (NoteDurations::Closest(divisor, ppq) != divisor) {
+            debug("can't tuple gcd: smallest %d divisor %d ppq %d", smallest, divisor, ppq);
+            return false;
+        }
+        if (divisor < smallest) {
+            beats *= smallest / divisor;
+            smallest = divisor;
+        }
+        beats += divisor / smallest;
+        return true;
+    };
+    // count number of beats or beat fractions, find smallest factor
+    int last = 0;
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        const DisplayNote& note = allNotes[index];
+        if (note.isSelectable(selectChannels)) {
+            int restDuration = last - note.startTime;
+            if (restDuration > 0) {    // implied rest
+                if (!addBeat(restDuration)) {
+                    return;
+                }
+            }
+            if (!addBeat(note.duration)) {
+                return;
+            }
+            last = note.endTime();
+        }
+    }
+    if (beats % 3) {
+        return;   // to do : only support triplets for now
+    }
+    // to do : to support 5-tuple, ppq must be a multiple of 5
+    //       : to support 7-tuple, ppq must be a multiple of 7
+    // to do : general tuple rules are complicated, so only implement a few simple ones
+    // to do : respect time signature (ignored for now)
+    int adjustment = 0;
+    for (int tuple : { 3, 5, 7 } ) {
+        // 3 in time of 2, 5 in time of 4, 7 in time of 4
+        if (beats % tuple) {
+            continue;
+        }
+        last = 0;
+        int factor = 3 == tuple ? 1 : 3;
+        for (unsigned index = selectStart; index < selectEnd; ++index) {
+            DisplayNote& note = allNotes[index];
+            int restDuration = last - note.startTime;
+            if (restDuration > 0) {
+                adjustment -= restDuration / tuple;
+            }
+            note.startTime += adjustment;
+            int delta = note.duration * factor / tuple;
+            adjustment -= delta;
+            note.duration -= delta;
+            last = note.endTime();
+        }
+        break;
+    }
+    this->shiftNotes(selectEnd, adjustment);
+    display->invalidateCache();
 }
 
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
@@ -316,8 +409,9 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
             && selectStartTime + displayStartMargin <= displayEndTime;
     bool endShouldBeVisible = selectEndTime + displayEndMargin <= displayEndTime
             || selectWidth > boxWidth;
+    const int lastXPostion = display->cache.back().xPosition;
     bool recomputeDisplayOffset = !startIsVisible || !endShouldBeVisible
-            || display->xAxisOffset > std::max(0, display->xPositions.back() - boxWidth);
+            || display->xAxisOffset > std::max(0, lastXPostion - boxWidth);
     bool recomputeDisplayEnd = recomputeDisplayOffset
             || !displayEnd || allNotes.size() <= displayEnd;
     if (recomputeDisplayOffset) {
@@ -336,7 +430,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
             debug("3 xAxisOffset %g", display->xAxisOffset);
         }
         display->xAxisOffset = std::max(0.f,
-                std::min((float) display->xPositions.back() - boxWidth, display->xAxisOffset));
+                std::min((float) lastXPostion - boxWidth, display->xAxisOffset));
         display->dynamicXOffsetTimer = oldX - display->xAxisOffset;
         if (fabsf(display->dynamicXOffsetTimer) <= 5) {
             display->dynamicXOffsetTimer = 0;
@@ -344,7 +438,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
             display->dynamicXOffsetStep = -display->dynamicXOffsetTimer / 24;
         }
     }
-    assert(display->xAxisOffset <= std::max(0, display->xPositions.back() - boxWidth));
+    assert(display->xAxisOffset <= std::max(0, lastXPostion - boxWidth));
     if (recomputeDisplayEnd) {
         float displayStartTime = std::max(0.f, display->xAxisOffset - displayQuarterNoteWidth);
         displayStart = std::max(allNotes.size() - 1, (size_t) displayStart);
@@ -354,7 +448,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         while (display->startTime(displayStart + 1) < displayStartTime) {
             ++displayStart;
         }
-        displayEndTime = std::min((float) display->xPositions.back(),
+        displayEndTime = std::min((float) lastXPostion,
                 display->xAxisOffset + boxWidth + displayQuarterNoteWidth);
         while ((unsigned) displayEnd < allNotes.size() - 1
                 && display->startTime(displayEnd) < displayEndTime) {

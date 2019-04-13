@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SchmickleWorks.hpp"
+#include "NoteTakerDisplayNote.hpp"
 
 struct BarPosition;
 struct DisplayNote;
@@ -27,7 +27,7 @@ struct StaffNote {
 
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTaker* nt;
-    vector<int> xPositions;  // where note is drawn (computed cache, not saved)
+    vector<NoteCache> cache;  // where note is drawn (computed cache, not saved)
     array<Accidental, 75> accidentals;  // marks when accidental was used in bar
     const StaffNote* pitchMap = nullptr;
     float xAxisOffset = 0;
@@ -45,36 +45,48 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     int lastTempo = stdTimePerQuarterNote;
     bool upSelected = false;
     bool downSelected = false;
-    bool xPositionsInvalid = false;
+    bool cacheInvalid = false;
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
     void applyKeySignature();
+
+    void clearTuplet(unsigned index) {
+        assert(PositionType::left == cache[index].tupletPosition);
+        cache[index].tupletPosition = PositionType::none;
+        while (++index < cache.size() && PositionType::mid == cache[index].tupletPosition) {
+            cache[index].tupletPosition = PositionType::none;
+        }
+    }
+
+    void closeBeam(unsigned index);
     void draw(NVGcontext* ) override;
     void drawBar(NVGcontext* , int xPos);
-    void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& note, int xPos,
+    void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& , const NoteCache& ,
             int alpha);
     void drawBarRest(NVGcontext* , BarPosition& , const DisplayNote& , int offset,
             int alpha) const;
+    void drawBeam(NVGcontext* , int start, float alpha) const;
     void drawBevel(NVGcontext* ) const;
     void drawClefs(NVGcontext* ) const;
     void drawDynamicPitchTempo(NVGcontext* );
     void drawFileControl(NVGcontext* );
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
-    void drawNote(NVGcontext* , const DisplayNote& , Accidental , int offset, int alpha,
-            int size) const;
+    void drawNote(NVGcontext* , const DisplayNote& , Accidental , const NoteCache&, int alpha,
+            int size, int xPos) const;
     void drawNotes(NVGcontext* , BarPosition& bar, int nextBar);
     void drawPartControl(NVGcontext* ) const;
     void drawSelectionRect(NVGcontext* ) const;
     void drawStaffLines(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
-    void drawTieControl(NVGcontext* ) const;
+    void drawTieControl(NVGcontext* ) ;
+    void drawTuple(NVGcontext* , int index, float alpha, bool drewBeam) const;
     void drawVerticalControl(NVGcontext* ) const;
     void drawVerticalLabel(NVGcontext* , const char* label,
             bool enabled, bool selected, float y) const;
     int duration(unsigned index, int ppq) const;
 
     int endTime(unsigned end, int ppq) const {
-        return xPositions[end] + this->duration(end, ppq);
+        return cache[end].xPosition + this->duration(end, ppq);
     }
 
     void fromJson(json_t* root) {
@@ -82,11 +94,15 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         xAxisScale = json_real_value(json_object_get(root, "xAxisScale"));
     }
 
+    void invalidateCache() {
+        cacheInvalid = true;
+    }
+
     unsigned lastAt(unsigned start, int ppq) const {
-        assert(start < xPositions.size());
+        assert(start < cache.size());
         int endTime = this->startTime(start) + NoteDurations::InMidi(box.size.x, ppq);
         unsigned index;
-        for (index = start; index < xPositions.size(); ++index) {
+        for (index = start; index < cache.size(); ++index) {
             if (this->startTime(index) >= endTime) {
                 break;
             }
@@ -109,7 +125,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         lastTempo = stdTimePerQuarterNote;
         upSelected = false;
         downSelected = false;
-        xPositionsInvalid = true;
+        cacheInvalid = true;
         this->resetXAxisOffset();
     }
 
@@ -126,7 +142,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
 
     int startTime(unsigned start) const {
-        return xPositions[start];
+        return cache[start].xPosition;
     }
 
     bool stemUp(int position) const {

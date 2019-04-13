@@ -203,7 +203,7 @@ void NoteTaker::fromJson(json_t *root) {
     tempo = json_integer_value(json_object_get(root, "tempo"));
     ppq = json_integer_value(json_object_get(root, "ppq"));
     // update display cache
-    display->xPositionsInvalid = true;
+    display->invalidateCache();
     display->updateXPosition();
 }
 

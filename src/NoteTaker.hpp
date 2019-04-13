@@ -151,7 +151,7 @@ struct NoteTaker : Module {
     }
 
     void debugDump(bool validatable = true, bool inWheel = false) const;
-    static void DebugDump(const vector<DisplayNote>& , const vector<int>* xPos = nullptr,
+    static void DebugDump(const vector<DisplayNote>& , const vector<NoteCache>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static void DebugDumpRawMidi(vector<uint8_t>& v);
 
@@ -185,6 +185,9 @@ struct NoteTaker : Module {
     }
 
     void loadScore();
+    void makeNormal();
+    void makeSlur();
+    void makeTuplet();
 
     static void MapChannel(vector<DisplayNote>& notes, unsigned channel) {
          for (auto& note : notes) {

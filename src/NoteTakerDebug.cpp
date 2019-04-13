@@ -70,7 +70,7 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
             " ppq %d",
             selectStart, selectEnd, displayStart, displayEnd, selectChannels, 
             partButton->addChannel, partButton->allChannels, tempo, ppq);
-    NoteTaker::DebugDump(allNotes, &display->xPositions, selectStart, selectEnd);
+    NoteTaker::DebugDump(allNotes, &display->cache, selectStart, selectEnd);
     this->debugDumpChannels();
     if (!inWheel && selectButton->ledOn && !partButton->ledOn && !sustainButton->ledOn
             && !fileButton->ledOn) {
@@ -93,7 +93,18 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
     }
 }
 
-void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<int>* xPos,
+std::string PosAsStr(PositionType pType) {
+    return PositionType::left == pType  ? "L" : PositionType::mid == pType ? "M" : "R";
+}
+
+std::string TrimmedFloat(float f) {
+    std::string str = std::to_string(f);
+    str.erase(str.find_last_not_of('0') + 1, std::string::npos);
+    str.erase(str.find_last_not_of('.') + 1, std::string::npos);
+    return str;
+}
+
+void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCache>* cache,
         unsigned selectStart, unsigned selectEnd) {
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         assert(i == typeNames[i].type);
@@ -102,8 +113,16 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<int>* x
     for (unsigned index = 0; index < notes.size(); ++index) {
         const DisplayNote& note = notes[index];
         std::string s;
-        if (xPos) {
-            s = std::to_string((*xPos)[index]) + " ";
+        if (cache) {
+            const NoteCache& c = (*cache)[index];
+            s = "[" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
+            if (PositionType::none != c.beamPosition) {
+                s += "b" + PosAsStr(c.beamPosition) + std::to_string(c.beamCount) + " ";
+            }
+            if (PositionType::none != c.tupletPosition) {
+                s += "t" + PosAsStr(c.tupletPosition) + " ";
+            }
+            s += std::to_string(c.symbol) + (c.stemUp ? "u " : "d ");
         }
         if (INT_MAX != selectStart && &note == &notes[selectStart]) {
             s += "< ";

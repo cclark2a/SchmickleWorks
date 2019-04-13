@@ -377,7 +377,15 @@ struct TempoButton : AdderButton {
     void onDragEnd(EventDragEnd &e) override;
 };
 
-struct TieButton : AdderButton {
+struct TieButton : EditLEDButton {
+    enum class State {
+        slur,
+        normal,
+        tuplet,
+    };
+
+    State state = State::normal;
+
     void draw(NVGcontext* vg) override;
     void onDragEnd(EventDragEnd &e) override;
 };

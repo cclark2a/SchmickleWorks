@@ -33,6 +33,12 @@ void NoteTaker::setHorizontalWheelRange() {
         horizontalWheel->speed = 1;
         return;
     }
+    if (tieButton->ledOn) {
+        horizontalWheel->setLimits(0, 2);
+        horizontalWheel->setValue(1);
+        horizontalWheel->speed = 1;
+        return;
+    }
     // horizontal wheel range and value
     float horzSpeed = 1;
     int value = INT_MAX;
@@ -147,6 +153,25 @@ void NoteTaker::updateHorizontal() {
     if (fileButton->ledOn) {
         return;
     }
+    if (tieButton->ledOn) {
+        if (horizontalWheel->value < .25f) {
+            if (TieButton::State::slur != tieButton->state) {
+                this->makeSlur();
+                tieButton->state = TieButton::State::slur;
+            }
+        } else if (horizontalWheel->value > .75f && horizontalWheel->value < 1.25f) {
+            if (TieButton::State::normal != tieButton->state) {
+                this->makeNormal();
+                tieButton->state = TieButton::State::normal;
+            }
+        } else if (horizontalWheel->value > 1.75f) {
+            if (TieButton::State::tuplet != tieButton->state) {
+                this->makeTuplet();
+                tieButton->state = TieButton::State::tuplet;
+            }
+        }
+        return;
+    }
     if (partButton->ledOn) {
         int part = horizontalWheel->part();
         partButton->allChannels = part < 0;
@@ -194,7 +219,7 @@ void NoteTaker::updateHorizontal() {
                             } else {
                                 note.setDenominator(wheelValue);
                             }
-                            display->xPositionsInvalid = true;
+                            display->invalidateCache();
                             display->updateXPosition();
                         }
                         break;
@@ -215,7 +240,7 @@ void NoteTaker::updateHorizontal() {
             }
         }
         if (noteChanged) {
-            display->xPositionsInvalid = true;
+            display->invalidateCache();
             this->setSelect(selectStart, selectEnd);
         }
     } else {
@@ -311,7 +336,7 @@ void NoteTaker::updateVertical() {
             case KEY_SIGNATURE:
                 if (selectStart + 1 == selectEnd) {
                     note.setKey(wheelValue);
-                    display->xPositionsInvalid = true;
+                    display->invalidateCache();
                     display->updateXPosition();
                 }
                 break;
@@ -343,6 +368,8 @@ void NoteTaker::updateVertical() {
                     value = std::max(0, std::min(127, note.pitch() + diff));
                 }
                 note.setPitch(value);
+                display->invalidateCache();
+                display->updateXPosition();
                 break;
             }
             default:

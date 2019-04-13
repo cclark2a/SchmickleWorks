@@ -44,7 +44,7 @@ static void AddTwoNotes(NoteTaker* n) {
 
 void UnitTest(NoteTaker* n) {
     n->resetState();
-    n->display->xPositionsInvalid = true;
+    n->display->invalidateCache();
     n->setSelectStart(n->atMidiTime(0));
     n->setWheelRange();
     

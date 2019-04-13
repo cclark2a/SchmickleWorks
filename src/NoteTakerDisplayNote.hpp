@@ -197,3 +197,20 @@ struct DisplayNote {
 
     std::string debugString() const;
 };
+
+enum class PositionType : uint8_t {
+    none,
+    left,
+    mid,
+    right,
+};
+
+struct NoteCache {
+    int xPosition;
+    float yPosition;
+    PositionType beamPosition;
+    uint8_t beamCount;
+    PositionType tupletPosition;
+    uint8_t symbol;
+    bool stemUp;
+};
