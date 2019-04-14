@@ -3,6 +3,7 @@
 #include "NoteTakerDisplayNote.hpp"
 
 struct BarPosition;
+struct BeamPositions;
 struct DisplayNote;
 struct NoteTaker;
 
@@ -49,15 +50,9 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
     void applyKeySignature();
-
-    void clearTuplet(unsigned index) {
-        assert(PositionType::left == cache[index].tupletPosition);
-        cache[index].tupletPosition = PositionType::none;
-        while (++index < cache.size() && PositionType::mid == cache[index].tupletPosition) {
-            cache[index].tupletPosition = PositionType::none;
-        }
-    }
-
+    void cacheBeams();
+    void cacheTuplets();
+    void clearTuplet(unsigned index, unsigned limit);
     void closeBeam(unsigned start, unsigned limit);
     void draw(NVGcontext* ) override;
     void drawBar(NVGcontext* , int xPos);
@@ -65,7 +60,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
             int alpha);
     void drawBarRest(NVGcontext* , BarPosition& , const DisplayNote& , int offset,
             int alpha) const;
-    void drawBeam(NVGcontext* , int start, float alpha) const;
+    void drawBeam(NVGcontext* , unsigned start, float alpha) const;
     void drawBevel(NVGcontext* ) const;
     void drawClefs(NVGcontext* ) const;
     void drawDynamicPitchTempo(NVGcontext* );
@@ -79,7 +74,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawStaffLines(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
     void drawTieControl(NVGcontext* ) ;
-    void drawTuple(NVGcontext* , int index, float alpha, bool drewBeam) const;
+    void drawTuple(NVGcontext* , unsigned index, float alpha, bool drewBeam) const;
     void drawVerticalControl(NVGcontext* ) const;
     void drawVerticalLabel(NVGcontext* , const char* label,
             bool enabled, bool selected, float y) const;
@@ -138,6 +133,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     }
 
     void scroll(NVGcontext* );
+    void setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const;
     void setKeySignature(int key);
     void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
 

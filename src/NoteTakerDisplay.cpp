@@ -49,6 +49,35 @@ struct BarPosition {
     }
 };
 
+static void draw_stem(NVGcontext*vg, float x, int ys, int ye) {
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, x + .5, ys);
+    nvgLineTo(vg, x + .5, ye);
+    nvgStrokeWidth(vg, .5);
+    nvgStroke(vg);
+}
+
+struct BeamPositions {
+    unsigned beamMin = INT_MAX;
+    float xOffset;
+    int yOffset;
+    float sx;
+    float ex;
+    int yStemExtend;
+    int y;
+    int yLimit;
+
+    void drawOneBeam(NVGcontext* vg) {
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, sx, y);
+        nvgLineTo(vg, ex, y);
+        nvgLineTo(vg, ex, y + 3);
+        nvgLineTo(vg, sx, y + 3);
+        nvgFill(vg);
+        y += yOffset;
+    }
+};
+
 const int CLEF_WIDTH = 96;
 const int TIME_SIGNATURE_WIDTH = 48;
 // key signature width is variable, from 0 (C) to NOTE_WIDTH*14+18 (C# to Cb, 7 naturals, 7 flats, space for 2 bars)
@@ -102,8 +131,8 @@ const char* downFlagNoteSymbols[] = { "c", "d", "d.", "e", "e.", "f", "f.", "g",
                                            "i", "i.", "j", "j.", "k", "k.", "l", "l.", "m" };
 const char* upBeamNoteSymbols[] = {   "H", "H", "H.", "H", "H.", "H", "H.", "H", "H.", "H", "H.",
                                            "I", "I.", "J", "J.", "K", "K.", "L", "L.", "M" };
-const char* downBeamNoteSymbols[] = {  "h", "h", "h.", "h", "h.", "h", "h.", "h", "h.", "h", "h.",
-                                          "i", "i.", "j", "j.", "k", "k.", "l", "l.", "m" };
+const char* downBeamNoteSymbols[] = { "h", "h", "h.", "h", "h.", "h", "h.", "h", "h.", "h", "h.",
+                                           "i", "i.", "j", "j.", "k", "k.", "l", "l.", "m" };
 
 NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* n)
     : nt(n)
@@ -147,6 +176,107 @@ void NoteTakerDisplay::applyKeySignature() {
     }
 }
 
+void NoteTakerDisplay::cacheBeams() {
+    array<unsigned, CHANNEL_COUNT> beamStarts;
+    beamStarts.fill(INT_MAX);
+    for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
+        const DisplayNote& note = nt->allNotes[index];
+        if (NOTE_ON != note.type) {
+            continue;
+        }
+        NoteCache& noteCache = cache[index];
+        unsigned& beamStart = beamStarts[note.channel];
+        bool checkForStart = true;
+        if (INT_MAX != beamStart) {
+            bool stemsMatch = cache[beamStart].stemUp == noteCache.stemUp;
+            if (!stemsMatch || noteCache.vDuration >= nt->ppq) {
+                this->closeBeam(beamStart, index);
+                beamStart = INT_MAX;
+            } else {
+                int onBeat = note.endTime() % nt->ppq;
+                if (!onBeat || PositionType::right == noteCache.tupletPosition) {
+                    noteCache.beamPosition = PositionType::right;
+                    beamStart = INT_MAX;
+                } else {
+                    noteCache.beamPosition = PositionType::mid;
+                }
+                checkForStart = false;
+            }
+        } 
+        if (checkForStart && noteCache.vDuration < nt->ppq) {
+            // to do : if 4:4 time, allow beaming up to half note ?
+            beamStart = index;
+            noteCache.beamPosition = PositionType::left;
+        }
+        if (INT_MAX != beamStart || PositionType::right == noteCache.beamPosition) {
+            noteCache.beamCount = NoteDurations::Beams(
+                    NoteDurations::FromMidi(noteCache.vDuration, nt->ppq));
+        }
+    }
+    for (auto beamStart : beamStarts) {
+        if (INT_MAX != beamStart) {
+            this->closeBeam(beamStart, cache.size());
+            debug("beam unmatched %s", nt->allNotes[beamStart].debugString().c_str());
+        }
+    }
+}
+
+void NoteTakerDisplay::cacheTuplets() {
+    array<unsigned, CHANNEL_COUNT> tripStarts;
+    tripStarts.fill(INT_MAX);
+    for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
+        const DisplayNote& note = nt->allNotes[index];
+        if (NOTE_ON != note.type) {
+            continue;
+        }
+        NoteCache& noteCache = cache[index];
+        unsigned& tripStart = tripStarts[note.channel];
+        bool checkForStart = true;
+        if (INT_MAX != tripStart) {
+            const DisplayNote& start = nt->allNotes[tripStart];
+            int totalDuration = note.endTime() - start.startTime;
+            if (totalDuration > nt->ppq * 4) {
+                // to do : use time time signature to limit triplet to bar 
+                // for now, limit triplet to whole note
+                this->clearTuplet(tripStart, index);
+                tripStart = INT_MAX;
+            } else {
+                int tripDur = start.duration * 3;
+                int factor = totalDuration / tripDur;
+                if (totalDuration * 2 == tripDur || factor * tripDur == totalDuration) {
+                    noteCache.tupletPosition = PositionType::right;
+                    tripStart = INT_MAX;
+                } else {
+                    noteCache.tupletPosition = PositionType::mid;
+                }
+                checkForStart = false;
+            }
+        } 
+        if (checkForStart && NoteDurations::TripletPart(note.duration, nt->ppq)) {
+            tripStart = index;
+            noteCache.tupletPosition = PositionType::left;
+        }
+    }
+    for (auto tripStart : tripStarts) {
+        if (INT_MAX != tripStart) {
+            this->clearTuplet(tripStart, cache.size());
+            debug("tuplet unmatched %s", nt->allNotes[tripStart].debugString().c_str());
+        }
+    }
+}
+
+void NoteTakerDisplay::clearTuplet(unsigned index, unsigned limit) {
+    assert(PositionType::left == cache[index].tupletPosition);
+    int chan = nt->allNotes[index].channel;
+    cache[index].tupletPosition = PositionType::none;
+    while (++index < limit) {
+        if (chan == nt->allNotes[index].channel) {
+            assert(PositionType::mid == cache[index].tupletPosition);
+            cache[index].tupletPosition = PositionType::none;
+        }
+    }
+}
+
 void NoteTakerDisplay::closeBeam(unsigned first, unsigned limit) {
     assert(PositionType::left == cache[first].beamPosition);
     int chan = nt->allNotes[first].channel;
@@ -154,7 +284,9 @@ void NoteTakerDisplay::closeBeam(unsigned first, unsigned limit) {
     unsigned index = first;
     while (++index < limit) {
         if (chan == nt->allNotes[index].channel) {
-            assert(PositionType::mid == cache[index].beamPosition);
+            if (PositionType::mid != cache[index].beamPosition) {
+                break;
+            }
             last = index;
         }
     }
@@ -249,6 +381,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
 void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const DisplayNote& note,
         int xPos, int alpha) const {
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
+    // to do : if rest is part of triplet, adjust duration before lookup
     unsigned symbol = NoteDurations::FromMidi(note.duration, nt->ppq);
     float yPos = 36 * 3 - 49;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
@@ -269,53 +402,30 @@ void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const Displ
     } while (symbol);
 }
 
-static void draw_one_beam(NVGcontext* vg, int sx, int ex, int yOffset, int* yPtr) {
-    int y = *yPtr;
-    nvgBeginPath(vg);
-    nvgMoveTo(vg, sx, y + 0.5);
-    nvgLineTo(vg, ex, y + 0.5);
-    nvgLineTo(vg, ex, y + 3.5);
-    nvgLineTo(vg, sx, y + 3.5);
-    nvgFill(vg);
-    *yPtr += yOffset;
-}
-
-void NoteTakerDisplay::drawBeam(NVGcontext* vg, int start, float alpha) const {
+void NoteTakerDisplay::drawBeam(NVGcontext* vg, unsigned start, float alpha) const {
     assert(PositionType::left == cache[start].beamPosition);
     assert(nt->allNotes.size() == cache.size());
+    BeamPositions bp;
     unsigned index = start;
     int chan = nt->allNotes[start].channel;
-    // to do : incomplete
-    float yMax = 0;
-    float yMin = FLT_MAX;
-    unsigned beamMax = 0;
-    unsigned beamMin = 255;
     do {
         if (chan != nt->allNotes[index].channel) {
             continue;
         }
-        const NoteCache& noteCache = cache[index];
-        yMax = std::max(noteCache.yPosition, yMax);
-        yMin = std::min(noteCache.yPosition, yMin);
-        unsigned beamCount = noteCache.beamCount;
-        beamMax = std::max(beamCount, beamMax);
-        beamMin = std::min(beamCount, beamMin);
-        if (PositionType::right == noteCache.beamPosition) {
+        if (PositionType::right == cache[index].beamPosition) {
+            this->setBeamPos(start, index, &bp);
             break;
         }
     } while (++index < cache.size());
-    int xOffset = cache[start].stemUp ? 14 : 8;
-    int yOffset = cache[start].stemUp ? 5 : -5;
-    int sx = cache[start].xPosition + xOffset;
-    int ex = cache[index].xPosition + xOffset;
-    int y = cache[start].stemUp ? yMin - 22 : yMax + 14;
-    y -= std::max(0, ((int) beamMax - 3) * yOffset);
-    nvgFillColor(vg, nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha));
-    for (unsigned count = 0; count < beamMin; ++count) {
-        draw_one_beam(vg, sx, ex, yOffset, &y);
+    assert(PositionType::right == cache[index].beamPosition);
+    NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
+    nvgFillColor(vg, color);
+    nvgStrokeColor(vg, color);
+    for (unsigned count = 0; count < bp.beamMin; ++count) {
+        bp.drawOneBeam(vg);
     }
     index = start;
-    int yReset = y;
+    int yReset = bp.y;
     do {
         assert(chan == nt->allNotes[index].channel);
         const NoteCache& noteCache = cache[index];
@@ -327,22 +437,24 @@ void NoteTakerDisplay::drawBeam(NVGcontext* vg, int start, float alpha) const {
             return;
         }
         const NoteCache& next = cache[index];
-        sx = noteCache.xPosition + xOffset;
-        ex = next.xPosition + xOffset;
+        bp.sx = noteCache.xPosition + bp.xOffset;
+        draw_stem(vg, bp.sx, noteCache.yPosition + bp.yStemExtend, bp.yLimit);
+        bp.ex = next.xPosition + bp.xOffset;
+        bp.y = yReset;
         bool fullBeam = true;
-        for (unsigned count = beamMin; count < noteCache.beamCount; ++count) {
+        for (unsigned count = bp.beamMin; count < noteCache.beamCount; ++count) {
             if (fullBeam && next.beamCount <= count) { // draw partial beam on left
-                ex = sx + 6;
+                bp.ex = bp.sx + 6;
                 fullBeam = false;
             } 
-            draw_one_beam(vg, sx, ex, yOffset, &y);
+            bp.drawOneBeam(vg);
         }
-        y = yReset;
         if (PositionType::right == next.beamPosition) { // draw partial beam on right
-            ex = next.xPosition + xOffset;
-            sx = ex - 6;
+            bp.ex = next.xPosition + bp.xOffset;
+            draw_stem(vg, bp.ex, next.yPosition + bp.yStemExtend, bp.yLimit);
+            bp.sx = bp.ex - 6;
             for (unsigned count = noteCache.beamCount; count < next.beamCount; ++count) {
-                draw_one_beam(vg, sx, ex, yOffset, &y);
+                bp.drawOneBeam(vg);
             }
             break;
         }
@@ -394,8 +506,13 @@ void NoteTakerDisplay::drawClefs(NVGcontext* vg) const {
 void NoteTakerDisplay::drawFreeNote(NVGcontext* vg, const DisplayNote& note,
         int xPos, int alpha) const {
     const StaffNote& pitch = pitchMap[note.pitch()];
-    NoteCache noteCache = { 0, this->yPos(pitch.position), PositionType::none, 0,
-            PositionType::none, (uint8_t) NoteDurations::FromMidi(note.duration, nt->ppq), true };
+    NoteCache noteCache;
+    noteCache.resetTupleBeam();
+    noteCache.xPosition = 0;
+    noteCache.yPosition = this->yPos(pitch.position);
+    noteCache.vDuration = note.duration;
+    noteCache.symbol = (uint8_t) NoteDurations::FromMidi(note.duration, nt->ppq);
+    noteCache.stemUp = true;
     drawNote(vg, note, (Accidental) pitchMap[note.pitch()].accidental, noteCache, alpha, 24, xPos);
 }
 
@@ -430,6 +547,7 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
             (2 == note.channel) * 0x7f, alpha));
     nvgFontFaceId(vg, nt->musicFont->handle);
     nvgFontSize(vg, size);
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
     if (24 == size) {   // to do : something better than this
         yPos -= 1;
     }
@@ -438,10 +556,6 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
         // to do : adjust font so the offsets aren't needed
         nvgText(vg, xPos - 6 - (SHARP_ACCIDENTAL == accidental), yPos + 1,
                 &accidents[accidental], &accidents[accidental + 1]);
-    }
-    int duration = note.duration;
-    if (PositionType::none != noteCache.tupletPosition) {
-        duration = duration * 3 / 2;
     }
     auto& symbols = PositionType::none != noteCache.beamPosition ?
             noteCache.stemUp ? upBeamNoteSymbols : downBeamNoteSymbols :
@@ -1007,49 +1121,45 @@ void NoteTakerDisplay::drawTieControl(NVGcontext* vg) {
     nvgStroke(vg);
 }
 
-void NoteTakerDisplay::drawTuple(NVGcontext* vg, int start, float alpha, bool drewBeam) const {
-    // to do : share this code with drawBeam
-    float yMax = 0;
-    float yMin = FLT_MAX;
-    uint8_t beamMax = 0;
+void NoteTakerDisplay::drawTuple(NVGcontext* vg, unsigned start, float alpha, bool drewBeam) const {
+    BeamPositions bp;
     unsigned index = start;
     int chan = nt->allNotes[start].channel;
     do {
         if (chan != nt->allNotes[index].channel) {
             continue;
         }
-        const NoteCache& noteCache = cache[index];
-        yMax = std::max(noteCache.yPosition, yMax);
-        yMin = std::min(noteCache.yPosition, yMin);
-        beamMax = std::max(noteCache.beamCount, beamMax);
-        if (PositionType::right == cache[index].beamPosition) {
+        if (PositionType::right == cache[index].tupletPosition) {
+            this->setBeamPos(start, index, &bp);
             break;
         }
     } while (++index < cache.size());
+    assert(PositionType::right == cache[index].tupletPosition);
+    NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
+    nvgFillColor(vg, color);
     // draw '3' at center of notes above or below staff
     nvgFontFaceId(vg, nt->musicFont->handle);
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
-    int x = (cache[start].xPosition + cache[index - 1].xPosition) / 2;
-    int y = cache[start].stemUp ? yMin : yMax;
-
-    nvgFillColor(vg, nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f,
-            (2 == chan) * 0x7f, alpha));
-    nvgText(vg, x, y, "3", NULL);
+    float centerX = (bp.sx + bp.ex) / 2;
+    bool stemUp = cache[start].stemUp;
+    float yOffset = stemUp ? -1 : 6.5;
+    nvgText(vg, centerX, bp.y + yOffset, "3", NULL);
     // to do : if !drew beam, draw square brackets on either side of '3'
     if (!drewBeam) {
+        bp.sx -= 2;
+        bp.y += stemUp ? 0 : 2;
         nvgBeginPath(vg);
-        nvgMoveTo(vg, cache[start].xPosition, y);
-        y += 3 * (cache[start].stemUp ? -1 : 1);
-        nvgLineTo(vg, cache[start].xPosition, y);
-        nvgLineTo(vg, x - 3, y);
-        nvgMoveTo(vg, x + 3, y);
-        nvgLineTo(vg, cache[index - 1].xPosition, y);
-        y -= 3 * (cache[start].stemUp ? -1 : 1);
-        nvgLineTo(vg, cache[index - 1].xPosition, y);
-        nvgStrokeWidth(vg, 1);
-        nvgStrokeColor(vg, nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f,
-                (2 == chan) * 0x7f, alpha));
+        nvgMoveTo(vg, bp.sx, bp.y);
+        bp.y += stemUp ? -3 : 3;
+        nvgLineTo(vg, bp.sx, bp.y);
+        nvgLineTo(vg, centerX - 3, bp.y);
+        nvgMoveTo(vg, centerX + 3, bp.y);
+        nvgLineTo(vg, bp.ex, bp.y);
+        bp.y -= stemUp ? -3 : 3;
+        nvgLineTo(vg, bp.ex, bp.y);
+        nvgStrokeWidth(vg, 0.5);
+        nvgStrokeColor(vg, color);
         nvgStroke(vg);
     }
 }
@@ -1128,6 +1238,37 @@ void NoteTakerDisplay::scroll(NVGcontext* vg) {
     }
 }
 
+// used by beams and tuplets
+void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const {
+    unsigned index = first;
+    int chan = nt->allNotes[first].channel;
+    float yMax = 0;
+    float yMin = FLT_MAX;
+    unsigned beamMax = 0;
+    do {
+        if (chan != nt->allNotes[index].channel) {
+            continue;
+        }
+        const NoteCache& noteCache = cache[index];
+        yMax = std::max(noteCache.yPosition, yMax);
+        yMin = std::min(noteCache.yPosition, yMin);
+        beamMax = std::max((unsigned) noteCache.beamCount, beamMax);
+        bp->beamMin = std::min((unsigned) noteCache.beamCount, bp->beamMin);
+    } while (++index <= last);
+    bool stemUp = cache[first].stemUp;
+    bp->xOffset = stemUp ? 14 : 7.75;
+    bp->yOffset = stemUp ? 5 : -5;
+    bp->sx = cache[first].xPosition + bp->xOffset;
+    bp->ex = cache[last].xPosition + bp->xOffset;
+    int yStem = stemUp ? -22.5 : 15.5;
+    bp->yStemExtend = yStem + (stemUp ? 0 : 3);
+    bp->y = (stemUp ? yMin : yMax) + yStem;
+    if (beamMax > 3) {
+        bp->y -= ((int) beamMax - 3) * bp->yOffset;
+    }
+    bp->yLimit = bp->y + (stemUp ? 0 : 3);
+}
+
 void NoteTakerDisplay::setKeySignature(int key) {
     keySignature = key;
     pitchMap = key >= 0 ? sharpMap : flatMap;
@@ -1168,12 +1309,16 @@ void NoteTakerDisplay::updateXPosition() {
     }
     cacheInvalid = false;
     cache.resize(nt->allNotes.size());
-    bool allowTriplets = !(nt->ppq % 3);
-    debug("allowtriplets %d", allowTriplets);
     BarPosition bar(*nt);
     float pos = 0;
     float posAdjust = 0;
     int posAdjustTime = 0;
+    for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
+        cache[index].resetTupleBeam();
+    }
+    if (!(nt->ppq % 3)) {  // to do : only triplets for now
+        this->cacheTuplets();
+    }
     for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
         const DisplayNote& note = nt->allNotes[index];
         if (posAdjust && note.startTime > posAdjustTime) {
@@ -1184,10 +1329,11 @@ void NoteTakerDisplay::updateXPosition() {
         NoteCache& noteCache = cache[index];
         noteCache.xPosition = (int) ((note.stdStart(nt->ppq) + (bar.prior + bar.start) * BAR_WIDTH)
                 * xAxisScale + pos);
-        noteCache.beamPosition = PositionType::none;
-        noteCache.beamCount = 0;
-        noteCache.tupletPosition = PositionType::none;
-        noteCache.symbol = (uint8_t) NoteDurations::FromMidi(note.duration, nt->ppq);
+        noteCache.vDuration = note.duration;
+        if (PositionType::none != noteCache.tupletPosition) {
+            noteCache.vDuration = noteCache.vDuration * 3 / 2;  // to do : just support triplets for now
+        }
+        noteCache.symbol = (uint8_t) NoteDurations::FromMidi(noteCache.vDuration, nt->ppq);
         if (NOTE_ON != note.type) {
             noteCache.yPosition = 0;
             noteCache.stemUp = false;
@@ -1212,13 +1358,7 @@ void NoteTakerDisplay::updateXPosition() {
                 int adjust = strlen(upFlagNoteSymbols[noteCache.symbol]) == 2 ? 19 : 15; 
                 posAdjust = std::max(posAdjust, adjust - note.duration * xAxisScale);
                 posAdjustTime = note.startTime;
-                if (allowTriplets && NoteDurations::TripletPart(note.duration, nt->ppq)) {
-                    noteCache.tupletPosition = PositionType::left;  // remember for later
-                    debug("found triplet %s", note.debugString().c_str());
-                }
-                // to do : if note is consecutive eights or shorter, add beam
-                // to do : if note is very short, pad it a bit
-                //         if multiple notes from different channels overlap, space them out
+                // to do : if multiple notes from different channels overlap, space them out
                 // if note crossed bar, add space for tie
                 int notesTied = bar.notesTied(note);
                 if (notesTied > 1) {
@@ -1232,6 +1372,7 @@ void NoteTakerDisplay::updateXPosition() {
                     pos += DOUBLE_BAR_WIDTH * xAxisScale;
                 }
                 pos += abs(note.key()) * ACCIDENTAL_WIDTH * xAxisScale + 2;
+                this->setKeySignature(note.key());
                 break;
             case TIME_SIGNATURE:
                 pos += TIME_SIGNATURE_WIDTH * xAxisScale;  // add space to draw time signature
@@ -1248,87 +1389,6 @@ void NoteTakerDisplay::updateXPosition() {
                 assert(0);
         }
     }
-    // add triplets and beams (independent of each other)
-    array<unsigned, CHANNEL_COUNT> tripStarts;
-    tripStarts.fill(INT_MAX);
-    array<unsigned, CHANNEL_COUNT> beamStarts;
-    beamStarts.fill(INT_MAX);
-    for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
-        const DisplayNote& note = nt->allNotes[index];
-        if (NOTE_ON != note.type) {
-            continue;
-        }
-        NoteCache& noteCache = cache[index];
-        unsigned& tripStart = tripStarts[note.channel];
-        if (INT_MAX != tripStart) {
-            const DisplayNote& start = nt->allNotes[tripStart];
-            int totalDuration = note.endTime() - start.startTime;
-            int tripDur = start.duration * 3;
-            int factor = totalDuration / tripDur;
-            if (totalDuration * 2 == tripDur || factor * tripDur == totalDuration) {
-                for (unsigned tripIndex = tripStart; tripIndex <= index; ++tripIndex) {
-                    const DisplayNote& trip = nt->allNotes[tripIndex];
-                    NoteCache& tripCache = cache[tripIndex];
-                    tripCache.beamCount = NoteDurations::Beams(
-                            NoteDurations::FromMidi(trip.duration, nt->ppq));
-                }
-                noteCache.tupletPosition = PositionType::right;
-                tripStart = INT_MAX;
-                debug("tuplet matched %s", note.debugString().c_str());
-            } else if (totalDuration > nt->ppq * 4) {
-                // to do : use time time signature to limit triplet to bar 
-                // for now, limit triplet to whole note
-                this->clearTuplet(tripStart);
-                tripStart = INT_MAX;
-                debug("tuplet exceeds bar %s", note.debugString().c_str());
-            }
-        } else if (PositionType::left == noteCache.tupletPosition) {
-            tripStart = index;
-        }
-        // mark beams as well : limit beam to quarter note
-        unsigned& beamStart = beamStarts[note.channel];
-        bool checkForStart = true;
-        if (INT_MAX != beamStart) {
-            bool stemsMatch = cache[beamStart].stemUp == noteCache.stemUp;
-            if (!stemsMatch || note.duration >= nt->ppq) {
-                this->closeBeam(beamStart, index);
-                beamStart = INT_MAX;
-            } else {
-                int onBeat = note.endTime() % nt->ppq;
-                debug("beam onBeat %d stemsMatch %d", onBeat, stemsMatch);
-                if (!onBeat) {
-                    noteCache.beamPosition = PositionType::right;
-                    debug("beam end %s", note.debugString().c_str());
-                    beamStart = INT_MAX;
-                } else {
-                    noteCache.beamPosition = PositionType::mid;
-                    debug("beam mid %s", note.debugString().c_str());
-                }
-                checkForStart = false;
-            }
-        } 
-        if (checkForStart && note.duration < nt->ppq) {
-            // to do : if 4:4 time, allow beaming up to half note ?
-            beamStart = index;
-            noteCache.beamPosition = PositionType::left;
-            debug("beam start %s", note.debugString().c_str());
-        }
-        if (INT_MAX != beamStart || PositionType::right == noteCache.beamPosition) {
-            noteCache.beamCount = NoteDurations::Beams(
-                    NoteDurations::FromMidi(note.duration, nt->ppq));
-        }
-    }
-    for (auto tripStart : tripStarts) {
-        if (INT_MAX != tripStart) {
-            this->clearTuplet(tripStart);
-            debug("tuplet unmatched %s", nt->allNotes[tripStart].debugString().c_str());
-        }
-    }
-    for (auto beamStart : beamStarts) {
-        if (INT_MAX != beamStart) {
-            this->closeBeam(beamStart, cache.size());
-            debug("beam unmatched %s", nt->allNotes[beamStart].debugString().c_str());
-        }
-    }
+    this->cacheBeams();
     debug("updateXPosition size %u", cache.size());
 }

@@ -154,6 +154,7 @@ void NoteTaker::updateHorizontal() {
         return;
     }
     if (tieButton->ledOn) {
+        TieButton::State prev = tieButton->state;
         if (horizontalWheel->value < .25f) {
             if (TieButton::State::slur != tieButton->state) {
                 this->makeSlur();
@@ -169,6 +170,10 @@ void NoteTaker::updateHorizontal() {
                 this->makeTuplet();
                 tieButton->state = TieButton::State::tuplet;
             }
+        }
+        if (prev != tieButton->state) {
+            display->invalidateCache();
+            display->updateXPosition();
         }
         return;
     }

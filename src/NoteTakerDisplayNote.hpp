@@ -208,9 +208,16 @@ enum class PositionType : uint8_t {
 struct NoteCache {
     int xPosition;
     float yPosition;
+    int vDuration;  // visible duration, for symbol selection and triplet beams
     PositionType beamPosition;
     uint8_t beamCount;
     PositionType tupletPosition;
     uint8_t symbol;
     bool stemUp;
+
+    void resetTupleBeam() {
+        beamPosition = PositionType::none;
+        beamCount = 0;
+        tupletPosition = PositionType::none;
+    }
 };
