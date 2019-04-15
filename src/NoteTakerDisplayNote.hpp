@@ -165,6 +165,10 @@ struct DisplayNote {
         return assert(isValid());
     }
 
+    int endSlurTime() const {
+        return endTime() + slur();
+    }
+
     int endTime() const {
         return startTime + duration;
     }
@@ -212,6 +216,7 @@ struct NoteCache {
     PositionType beamPosition;
     uint8_t beamCount;
     PositionType tupletPosition;
+    PositionType slurPosition;
     uint8_t symbol;
     bool stemUp;
 
@@ -219,5 +224,6 @@ struct NoteCache {
         beamPosition = PositionType::none;
         beamCount = 0;
         tupletPosition = PositionType::none;
+        slurPosition = PositionType::none;
     }
 };

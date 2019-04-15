@@ -151,6 +151,8 @@ bool NoteTakerParseMidi::parseMidi() {
                         return false;
                     }
                     int velocity = *iter++;
+                    bool setSlur = false;
+                    int maxMidiTime = midiTime;
                     for (auto ri = parsedNotes.rbegin(); ri != parsedNotes.rend(); ++ri) {
                         if (ri->type != NOTE_ON) {
                             continue;
@@ -158,10 +160,12 @@ bool NoteTakerParseMidi::parseMidi() {
                         if (displayNote.channel != ri->channel) {
                             continue;
                         }
+                        int duration = maxMidiTime - ri->startTime;
                         if (pitch != ri->pitch()) {
+                            setSlur |= duration > 0;
+                            maxMidiTime = ri->startTime;
                             continue;
                         }
-                        int duration = midiTime - ri->startTime;
                         if (duration <= 0) {
                             continue;
                         }
@@ -172,6 +176,7 @@ bool NoteTakerParseMidi::parseMidi() {
                         debug("%u note off %s", &*ri - &parsedNotes.front(), 
                                 ri->debugString().c_str());
                         ri->duration = duration;
+                        ri->setSlur(setSlur);
                         ri->setOffVelocity(velocity);
                         break;
                     }

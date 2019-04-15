@@ -616,7 +616,8 @@ void NoteTaker::step() {
             }
         } else {
             unsigned prior = channelInfo.noteIndex;
-            channelInfo.gateLow = note.startTime + channelInfo.sustain(note.duration);
+            channelInfo.gateLow = note.slur() && start < lastNote ? INT_MAX : 
+                    note.startTime + channelInfo.sustain(note.duration);
             channelInfo.noteEnd = endTime;
             channelInfo.noteIndex = noteIndex;
             if (false) debug("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d",

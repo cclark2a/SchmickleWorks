@@ -7,6 +7,7 @@
 #include <float.h>
 #include <functional>
 #include <limits.h>
+#include <math.h>
 #include <stdint.h>
 #include "NoteTakerConstants.hpp"
 

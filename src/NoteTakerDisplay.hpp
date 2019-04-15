@@ -51,9 +51,11 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
     void applyKeySignature();
     void cacheBeams();
+    void cacheSlurs();
     void cacheTuplets();
     void clearTuplet(unsigned index, unsigned limit);
     void closeBeam(unsigned start, unsigned limit);
+    void closeSlur(unsigned start, unsigned limit);
     void draw(NVGcontext* ) override;
     void drawBar(NVGcontext* , int xPos);
     void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& , const NoteCache& ,
@@ -71,6 +73,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawNotes(NVGcontext* , BarPosition& bar, int nextBar);
     void drawPartControl(NVGcontext* ) const;
     void drawSelectionRect(NVGcontext* ) const;
+    void drawSlur(NVGcontext* , unsigned start, float alpha) const;
     void drawStaffLines(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
     void drawTieControl(NVGcontext* ) ;

@@ -61,6 +61,7 @@ struct BeamPositions {
     unsigned beamMin = INT_MAX;
     float xOffset;
     int yOffset;
+    float slurOffset;
     float sx;
     float ex;
     int yStemExtend;
@@ -221,6 +222,42 @@ void NoteTakerDisplay::cacheBeams() {
     }
 }
 
+void NoteTakerDisplay::cacheSlurs() {
+    array<unsigned, CHANNEL_COUNT> slurStarts;
+    slurStarts.fill(INT_MAX);
+    for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
+        const DisplayNote& note = nt->allNotes[index];
+        if (NOTE_ON != note.type) {
+            continue;
+        }
+        NoteCache& noteCache = cache[index];
+        unsigned& slurStart = slurStarts[note.channel];
+        bool checkForStart = true;
+        if (INT_MAX != slurStart) {
+            if (!note.slur()) {
+                this->closeSlur(slurStart, index);
+                debug("set slur close %s", nt->allNotes[slurStart].debugString().c_str());
+                slurStart = INT_MAX;
+            } else {
+                noteCache.slurPosition = PositionType::mid;
+                checkForStart = false;
+                debug("set slur mid %s", note.debugString().c_str());
+            }
+        }
+        if (checkForStart && note.slur()) {
+            slurStart = index;
+            noteCache.slurPosition = PositionType::left;
+            debug("set slur left %s", note.debugString().c_str());
+        }
+    }
+    for (auto slurStart : slurStarts) {
+        if (INT_MAX != slurStart) {
+            this->closeSlur(slurStart, cache.size());
+            debug("slur unmatched %s", nt->allNotes[slurStart].debugString().c_str());
+        }
+    }
+}
+
 void NoteTakerDisplay::cacheTuplets() {
     array<unsigned, CHANNEL_COUNT> tripStarts;
     tripStarts.fill(INT_MAX);
@@ -291,6 +328,23 @@ void NoteTakerDisplay::closeBeam(unsigned first, unsigned limit) {
         }
     }
     cache[last].beamPosition = last == first ? PositionType::none : PositionType::right;
+}
+
+void NoteTakerDisplay::closeSlur(unsigned first, unsigned limit) {
+    assert(PositionType::left == cache[first].slurPosition);
+    int chan = nt->allNotes[first].channel;
+    unsigned last = first;
+    unsigned index = first;
+    while (++index < limit) {
+        if (chan == nt->allNotes[index].channel) {
+            if (PositionType::mid != cache[index].slurPosition) {
+                break;
+            }
+            last = index;
+        }
+    }
+    cache[last].slurPosition = last == first ? PositionType::none : PositionType::right;
+    debug("close slur first %d last %d pos %u", first, last, cache[last].slurPosition);
 }
 
 void NoteTakerDisplay::drawBar(NVGcontext* vg, int midiTime) {
@@ -584,6 +638,9 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
                 }
                 if (PositionType::left == cache[index].tupletPosition) {
                     this->drawTuple(vg, index, alpha, drawBeams);
+                }
+                if (PositionType::left == cache[index].slurPosition) {
+                    this->drawSlur(vg, index, alpha);
                 }
             } break;
             case REST_TYPE:
@@ -968,6 +1025,43 @@ void NoteTakerDisplay::drawPartControl(NVGcontext* vg) const {
     }
 }
 
+// to do : share code with drawing ties?
+// to do : mock score software ?
+// in scoring software, slur is drawn from first to last, offset by middle, if needed
+void NoteTakerDisplay::drawSlur(NVGcontext* vg, unsigned start, float alpha) const {
+    BeamPositions bp;
+    unsigned index = start;
+    int chan = nt->allNotes[start].channel;
+    do {
+        if (chan != nt->allNotes[index].channel) {
+            continue;
+        }
+        if (PositionType::right == cache[index].slurPosition) {
+            this->setBeamPos(start, index, &bp);
+            break;
+        }
+    } while (++index < cache.size());
+    assert(PositionType::right == cache[index].slurPosition);
+    NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
+    nvgFillColor(vg, color);
+    float yOff = bp.slurOffset;
+    int midOff = (cache[start].stemUp ? 2 : -2);
+    float xMid = (bp.sx + bp.ex) / 2;
+    float yStart = cache[start].yPosition + yOff * 2;
+    float yEnd = cache[index].yPosition + yOff * 2;
+    float yMid = (yStart + yEnd) / 2;
+    float dx = bp.ex - bp.sx;
+    float dy = yEnd - yStart;
+    float len = sqrt(dx * dx + dy * dy);
+    float dyxX = dx / len * midOff;
+    float dyxY = dy / len * midOff;
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, bp.sx + 2, yStart + yOff);
+    nvgQuadTo(vg, xMid - dyxY,     yMid + yOff + dyxX,     bp.ex - 2, yEnd + yOff);
+    nvgQuadTo(vg, xMid - dyxY * 2, yMid + yOff + dyxX * 2, bp.sx + 2, yStart + yOff);
+    nvgFill(vg);
+}
+
 void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
     // draw vertical control
     nvgBeginPath(vg);
@@ -1143,18 +1237,19 @@ void NoteTakerDisplay::drawTuple(NVGcontext* vg, unsigned start, float alpha, bo
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     float centerX = (bp.sx + bp.ex) / 2;
     bool stemUp = cache[start].stemUp;
-    float yOffset = stemUp ? -1 : 6.5;
+    float yOffset = stemUp ? -1 : 7.5;
     nvgText(vg, centerX, bp.y + yOffset, "3", NULL);
     // to do : if !drew beam, draw square brackets on either side of '3'
     if (!drewBeam) {
         bp.sx -= 2;
-        bp.y += stemUp ? 0 : 2;
+        bp.y += stemUp ? 0 : 3;
         nvgBeginPath(vg);
         nvgMoveTo(vg, bp.sx, bp.y);
         bp.y += stemUp ? -3 : 3;
         nvgLineTo(vg, bp.sx, bp.y);
         nvgLineTo(vg, centerX - 3, bp.y);
         nvgMoveTo(vg, centerX + 3, bp.y);
+        bp.ex += 2;
         nvgLineTo(vg, bp.ex, bp.y);
         bp.y -= stemUp ? -3 : 3;
         nvgLineTo(vg, bp.ex, bp.y);
@@ -1245,6 +1340,7 @@ void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* 
     float yMax = 0;
     float yMin = FLT_MAX;
     unsigned beamMax = 0;
+    unsigned lastMeasured = first;
     do {
         if (chan != nt->allNotes[index].channel) {
             continue;
@@ -1254,19 +1350,27 @@ void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* 
         yMin = std::min(noteCache.yPosition, yMin);
         beamMax = std::max((unsigned) noteCache.beamCount, beamMax);
         bp->beamMin = std::min((unsigned) noteCache.beamCount, bp->beamMin);
+        lastMeasured = index;
     } while (++index <= last);
     bool stemUp = cache[first].stemUp;
     bp->xOffset = stemUp ? 14 : 7.75;
     bp->yOffset = stemUp ? 5 : -5;
     bp->sx = cache[first].xPosition + bp->xOffset;
     bp->ex = cache[last].xPosition + bp->xOffset;
-    int yStem = stemUp ? -22.5 : 15.5;
+    int yStem = stemUp ? -22 : 15;
     bp->yStemExtend = yStem + (stemUp ? 0 : 3);
     bp->y = (stemUp ? yMin : yMax) + yStem;
     if (beamMax > 3) {
         bp->y -= ((int) beamMax - 3) * bp->yOffset;
     }
     bp->yLimit = bp->y + (stemUp ? 0 : 3);
+    if (stemUp) {
+        int highFirstLastY = std::max(cache[first].yPosition, cache[lastMeasured].yPosition);
+        bp->slurOffset = std::max(0.f, yMax - highFirstLastY);
+    } else {
+        int lowFirstLastY = std::min(cache[first].yPosition, cache[lastMeasured].yPosition);
+        bp->slurOffset = std::min(0.f, yMin - lowFirstLastY) - 3;
+    }
 }
 
 void NoteTakerDisplay::setKeySignature(int key) {
@@ -1351,7 +1455,7 @@ void NoteTakerDisplay::updateXPosition() {
             case NOTE_ON: {
                 const StaffNote& pitch = pitchMap[note.pitch()];
                 noteCache.yPosition = this->yPos(pitch.position);
-                noteCache.stemUp = this->stemUp(pitch.position);
+                noteCache.stemUp = this->stemUp(pitch.position);             
             }
                 // fall through ...
             case REST_TYPE: {  // add space if note is dotted (any symbol mapping will do)
@@ -1390,5 +1494,6 @@ void NoteTakerDisplay::updateXPosition() {
         }
     }
     this->cacheBeams();
+    this->cacheSlurs();
     debug("updateXPosition size %u", cache.size());
 }
