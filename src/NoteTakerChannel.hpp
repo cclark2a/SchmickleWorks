@@ -29,6 +29,8 @@ struct NoteTakerChannel {
         this->reset();
     }
 
+    std::string debugString() const;
+
     static int DefaultLimit(Limit limit) {
          switch (limit) {
             case Limit::releaseMax:

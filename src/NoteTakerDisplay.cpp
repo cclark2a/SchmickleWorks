@@ -801,7 +801,7 @@ void NoteTakerDisplay::draw(NVGcontext* vg) {
     if (nt->tieButton->ledOn) {
         this->drawTieControl(vg);
     }
-    if (nt->isRunning()) {
+    if (nt->runningWithButtonsOff()) {
         this->drawDynamicPitchTempo(vg);
     }
 	FramebufferWidget::draw(vg);
@@ -1120,7 +1120,7 @@ void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
         }
         assert(susMin + susMax + relMin + relMax <= box.size.x - 80);
     }
-    debug("sus %d %d rel %d %d", susMin, susMax, relMin, relMax);
+    if (false) debug("sus %d %d rel %d %d", susMin, susMax, relMin, relMax);
     nvgMoveTo(vg, 40, box.size.y - 5);
     nvgLineTo(vg, 40, box.size.y - 20);
     nvgLineTo(vg, 40 + susMin, box.size.y - 20);
@@ -1153,6 +1153,7 @@ void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
         nvgStrokeWidth(vg, 1 + (0 == select));
         nvgStroke(vg);
     }
+    nvgFontFaceId(vg, nt->musicFont->handle);
     nvgFontSize(vg, 24);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 2 == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[

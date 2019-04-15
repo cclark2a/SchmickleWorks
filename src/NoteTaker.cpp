@@ -19,7 +19,7 @@ NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS)
 
 float NoteTaker::beatsPerHalfSecond(int localTempo) const {
     float deltaTime = (float) stdMSecsPerQuarterNote / localTempo;
-    if (this->isRunning() && !fileButton->ledOn) {
+    if (this->runningWithButtonsOff()) {
         // to do : decide how external clock works
         // external clock input could work in one of three modes:
         // 1/2) input voltage overrides / multiplies wheel value
@@ -342,7 +342,13 @@ void NoteTaker::resetRun() {
     }
     this->setPlayStart();
 }
-    
+
+bool NoteTaker::runningWithButtonsOff() const {
+    return this->isRunning() && !fileButton->ledOn
+            && !partButton->ledOn && !sustainButton->ledOn && !tieButton->ledOn;
+
+}
+
 void NoteTaker::saveScore() {
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index <= storage.size());
@@ -634,7 +640,7 @@ void NoteTaker::step() {
         // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
         if (note.channel < CV_OUTPUTS) {
             float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-            if (running && !fileButton->ledOn) {
+            if (runningWithButtonsOff()) {
                 bias += inputs[V_OCT_INPUT].value;
                 bias += (verticalWheel->wheelValue() - 60) / 12.f;
             }
@@ -656,7 +662,8 @@ void NoteTaker::step() {
 void NoteTaker::turnOffLedButtons(const NoteTakerButton* exceptFor) {
     for (NoteTakerButton* button : {
                 (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
-                (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton }) {
+                (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton,
+                (NoteTakerButton*) tieButton }) {
         if (exceptFor != button) {
             button->onTurnOff();
         }

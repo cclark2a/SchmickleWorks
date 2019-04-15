@@ -145,8 +145,7 @@ struct NoteTaker : Module {
             if (chan.noteIndex >= allNotes.size()) {
                 continue;
             }
-            debug("[%d] %u note=%s gateLow=%d noteEnd=%d", index, chan.noteIndex,
-                    allNotes[chan.noteIndex].debugString().c_str(), chan.gateLow, chan.noteEnd);
+            debug("[%d] %s", index, chan.debugString().c_str());
         }
     }
 
@@ -259,6 +258,7 @@ struct NoteTaker : Module {
     void resetRun();
     void resetState();
     bool resetControls();
+    bool runningWithButtonsOff() const;
     void saveScore();
 
     unsigned selectEndPos(unsigned select) const {

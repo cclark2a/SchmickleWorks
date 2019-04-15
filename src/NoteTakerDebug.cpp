@@ -30,8 +30,11 @@ std::string DisplayNote::debugString() const {
     switch (type) {
         case NOTE_ON:
             s += " pitch=" + std::to_string(pitch());
-            s += " onVelocity=" + std::to_string(onVelocity());
-            s += " offVelocity=" + std::to_string(offVelocity());
+            if (slur()) {
+                s += " slur";
+            }
+            s += " onVel=" + std::to_string(onVelocity());
+            s += " offVel=" + std::to_string(offVelocity());
             break;
         case REST_TYPE:
             break;
@@ -45,10 +48,10 @@ std::string DisplayNote::debugString() const {
             s += " minor=" + std::to_string(minor());
             break;
         case TIME_SIGNATURE:
-            s += " numerator=" + std::to_string(numerator());
-            s += " denominator=" + std::to_string(denominator());
-            s += " clocksPerClick=" + std::to_string(clocksPerClick());
-            s += " 32ndsPerQuarter=" + std::to_string(notated32NotesPerQuarterNote());
+            s += " numer=" + std::to_string(numerator());
+            s += " denom=" + std::to_string(denominator());
+            s += " clocks=" + std::to_string(clocksPerClick());
+            s += " 32nds=" + std::to_string(notated32NotesPerQuarterNote());
             break;
         case MIDI_TEMPO:
             s += " tphs=" + std::to_string(tphs());
@@ -115,7 +118,11 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
         std::string s;
         if (cache) {
             const NoteCache& c = (*cache)[index];
-            s = "[" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
+            s = std::to_string(index);
+            s += " [" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
+            if (PositionType::none != c.slurPosition) {
+                s += "s " + PosAsStr(c.slurPosition);
+            }
             if (PositionType::none != c.beamPosition) {
                 s += "b" + PosAsStr(c.beamPosition) + std::to_string(c.beamCount) + " ";
             }
@@ -241,4 +248,16 @@ void NoteTaker::validate() const {
     if (malformed) {
         assert(0);
     }
+}
+
+std::string NoteTakerChannel::debugString() const {
+    std::string s;    
+    s =   "relMax " + std::to_string(releaseMax);
+    s += " relMin " + std::to_string(releaseMin);
+    s += " susMin " + std::to_string(sustainMin);
+    s += " susMax " + std::to_string(sustainMax);
+    s += " noteIdx " + std::to_string(noteIndex);
+    s += " gateLow " + std::to_string(gateLow);
+    s += " noteEnd " + std::to_string(noteEnd);
+    return s;
 }

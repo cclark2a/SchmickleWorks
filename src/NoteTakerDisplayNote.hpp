@@ -56,6 +56,7 @@ struct DisplayNote {
     }
 
     void setPitch(int pitch) {
+        assert(pitch);  // to do : remove this, since pitch of zero is legal
         data[0] = pitch;
         assertValid(NOTE_ON);
     }

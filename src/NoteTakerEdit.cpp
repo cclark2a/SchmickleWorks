@@ -147,10 +147,25 @@ void NoteTaker::setWheelRange() {
 }
 
 void NoteTaker::updateHorizontal() {
-    if (this->isRunning()) {
+    if (fileButton->ledOn) {
         return;
     }
-    if (fileButton->ledOn) {
+    if (partButton->ledOn) {
+        int part = horizontalWheel->part();
+        partButton->allChannels = part < 0;
+        if (!partButton->allChannels) {
+            partButton->addChannel = (uint8_t) part;
+            // to do : update selectChannels before part button is turned off ?
+        }
+        return;
+    }
+    if (sustainButton->ledOn) {
+        NoteTakerChannel& channel = channels[partButton->addChannel];
+        channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value,
+                NoteDurations::ToMidi(horizontalWheel->value, ppq));
+        return;
+    }
+    if (this->isRunning()) {
         return;
     }
     if (tieButton->ledOn) {
@@ -177,28 +192,13 @@ void NoteTaker::updateHorizontal() {
         }
         return;
     }
-    if (partButton->ledOn) {
-        int part = horizontalWheel->part();
-        partButton->allChannels = part < 0;
-        if (!partButton->allChannels) {
-            partButton->addChannel = (uint8_t) part;
-            // don't update selectChannels until part button is turned off
-        }
-        return;
-    }
     if (!horizontalWheel->hasChanged()) {
-        return;
-    }
-    const int wheelValue = horizontalWheel->wheelValue();
-    if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = channels[partButton->addChannel];
-        channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value,
-                NoteDurations::ToMidi(wheelValue, ppq));
         return;
     }
     if (isEmpty()) {
         return;
     }
+    const int wheelValue = horizontalWheel->wheelValue();
     bool noteChanged = false;
     if (!selectButton->ledOn) {
         array<int, CHANNEL_COUNT> diff;
@@ -331,6 +331,7 @@ void NoteTaker::updateVertical() {
                 assert(0);
         }
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainDuration, ppq));
+        return;
     }
     // transpose selection
     // loop below computes diff of first note, and adds diff to subsequent notes in select
