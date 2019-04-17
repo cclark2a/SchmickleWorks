@@ -8,7 +8,7 @@ void NoteTaker::setHorizontalWheelRange() {
         return;
     }
     if (this->isRunning()) {
-        horizontalWheel->setLimits(0, (NoteDurations::Count() - 1) - .001f); // tempo relative to quarter note
+        horizontalWheel->setLimits(0, NoteDurations::Count() - .001f); // tempo relative to quarter note
         horizontalWheel->setValue(NoteDurations::FromStd(stdTimePerQuarterNote));
         horizontalWheel->speed = 1;
         return;
@@ -44,18 +44,29 @@ void NoteTaker::setHorizontalWheelRange() {
     int value = INT_MAX;
     if (!selectButton->ledOn) {
         const DisplayNote* note = &allNotes[selectStart];
-        if (selectStart + 1 == selectEnd
-                && (KEY_SIGNATURE == note->type || TIME_SIGNATURE == note->type)) {
-            if (TIME_SIGNATURE == note->type) {
-                horizontalWheel->setLimits(1, 99.999f);   // denom limit 0 to 6 (2^N, 1 to 64)
-                horzSpeed = .1;
-                value = note->numerator();
+        if (selectStart + 1 == selectEnd && note->isSignature()) {
+            switch (note->type) {
+                case TIME_SIGNATURE:
+                    horizontalWheel->setLimits(1, 99.999f);   // denom limit 0 to 6 (2^N, 1 to 64)
+                    horzSpeed = .1;
+                    value = note->numerator();
+                    break;
+                case KEY_SIGNATURE:
+                    // nothing to do : horizontal wheel doesn't affect key signature
+                    break;
+                case MIDI_TEMPO: {
+                    horizontalWheel->setLimits(0, NoteDurations::Count() - 0.001f);
+                    float fValue = NoteDurations::FromStd(note->tempo() * stdTimePerQuarterNote / 500000);
+                    horizontalWheel->setValue(fValue);
+                    horizontalWheel->speed = horzSpeed;
+                    return;
+                }
+                default:
+                    assert(0); // incomplete
             }
-            // otherwise, do nothing for key signature
         } else {
             unsigned start = selectStart;
-            while ((KEY_SIGNATURE == note->type || TIME_SIGNATURE == note->type)
-                    && start < selectEnd) {
+            while (note->isSignature() && start < selectEnd) {
                 note = &allNotes[++start];
             }
             if (note->isNoteOrRest()) {
@@ -115,19 +126,25 @@ void NoteTaker::setVerticalWheelRange() {
         return;
     }
     DisplayNote* note = &allNotes[selectStart];
-    if (selectStart + 1 == selectEnd) {
-        if (KEY_SIGNATURE == note->type) {
-            verticalWheel->setLimits(-7, 7);
-            verticalWheel->setValue(note->key());
-            verticalWheel->speed = 1;
-            return;
+    if (selectStart + 1 == selectEnd && note->isSignature()) {
+        switch (note->type) {
+            case KEY_SIGNATURE:
+                verticalWheel->setLimits(-7, 7);
+                verticalWheel->setValue(note->key());
+                verticalWheel->speed = 1;
+                break;
+            case TIME_SIGNATURE:
+                verticalWheel->setLimits(0, 1);
+                verticalWheel->setValue(0);
+                verticalWheel->speed = 1;
+                break;
+            case MIDI_TEMPO:
+                // nothing to do : tempo is note affected by vertical wheel
+                break;
+            default:
+                assert(0); // incomplete
         }
-        if (TIME_SIGNATURE == note->type) {
-            verticalWheel->setLimits(0, 1);
-            verticalWheel->setValue(0);
-            verticalWheel->speed = 1;
-            return;
-        }
+        return;
     }
     unsigned start = selectStart;
     while (start < selectEnd && !note->isSelectable(selectChannels)) {
@@ -192,6 +209,15 @@ void NoteTaker::updateHorizontal() {
         }
         return;
     }
+
+    if (!selectButton->ledOn && selectStart + 1 == selectEnd) {
+        DisplayNote& note = allNotes[selectStart];
+        if (MIDI_TEMPO == note.type) {
+            note.setTempo(this->wheelToTempo(horizontalWheel->value) * 500000);
+            return;
+        }
+    }
+
     if (!horizontalWheel->hasChanged()) {
         return;
     }
@@ -216,6 +242,7 @@ void NoteTaker::updateHorizontal() {
                         note.duration = duration;
                         } break;
                     case KEY_SIGNATURE:
+                        // nothing to do : key signature is not affected by horizontal wheel
                         break;
                     case TIME_SIGNATURE:
                         if (selectStart + 1 == selectEnd) {
@@ -229,9 +256,7 @@ void NoteTaker::updateHorizontal() {
                         }
                         break;
                     case MIDI_TEMPO:
-                        // to do : incomplete
-                        // show tempo in bpm
-                        // tphs * 3 / 12500 == bpm
+                        // handled above, to get full wheel resolution
                         break;
                     default:
                         assert(0);
@@ -358,6 +383,9 @@ void NoteTaker::updateVertical() {
                         horizontalWheel->speed = .1;
                     }
                 }
+                break;
+            case MIDI_TEMPO:
+                // tempo unaffected by vertical wheel
                 break;
             case NOTE_ON: {
                 if (!note.isSelectable(selectChannels)) {

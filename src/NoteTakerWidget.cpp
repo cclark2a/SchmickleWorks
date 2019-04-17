@@ -80,6 +80,10 @@ struct NoteTakerWidget : ModuleWidget {
                 module, NoteTaker::TEMPO_BUTTON, 0.0f, 1.0f, 0.0f);
         addParam(module->tempoButton);
 
+        // debug button is hidden to the right of tempo
+        addParam(ParamWidget::create<DumpButton>(Vec(222, 252),
+                module, NoteTaker::TEMPO_BUTTON, 0.0f, 1.0f, 0.0f));
+
         const bool runUnitTest = true;
         if (runUnitTest) {
             extern void UnitTest(NoteTaker* );

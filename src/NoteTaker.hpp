@@ -4,6 +4,7 @@
 #include "NoteTakerDisplayNote.hpp"
 
 struct CutButton;
+struct DumpButton;
 struct FileButton;
 struct InsertButton;
 struct KeyButton;
@@ -91,7 +92,7 @@ struct NoteTaker : Module {
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
     unsigned selectEnd = 0;                 // one past last selected
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
-    int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute
+    int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
     int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
@@ -112,12 +113,21 @@ struct NoteTaker : Module {
     NoteTaker();
 
     bool advancePlayStart(int midiTime, unsigned lastNote) {
-        while (allNotes[playStart].endTime() <= midiTime) {
+        do {
+            const auto& note = allNotes[playStart];
+            if (note.endTime() > midiTime) {
+                break;
+            }
             if (playStart == lastNote) {
                 return true;
             }
+            if (MIDI_TEMPO == note.type) {
+                tempo = note.tempo();
+                externalClockTempo = (int) ((float) externalClockTempo / stdMSecsPerQuarterNote
+                        * tempo);
+            }
             ++playStart;
-        }
+        } while (true);
         return false;
     }
 
@@ -154,11 +164,13 @@ struct NoteTaker : Module {
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static void DebugDumpRawMidi(vector<uint8_t>& v);
 
+    void enableInsertSignature(unsigned loc);
     void eraseNotes(unsigned start, unsigned end);
     int externalTempo(bool clockEdge);
     bool extractClipboard(vector<DisplayNote>* ) const;
     void fromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
+    bool insertContains(unsigned loc, DisplayType type) const;
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
     bool isEmpty() const;
     bool isRunning() const;
@@ -382,6 +394,7 @@ struct NoteTaker : Module {
     void updateXPosition();
     void validate() const;
     unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in allNotes
+    float wheelToTempo(float value) const;
     void writeStorage(unsigned index) const;
 
     void zeroGates() {

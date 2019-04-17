@@ -105,7 +105,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 add_one(midiMetaEvent);
                 add_one(midiSetTempo);
                 add_one(3); // number of bytes of data to follow
-                add_size24(n.tphs());
+                add_size24(n.tempo());
                 break;
             case TRACK_END:
                 for (auto last : lastNotes) {

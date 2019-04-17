@@ -81,6 +81,8 @@ struct BeamPositions {
 
 const int CLEF_WIDTH = 96;
 const int TIME_SIGNATURE_WIDTH = 48;
+const float MIN_KEY_SIGNATURE_WIDTH = 4;
+const int TEMPO_WIDTH = 4;
 // key signature width is variable, from 0 (C) to NOTE_WIDTH*14+18 (C# to Cb, 7 naturals, 7 flats, space for 2 bars)
 const int ACCIDENTAL_WIDTH = 12;
 const int BAR_WIDTH = 12;
@@ -380,7 +382,7 @@ void NoteTakerDisplay::drawBar(NVGcontext* vg, int midiTime) {
 // likewise, avoid drawing ties and slurs on top of notes and each other
 // to get started though, draw ties for each note that needs it
 void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const DisplayNote& note,
-        const NoteCache& noteCache, int alpha) {
+        const NoteCache& noteCache, unsigned char alpha) {
     const Accidental lookup[][3]= {
     // next:      no                  #                b           last:
         { NO_ACCIDENTAL,      SHARP_ACCIDENTAL, FLAT_ACCIDENTAL }, // no
@@ -433,7 +435,7 @@ void NoteTakerDisplay::drawBarNote(NVGcontext* vg, BarPosition& bar, const Displ
 
 // to do : whole rest should be centered in measure
 void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const DisplayNote& note,
-        int xPos, int alpha) const {
+        int xPos, unsigned char alpha) const {
     const char restSymbols[] = "oppqqrrssttuuvvwwxxyy";
     // to do : if rest is part of triplet, adjust duration before lookup
     unsigned symbol = NoteDurations::FromMidi(note.duration, nt->ppq);
@@ -456,7 +458,7 @@ void NoteTakerDisplay::drawBarRest(NVGcontext* vg, BarPosition& bar, const Displ
     } while (symbol);
 }
 
-void NoteTakerDisplay::drawBeam(NVGcontext* vg, unsigned start, float alpha) const {
+void NoteTakerDisplay::drawBeam(NVGcontext* vg, unsigned start, unsigned char alpha) const {
     assert(PositionType::left == cache[start].beamPosition);
     assert(nt->allNotes.size() == cache.size());
     BeamPositions bp;
@@ -472,9 +474,7 @@ void NoteTakerDisplay::drawBeam(NVGcontext* vg, unsigned start, float alpha) con
         }
     } while (++index < cache.size());
     assert(PositionType::right == cache[index].beamPosition);
-    NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
-    nvgFillColor(vg, color);
-    nvgStrokeColor(vg, color);
+    SetNoteColor(vg, chan, alpha);
     for (unsigned count = 0; count < bp.beamMin; ++count) {
         bp.drawOneBeam(vg);
     }
@@ -558,7 +558,7 @@ void NoteTakerDisplay::drawClefs(NVGcontext* vg) const {
 }
 
 void NoteTakerDisplay::drawFreeNote(NVGcontext* vg, const DisplayNote& note,
-        int xPos, int alpha) const {
+        int xPos, unsigned char alpha) const {
     const StaffNote& pitch = pitchMap[note.pitch()];
     NoteCache noteCache;
     noteCache.resetTupleBeam();
@@ -571,7 +571,7 @@ void NoteTakerDisplay::drawFreeNote(NVGcontext* vg, const DisplayNote& note,
 }
 
 void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Accidental accidental,
-        const NoteCache& noteCache, int alpha, int size, int xOffset) const {
+        const NoteCache& noteCache, unsigned char alpha, int size, int xOffset) const {
     const StaffNote& pitch = pitchMap[note.pitch()];
     float yPos = noteCache.yPosition;
     float staffLine = pitch.position * 3 - 51;
@@ -597,8 +597,7 @@ void NoteTakerDisplay::drawNote(NVGcontext* vg, const DisplayNote& note, Acciden
         nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
         nvgStroke(vg);
     }
-    nvgFillColor(vg, nvgRGBA((1 == note.channel) * 0xBf, (3 == note.channel) * 0x7f,
-            (2 == note.channel) * 0x7f, alpha));
+    SetNoteColor(vg, note.channel, alpha);
     nvgFontFaceId(vg, nt->musicFont->handle);
     nvgFontSize(vg, size);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
@@ -630,7 +629,7 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
         }
         switch (note.type) {
             case NOTE_ON: {
-                int alpha = nt->isSelectable(note) ? 0xff : 0x7f;
+                unsigned char alpha = nt->isSelectable(note) ? 0xff : 0x7f;
                 this->drawBarNote(vg, bar, note, cache[index], alpha);
                 bool drawBeams = PositionType::left == cache[index].beamPosition;
                 if (drawBeams) {
@@ -692,6 +691,8 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
                 std::string numerator = std::to_string(note.numerator());
                 xPos += -4 * (numerator.size() - 1) + 3;
+                nvgFontFaceId(vg, nt->musicFont->handle);
+                nvgFontSize(vg, 42);
                 nvgText(vg, xPos, 32 * 3 - 49, numerator.c_str(), NULL);
                 nvgText(vg, xPos, 44 * 3 - 49, numerator.c_str(), NULL);
                 std::string denominator = std::to_string(1 << note.denominator());
@@ -700,6 +701,7 @@ void NoteTakerDisplay::drawNotes(NVGcontext* vg, BarPosition& bar, int nextBar) 
                 nvgText(vg, xPos, 48 * 3 - 49, denominator.c_str(), NULL);
             } break;
             case MIDI_TEMPO:
+                this->drawTempo(vg, cache[index].xPosition, note.tempo(), 0xFF);
             break;
             case TRACK_END:
             break;
@@ -720,26 +722,32 @@ void NoteTakerDisplay::drawSelectionRect(NVGcontext* vg) const {
     if (nt->selectButton->editStart()) {
         channel = 1 << nt->partButton->addChannel;
     } else {
+        channel = nt->selectChannels;
         if (nt->fileButton->ledOn) {
             yHeight = box.size.y - 35;
         }
-        if (nt->selectStart + 1 == nt->selectEnd && !nt->selectButton->ledOn) {
+        if (nt->selectStart + 1 == nt->selectEnd) {
             DisplayType noteType = nt->allNotes[nt->selectStart].type;
             if (TIME_SIGNATURE == noteType) {
-                yTop = (1 - (int) nt->verticalWheel->value) * 12 + 35;
-                yHeight = 13;
+                if (!nt->selectButton->ledOn) {
+                    yTop = (1 - (int) nt->verticalWheel->value) * 12 + 35;
+                    yHeight = 13;
+                }
+            } else if (MIDI_TEMPO == noteType) {
+                nvgBeginPath(vg);
+                nvgRect(vg, xStart + width, yTop, 30 - width, 12);
+                SetSelectColor(vg, channel);
+                nvgFill(vg);
             }
         }
         if (nt->selectEnd > 0) {
             xStart = cache[nt->selectStart].xPosition;
             width = cache[nt->selectEndPos(nt->selectEnd - 1)].xPosition - xStart;
         }
-        channel = nt->selectChannels;
     }
     nvgBeginPath(vg);
     nvgRect(vg, xStart, yTop, width, yHeight);
-    nvgFillColor(vg, nvgRGBA((2 == channel) * 0xBf, (8 == channel) * 0x7f,
-            (4 == channel) * 0x7f, ALL_CHANNELS == channel ? 0x3f : 0x1f));
+    SetSelectColor(vg, channel);
     nvgFill(vg);
 }
 
@@ -830,18 +838,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo(NVGcontext* vg) {
         this->drawFreeNote(vg, note, box.size.x - 7, dynamicPitchAlpha);
     }
     if (dynamicTempoAlpha > 0) {
-        nvgBeginPath(vg);
-        nvgRect(vg, 2, 2, 30, 12);
-        nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicTempoAlpha));
-        nvgFill(vg);
-        nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicTempoAlpha));
-        nvgFontFaceId(vg, nt->musicFont->handle);
-        nvgFontSize(vg, 16);
-        nvgText(vg, 5, 10, "H", nullptr);
-        nvgFontFaceId(vg, nt->textFont->handle);
-        nvgFontSize(vg, 12);
-        std::string tempoStr("= " + std::to_string((int) (120.f * nt->beatsPerHalfSecond(nt->tempo))));
-        nvgText(vg, 9, 10, tempoStr.c_str(), nullptr);
+        this->drawTempo(vg, 2, nt->tempo, dynamicTempoAlpha);
     }
 }
 
@@ -995,14 +992,11 @@ void NoteTakerDisplay::drawPartControl(NVGcontext* vg) const {
             nvgRect(vg, 60 + index * boxWidth, box.size.y - 15,
                    boxWidth, 10);            
         }
-        nvgFillColor(vg, nvgRGBA((1 == index) * 0xBf, (3 == index) * 0x7f,
-                (2 == index) * 0x7f, index == part ? 0xaf : 0x6f));
+        SetPartColor(vg, index, part);
         nvgFill(vg);
         nvgBeginPath(vg);
         nvgCircle(vg, 60 + (index + 0.5f) * boxWidth,
             box.size.y - boxHeight / 2 - 15, 7);
-        nvgFillColor(vg, nvgRGBA((1 == index) * 0xBf, (3 == index) * 0x7f,
-                (2 == index) * 0x7f, index == part ? 0xcf : 0x6f));
         nvgFill(vg);
         const char num[2] = { (char) ('1' + index), '\0' };
         nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xbf));
@@ -1028,7 +1022,7 @@ void NoteTakerDisplay::drawPartControl(NVGcontext* vg) const {
 // to do : share code with drawing ties?
 // to do : mock score software ?
 // in scoring software, slur is drawn from first to last, offset by middle, if needed
-void NoteTakerDisplay::drawSlur(NVGcontext* vg, unsigned start, float alpha) const {
+void NoteTakerDisplay::drawSlur(NVGcontext* vg, unsigned start, unsigned char alpha) const {
     BeamPositions bp;
     unsigned index = start;
     int chan = nt->allNotes[start].channel;
@@ -1042,8 +1036,7 @@ void NoteTakerDisplay::drawSlur(NVGcontext* vg, unsigned start, float alpha) con
         }
     } while (++index < cache.size());
     assert(PositionType::right == cache[index].slurPosition);
-    NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
-    nvgFillColor(vg, color);
+    SetNoteColor(vg, chan, alpha);
     float yOff = bp.slurOffset;
     int midOff = (cache[start].stemUp ? 2 : -2);
     float xMid = (bp.sx + bp.ex) / 2;
@@ -1173,6 +1166,21 @@ void NoteTakerDisplay::drawSustainControl(NVGcontext* vg) const {
     }
 }
 
+void NoteTakerDisplay::drawTempo(NVGcontext* vg, int xPos, int tempo, unsigned char alpha) {
+    nvgBeginPath(vg);
+    nvgRect(vg, xPos, 2, 30, 12);
+    nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, alpha));
+    nvgFill(vg);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
+    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontSize(vg, 16);
+    nvgText(vg, xPos + 3, 10, "H", nullptr);
+    nvgFontFaceId(vg, nt->textFont->handle);
+    nvgFontSize(vg, 12);
+    std::string tempoStr("= " + std::to_string((int) (120.f * nt->beatsPerHalfSecond(tempo))));
+    nvgText(vg, xPos + 7, 10, tempoStr.c_str(), nullptr);
+}
+
 // to do : maybe objectify this and share common code for display controls
 void NoteTakerDisplay::drawTieControl(NVGcontext* vg) {
     const char labels[] = {'{', 'H', '>'};
@@ -1216,7 +1224,8 @@ void NoteTakerDisplay::drawTieControl(NVGcontext* vg) {
     nvgStroke(vg);
 }
 
-void NoteTakerDisplay::drawTuple(NVGcontext* vg, unsigned start, float alpha, bool drewBeam) const {
+void NoteTakerDisplay::drawTuple(NVGcontext* vg, unsigned start, unsigned char alpha,
+        bool drewBeam) const {
     BeamPositions bp;
     unsigned index = start;
     int chan = nt->allNotes[start].channel;
@@ -1230,8 +1239,7 @@ void NoteTakerDisplay::drawTuple(NVGcontext* vg, unsigned start, float alpha, bo
         }
     } while (++index < cache.size());
     assert(PositionType::right == cache[index].tupletPosition);
-    NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
-    nvgFillColor(vg, color);
+    SetNoteColor(vg, chan, alpha);
     // draw '3' at center of notes above or below staff
     nvgFontFaceId(vg, nt->musicFont->handle);
     nvgFontSize(vg, 16);
@@ -1255,7 +1263,6 @@ void NoteTakerDisplay::drawTuple(NVGcontext* vg, unsigned start, float alpha, bo
         bp.y -= stemUp ? -3 : 3;
         nvgLineTo(vg, bp.ex, bp.y);
         nvgStrokeWidth(vg, 0.5);
-        nvgStrokeColor(vg, color);
         nvgStroke(vg);
     }
 }
@@ -1476,7 +1483,8 @@ void NoteTakerDisplay::updateXPosition() {
                 if (note.startTime) {
                     pos += DOUBLE_BAR_WIDTH * xAxisScale;
                 }
-                pos += abs(note.key()) * ACCIDENTAL_WIDTH * xAxisScale + 2;
+                pos += std::max(MIN_KEY_SIGNATURE_WIDTH, 
+                        abs(note.key()) * ACCIDENTAL_WIDTH * xAxisScale + 2);
                 this->setKeySignature(note.key());
                 break;
             case TIME_SIGNATURE:
@@ -1487,7 +1495,7 @@ void NoteTakerDisplay::updateXPosition() {
                 debug("[%u] xPos %d start %d", index, cache[index].xPosition, note.stdStart(nt->ppq));
                 break;
             case MIDI_TEMPO:
-                // to do : incomplete
+                pos += TEMPO_WIDTH * xAxisScale;
                 break;
             default:
                 // to do : incomplete

@@ -54,7 +54,7 @@ std::string DisplayNote::debugString() const {
             s += " 32nds=" + std::to_string(notated32NotesPerQuarterNote());
             break;
         case MIDI_TEMPO:
-            s += " tphs=" + std::to_string(tphs());
+            s += " tempo=" + std::to_string(tempo());
             break;
         case TRACK_END:
             break;

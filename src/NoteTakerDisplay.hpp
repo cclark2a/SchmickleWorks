@@ -59,25 +59,26 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void draw(NVGcontext* ) override;
     void drawBar(NVGcontext* , int xPos);
     void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& , const NoteCache& ,
-            int alpha);
+            unsigned char alpha);
     void drawBarRest(NVGcontext* , BarPosition& , const DisplayNote& , int offset,
-            int alpha) const;
-    void drawBeam(NVGcontext* , unsigned start, float alpha) const;
+            unsigned char alpha) const;
+    void drawBeam(NVGcontext* , unsigned start, unsigned char alpha) const;
     void drawBevel(NVGcontext* ) const;
     void drawClefs(NVGcontext* ) const;
     void drawDynamicPitchTempo(NVGcontext* );
     void drawFileControl(NVGcontext* );
-    void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, int alpha) const;
-    void drawNote(NVGcontext* , const DisplayNote& , Accidental , const NoteCache&, int alpha,
-            int size, int xPos) const;
+    void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, unsigned char alpha) const;
+    void drawNote(NVGcontext* , const DisplayNote& , Accidental , const NoteCache&,
+            unsigned char alpha, int size, int xPos) const;
     void drawNotes(NVGcontext* , BarPosition& bar, int nextBar);
     void drawPartControl(NVGcontext* ) const;
     void drawSelectionRect(NVGcontext* ) const;
-    void drawSlur(NVGcontext* , unsigned start, float alpha) const;
+    void drawSlur(NVGcontext* , unsigned start, unsigned char alpha) const;
     void drawStaffLines(NVGcontext* ) const;
     void drawSustainControl(NVGcontext* ) const;
+    void drawTempo(NVGcontext* , int xPos, int tempo, unsigned char alpha);
     void drawTieControl(NVGcontext* ) ;
-    void drawTuple(NVGcontext* , unsigned index, float alpha, bool drewBeam) const;
+    void drawTuple(NVGcontext* , unsigned index, unsigned char alpha, bool drewBeam) const;
     void drawVerticalControl(NVGcontext* ) const;
     void drawVerticalLabel(NVGcontext* , const char* label,
             bool enabled, bool selected, float y) const;
@@ -138,6 +139,23 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void scroll(NVGcontext* );
     void setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const;
     void setKeySignature(int key);
+
+    static void SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha) {
+        NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
+        nvgFillColor(vg, color);
+        nvgStrokeColor(vg, color);
+    }
+
+    static void SetPartColor(NVGcontext* vg, int index, int part) {
+        nvgFillColor(vg, nvgRGBA((1 == index) * 0xBf, (3 == index) * 0x7f,
+                (2 == index) * 0x7f, index == part ? 0xaf : 0x6f));
+    }
+
+    static void SetSelectColor(NVGcontext* vg, unsigned chan) {
+        nvgFillColor(vg, nvgRGBA((2 == chan) * 0xBf, (8 == chan) * 0x7f,
+                (4 == chan) * 0x7f, ALL_CHANNELS == chan ? 0x3f : 0x1f));
+    }
+
     void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
 
     int startTime(unsigned start) const {

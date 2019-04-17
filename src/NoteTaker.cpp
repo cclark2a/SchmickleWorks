@@ -26,14 +26,21 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         //   3) voltage step marks beat
         // for 3), second step determines bphs -- tempo change always lags 1 beat
         // playback continues for one beat after clock stops
-        float value = horizontalWheel->value;
-        int horzIndex = (int) value;
-        int floor = NoteDurations::ToStd(horzIndex);
-        int ceil = NoteDurations::ToStd(horzIndex + 1);
-        float interp = floor + (ceil - floor) * (value - horzIndex);
-        deltaTime *= stdTimePerQuarterNote / interp;
+        float tempoRatio = this->wheelToTempo(horizontalWheel->value);
+        deltaTime *= tempoRatio;
     }
     return deltaTime;
+}
+
+void NoteTaker::enableInsertSignature(unsigned loc) {
+    unsigned insertLoc = this->atMidiTime(allNotes[loc].startTime);
+    std::pair<NoteTakerButton*,  DisplayType> pairs[] = {
+            { (NoteTakerButton*) keyButton, KEY_SIGNATURE },
+            { (NoteTakerButton*) timeButton, TIME_SIGNATURE },
+            { (NoteTakerButton*) tempoButton, MIDI_TEMPO } };
+    for (auto& pair : pairs) {
+        pair.first->af = this->insertContains(insertLoc, pair.second);
+    }
 }
 
 void NoteTaker::eraseNotes(unsigned start, unsigned end) {
@@ -61,7 +68,8 @@ int NoteTaker::externalTempo(bool clockEdge) {
                 EventDragEnd e;
                 runButton->onDragEnd(e);
             } else {
-                externalClockTempo = lastClock ? (int) ((realSeconds - lastClock) * 1000000) : tempo;
+                externalClockTempo =
+                        (int) ((lastClock ? ((realSeconds - lastClock) * 2) : 1) * tempo);
             }
             lastClock = realSeconds;
         }
@@ -120,6 +128,31 @@ unsigned NoteTaker::horizontalCount() const {
         lastNote = note;
     }
     return count;
+}
+
+bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
+    unsigned before = loc;
+    const DisplayNote* note;
+    while (before) {
+        note = &allNotes[--before];
+        if (type == note->type) {
+            return true;
+        }
+        if (!note->isSignature()) {
+            break;
+        }
+    }
+    while (loc < allNotes.size()) {
+        note = &allNotes[loc];
+        if (type == note->type) {
+            return true;
+        }
+        if (!note->isSignature()) {
+            return false;
+        }
+        ++loc;
+    }
+    return false;
 }
 
 void NoteTaker::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSize) {
@@ -466,6 +499,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         debug("displayStartTime %d displayEndTime %d", displayStartTime, displayEndTime);
         debug("displayStart %u displayEnd %u", displayStart, displayEnd);
     }
+    this->enableInsertSignature(end);  // disable buttons that already have signatures in score
     debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
     selectStart = start;
     selectEnd = end;
@@ -691,4 +725,12 @@ unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
         assert(0);  // probably means wheel range is larger than selectable note count
     }
     return (unsigned) -1;
+}
+
+float NoteTaker::wheelToTempo(float value) const {
+    int horzIndex = (int) value;
+    int floor = NoteDurations::ToStd(horzIndex);
+    int ceil = NoteDurations::ToStd(horzIndex + 1);
+    float interp = floor + (ceil - floor) * (value - horzIndex);
+    return stdTimePerQuarterNote / interp;
 }

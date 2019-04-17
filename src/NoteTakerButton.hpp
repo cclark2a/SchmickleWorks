@@ -198,9 +198,8 @@ struct CutButton : EditButton {
 };
 
 
-// to do : remove DumpButton
-// temporary button to dump notes for debugging
-struct DumpButton : EditButton {
+// hidden button to dump notes for debugging
+struct DumpButton : NoteTakerButton {
     void onDragEnd(EventDragEnd &e) override;
 };
 

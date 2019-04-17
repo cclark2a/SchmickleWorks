@@ -71,7 +71,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     nt->setWheelRange();  // range is smaller
 }
 
-// to do : remove once button needs another use
+// hidden
 void DumpButton::onDragEnd(EventDragEnd& e) {
     nModule()->debugDump();
     NoteTakerButton::onDragEnd(e);
@@ -191,10 +191,11 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
 // insert key signature
 void KeyButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
-    shiftTime = duration = 0;
-//    start here;
-    // insertLoc should place this in front
     insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
+    if (nt->insertContains(insertLoc, KEY_SIGNATURE)) {
+        return;
+    }
+    shiftTime = duration = 0;
     onDragEndPreamble(e);
     DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, keySignature);
@@ -360,13 +361,18 @@ void SustainButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
 
-// to do : when implementing tempo for real, find another home for debug dump (secret button?)
 void TempoButton::onDragEnd(EventDragEnd& e) {
-    if (false) {
-        AdderButton::onDragEnd(e);
-    } else {
-        nModule()->debugDump();
+    NoteTaker* nt = nModule();
+    insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
+    if (nt->insertContains(insertLoc, MIDI_TEMPO)) {
+        return;
     }
+    shiftTime = duration = 0;
+    onDragEndPreamble(e);
+    DisplayNote tempo = { startTime, 0, {500000, 0, 0, 0}, 255, MIDI_TEMPO, false };
+    nt->allNotes.insert(nt->allNotes.begin() + insertLoc, tempo);
+    shiftTime = duration = 0;
+    AdderButton::onDragEnd(e);
 }
 
 void TempoButton::draw(NVGcontext* vg) {
@@ -395,9 +401,11 @@ void TieButton::draw(NVGcontext* vg) {
 // insert time signature
 void TimeButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
-    shiftTime = duration = 0;
-//    start here;
     insertLoc = nt->atMidiTime(nt->allNotes[nt->selectEnd].startTime);
+    if (nt->insertContains(insertLoc, TIME_SIGNATURE)) {
+        return;
+    }
+    shiftTime = duration = 0;
     onDragEndPreamble(e);
     DisplayNote timeSignature = { startTime, 0, {4, 2, 24, 8}, 255, TIME_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, timeSignature);

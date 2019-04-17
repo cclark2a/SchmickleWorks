@@ -86,9 +86,14 @@ struct DisplayNote {
         assertValid(TIME_SIGNATURE);
     }
 
-    int tphs() const {
+    int tempo() const {
         assertValid(MIDI_TEMPO);
         return data[0];
+    }
+
+    void setTempo(int n) {
+        data[0] = n;
+        assertValid(MIDI_TEMPO);
     }
 
     // if set, gate is kept high through next note (no midi note off until after next note on?)
@@ -181,12 +186,15 @@ struct DisplayNote {
     }
 
     bool isSelectable(unsigned selectChannels) const {
-        return TIME_SIGNATURE == type || KEY_SIGNATURE == type
-                || (isNoteOrRest() && (selectChannels & (1 << channel)));
+        return isSignature() || (isNoteOrRest() && (selectChannels & (1 << channel)));
     }
 
     bool isNoteOrRest() const {
         return NOTE_ON == type || REST_TYPE == type;
+    }
+
+    bool isSignature() const {
+        return KEY_SIGNATURE == type || TIME_SIGNATURE == type || MIDI_TEMPO == type;
     }
 
     int stdDuration(int ppq) const {
