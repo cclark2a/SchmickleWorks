@@ -292,6 +292,13 @@ void NoteTaker::updateHorizontal() {
             this->setSelect(start, end);
             this->setVerticalWheelRange();
             noteChanged = true;
+            if (start + 1 == end) {
+                const auto& note = allNotes[start];
+                if (KEY_SIGNATURE == note.type && !note.key()) {
+                    display->dynamicSelectTimer = realSeconds + display->fadeDuration;
+                    display->dynamicSelectAlpha = 0xFF;
+                }
+            }
         }
     }
     if (noteChanged) {

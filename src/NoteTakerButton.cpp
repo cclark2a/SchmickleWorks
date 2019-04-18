@@ -310,7 +310,8 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
             selStart = nt->wheelToNote(wheelIndex);
             assert(MIDI_HEADER != nt->allNotes[selStart].type);
             assert(TRACK_END != nt->allNotes[selStart].type);
-            unsigned end = nt->atMidiTime(nt->allNotes[selStart].endTime());
+            const auto& note = nt->allNotes[selStart];
+            unsigned end = note.isSignature() ? selStart + 1 : nt->atMidiTime(note.endTime());
             nt->setSelect(selStart, end);
         } break;
         case State::extend:

@@ -35,9 +35,11 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     float xAxisScale = 0.25;
     float xControlOffset = 0;
     int dynamicPitchAlpha = 0;
+    int dynamicSelectAlpha = 0;
     int dynamicTempoAlpha = 0;
     const float fadeDuration = 1;
     float dynamicPitchTimer = 0;
+    float dynamicSelectTimer = 0;
     float dynamicTempoTimer = 0;
     float dynamicXOffsetTimer = 0;
     float dynamicXOffsetStep = 0;
@@ -68,6 +70,7 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     void drawDynamicPitchTempo(NVGcontext* );
     void drawFileControl(NVGcontext* );
     void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, unsigned char alpha) const;
+    void drawKeySignature(NVGcontext* vg, unsigned index);
     void drawNote(NVGcontext* , const DisplayNote& , Accidental , const NoteCache&,
             unsigned char alpha, int size, int xPos) const;
     void drawNotes(NVGcontext* , BarPosition& bar, int nextBar);
