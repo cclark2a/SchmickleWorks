@@ -235,4 +235,14 @@ struct NoteCache {
         tupletPosition = PositionType::none;
         slurPosition = PositionType::none;
     }
+
+    void setDuration(const DisplayNote& note, int ppq)  {
+        vDuration = note.duration;
+        if (PositionType::none != tupletPosition) {
+            vDuration = vDuration * 3 / 2;  // to do : just support triplets for now
+        }
+        symbol = (uint8_t) NoteDurations::FromMidi(vDuration, ppq);
+    }
+
+
 };

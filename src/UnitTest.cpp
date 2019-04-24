@@ -1,3 +1,7 @@
+#include "SchmickleWorks.hpp"
+
+#if RUN_UNIT_TEST
+
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
@@ -12,15 +16,20 @@ static void Press(NoteTaker* n, MomentarySwitch* ms) {
 }
 
 static void WheelUp(NoteTaker* n, float value) {
-    n->verticalWheel->value = value;
-    EventDragMove evm;
-    n->verticalWheel->onDragMove(evm);
+    n->verticalWheel->lastValue = INT_MAX;
+    assert(n->verticalWheel->minValue <= n->verticalWheel->maxValue);
+    n->verticalWheel->value = 
+            std::max(n->verticalWheel->minValue, std::min(n->verticalWheel->maxValue, value));
+    n->verticalWheel->lastValue = INT_MAX;
+    n->updateVertical();
 }
 
 static void WheelLeft(NoteTaker* n, float value) {
-    n->horizontalWheel->value = value;
-    EventDragMove evm;
-    n->horizontalWheel->onDragMove(evm);
+    n->horizontalWheel->lastValue = INT_MAX;
+    assert(n->horizontalWheel->minValue <= n->horizontalWheel->maxValue);
+    n->horizontalWheel->value =
+         std::max(n->horizontalWheel->minValue, std::min(n->horizontalWheel->maxValue, value));
+    n->updateHorizontal();
 }
 
 static void ExerciseWheels(NoteTaker* n) {
@@ -43,11 +52,8 @@ static void AddTwoNotes(NoteTaker* n) {
 }
 
 void UnitTest(NoteTaker* n) {
-    n->resetState();
-    n->display->invalidateCache();
-    n->setSelectStart(n->atMidiTime(0));
-    n->setWheelRange();
-    
+    json_t* saveState = n->toJson();
+    n->reset();
     debug("delete a note with empty score");
     Press(n, n->cutButton);
 
@@ -138,5 +144,8 @@ void UnitTest(NoteTaker* n) {
     assert(4 == n->horizontalCount());
 
     debug("restore defaults");
-    n->resetState();
+    n->fromJson(saveState);
+    json_decref(saveState);
 }
+
+#endif

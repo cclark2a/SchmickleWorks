@@ -64,7 +64,7 @@ int NoteTaker::externalTempo(bool clockEdge) {
     if (inputs[CLOCK_INPUT].active) {
         if (clockEdge) {
             // upward edge, advance clock
-            if (!runButton->ledOn) {
+            if (!this->isRunning()) {
                 EventDragEnd e;
                 runButton->onDragEnd(e);
             } else {
@@ -115,17 +115,15 @@ bool NoteTaker::extractClipboard(vector<DisplayNote>* span) const {
 // to compute range for horizontal wheel when selecting notes
 // to do : horizontalCount, noteToWheel, wheelToNote share loop logic. Consolidate?
 unsigned NoteTaker::horizontalCount() const {
-    unsigned count = -1;
-    DisplayNote lastNote = {-1, 0, { 0, 0, 0, 0}, 0, UNUSED, false};
+    unsigned count = 0;
+    int lastStart = -1;
     for (auto& note : allNotes) {
-        if (TRACK_END == note.type) {
-            break;
-        }
-        if (!note.isNoteOrRest() || !lastNote.isNoteOrRest() ||
-                (this->isSelectable(note) && lastNote.startTime != note.startTime)) {
+        if (this->isSelectable(note) && lastStart != note.startTime) {
             ++count;
+            if (note.isNoteOrRest()) {
+                lastStart = note.startTime;
+            }
         }
-        lastNote = note;
     }
     return count;
 }
@@ -160,7 +158,7 @@ void NoteTaker::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSi
         this->shiftNotes(insertLoc + insertSize, shiftTime);
     }
     display->invalidateCache();
-    displayEnd = 0;  // force recompute of display end
+    display->displayEnd = 0;  // force recompute of display end
     this->setSelect(insertLoc, this->nextAfter(insertLoc, insertSize));
     debug("insert final");
     this->setWheelRange();  // range is larger
@@ -292,17 +290,21 @@ void NoteTaker::makeTuplet() {
 }
 
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
-    int count = -1;
-    DisplayNote lastNote = {-1, 0, { 0, 0, 0, 0}, 0, UNUSED, false};
+    int count = 0;
+    int lastStart = -1;
     for (auto& note : allNotes) {
-        if (!note.isNoteOrRest() || !lastNote.isNoteOrRest() ||
-                (this->isSelectable(note) && lastNote.startTime != note.startTime)) {
+        if (this->isSelectable(note) && lastStart != note.startTime) {
             ++count;
+            if (note.isNoteOrRest()) {
+                lastStart = note.startTime;
+            }
         }
         if (&match == &note) {
-            return count;
+            return count + (TRACK_END == match.type);
         }
-        lastNote = note;
+    }
+    if (MIDI_HEADER == match.type) {
+        return -1;
     }
     if (dbug) {
         debug("noteToWheel match %s", match.debugString().c_str());
@@ -334,7 +336,8 @@ void NoteTaker::resetState() {
     this->resetRun();
     selectChannels = ALL_CHANNELS;
     this->setScoreEmpty();
-    selectStart = selectEnd = 0;
+    selectStart = 0;
+    selectEnd = 1;
     this->resetControls();
     Module::reset();
 }
@@ -351,15 +354,15 @@ bool NoteTaker::resetControls() {
         button->reset();
     }
     partButton->resetChannels();
-    horizontalWheel->reset();
-    verticalWheel->reset();
+    this->horizontalWheel->reset();
+    this->verticalWheel->reset();
+    this->setWheelRange();
     display->reset();
     return true;
 }
 
 void NoteTaker::resetRun() {
     outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
-    displayStart = displayEnd = 0;
     elapsedSeconds = 0;
     clockHighTime = FLT_MAX;
     lastClock = 0;
@@ -372,6 +375,7 @@ void NoteTaker::resetRun() {
     sawResetLow = false;
     if (display) {
         display->resetXAxisOffset();
+        display->displayStart = display->displayEnd = 0;
     }
     this->setPlayStart();
 }
@@ -397,12 +401,13 @@ void NoteTaker::saveScore() {
 // to do : could optimize with binary search
 void NoteTaker::setPlayStart() {
     playStart = 0;
-    this->zeroGates();
-    if (playStart >= allNotes.size()) {
+    if (!allNotes.size()) {
         return;
     }
+    tempo = stdMSecsPerQuarterNote;
+    this->zeroGates();
     int midiTime = SecondsToMidi(elapsedSeconds, ppq);
-    this->advancePlayStart(midiTime, INT_MAX);
+    this->advancePlayStart(midiTime, allNotes.size() - 1);
 }
 
 void NoteTaker::setScoreEmpty() {
@@ -424,81 +429,16 @@ void NoteTaker::setScoreEmpty() {
         // prefer to show start? end?
         // while playing, scroll a 'page' at a time?
 void NoteTaker::setSelect(unsigned start, unsigned end) {
-    display->updateXPosition();
     if (this->isEmpty()) {
-        selectStart = selectEnd = displayStart = displayEnd = 0;
+        selectStart = 0;
+        selectEnd = 1;
+        display->displayStart = display->displayEnd = 0;
         return;
     }
     assert(start < end);
     assert(allNotes.size() >= 2);
     assert(end <= allNotes.size() - 1);
-    int selectStartTime = display->startTime(start);
-    int selectEndTime = display->endTime(end - 1, ppq);
-    int selectWidth = selectEndTime - selectStartTime;
-    const int boxWidth = display->box.size.x;
-    int displayEndTime = display->xAxisOffset + boxWidth;
-    debug("selectStartTime %d selectEndTime %d display->xAxisOffset %d displayEndTime %d",
-            selectStartTime, selectEndTime, display->xAxisOffset, displayEndTime);
-    debug("setSelect old displayStart %u displayEnd %u", displayStart, displayEnd);
-    // note condition to require the first quarter note of a very long note to be visible
-    const int displayQuarterNoteWidth = stdTimePerQuarterNote * display->xAxisScale;
-    const int displayStartMargin = selectButton->editStart() ? 0 : displayQuarterNoteWidth;
-    const int displayEndMargin = displayQuarterNoteWidth * 2 - displayStartMargin;
-    bool startIsVisible = display->xAxisOffset + displayStartMargin <= selectStartTime
-            && selectStartTime + displayStartMargin <= displayEndTime;
-    bool endShouldBeVisible = selectEndTime + displayEndMargin <= displayEndTime
-            || selectWidth > boxWidth;
-    const int lastXPostion = display->cache.back().xPosition;
-    bool recomputeDisplayOffset = !startIsVisible || !endShouldBeVisible
-            || display->xAxisOffset > std::max(0, lastXPostion - boxWidth);
-    bool recomputeDisplayEnd = recomputeDisplayOffset
-            || !displayEnd || allNotes.size() <= displayEnd;
-    if (recomputeDisplayOffset) {
-        // compute xAxisOffset first; then use that and boxWidth to figure displayStart, displayEnd
-        float oldX = display->xAxisOffset;
-        if (selectEnd != end && selectStart == start) { // only end moved
-            display->xAxisOffset = (display->duration(end - 1, ppq) > boxWidth ?
-                display->startTime(end - 1) :  // show beginning of end
-                selectEndTime - boxWidth) + displayEndMargin;  // show all of end
-            debug("1 xAxisOffset %g", display->xAxisOffset);
-        } else if (display->xAxisOffset > selectStartTime - displayStartMargin) { // left to start
-            display->xAxisOffset = selectStartTime - displayStartMargin;
-            debug("2 xAxisOffset %g", display->xAxisOffset);
-        } else {    // scroll enough to show start on right
-            display->xAxisOffset = selectStartTime - boxWidth + displayEndMargin;
-            debug("3 xAxisOffset %g", display->xAxisOffset);
-        }
-        display->xAxisOffset = std::max(0.f,
-                std::min((float) lastXPostion - boxWidth, display->xAxisOffset));
-        display->dynamicXOffsetTimer = oldX - display->xAxisOffset;
-        if (fabsf(display->dynamicXOffsetTimer) <= 5) {
-            display->dynamicXOffsetTimer = 0;
-        } else {
-            display->dynamicXOffsetStep = -display->dynamicXOffsetTimer / 24;
-        }
-    }
-    assert(display->xAxisOffset <= std::max(0, lastXPostion - boxWidth));
-    if (recomputeDisplayEnd) {
-        float displayStartTime = std::max(0.f, display->xAxisOffset - displayQuarterNoteWidth);
-        displayStart = std::max(allNotes.size() - 1, (size_t) displayStart);
-        while (displayStart && display->startTime(displayStart) >= displayStartTime) {
-            --displayStart;
-        }
-        while (display->startTime(displayStart + 1) < displayStartTime) {
-            ++displayStart;
-        }
-        displayEndTime = std::min((float) lastXPostion,
-                display->xAxisOffset + boxWidth + displayQuarterNoteWidth);
-        while ((unsigned) displayEnd < allNotes.size() - 1
-                && display->startTime(displayEnd) < displayEndTime) {
-            ++displayEnd;
-        }
-        while (display->startTime(displayEnd - 1) >= displayEndTime) {
-            --displayEnd;
-        }
-        debug("displayStartTime %d displayEndTime %d", displayStartTime, displayEndTime);
-        debug("displayStart %u displayEnd %u", displayStart, displayEnd);
-    }
+    display->setRange();
     this->enableInsertSignature(end);  // disable buttons that already have signatures in score
     debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
     selectStart = start;
@@ -706,18 +646,26 @@ void NoteTaker::turnOffLedButtons(const NoteTakerButton* exceptFor) {
 
 // counts to nth selectable note; returns index into notes array
 unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
+    if (!value) {
+        return 0;  // midi header
+    }
     assert(value >= 0);
     assert(value < (int) allNotes.size());
-    int count = value;
-    DisplayNote lastNote = {-1, 0, { 0, 0, 0, 0}, 0, UNUSED, false};
+    int count = value - 1;
+    int lastStart = -1;
     for (auto& note : allNotes) {
-        if (!note.isNoteOrRest() || !lastNote.isNoteOrRest() ||
-                (this->isSelectable(note) && lastNote.startTime != note.startTime)) {
+        if (this->isSelectable(note) && lastStart != note.startTime) {
             if (--count < 0) {
                 return this->noteIndex(note);
             }
+            if (note.isNoteOrRest()) {
+                lastStart = note.startTime;
+            }
         }
-        lastNote = note;
+        if (TRACK_END == note.type) {
+            assert(count <= 0);
+            return allNotes.size() - 1;
+        }
     }
     if (dbug) {
         debug("wheelToNote value %d", value);

@@ -189,13 +189,13 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
 }
 
 void HorizontalWheel::onDragMove(EventDragMove& e) {
-    ((NoteTaker*) module)->updateHorizontal();
     std::swap(e.mouseRel.x, e.mouseRel.y);
     e.mouseRel.y = -e.mouseRel.y;
     Knob::onDragMove(e);
+    ((NoteTaker*) module)->updateHorizontal();
 }
 
 void VerticalWheel::onDragMove(EventDragMove& e) {
-    ((NoteTaker*) module)->updateVertical();
     Knob::onDragMove(e);
+    ((NoteTaker*) module)->updateVertical();
 }

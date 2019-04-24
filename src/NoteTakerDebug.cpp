@@ -71,9 +71,10 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
     debug("select s/e %u %u display s/e %u %u chans 0x%02x part.addChan %d part.allChan %d tempo %d"
             " ppq %d",
-            selectStart, selectEnd, displayStart, displayEnd, selectChannels, 
+            selectStart, selectEnd, display->displayStart, display->displayEnd, selectChannels, 
             partButton->addChannel, partButton->allChannels, tempo, ppq);
-    NoteTaker::DebugDump(allNotes, &display->cache, selectStart, selectEnd);
+    NoteTaker::DebugDump(allNotes, !display->vg ? nullptr : &display->cache,
+            selectStart, selectEnd);
     this->debugDumpChannels();
     if (!inWheel && selectButton->ledOn && !partButton->ledOn && !sustainButton->ledOn
             && !fileButton->ledOn) {

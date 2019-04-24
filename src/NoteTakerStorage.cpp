@@ -154,8 +154,6 @@ json_t *NoteTaker::toJson() {
     json_object_set_new(root, "horizontalWheel", horizontalWheel->toJson());
     json_object_set_new(root, "verticalWheel", verticalWheel->toJson());
     // end of mostly no-op section
-    json_object_set_new(root, "displayStart", json_integer(displayStart));
-    json_object_set_new(root, "displayEnd", json_integer(displayEnd));
     json_object_set_new(root, "selectStart", json_integer(selectStart));
     json_object_set_new(root, "selectEnd", json_integer(selectEnd));
     json_object_set_new(root, "selectChannels", json_integer(selectChannels));
@@ -195,8 +193,6 @@ void NoteTaker::fromJson(json_t *root) {
     horizontalWheel->fromJson(json_object_get(root, "horizontalWheel"));
     verticalWheel->fromJson(json_object_get(root, "verticalWheel"));
     // end of controls' state
-    displayStart = json_integer_value(json_object_get(root, "displayStart"));
-    displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
@@ -204,7 +200,6 @@ void NoteTaker::fromJson(json_t *root) {
     ppq = json_integer_value(json_object_get(root, "ppq"));
     // update display cache
     display->invalidateCache();
-    display->updateXPosition();
 }
 
 // to do : remove, to run unit tests only

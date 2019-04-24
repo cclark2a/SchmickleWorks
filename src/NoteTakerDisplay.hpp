@@ -26,14 +26,70 @@ struct StaffNote {
     uint8_t accidental; // 0 none, 1 sharp, 2 flat, 3 natural
 };
 
+// drawing notes must line up with extra bar space added by updateXPosition
+struct BarPosition {
+    struct MinMax {
+        float xMin = FLT_MAX;
+        float xMax = FLT_MIN;
+    };
+    std::unordered_map<int, MinMax> pos;
+    int ppq;
+    int firstDuration;  // bar duration prior to display start
+    unsigned firstTsIndex;
+    // set by set signature
+    int duration;       // midi time of one bar
+    unsigned tsIndex;   // index of current time signature
+    int next;           // midi time of next bar to draw
+    int current;
+    // set by set note
+    int inSignature;    // time of note into current signature
+    int start;          // number of bars in current time signature
+    int leader;         // duration of note part before first bar
+    // set by notes tied
+    int end;            // number of bars though current note duration
+    int trailer;        // remaining duration of note after last bar
+
+    void init(const NoteTaker& nt);
+    int notesTied(const DisplayNote& note);
+
+    void saveInitialState() {
+        firstDuration = duration;
+        firstTsIndex = tsIndex;
+    }
+
+    void setNote(const DisplayNote& note, int timeSigStart) {
+        inSignature = note.startTime - timeSigStart;
+        start = inSignature / duration;
+        leader = std::min(note.duration, (start + 1) * duration - inSignature);
+    }
+
+    void setSignature(const DisplayNote& note, unsigned index) {
+        duration = ppq * 4 * note.numerator() / (1 << note.denominator());
+        tsIndex = index;
+        current += 0 < note.startTime;  // if signature adds a bar
+        next = note.startTime + duration;
+    }
+
+    void trackPos(int index, float xPos) {
+        pos[index].xMin = std::min(pos[index].xMin, xPos);
+        pos[index].xMax = std::max(pos[index].xMax, xPos);
+    }
+};
+
 struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     NoteTaker* nt;
+    NVGcontext* vg = nullptr;
+    BarPosition bar;
     vector<NoteCache> cache;  // where note is drawn (computed cache, not saved)
     array<Accidental, 75> accidentals;  // marks when accidental was used in bar
     const StaffNote* pitchMap = nullptr;
     float xAxisOffset = 0;
     float xAxisScale = 0.25;
     float xControlOffset = 0;
+    unsigned displayStart = 0;
+    unsigned displayEnd = 0;
+    unsigned oldStart = 0;
+    unsigned oldEnd = 0;
     int dynamicPitchAlpha = 0;
     int dynamicSelectAlpha = 0;
     int dynamicTempoAlpha = 0;
@@ -46,52 +102,59 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
+    bool cacheInvalid = false;
     bool upSelected = false;
     bool downSelected = false;
-    bool cacheInvalid = false;
+    bool leadingTempo = false;
+    bool rangeInvalid = false;
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
+    void advanceBar(unsigned index);
     void applyKeySignature();
     void cacheBeams();
     void cacheSlurs();
     void cacheTuplets();
+    float cacheWidth(const DisplayNote& , const NoteCache& ) const;
     void clearTuplet(unsigned index, unsigned limit);
     void closeBeam(unsigned start, unsigned limit);
     void closeSlur(unsigned start, unsigned limit);
     void draw(NVGcontext* ) override;
-    void drawBar(NVGcontext* , int xPos);
-    void drawBarNote(NVGcontext* , BarPosition& , const DisplayNote& , const NoteCache& ,
+    void drawBars();
+    void drawBarAt(int xPos);
+    void drawBarNote(BarPosition& , const DisplayNote& , const NoteCache& ,
             unsigned char alpha);
-    void drawBarRest(NVGcontext* , BarPosition& , const DisplayNote& , int offset,
+    void drawBarRest(BarPosition& , const DisplayNote& , int offset,
             unsigned char alpha) const;
-    void drawBeam(NVGcontext* , unsigned start, unsigned char alpha) const;
-    void drawBevel(NVGcontext* ) const;
-    void drawClefs(NVGcontext* ) const;
-    void drawDynamicPitchTempo(NVGcontext* );
-    void drawFileControl(NVGcontext* );
-    void drawFreeNote(NVGcontext* , const DisplayNote& note, int xPos, unsigned char alpha) const;
-    void drawKeySignature(NVGcontext* vg, unsigned index);
-    void drawNote(NVGcontext* , const DisplayNote& , Accidental , const NoteCache&,
+    void drawBeam(unsigned start, unsigned char alpha) const;
+    void drawBevel() const;
+    void drawClefs() const;
+    void drawDynamicPitchTempo();
+    void drawFileControl();
+    void drawFreeNote(const DisplayNote& note, int xPos, unsigned char alpha) const;
+    void drawKeySignature(unsigned index);
+    void drawNote(const DisplayNote& , Accidental , const NoteCache&,
             unsigned char alpha, int size, int xPos) const;
-    void drawNotes(NVGcontext* , BarPosition& bar, int nextBar);
-    void drawPartControl(NVGcontext* ) const;
-    void drawSelectionRect(NVGcontext* ) const;
-    void drawSlur(NVGcontext* , unsigned start, unsigned char alpha) const;
-    void drawStaffLines(NVGcontext* ) const;
-    void drawSustainControl(NVGcontext* ) const;
-    void drawTempo(NVGcontext* , int xPos, int tempo, unsigned char alpha);
-    void drawTieControl(NVGcontext* ) ;
-    void drawTuple(NVGcontext* , unsigned index, unsigned char alpha, bool drewBeam) const;
-    void drawVerticalControl(NVGcontext* ) const;
-    void drawVerticalLabel(NVGcontext* , const char* label,
+    void drawNotes();
+    void drawPartControl() const;
+    void drawSelectionRect() const;
+    void drawSlur(unsigned start, unsigned char alpha) const;
+    void drawStaffLines() const;
+    void drawSustainControl() const;
+    void drawTempo(int xPos, int tempo, unsigned char alpha);
+    void drawTieControl();
+    void drawTuple(unsigned index, unsigned char alpha, bool drewBeam) const;
+    void drawVerticalControl() const;
+    void drawVerticalLabel(const char* label,
             bool enabled, bool selected, float y) const;
     int duration(unsigned index, int ppq) const;
 
-    int endTime(unsigned end, int ppq) const {
+    int endXPos(unsigned end, int ppq) const {
         return cache[end].xPosition + this->duration(end, ppq);
     }
 
     void fromJson(json_t* root) {
+        displayStart = json_integer_value(json_object_get(root, "displayStart"));
+        displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
         xAxisOffset = json_real_value(json_object_get(root, "xAxisOffset"));
         xAxisScale = json_real_value(json_object_get(root, "xAxisScale"));
     }
@@ -102,10 +165,10 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
 
     unsigned lastAt(unsigned start, int ppq) const {
         assert(start < cache.size());
-        int endTime = this->startTime(start) + NoteDurations::InMidi(box.size.x, ppq);
+        int endTime = this->startXPos(start) + NoteDurations::InMidi(box.size.x, ppq);
         unsigned index;
         for (index = start; index < cache.size(); ++index) {
-            if (this->startTime(index) >= endTime) {
+            if (this->startXPos(index) >= endTime) {
                 break;
             }
         } 
@@ -131,17 +194,13 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
         this->resetXAxisOffset();
     }
 
-    void restartBar(BarPosition& bar, int& nextBar);
-
     void resetXAxisOffset() {
         xAxisOffset = 0;
         dynamicXOffsetTimer = 0;
         dynamicXOffsetStep = 0;
     }
 
-    void scroll(NVGcontext* );
-    void setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const;
-    void setKeySignature(int key);
+    void scroll();
 
     static void SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha) {
         NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
@@ -159,9 +218,12 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
                 (4 == chan) * 0x7f, ALL_CHANNELS == chan ? 0x3f : 0x1f));
     }
 
-    void setUpAccidentals(NVGcontext* , BarPosition& bar, int& nextBar);
+    void setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const;
+    void setKeySignature(int key);
+    void setRange();
+    void setUpAccidentals();
 
-    int startTime(unsigned start) const {
+    int startXPos(unsigned start) const {
         return cache[start].xPosition;
     }
 
@@ -182,11 +244,14 @@ struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
 
     json_t *toJson() const {
         json_t* root = json_object();
+        json_object_set_new(root, "displayStart", json_integer(displayStart));
+        json_object_set_new(root, "displayEnd", json_integer(displayEnd));
         json_object_set_new(root, "xAxisOffset", json_real(xAxisOffset));
         json_object_set_new(root, "xAxisScale", json_real(xAxisScale));
         return root;
     }
 
+    void updateRange();
     void updateXPosition();
 
     float yPos(int position) const {

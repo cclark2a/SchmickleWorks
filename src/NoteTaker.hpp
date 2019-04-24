@@ -87,10 +87,8 @@ struct NoteTaker : Module {
     TrillButton* trillButton = nullptr;
     HorizontalWheel* horizontalWheel = nullptr;
     VerticalWheel* verticalWheel = nullptr;
-    unsigned displayStart = 0;              // index into allNotes of first visible note
-    unsigned displayEnd = 0;
     unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
-    unsigned selectEnd = 0;                 // one past last selected
+    unsigned selectEnd = 1;                 // one past last selected
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
     int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
@@ -107,6 +105,9 @@ struct NoteTaker : Module {
     float eosTime = FLT_MAX;
     int midiClockOut = INT_MAX;
     float clockOutTime = FLT_MAX;
+    #if RUN_UNIT_TEST
+    bool runUnitTest = true;  // to do : ship with this disabled
+    #endif
     bool sawClockLow = false;
     bool sawResetLow = false;
 
@@ -115,13 +116,13 @@ struct NoteTaker : Module {
     bool advancePlayStart(int midiTime, unsigned lastNote) {
         do {
             const auto& note = allNotes[playStart];
-            if (note.endTime() > midiTime) {
+            if (note.isNoteOrRest() && note.endTime() > midiTime) {
                 break;
             }
-            if (playStart == lastNote) {
+            if (playStart >= lastNote) {
                 return true;
             }
-            if (MIDI_TEMPO == note.type) {
+            if (MIDI_TEMPO == note.type && this->isRunning()) {
                 tempo = note.tempo();
                 externalClockTempo = (int) ((float) externalClockTempo / stdMSecsPerQuarterNote
                         * tempo);
@@ -344,34 +345,31 @@ struct NoteTaker : Module {
     }
 
     // shift track end only if another shifted note bumps it out
+    // If all notes are selected, shift signatures. Otherwise, leave them be.
     static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff,
             unsigned selectChannels = ALL_CHANNELS) {
-        // After channel-specific notes are shifted, notes that affect all channels
-        // may also need to be shifted. Since they are in the stream in time order,
-        // move them enough to keep the order ascending.
-        // to do : optimize this so that loop starts on last element (in time) of insertion
-        int latest = 0;
-        for (unsigned index = 0; index < start; ++index) {
-            latest = std::max(latest, notes[index].endTime());
-        }
-        // Note that this logic assumes that notes can't overlap time or key signatures
-        // prior to shifting.
-        // to do : enforce that added time and key signatures clip any long notes before them
         bool sort = false;
+        int trackEndTime = 0;
+        bool hasTrackEnd = TRACK_END == notes.back().type;
+        if (hasTrackEnd) {
+            for (unsigned index = 0; index < start; ++index) {
+                trackEndTime = std::max(trackEndTime, notes[index].endTime());
+            }
+        }
         for (unsigned index = start; index < notes.size(); ++index) {
             DisplayNote& note = notes[index];
-            if (0xFF == note.channel) {
-                if (diff < 0) { // move as much as diff allows without overlapping
-                    note.startTime = std::max(latest, note.startTime + diff);
-                } else { // move as little as possible, but no more than diff
-                    note.startTime = std::min(latest, note.startTime + diff);
-                }
-            } else if (note.isSelectable(selectChannels)) {
+            if ((note.isSignature() && ALL_CHANNELS == selectChannels)
+                    || note.isSelectable(selectChannels)) {
                 note.startTime += diff;
             } else {
                 sort = true;
             }
-            latest = std::max(latest, note.endTime());
+            if (hasTrackEnd) {
+                trackEndTime = std::max(trackEndTime, note.endTime());
+            }
+        }
+        if (hasTrackEnd) {
+            notes.back().startTime = trackEndTime;
         }
         // don't use std::sort function; use insertion sort to minimize reordering
         if (sort) {
@@ -391,7 +389,6 @@ struct NoteTaker : Module {
     void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
     void updateHorizontal();
     void updateVertical();
-    void updateXPosition();
     void validate() const;
     unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in allNotes
     float wheelToTempo(float value) const;
