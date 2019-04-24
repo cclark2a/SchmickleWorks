@@ -62,10 +62,10 @@ const int CLEF_WIDTH = 96;
 const int TIME_SIGNATURE_WIDTH = 48;
 const float MIN_KEY_SIGNATURE_WIDTH = 4;
 const int TEMPO_WIDTH = 4;
-// key signature width is variable, from 0 (C) to NOTE_WIDTH*14+18 (C# to Cb, 7 naturals, 7 flats, space for 2 bars)
+// key signature width is variable, from 0 (C) to ACCIDENTAL_WIDTH*14+18
+// (C# to Cb, 7 naturals, 7 flats, space for 2 bars)
 const int ACCIDENTAL_WIDTH = 12;
 const int BAR_WIDTH = 12;
-const float NOTE_WIDTH = 16;
 const int NOTE_FONT_SIZE = 42;
 
 //  major: G D A E B F# C#
