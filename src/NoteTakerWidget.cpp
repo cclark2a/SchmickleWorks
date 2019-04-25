@@ -6,10 +6,15 @@
 struct NoteTakerWidget : ModuleWidget {
     NoteTakerWidget(NoteTaker *module) : ModuleWidget(module) {
         setPanel(SVG::load(assetPlugin(plugin, "res/NoteTaker.svg")));
-
+        std::string musicFontName = assetPlugin(plugin, "res/MusiSync3.ttf");
+        std::string textFontName = assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf");
+        auto fb = module->displayFrameBuffer = new NoteTakerDisplayFB(module, musicFontName,
+                        textFontName);
         module->display = new NoteTakerDisplay(Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2), // pos
                  Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9), module);  // size
-        addChild(module->display);
+        module->display->fb = fb;
+        fb->addChild(module->display);
+        this->addChild(fb);
         module->horizontalWheel = ParamWidget::create<HorizontalWheel>(
                 Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f),
                 module, NoteTaker::HORIZONTAL_WHEEL, 0.0, 100.0, 0.0);

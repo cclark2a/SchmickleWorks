@@ -76,7 +76,54 @@ struct BarPosition {
     }
 };
 
-struct NoteTakerDisplay : TransparentWidget, FramebufferWidget {
+struct FontFB {
+	int handle;
+
+	FontFB(const std::string &filename, NVGcontext* vg) {
+        handle = nvgCreateFont(vg, filename.c_str(), filename.c_str());
+        if (handle >= 0) {
+            debug("Loaded fontFb %s", filename.c_str());
+        }
+        else {
+            debug("Failed to load fontFb %s", filename.c_str());
+        }
+    }
+
+	~FontFB() {
+    }
+
+	static std::shared_ptr<FontFB> load(const std::string &filename, NVGcontext* vg) {
+        static std::map<std::string, std::weak_ptr<FontFB>> cache;
+        auto sp = cache[filename].lock();
+        if (!sp)
+            cache[filename] = sp = std::make_shared<FontFB>(filename, vg);
+        return sp;
+    }
+};
+
+struct NoteTakerDisplayFB : FramebufferWidget {
+    NoteTakerDisplayFB(NoteTaker *m, std::string mfn, std::string tfn)
+        : module(m)
+        , musicFontName(mfn)
+        , textFontName(tfn)
+    {
+        box.pos = Vec();
+	    box.size = Vec(RACK_GRID_WIDTH * 13, RACK_GRID_WIDTH * 11);
+    }
+
+    void draw(NVGcontext* vg) override {
+        FramebufferWidget::draw(vg);
+    }
+
+    NoteTaker *module;
+    std::string musicFontName;
+    std::string textFontName;
+};
+
+struct NoteTakerDisplay : VirtualWidget {
+    NoteTakerDisplayFB* fb;
+	std::shared_ptr<FontFB> musicFont;
+	std::shared_ptr<FontFB> textFont;
     NoteTaker* nt;
     NVGcontext* vg = nullptr;
     BarPosition bar;

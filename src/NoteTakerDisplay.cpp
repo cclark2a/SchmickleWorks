@@ -434,7 +434,7 @@ void NoteTakerDisplay::drawBarRest(BarPosition& bar, const DisplayNote& note,
     unsigned symbol = NoteDurations::FromMidi(note.duration, nt->ppq);
     float yPos = 36 * 3 - 49;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, NOTE_FONT_SIZE);
     do {
         unsigned restIndex = std::min((unsigned) sizeof(restSymbols) - 1, symbol);
@@ -606,7 +606,7 @@ void NoteTakerDisplay::drawBevel() const {
 
 void NoteTakerDisplay::drawClefs() const {
          // draw treble and bass clefs
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgText(vg, 5, 60, "(", NULL);
@@ -634,7 +634,7 @@ void NoteTakerDisplay::drawKeySignature(unsigned index) {
     unsigned keySig;
     const uint8_t* accKeys, * bassKeys;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     if (keySignature > 0) {
@@ -693,7 +693,7 @@ void NoteTakerDisplay::drawNote(const DisplayNote& note, Accidental accidental,
         nvgStroke(vg);
     }
     SetNoteColor(vg, note.channel, alpha);
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, size);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     if (24 == size) {   // to do : something better than this
@@ -749,7 +749,7 @@ void NoteTakerDisplay::drawNotes() {
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
                 std::string numerator = std::to_string(note.numerator());
                 int xPos = noteCache.xPosition - 4 * (numerator.size() - 1) + 3;
-                nvgFontFaceId(vg, nt->musicFont->handle);
+                nvgFontFaceId(vg, musicFont->handle);
                 nvgFontSize(vg, NOTE_FONT_SIZE);
                 nvgText(vg, xPos, 32 * 3 - 49, numerator.c_str(), NULL);
                 nvgText(vg, xPos, 44 * 3 - 49, numerator.c_str(), NULL);
@@ -836,6 +836,8 @@ void NoteTakerDisplay::drawStaffLines() const {
 }
 
 void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
+    musicFont = FontFB::load(fb->musicFontName, nvgContext);
+    textFont = FontFB::load(fb->textFontName, nvgContext);
     if (cacheInvalid) {
         vg = nvgContext;
         this->updateXPosition();
@@ -853,6 +855,7 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     if (!nt->allNotes.size()) {
         return;  // do nothing if we're not set up yet
     }
+    nvgSave(vg);
     accidentals.fill(NO_ACCIDENTAL);
     this->drawBevel();
     nvgScissor(vg, 0, 0, box.size.x, box.size.y);
@@ -886,8 +889,8 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     if (nt->runningWithButtonsOff()) {
         this->drawDynamicPitchTempo();
     }
-	FramebufferWidget::draw(vg);
-    dirty = false;
+    nvgRestore(vg);
+    VirtualWidget::draw(nvgContext);
 }
 
 void NoteTakerDisplay::drawDynamicPitchTempo() {
@@ -910,6 +913,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicPitchAlpha));
         nvgFill(vg);
         this->drawFreeNote(note, box.size.x - 7, dynamicPitchAlpha);
+        fb->dirty = true;
     }
     if (dynamicTempoAlpha > 0) {
         nvgBeginPath(vg);
@@ -917,6 +921,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicTempoAlpha));
         nvgFill(vg);
         this->drawTempo(2, stdMSecsPerQuarterNote, dynamicTempoAlpha);
+        fb->dirty = true;
     }
 }
 
@@ -948,7 +953,7 @@ void NoteTakerDisplay::drawFileControl() {
     auto drawNumber = [&](unsigned index) {
         float textX = boxWidth - 2;
         float textY = 8;
-        nvgFontFaceId(vg, nt->textFont->handle);
+        nvgFontFaceId(vg, textFont->handle);
         nvgFontSize(vg, 10);
         nvgTextAlign(vg, NVG_ALIGN_RIGHT);
         std::string label = std::to_string(index);
@@ -968,7 +973,7 @@ void NoteTakerDisplay::drawFileControl() {
         nvgStrokeWidth(vg, 1);
         nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
         nvgStroke(vg);
-        nvgFontFaceId(vg, nt->musicFont->handle);
+        nvgFontFaceId(vg, musicFont->handle);
         nvgFontSize(vg, 16);
         nvgTextAlign(vg, NVG_ALIGN_CENTER);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
@@ -977,14 +982,18 @@ void NoteTakerDisplay::drawFileControl() {
     // horizontalWheel->value auto-drifts towards integer, range of 0 to nt->storage.size()
     if (fSlot < slot) {
         nt->horizontalWheel->value = std::min((float) slot, fSlot + .02f);
+        fb->dirty = true;
     } else if (fSlot > slot) {
         nt->horizontalWheel->value = std::max((float) slot, fSlot - .02f);
+        fb->dirty = true;
     }
     // xControlOffset draws current location, 0 to nt->storage.size() - 4
     if (nt->horizontalWheel->value - xControlOffset > 3) {
         xControlOffset += .04f;
+        fb->dirty = true;
     } else if (nt->horizontalWheel->value < xControlOffset) {
         xControlOffset -= .04f;
+        fb->dirty = true;
     }
     if (xControlOffset != floorf(xControlOffset)) {
         if (xControlOffset > 0 && (nt->horizontalWheel->value - xControlOffset < 1
@@ -1055,7 +1064,7 @@ void NoteTakerDisplay::drawPartControl() const {
 //    nvgRect(vg, 40, box.size.y - 15, boxWidth * 4, 10);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7f));
     nvgFill(vg);
-    nvgFontFaceId(vg, nt->textFont->handle);
+    nvgFontFaceId(vg, textFont->handle);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     for (int index = -1; index < (int) CV_OUTPUTS; ++index) {
         nvgBeginPath(vg);
@@ -1224,7 +1233,7 @@ void NoteTakerDisplay::drawSustainControl() const {
         nvgStrokeWidth(vg, 1 + (0 == select));
         nvgStroke(vg);
     }
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, 24);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 2 == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
@@ -1246,10 +1255,10 @@ void NoteTakerDisplay::drawSustainControl() const {
 
 void NoteTakerDisplay::drawTempo(int xPos, int tempo, unsigned char alpha) {
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, 16);
     nvgText(vg, xPos + 3, 10, "H", nullptr);
-    nvgFontFaceId(vg, nt->textFont->handle);
+    nvgFontFaceId(vg, textFont->handle);
     nvgFontSize(vg, 12);
     std::string tempoStr("= " + std::to_string((int) (120.f * nt->beatsPerHalfSecond(tempo))));
     nvgText(vg, xPos + 7, 10, tempoStr.c_str(), nullptr);
@@ -1275,7 +1284,7 @@ void NoteTakerDisplay::drawTieControl() {
         nvgStrokeWidth(vg, 1);
         nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
         nvgStroke(vg);
-        nvgFontFaceId(vg, nt->musicFont->handle);
+        nvgFontFaceId(vg, musicFont->handle);
         nvgFontSize(vg, 16);
         nvgTextAlign(vg, NVG_ALIGN_CENTER);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
@@ -1314,7 +1323,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     assert(PositionType::right == cache[index].tupletPosition);
     SetNoteColor(vg, chan, alpha);
     // draw '3' at center of notes above or below staff
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     float centerX = (bp.sx + bp.ex) / 2;
@@ -1359,7 +1368,7 @@ void NoteTakerDisplay::drawVerticalControl() const {
 
 void NoteTakerDisplay::drawVerticalLabel(const char* label, bool enabled,
         bool selected, float y) const {
-    nvgFontFaceId(vg, nt->textFont->handle);
+    nvgFontFaceId(vg, textFont->handle);
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_RIGHT);
     if (enabled) {
@@ -1406,6 +1415,7 @@ void NoteTakerDisplay::scroll() {
     if ((dynamicXOffsetTimer < 0) == (dynamicXOffsetStep < 0)) {
         dynamicXOffsetTimer = dynamicXOffsetStep = 0;
     }
+    fb->dirty = true;
 }
 
 // used by beams and tuplets
@@ -1573,7 +1583,7 @@ static void track_pos(std::list<PosAdjust>& posAdjust, float xOff, int endTime) 
 
 void NoteTakerDisplay::updateXPosition() {
     assert(vg);
-    nvgFontFaceId(vg, nt->musicFont->handle);
+    nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     cache.resize(nt->allNotes.size());

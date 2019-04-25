@@ -163,6 +163,7 @@ void NoteTaker::setWheelRange() {
     this->setVerticalWheelRange();
     debug("setWheelRange %s %s", horizontalWheel->debugString().c_str(),
             verticalWheel->debugString().c_str());
+    displayFrameBuffer->dirty = true;
 }
 
 void NoteTaker::updateHorizontal() {
@@ -294,6 +295,7 @@ void NoteTaker::updateHorizontal() {
         }
     }
     if (noteChanged) {
+        displayFrameBuffer->dirty = true;
         this->playSelection();
     }
 }
@@ -408,5 +410,6 @@ void NoteTaker::updateVertical() {
                 ;
         }
     }
+    displayFrameBuffer->dirty = true;
     this->playSelection();
 }

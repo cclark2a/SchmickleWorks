@@ -14,7 +14,6 @@
 NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     this->reset();
     musicFont = Font::load(assetPlugin(plugin, "res/MusiSync3.ttf"));
-    textFont = Font::load(assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf"));
 }
 
 float NoteTaker::beatsPerHalfSecond(int localTempo) const {
@@ -443,6 +442,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
     selectStart = start;
     selectEnd = end;
+    displayFrameBuffer->dirty = true;
 }
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {

@@ -9,6 +9,7 @@ struct FileButton;
 struct InsertButton;
 struct KeyButton;
 struct NoteTakerButton;
+struct NoteTakerDisplayFB;
 struct PartButton;
 struct RestButton;
 struct RunButton;
@@ -65,12 +66,12 @@ struct NoteTaker : Module {
 	};
 
     vector<vector<uint8_t>> storage;
-	std::shared_ptr<Font> musicFont;
-	std::shared_ptr<Font> textFont;
+	std::shared_ptr<Font> musicFont = nullptr;
     // state saved into json
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
+    NoteTakerDisplayFB* displayFrameBuffer = nullptr;
     NoteTakerDisplay* display = nullptr;
     CutButton* cutButton = nullptr;
     FileButton* fileButton = nullptr;

@@ -9,6 +9,7 @@
 #include <limits.h>
 #include <list>
 #include <math.h>
+#include <map>
 #include <stdint.h>
 #include <unordered_map>
 #include "NoteTakerConstants.hpp"
