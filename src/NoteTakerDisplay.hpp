@@ -31,12 +31,14 @@ struct BarPosition {
     struct MinMax {
         float xMin = FLT_MAX;
         float xMax = FLT_MIN;
+        bool useMax = false;   // set true if signature introduces bar
     };
     std::unordered_map<int, MinMax> pos;
     // set by set signature
+    int priorBars;      // keeps index unique for pos map when ts changes
     int duration;       // midi time of one bar
     int tsStart;        // midi time when current time signature starts
-    int midiEnd;
+    int midiEnd;        // used to restart accidentals at start of bar
     // set by notes tied
     int leader;         // duration of note part before first bar
 
@@ -51,6 +53,7 @@ struct BarPosition {
 
     void init();
     int notesTied(const DisplayNote& note, int ppq);
+    int resetSignatureStart(const DisplayNote& note, float barWidth);
 
     void setMidiEnd(const DisplayNote& note) {
         if (INT_MAX != duration) {
@@ -58,9 +61,19 @@ struct BarPosition {
         }
     }
 
+    void setPriorBars(const DisplayNote& note) {
+        if (!note.startTime) {
+            return;
+        }
+        priorBars += (note.startTime - tsStart + duration - 1) / duration;  // rounds up
+        pos[priorBars].useMax = true;
+        pos[priorBars].xMax = note.startTime;
+    }
+
     void setSignature(const DisplayNote& note, int ppq) {
         duration = ppq * 4 * note.numerator() / (1 << note.denominator());
         tsStart = note.startTime;
+        midiEnd = tsStart + duration;
     }
 
 };
@@ -153,7 +166,7 @@ struct NoteTakerDisplay : VirtualWidget {
     void drawFreeNote(const DisplayNote& note, int xPos, unsigned char alpha) const;
     void drawKeySignature(unsigned index);
     void drawNote(const DisplayNote& , Accidental , const NoteCache&,
-            unsigned char alpha, int size, int xPos) const;
+            unsigned char alpha, int size) const;
     void drawNotes();
     void drawPartControl() const;
     void drawSelectionRect() const;

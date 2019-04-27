@@ -147,7 +147,15 @@ struct NoteTaker : Module {
     float beatsPerHalfSecond(int tempo) const;
 
     void copyNotes() {
-        clipboard.assign(allNotes.begin() + selectStart, allNotes.begin() + selectEnd);
+        unsigned start = selectStart;
+        // don't allow midi header on clipboard
+        if (MIDI_HEADER == allNotes[selectStart].type) {
+            ++start;
+        }
+        if (start < selectEnd) {
+            assert(TRACK_END != allNotes[selectEnd - 1].type);
+            clipboard.assign(allNotes.begin() + start, allNotes.begin() + selectEnd);
+        }
     }
 
     void debugDumpChannels() const {

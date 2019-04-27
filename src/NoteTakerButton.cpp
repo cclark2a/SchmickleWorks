@@ -126,9 +126,9 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         // insert loc is where the new note goes, but not when the new note goes; 
         // the new start time is 'last end time(insert loc)'
         insertLoc = !nt->selectStart ? nt->wheelToNote(1) : nt->selectEnd;
+        unsigned iStart = !nt->selectStart ? insertLoc : nt->selectStart;
+        unsigned iEnd = nt->selectEnd;
         if (!selectButton->editStart() || nt->clipboard.empty() || !nt->extractClipboard(&span)) {
-            unsigned iStart = !nt->selectStart ? insertLoc : nt->selectStart;
-            unsigned iEnd = nt->selectEnd;
             !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
             debug("iStart=%u iEnd=%u", iStart, iEnd);
             for (unsigned index = iStart; index < iEnd; ++index) {
@@ -137,28 +137,32 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     span.push_back(note);
                 }
             }
-            bool notNote = 1 == span.size() && NOTE_ON != span[0].type;
-            if (span.empty() || notNote) {
-                span.clear();
-                debug("insert button : none selectable"); nt->debugDump();
-                for (unsigned index = iStart; index < nt->allNotes.size(); ++index) {
-                    const auto& note = nt->allNotes[index];
-                    if (NOTE_ON == note.type) {
-                        span.push_back(note);
-                        break;
-                    }
+        }
+        if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
+                (span[0].isSignature() && nt->allNotes[insertLoc].isSignature())) {
+            span.clear();
+            debug("insert button : none selectable"); nt->debugDump();
+            for (unsigned index = iStart; index < nt->allNotes.size(); ++index) {
+                const auto& note = nt->allNotes[index];
+                if (NOTE_ON == note.type && nt->isSelectable(note)) {
+                    span.push_back(note);
+                    break;
                 }
-                if (span.empty() || notNote) {
-                    for (unsigned index = iStart; --index > 0; ) {
-                        const auto& note = nt->allNotes[index];
-                        if (NOTE_ON == note.type) {
-                            span.push_back(note);
-                            break;
-                        }
-                    }
-                }
-                assert(!span.empty());
             }
+        }
+        if (span.empty()) {
+            for (unsigned index = iStart; --index > 0; ) {
+                const auto& note = nt->allNotes[index];
+                if (NOTE_ON == note.type && nt->isSelectable(note)) {
+                    span.push_back(note);
+                    break;
+                }
+            }
+        }
+        if (span.empty()) {
+            DisplayNote midC = { 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
+                    nt->partButton->addChannel, NOTE_ON, false };
+            span.push_back(midC);
         }
         // insertLoc may be different channel, so can't use that start time by itself
         // shift to selectStart time, but not less than previous end (if any) on same channel
