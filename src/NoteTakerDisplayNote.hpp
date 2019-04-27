@@ -224,16 +224,18 @@ struct NoteCache {
     int vDuration;  // visible duration, for symbol selection and triplet beams
     PositionType beamPosition;
     uint8_t beamCount;
-    PositionType tupletPosition;
+    PositionType barPosition;
     PositionType slurPosition;
+    PositionType tupletPosition;
     uint8_t symbol;
     bool stemUp;
 
     void resetTupleBeam() {
         beamPosition = PositionType::none;
         beamCount = 0;
-        tupletPosition = PositionType::none;
+        barPosition = PositionType::none;
         slurPosition = PositionType::none;
+        tupletPosition = PositionType::none;
     }
 
     void setDuration(const DisplayNote& note, int ppq)  {

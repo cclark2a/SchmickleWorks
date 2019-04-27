@@ -8,10 +8,12 @@ struct NoteTakerWidget : ModuleWidget {
         setPanel(SVG::load(assetPlugin(plugin, "res/NoteTaker.svg")));
         std::string musicFontName = assetPlugin(plugin, "res/MusiSync3.ttf");
         std::string textFontName = assetPlugin(plugin, "res/leaguegothic-regular-webfont.ttf");
-        auto fb = module->displayFrameBuffer = new NoteTakerDisplayFB(module, musicFontName,
-                        textFontName);
+        auto fb = module->displayFrameBuffer = new FramebufferWidget();
+        fb->box.pos = Vec();
+	fb->box.size = Vec(RACK_GRID_WIDTH * 14, RACK_GRID_WIDTH * 12);
         module->display = new NoteTakerDisplay(Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2), // pos
-                 Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9), module);  // size
+                 Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9),  // size
+                 module, fb, musicFontName, textFontName);
         module->display->fb = fb;
         fb->addChild(module->display);
         this->addChild(fb);

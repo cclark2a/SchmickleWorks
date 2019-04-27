@@ -9,7 +9,6 @@ struct FileButton;
 struct InsertButton;
 struct KeyButton;
 struct NoteTakerButton;
-struct NoteTakerDisplayFB;
 struct PartButton;
 struct RestButton;
 struct RunButton;
@@ -71,7 +70,7 @@ struct NoteTaker : Module {
     vector<DisplayNote> allNotes;
     vector<DisplayNote> clipboard;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
-    NoteTakerDisplayFB* displayFrameBuffer = nullptr;
+    FramebufferWidget* displayFrameBuffer = nullptr;
     NoteTakerDisplay* display = nullptr;
     CutButton* cutButton = nullptr;
     FileButton* fileButton = nullptr;

@@ -33,47 +33,36 @@ struct BarPosition {
         float xMax = FLT_MIN;
     };
     std::unordered_map<int, MinMax> pos;
-    int ppq;
-    int firstDuration;  // bar duration prior to display start
-    unsigned firstTsIndex;
     // set by set signature
     int duration;       // midi time of one bar
-    unsigned tsIndex;   // index of current time signature
-    int next;           // midi time of next bar to draw
-    int current;
-    // set by set note
-    int inSignature;    // time of note into current signature
-    int start;          // number of bars in current time signature
-    int leader;         // duration of note part before first bar
+    int tsStart;        // midi time when current time signature starts
+    int midiEnd;
     // set by notes tied
-    int end;            // number of bars though current note duration
-    int trailer;        // remaining duration of note after last bar
+    int leader;         // duration of note part before first bar
 
-    void init(const NoteTaker& nt);
-    int notesTied(const DisplayNote& note);
+    void addPos(const DisplayNote& , const NoteCache& , float cacheWidth);
 
-    void saveInitialState() {
-        firstDuration = duration;
-        firstTsIndex = tsIndex;
+    void advance(const DisplayNote& note) {
+        assert(INT_MAX != duration);
+        while (note.startTime >= midiEnd) {
+            midiEnd += duration;
+        }
     }
 
-    void setNote(const DisplayNote& note, int timeSigStart) {
-        inSignature = note.startTime - timeSigStart;
-        start = inSignature / duration;
-        leader = std::min(note.duration, (start + 1) * duration - inSignature);
+    void init();
+    int notesTied(const DisplayNote& note, int ppq);
+
+    void setMidiEnd(const DisplayNote& note) {
+        if (INT_MAX != duration) {
+            midiEnd = note.startTime + duration;
+        }
     }
 
-    void setSignature(const DisplayNote& note, unsigned index) {
+    void setSignature(const DisplayNote& note, int ppq) {
         duration = ppq * 4 * note.numerator() / (1 << note.denominator());
-        tsIndex = index;
-        current += 0 < note.startTime;  // if signature adds a bar
-        next = note.startTime + duration;
+        tsStart = note.startTime;
     }
 
-    void trackPos(int index, float xPos) {
-        pos[index].xMin = std::min(pos[index].xMin, xPos);
-        pos[index].xMax = std::max(pos[index].xMax, xPos);
-    }
 };
 
 struct FontFB {
@@ -101,30 +90,13 @@ struct FontFB {
     }
 };
 
-struct NoteTakerDisplayFB : FramebufferWidget {
-    NoteTakerDisplayFB(NoteTaker *m, std::string mfn, std::string tfn)
-        : module(m)
-        , musicFontName(mfn)
-        , textFontName(tfn)
-    {
-        box.pos = Vec();
-	    box.size = Vec(RACK_GRID_WIDTH * 13, RACK_GRID_WIDTH * 11);
-    }
-
-    void draw(NVGcontext* vg) override {
-        FramebufferWidget::draw(vg);
-    }
-
-    NoteTaker *module;
-    std::string musicFontName;
-    std::string textFontName;
-};
-
 struct NoteTakerDisplay : VirtualWidget {
-    NoteTakerDisplayFB* fb;
 	std::shared_ptr<FontFB> musicFont;
 	std::shared_ptr<FontFB> textFont;
     NoteTaker* nt;
+    FramebufferWidget* fb;
+    std::string musicFontName;
+    std::string textFontName;
     NVGcontext* vg = nullptr;
     BarPosition bar;
     vector<NoteCache> cache;  // where note is drawn (computed cache, not saved)
@@ -155,7 +127,8 @@ struct NoteTakerDisplay : VirtualWidget {
     bool leadingTempo = false;
     bool rangeInvalid = false;
 
-    NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m);
+    NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m, FramebufferWidget* ,
+            std::string mfn, std::string tfn);
     void advanceBar(unsigned index);
     void applyKeySignature();
     void cacheBeams();
@@ -208,6 +181,7 @@ struct NoteTakerDisplay : VirtualWidget {
 
     void invalidateCache() {
         cacheInvalid = true;
+        fb->dirty = true;
     }
 
     unsigned lastAt(unsigned start, int ppq) const {

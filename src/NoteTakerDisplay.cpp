@@ -33,27 +33,44 @@ struct BeamPositions {
     }
 };
 
-void BarPosition::init(const NoteTaker& nt) {
-    pos.clear();
-    duration = INT_MAX;
-    tsIndex = 0;
-    next = INT_MAX;
-    current = 0;
-    inSignature = 0;
-    start = 0;
-    ppq = nt.ppq;
+void BarPosition::addPos(const DisplayNote& note, const NoteCache& noteCache,
+        float cacheWidth) {
+    if (INT_MAX == duration) {
+        return;
+    }
+    int barCount = (note.startTime - tsStart) / duration;
+    pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
+    // note the adds duration less one to round up
+    barCount = (note.endTime() + (duration - 1) - tsStart) / duration;
+    pos[barCount].xMax = std::max(pos[barCount].xMax,
+            noteCache.xPosition + cacheWidth);
 }
 
-int BarPosition::notesTied(const DisplayNote& note) {
-    int noteEndTime = inSignature + note.duration;
-    end = noteEndTime / duration;
-    trailer = noteEndTime - end * duration;
+void BarPosition::init() {
+    pos.clear();
+    duration = INT_MAX;
+    midiEnd = INT_MAX;
+}
+
+int BarPosition::notesTied(const DisplayNote& note, int ppq) {
+    if (INT_MAX == duration) {
+        return NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
+    }
+    int inTsStartTime = note.startTime - tsStart;
+    int startBar = inTsStartTime / duration;
+    int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
+    int endBar = (inTsEndTime - 1) / duration;
+    if (startBar == endBar) {
+        return 1;
+    }
+    leader = (startBar + 1) * duration - note.startTime;
+    int trailer = inTsEndTime - endBar * duration;
+    assert(0 <= trailer);
+    assert(trailer < duration);
     int result = NoteTakerDisplay::TiedCount(duration, leader, ppq);
-    if (start != end) {
-        result += end - start - 1;
-        if (trailer) {
-            result += NoteTakerDisplay::TiedCount(duration, trailer, ppq);
-        }
+    result += endBar - startBar - 1;  // # of bars with whole notes
+    if (trailer) {
+        result += NoteTakerDisplay::TiedCount(duration, trailer, ppq);
     }
     return result;
 }
@@ -118,8 +135,12 @@ const char* downBeamNoteSymbols[] = { "h", "h", "h.", "h", "h.", "h", "h.", "h",
 const char* restSymbols[] =         { "o", "p", "p,", "q", "q,", "r", "r,", "s", "s,", "t", "t,",
                                            "u", "u,", "v", "v,", "w", "w,", "x", "x,", "y" };
 
-NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* n)
+NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* n, FramebufferWidget* framebuffer,
+    std::string mfnt, std::string tfnt)
     : nt(n)
+    , fb(framebuffer)
+    , musicFontName(mfnt)
+    , textFontName(tfnt) 
     , pitchMap(sharpMap) {
     box.pos = pos;
     box.size = size;
@@ -132,16 +153,12 @@ void NoteTakerDisplay::advanceBar(unsigned index) {
         return;
     }
     const DisplayNote& note = nt->allNotes[index];
-    bar.setNote(note, nt->allNotes[bar.tsIndex].startTime);
-    if (note.startTime < bar.next) {
+    if (note.startTime < bar.midiEnd) {
         return;
     }
     accidentals.fill(NO_ACCIDENTAL);
     this->applyKeySignature();
-    while (note.startTime >= bar.next) {
-        bar.current++;
-        bar.next += bar.duration;
-    }
+    bar.advance(note);
 }
 
 // mark all accidentals in the selected key signature
@@ -382,26 +399,28 @@ void NoteTakerDisplay::drawBarNote(BarPosition& bar, const DisplayNote& note,
     Accidental accidental = lookup[accidentals[pitch.position]][pitch.accidental];
     accidentals[pitch.position] = (Accidental) pitch.accidental;
     int xPos = 8;
-    int tied = bar.notesTied(note);
+    int tied = bar.notesTied(note, nt->ppq);
     if (1 == tied) {
         drawNote(note, accidental, noteCache, alpha, NOTE_FONT_SIZE, xPos);
+        bar.addPos(note, noteCache, this->cacheWidth(note, noteCache));
         return;
     }
     DisplayNote copy = note;
     int lastXPos = INT_MAX;
     copy.duration = bar.leader;
     NoteCache copyCache = noteCache;
+    int remaining = note.duration - bar.leader;
     // to do : notes subsequent to first tie don't need to reserve space for accidentals
-    for (int barSide = bar.start; barSide <= bar.end; ++barSide) {
-        if (barSide > bar.start) {
-            copy.duration = barSide < bar.end ? bar.duration : bar.trailer;
-        }
-        while (copy.duration >= NoteDurations::ToMidi(0, nt->ppq)) {
+    do {
+        do {
             int fullDuration = copy.duration;
             copy.duration = NoteDurations::Closest(copy.duration, nt->ppq);
             copyCache.setDuration(copy, nt->ppq);
             // to do : allow triplets to cross bars?
             drawNote(copy, accidental, copyCache, alpha, NOTE_FONT_SIZE, xPos);
+            float cWidth = this->cacheWidth(copy, copyCache);
+            // add possible bar pos to left and right of each tied note
+            bar.addPos(copy, copyCache, cWidth);
             if (INT_MAX != lastXPos) {  // draw tie from last note to here
                 // if notes' stems go down, draw arc above; otherwise, draw arc below
                 int yOff = noteCache.stemUp ? 2 : -2;
@@ -414,17 +433,17 @@ void NoteTakerDisplay::drawBarNote(BarPosition& bar, const DisplayNote& note,
                 nvgFill(vg);
             }
             lastXPos = copyCache.xPosition + xPos;
-            xPos += std::max(this->cacheWidth(copy, copyCache), 
-                    copy.stdDuration(nt->ppq) * xAxisScale);
+            xPos += std::max(cWidth, copy.stdDuration(nt->ppq) * xAxisScale);
             copy.duration = fullDuration - copy.duration;
             accidental = NO_ACCIDENTAL;
-        }
-        // skip the space for the bar but don't draw it; multiple notes may cross the same bar
-        if (barSide < bar.end) {
-            bar.trackPos(barSide, noteCache.xPosition + xPos - 8);
+        } while (copy.duration >= NoteDurations::ToMidi(0, nt->ppq));
+        copy.duration = std::min(bar.duration, remaining);
+        if (!copy.duration) {
+            break;
         }
         xPos += BAR_WIDTH * xAxisScale;
-    }
+        remaining -= copy.duration;
+    } while (true);
 }
 
 // to do : whole rest should be centered in measure
@@ -449,63 +468,8 @@ void NoteTakerDisplay::drawBars() {
     if (INT_MAX == bar.duration) {
         return;
     }
-    int lastBarMidi = 0;
-    unsigned index = displayStart;
-    if (INT_MAX != bar.firstDuration) {
-        int timeSigStart = nt->allNotes[bar.firstTsIndex].startTime;
-        bar.next = timeSigStart;
-        while (bar.next <= nt->allNotes[displayStart].startTime) {
-            bar.next += bar.firstDuration;
-        }
-    } else {
-        bar.next = INT_MAX;
-    }
-    bar.current = 0;
-    --index;  // backup one for loop to process first note later than time signature
-    int latestEndX = 0;
-    int latestStartTime = 0;
-    while (++index < displayEnd) {
-        const DisplayNote& note = nt->allNotes[index];
-        const NoteCache& noteCache = cache[index];
-        if (note.isSignature()) {
-            if (TIME_SIGNATURE == note.type) {
-                bar.setSignature(note, index);
-            }
-            if (lastBarMidi < note.startTime) {
-                this->drawBarAt(noteCache.xPosition);
-                lastBarMidi = note.startTime;
-                bar.next = note.startTime + bar.duration;
-                continue;
-            }
-        }
-        int l = noteCache.xPosition + (int) this->cacheWidth(note, noteCache);
-        if (latestEndX < l) {
-            latestEndX = l;
-            latestStartTime = note.startTime;
-        }
-        // to do : bug : if tied note crosses signature, bar will double draw
-        while (note.startTime < bar.next && note.endTime() > bar.next) {  // should have drawn a tie
-            assert(bar.pos.end() != bar.pos.find(bar.current));
-            this->drawBarAt((bar.pos[bar.current].xMin + bar.pos[bar.current].xMax) / 2);
-            lastBarMidi = bar.next;
-            bar.current++;
-            bar.next += bar.duration;
-        }
-        if (note.startTime >= bar.next) {
-            int gap = note.startTime - latestStartTime;
-            int barPos;
-            if (gap) {
-                barPos = latestEndX + (noteCache.xPosition - latestEndX)
-                        * (note.startTime - bar.next) / (note.startTime - latestStartTime);
-                barPos = std::min(std::max(latestEndX, barPos), noteCache.xPosition); 
-            } else {
-                barPos = noteCache.xPosition;
-            }
-            this->drawBarAt(barPos);
-            lastBarMidi = bar.next;
-            bar.current++;
-            bar.next += bar.duration;
-        }
+    for (const auto& p : bar.pos) {
+        this->drawBarAt((p.second.xMin + p.second.xMax) / 2);
     }
 }
 
@@ -740,10 +704,11 @@ void NoteTakerDisplay::drawNotes() {
             break;
             case KEY_SIGNATURE: 
                 this->drawKeySignature(index);
-                bar.next = note.startTime + bar.duration;
+                bar.setMidiEnd(note);
              break;
             case TIME_SIGNATURE: {
-                bar.setSignature(note, index);
+                bar.setSignature(note, nt->ppq);
+                bar.setMidiEnd(note);
                 // note : separate multiplies avoids rounding error
                 // to do : use nvgTextAlign() and nvgTextBounds() instead of hard-coding
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
@@ -760,7 +725,7 @@ void NoteTakerDisplay::drawNotes() {
             } break;
             case MIDI_TEMPO:
                 this->drawTempo(noteCache.xPosition, note.tempo(), 0xFF);
-                bar.next = note.startTime + bar.duration;
+                bar.setMidiEnd(note);
             break;
             case TRACK_END:
             break;
@@ -836,8 +801,8 @@ void NoteTakerDisplay::drawStaffLines() const {
 }
 
 void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
-    musicFont = FontFB::load(fb->musicFontName, nvgContext);
-    textFont = FontFB::load(fb->textFontName, nvgContext);
+    musicFont = FontFB::load(musicFontName, nvgContext);
+    textFont = FontFB::load(textFontName, nvgContext);
     if (cacheInvalid) {
         vg = nvgContext;
         this->updateXPosition();
@@ -868,7 +833,7 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     this->scroll();
     this->drawClefs();
     this->drawSelectionRect();
-    bar.init(*nt);
+    bar.init();
     this->setUpAccidentals();
     this->drawNotes();
     this->drawBars();
@@ -980,20 +945,17 @@ void NoteTakerDisplay::drawFileControl() {
         nvgText(vg, boxWidth / 2, boxWidth - 3, "H", NULL);
     };
     // horizontalWheel->value auto-drifts towards integer, range of 0 to nt->storage.size()
+    fb->dirty |= fSlot != slot;
     if (fSlot < slot) {
         nt->horizontalWheel->value = std::min((float) slot, fSlot + .02f);
-        fb->dirty = true;
     } else if (fSlot > slot) {
         nt->horizontalWheel->value = std::max((float) slot, fSlot - .02f);
-        fb->dirty = true;
     }
     // xControlOffset draws current location, 0 to nt->storage.size() - 4
     if (nt->horizontalWheel->value - xControlOffset > 3) {
         xControlOffset += .04f;
-        fb->dirty = true;
     } else if (nt->horizontalWheel->value < xControlOffset) {
         xControlOffset -= .04f;
-        fb->dirty = true;
     }
     if (xControlOffset != floorf(xControlOffset)) {
         if (xControlOffset > 0 && (nt->horizontalWheel->value - xControlOffset < 1
@@ -1003,6 +965,7 @@ void NoteTakerDisplay::drawFileControl() {
         } else {
             xControlOffset = std::min(ceilf(xControlOffset), xControlOffset + .04f);
         }
+        fb->dirty = true;
     }
     const int first = std::max(0, (int) (xControlOffset - 1));
     const int last = std::min((int) nt->storage.size(), (int) (xControlOffset + 5));
@@ -1296,8 +1259,10 @@ void NoteTakerDisplay::drawTieControl() {
     int slot = (int) (fSlot + .5);
     if (fSlot < slot) {
         nt->horizontalWheel->value = std::min((float) slot, fSlot + .02f);
+        fb->dirty = true;
     } else if (fSlot > slot) {
         nt->horizontalWheel->value = std::max((float) slot, fSlot - .02f);
+        fb->dirty = true;
     }
     nvgBeginPath(vg);
     nvgRect(vg, leftEdge + (nt->horizontalWheel->value) * boxSpace,
@@ -1402,6 +1367,8 @@ void NoteTakerDisplay::recenterVerticalWheel() {
         if (5 - autoLoadSaveWheelSpeed < val && val < 5 + autoLoadSaveWheelSpeed) {
             upSelected = false;
             downSelected = false;
+        } else {
+            fb->dirty = true;
         }
     }
 }
@@ -1559,13 +1526,12 @@ void NoteTakerDisplay::setUpAccidentals() {
                 this->setKeySignature(note.key());
                 break;
             case TIME_SIGNATURE:
-                (void) bar.setSignature(note, index);
+                (void) bar.setSignature(note, nt->ppq);
                 break;
             default:
                 ;
         }
     }
-    bar.saveInitialState();
 }
 
 struct PosAdjust {
@@ -1587,7 +1553,7 @@ void NoteTakerDisplay::updateXPosition() {
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     cache.resize(nt->allNotes.size());
-    bar.init(*nt);
+    bar.init();
     for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
         cache[index].resetTupleBeam();
     }
@@ -1633,14 +1599,13 @@ void NoteTakerDisplay::updateXPosition() {
                 }
             }
         }
-        bar.setNote(note, nt->allNotes[bar.tsIndex].startTime);
         NoteCache& noteCache = cache[index];
         noteCache.xPosition = (int) ((note.stdStart(nt->ppq) + bars * BAR_WIDTH)
                 * xAxisScale + pos);
         debug("xPosition %d pos %g", noteCache.xPosition, pos);
         if (INT_MAX != bar.duration) {
-            debug("%d [%d] bar start %d stdStart %d", index, cache[index].xPosition,
-                    bar.start, note.stdStart(nt->ppq));
+            debug("%d [%d] stdStart %d", index, cache[index].xPosition,
+                    note.stdStart(nt->ppq));
         }
         switch (note.type) {
             case MIDI_HEADER:
@@ -1650,7 +1615,7 @@ void NoteTakerDisplay::updateXPosition() {
                 break;
             case NOTE_ON:
             case REST_TYPE: {
-                int notesTied = bar.notesTied(note);
+                int notesTied = bar.notesTied(note, nt->ppq);
                 if (1 == notesTied) {
                     float drawWidth = this->cacheWidth(note, noteCache);
                     float xOff = drawWidth - note.stdDuration(nt->ppq) * xAxisScale;
@@ -1661,11 +1626,9 @@ void NoteTakerDisplay::updateXPosition() {
                     DisplayNote copy = note;
                     copy.duration = bar.leader;
                     NoteCache copyCache = noteCache;
-                    for (int barSide = bar.start; barSide <= bar.end; ++barSide) {
-                        if (barSide > bar.start) {
-                            copy.duration = barSide < bar.end ? bar.duration : bar.trailer;
-                        }
-                        while (copy.duration >= NoteDurations::ToMidi(0, nt->ppq)) {
+                    int remaining = note.duration - bar.leader;
+                    do {
+                        do {
                             int fullDuration = copy.duration;
                             copy.duration = NoteDurations::Closest(copy.duration, nt->ppq);
                             copyCache.setDuration(copy, nt->ppq);
@@ -1674,11 +1637,14 @@ void NoteTakerDisplay::updateXPosition() {
                             endTime += copy.duration;
                             track_pos(posAdjust, startX - noteCache.xPosition, endTime);
                             copy.duration = fullDuration - copy.duration;
+                        } while (copy.duration >= NoteDurations::ToMidi(0, nt->ppq));
+                        copy.duration = std::min(bar.duration, remaining);
+                        if (!copy.duration) {
+                            break;
                         }
-                        if (barSide < bar.end || bar.trailer > 0) {
-                            startX += BAR_WIDTH * xAxisScale;
-                        }
-                    }
+                        startX += BAR_WIDTH * xAxisScale;
+                        remaining -= copy.duration;
+                    } while (true);
                 }
                 } break;
             case KEY_SIGNATURE:
@@ -1696,7 +1662,7 @@ void NoteTakerDisplay::updateXPosition() {
                     lastBarMidi = note.startTime;
                 }
                 pos += TIME_SIGNATURE_WIDTH * xAxisScale;  // add space to draw time signature
-                bar.setSignature(note, index);
+                bar.setSignature(note, nt->ppq);
                 break;
             case MIDI_TEMPO:
                 if (lastBarMidi < note.startTime) {
