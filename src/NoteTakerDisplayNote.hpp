@@ -2,6 +2,8 @@
 
 #include "SchmickleWorks.hpp"
 
+struct NoteCache;
+
 enum DisplayType : uint8_t {
 // enums below match MIDI channel voice message high nybble order
     UNUSED,            // midi note off slot
@@ -34,6 +36,7 @@ enum DisplayType : uint8_t {
 // starts, given just the note, is onerous. For now, have validation ensure that
 // there are no gaps and call it often enough to keep the note array sane.
 struct DisplayNote {
+    NoteCache* cache;
     int startTime;      // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
     int duration;       // MIDI time
     int data[4];        // type-specific values
@@ -198,7 +201,7 @@ struct DisplayNote {
     }
 
     int stdDuration(int ppq) const {
-        return NoteDurations::InStd(this->duration, ppq);
+        return NoteDurations::InStd(duration, ppq);
     }
 
     int stdStart(int ppq) const {
@@ -219,15 +222,20 @@ enum class PositionType : uint8_t {
 };
 
 struct NoteCache {
+    const DisplayNote* note;  // needed because with tied notes, cache entries are > than notes
     int xPosition;
     float yPosition;
+    int vStartTime;  // visible start time, for multi part note alignment
     int vDuration;  // visible duration, for symbol selection and triplet beams
     PositionType beamPosition;
     uint8_t beamCount;
+    uint8_t channel;
     PositionType barPosition;
     PositionType slurPosition;
     PositionType tupletPosition;
     uint8_t symbol;
+    bool accidentalSpace;
+    bool endsOnBeat; // for beams
     bool stemUp;
 
     void resetTupleBeam() {
@@ -238,13 +246,19 @@ struct NoteCache {
         tupletPosition = PositionType::none;
     }
 
-    void setDuration(const DisplayNote& note, int ppq)  {
-        vDuration = note.duration;
+    void setDuration(int ppq)  {
+        vDuration = note->duration;
         if (PositionType::none != tupletPosition) {
             vDuration = vDuration * 3 / 2;  // to do : just support triplets for now
         }
         symbol = (uint8_t) NoteDurations::FromMidi(vDuration, ppq);
     }
 
+    void setDurationSymbol(int ppq)  {
+        if (PositionType::none != tupletPosition) {
+            vDuration = vDuration * 3 / 2;  // to do : just support triplets for now
+        }
+        symbol = (uint8_t) NoteDurations::FromMidi(vDuration, ppq);
+    }
 
 };

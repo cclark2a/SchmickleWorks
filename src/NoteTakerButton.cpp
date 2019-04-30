@@ -115,7 +115,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     int shiftTime;
     if (!nt->noteCount()) {
         insertLoc = nt->atMidiTime(0);
-        DisplayNote midC = { 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
+        DisplayNote midC = { nullptr, 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
                 nt->partButton->addChannel, NOTE_ON, false };
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
         insertSize = 1;
@@ -160,7 +160,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
             }
         }
         if (span.empty()) {
-            DisplayNote midC = { 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
+            DisplayNote midC = { nullptr, 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
                     nt->partButton->addChannel, NOTE_ON, false };
             span.push_back(midC);
         }
@@ -201,7 +201,7 @@ void KeyButton::onDragEnd(EventDragEnd& e) {
     }
     shiftTime = duration = 0;
     onDragEndPreamble(e);
-    DisplayNote keySignature = { startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE, false };
+    DisplayNote keySignature = { nullptr, startTime, 0, {0, 0, 0, 0}, 255, KEY_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, keySignature);
     shiftTime = duration = 0;
     AdderButton::onDragEnd(e);
@@ -260,7 +260,7 @@ void RestButton::onDragEnd(EventDragEnd& e) {
         nt->cutButton->onDragEnd(e);
     }
     onDragEndPreamble(e);
-    DisplayNote rest = { startTime, nt->ppq, { 0, 0, 0, 0},
+    DisplayNote rest = { nullptr, startTime, nt->ppq, { 0, 0, 0, 0},
             nt->partButton->addChannel, REST_TYPE, false };
     shiftTime = rest.duration;
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);
@@ -374,7 +374,7 @@ void TempoButton::onDragEnd(EventDragEnd& e) {
     }
     shiftTime = duration = 0;
     onDragEndPreamble(e);
-    DisplayNote tempo = { startTime, 0, {500000, 0, 0, 0}, 255, MIDI_TEMPO, false };
+    DisplayNote tempo = { nullptr, startTime, 0, {500000, 0, 0, 0}, 255, MIDI_TEMPO, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, tempo);
     shiftTime = duration = 0;
     AdderButton::onDragEnd(e);
@@ -412,7 +412,7 @@ void TimeButton::onDragEnd(EventDragEnd& e) {
     }
     shiftTime = duration = 0;
     onDragEndPreamble(e);
-    DisplayNote timeSignature = { startTime, 0, {4, 2, 24, 8}, 255, TIME_SIGNATURE, false };
+    DisplayNote timeSignature = { nullptr, startTime, 0, {4, 2, 24, 8}, 255, TIME_SIGNATURE, false };
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, timeSignature);
     shiftTime = duration = 0;
     AdderButton::onDragEnd(e);

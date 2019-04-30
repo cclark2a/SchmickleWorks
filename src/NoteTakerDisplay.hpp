@@ -139,22 +139,32 @@ struct NoteTakerDisplay : VirtualWidget {
     bool downSelected = false;
     bool leadingTempo = false;
     bool rangeInvalid = false;
+    bool oldSchool = true;
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m, FramebufferWidget* ,
             std::string mfn, std::string tfn);
     void advanceBar(unsigned index);
     void applyKeySignature();
     void cacheBeams();
+    void _cacheBeams();  // in progress replacement
+    unsigned cacheNext(unsigned );
+    unsigned cachePrevious(unsigned );
     void cacheSlurs();
+    void _cacheSlurs();
     void cacheTuplets();
-    float cacheWidth(const DisplayNote& , const NoteCache& ) const;
+    void _cacheTuplets();  // in progress replacement
+    float cacheWidth(const NoteCache& ) const;
     void clearTuplet(unsigned index, unsigned limit);
     void closeBeam(unsigned start, unsigned limit);
+    void _closeBeam(unsigned start, unsigned limit);  // in progress replacement
     void closeSlur(unsigned start, unsigned limit);
+    void _closeSlur(unsigned first, unsigned limit);
     void draw(NVGcontext* ) override;
     void drawBars();
     void drawBarAt(int xPos);
     void drawBarNote(BarPosition& , const DisplayNote& , const NoteCache& ,
+            unsigned char alpha);
+    void _drawBarNote(BarPosition& , const DisplayNote& , const NoteCache& ,
             unsigned char alpha);
     void drawBarRest(BarPosition& , const DisplayNote& , int offset,
             unsigned char alpha) const;
@@ -163,27 +173,25 @@ struct NoteTakerDisplay : VirtualWidget {
     void drawClefs() const;
     void drawDynamicPitchTempo();
     void drawFileControl();
-    void drawFreeNote(const DisplayNote& note, int xPos, unsigned char alpha) const;
+    void drawFreeNote(const DisplayNote& note, NoteCache* noteCache, int xPos,
+            unsigned char alpha) const;
     void drawKeySignature(unsigned index);
     void drawNote(const DisplayNote& , Accidental , const NoteCache&,
             unsigned char alpha, int size) const;
     void drawNotes();
+    void _drawNotes();
     void drawPartControl() const;
     void drawSelectionRect() const;
     void drawSlur(unsigned start, unsigned char alpha) const;
+    void _drawSlur(unsigned start, unsigned char alpha) const;
     void drawStaffLines() const;
     void drawSustainControl() const;
     void drawTempo(int xPos, int tempo, unsigned char alpha);
     void drawTieControl();
     void drawTuple(unsigned index, unsigned char alpha, bool drewBeam) const;
     void drawVerticalControl() const;
-    void drawVerticalLabel(const char* label,
-            bool enabled, bool selected, float y) const;
-    int duration(unsigned index, int ppq) const;
-
-    int endXPos(unsigned end, int ppq) const {
-        return cache[end].xPosition + this->duration(end, ppq);
-    }
+    void drawVerticalLabel(const char* label, bool enabled, bool selected, float y) const;
+    int endXPos(unsigned end, int ppq) const;
 
     void fromJson(json_t* root) {
         displayStart = json_integer_value(json_object_get(root, "displayStart"));
@@ -253,6 +261,7 @@ struct NoteTakerDisplay : VirtualWidget {
     }
 
     void setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const;
+    void setCacheDuration();
     void setKeySignature(int key);
     void setRange();
     void setUpAccidentals();
@@ -287,6 +296,7 @@ struct NoteTakerDisplay : VirtualWidget {
 
     void updateRange();
     void updateXPosition();
+    void _updateXPosition();  // in progress replacement
 
     float yPos(int position) const {
         return position * 3 - 48.25;   // middle C 60 positioned at 39 maps to 66

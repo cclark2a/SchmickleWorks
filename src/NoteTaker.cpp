@@ -534,7 +534,8 @@ void NoteTaker::step() {
             unsigned insertLoc = !this->noteCount() ? this->atMidiTime(0) : !selectStart ?
                     this->wheelToNote(1) : selectEnd;
             int startTime = allNotes[insertLoc].startTime;
-            DisplayNote note = { startTime, duration, { midiNote, 0, stdKeyPressure, stdKeyPressure},
+            DisplayNote note = { nullptr, startTime, duration,
+                    { midiNote, 0, stdKeyPressure, stdKeyPressure},
                     partButton->addChannel, NOTE_ON, false };
             allNotes.insert(allNotes.begin() + insertLoc, note);
             this->insertFinal(duration, insertLoc, 1);
