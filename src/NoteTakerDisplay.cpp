@@ -834,6 +834,8 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     if (nt->runUnitTest) { // to do : remove this from shipping code
         UnitTest(nt);
         nt->runUnitTest = false;
+        fb->dirty = true;
+        return;
     }
 #endif
     if (!nt->allNotes.size()) {
