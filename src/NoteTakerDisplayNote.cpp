@@ -105,6 +105,7 @@ json_t* DisplayNote::toJson() const {
 }
 
 void DisplayNote::fromJson(json_t* root) {
+    cache = nullptr;
     startTime = json_integer_value(json_object_get(root, "startTime"));
     duration = json_integer_value(json_object_get(root, "duration"));
     json_t* noteData = json_object_get(root, "data");

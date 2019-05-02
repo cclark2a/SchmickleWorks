@@ -266,7 +266,7 @@ void NoteTaker::updateHorizontal() {
         }
         if (noteChanged) {
             display->invalidateCache();
-            this->setSelect(selectStart, selectEnd);
+            display->rangeInvalid = true;
         }
     } else {
         unsigned start, end;
@@ -297,7 +297,7 @@ void NoteTaker::updateHorizontal() {
         }
     }
     if (noteChanged) {
-        displayFrameBuffer->dirty = true;
+        display->invalidateCache();
         this->playSelection();
     }
 }

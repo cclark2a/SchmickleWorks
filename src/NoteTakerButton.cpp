@@ -185,6 +185,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         shiftTime = std::max(0, shiftTime - availableShiftTime);
         debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
                 insertLoc, insertSize, shiftTime, nt->selectStart, nt->selectEnd);
+        nt->display->invalidateCache();
         nt->debugDump(false);
     }
     selectButton->setOff();

@@ -391,7 +391,7 @@ struct NoteTaker : Module {
             DebugDump(notes);
         }
    }
-
+  
 	void step() override;
     json_t *toJson() override;
     void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
@@ -401,6 +401,10 @@ struct NoteTaker : Module {
     unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in allNotes
     float wheelToTempo(float value) const;
     void writeStorage(unsigned index) const;
+    int xPosAtEndEnd() const;
+    int xPosAtEndStart() const;
+    int xPosAtStartEnd() const;
+    int xPosAtStartStart() const;
 
     void zeroGates() {
         debug("zero gates");

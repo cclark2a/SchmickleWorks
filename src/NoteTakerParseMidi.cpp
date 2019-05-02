@@ -70,6 +70,7 @@ bool NoteTakerParseMidi::parseMidi() {
         return false;
     }
     DisplayNote displayNote;
+    displayNote.cache = nullptr;
     displayNote.startTime = 0;
     displayNote.duration = 0;
     displayNote.type = MIDI_HEADER;
@@ -129,6 +130,7 @@ bool NoteTakerParseMidi::parseMidi() {
                 debug("%s", s.c_str());
                 return false;
             }
+            displayNote.cache = nullptr;
             displayNote.startTime = midiTime;
             displayNote.duration = -1;  // not known yet
             memset(displayNote.data, 0, sizeof(displayNote.data));

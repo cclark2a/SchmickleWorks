@@ -73,7 +73,7 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
             " ppq %d",
             selectStart, selectEnd, display->displayStart, display->displayEnd, selectChannels, 
             partButton->addChannel, partButton->allChannels, tempo, ppq);
-    NoteTaker::DebugDump(allNotes, !display->vg ? nullptr : &display->cache,
+    NoteTaker::DebugDump(allNotes, display->cacheInvalid ? nullptr : &display->cache,
             selectStart, selectEnd);
     this->debugDumpChannels();
     if (!inWheel && selectButton->ledOn && !partButton->ledOn && !sustainButton->ledOn
@@ -118,19 +118,27 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
         const DisplayNote& note = notes[index];
         std::string s;
         if (cache) {
-            const NoteCache& c = (*cache)[index];
-            s = std::to_string(index);
-            s += " [" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
-            if (PositionType::none != c.slurPosition) {
-                s += "s " + PosAsStr(c.slurPosition);
-            }
-            if (PositionType::none != c.beamPosition) {
-                s += "b" + PosAsStr(c.beamPosition) + std::to_string(c.beamCount) + " ";
-            }
-            if (PositionType::none != c.tupletPosition) {
-                s += "t" + PosAsStr(c.tupletPosition) + " ";
-            }
-            s += std::to_string(c.symbol) + (c.stemUp ? "u " : "d ");
+            const NoteCache* c = note.cache;
+            do {
+                if ("" != s) {
+                    debug("%s", s.c_str());
+                }
+                s = std::to_string(index);
+                s += " [" + TrimmedFloat(c->xPosition) + ", " + TrimmedFloat(c->yPosition) + "] ";
+                if (PositionType::none != c->slurPosition) {
+                    s += "s" + PosAsStr(c->slurPosition) + " ";
+                }
+                if (PositionType::none != c->beamPosition) {
+                    s += "b" + PosAsStr(c->beamPosition) + std::to_string(c->beamCount) + " ";
+                }
+                if (PositionType::none != c->tiePosition) {
+                    s += "t" + PosAsStr(c->tiePosition) + " ";
+                }
+                if (PositionType::none != c->tupletPosition) {
+                    s += "3" + PosAsStr(c->tupletPosition) + " ";
+                }
+                s += std::to_string(c->symbol) + (c->stemUp ? "u " : "d ");
+            } while ((++c)->note == &note);
         }
         if (INT_MAX != selectStart && &note == &notes[selectStart]) {
             s += "< ";

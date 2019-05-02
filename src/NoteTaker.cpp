@@ -417,6 +417,9 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels, ppq);
     bool success = emptyParser.parseMidi();
     assert(success);
+    if (display) {
+        display->invalidateCache();
+    }
 }
 
  //   to do
@@ -682,4 +685,26 @@ float NoteTaker::wheelToTempo(float value) const {
     int ceil = NoteDurations::ToStd(horzIndex + 1);
     float interp = floor + (ceil - floor) * (value - horzIndex);
     return stdTimePerQuarterNote / interp;
+}
+
+int NoteTaker::xPosAtEndStart() const {
+    assert(display && !display->cacheInvalid);
+    return allNotes[selectEnd - 1].cache->xPosition;
+}
+
+int NoteTaker::xPosAtEndEnd() const {
+    assert(display && !display->cacheInvalid);
+    const NoteCache* noteCache = allNotes[selectEnd - 1].cache;
+    return display->xEndPos(*noteCache);
+}
+
+int NoteTaker::xPosAtStartEnd() const {
+    assert(display && !display->cacheInvalid);
+    unsigned startEnd = this->selectEndPos(selectStart);
+    return allNotes[startEnd].cache->xPosition;
+}
+
+int NoteTaker::xPosAtStartStart() const {
+    assert(display && !display->cacheInvalid);
+    return allNotes[selectStart].cache->xPosition;
 }

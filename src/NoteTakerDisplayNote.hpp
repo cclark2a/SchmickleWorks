@@ -230,19 +230,23 @@ struct NoteCache {
     PositionType beamPosition;
     uint8_t beamCount;
     uint8_t channel;
-    PositionType barPosition;
     PositionType slurPosition;
+    PositionType tiePosition;
     PositionType tupletPosition;
     uint8_t symbol;
     bool accidentalSpace;
     bool endsOnBeat; // for beams
     bool stemUp;
 
+    bool operator<(const NoteCache& rhs) const {
+        return vStartTime < rhs.vStartTime;
+    }
+
     void resetTupleBeam() {
         beamPosition = PositionType::none;
         beamCount = 0;
-        barPosition = PositionType::none;
         slurPosition = PositionType::none;
+        tiePosition = PositionType::none;
         tupletPosition = PositionType::none;
     }
 
@@ -259,6 +263,10 @@ struct NoteCache {
             vDuration = vDuration * 3 / 2;  // to do : just support triplets for now
         }
         symbol = (uint8_t) NoteDurations::FromMidi(vDuration, ppq);
+    }
+
+    int vEndTime() const {
+        return vStartTime + vDuration;
     }
 
 };
