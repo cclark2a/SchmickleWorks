@@ -540,7 +540,7 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
     } while (true);
 }
 
-void NoteTakerDisplay::drawBevel() const {
+void NoteTakerDisplay::drawBevel(NVGcontext* vg) const {
     const float bevel = -2;
     nvgBeginPath(vg);
     nvgMoveTo(vg, 0, 0);
@@ -846,7 +846,9 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     }
     nvgSave(vg);
     accidentals.fill(NO_ACCIDENTAL);
-    this->drawBevel();
+// to do : figure out why this doesn't draw?
+//         for now, workaround is to append bevel draw as child to svg panel in note taker widget
+//    this->drawBevel(vg);
     nvgScissor(vg, 0, 0, box.size.x, box.size.y);
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, box.size.x, box.size.y);

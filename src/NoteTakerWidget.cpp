@@ -3,6 +3,21 @@
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
 
+struct DisplayBevel : Widget {
+    DisplayBevel(NoteTakerDisplay* d)
+        : display(d) {
+        this->box.pos = Vec(RACK_GRID_WIDTH - 2, RACK_GRID_WIDTH * 2 - 2);
+        this->box.size = Vec(RACK_GRID_WIDTH * 12 + 4, RACK_GRID_WIDTH * 9 + 4);
+    }
+
+    void draw(NVGcontext* vg) override {
+        nvgTranslate(vg, 2, 2);
+        display->drawBevel(vg);
+    }
+
+    NoteTakerDisplay* display;
+};
+
 struct NoteTakerWidget : ModuleWidget {
     NoteTakerWidget(NoteTaker *module) : ModuleWidget(module) {
         setPanel(SVG::load(assetPlugin(plugin, "res/NoteTaker.svg")));
@@ -17,6 +32,8 @@ struct NoteTakerWidget : ModuleWidget {
         module->display->fb = fb;
         fb->addChild(module->display);
         this->addChild(fb);
+        auto bevel = new DisplayBevel(module->display);
+        panel->addChild(bevel);
         module->horizontalWheel = ParamWidget::create<HorizontalWheel>(
                 Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f),
                 module, NoteTaker::HORIZONTAL_WHEEL, 0.0, 100.0, 0.0);

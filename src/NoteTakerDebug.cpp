@@ -114,31 +114,32 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
         assert(i == typeNames[i].type);
     }
     debug("notes: %d", notes.size());
+    unsigned cIndex = 0;
     for (unsigned index = 0; index < notes.size(); ++index) {
         const DisplayNote& note = notes[index];
         std::string s;
         if (cache) {
-            const NoteCache* c = note.cache;
+            const NoteCache& c = (*cache)[cIndex];
             do {
                 if ("" != s) {
                     debug("%s", s.c_str());
                 }
                 s = std::to_string(index);
-                s += " [" + TrimmedFloat(c->xPosition) + ", " + TrimmedFloat(c->yPosition) + "] ";
-                if (PositionType::none != c->slurPosition) {
-                    s += "s" + PosAsStr(c->slurPosition) + " ";
+                s += " [" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
+                if (PositionType::none != c.slurPosition) {
+                    s += "s" + PosAsStr(c.slurPosition) + " ";
                 }
-                if (PositionType::none != c->beamPosition) {
-                    s += "b" + PosAsStr(c->beamPosition) + std::to_string(c->beamCount) + " ";
+                if (PositionType::none != c.beamPosition) {
+                    s += "b" + PosAsStr(c.beamPosition) + std::to_string(c.beamCount) + " ";
                 }
-                if (PositionType::none != c->tiePosition) {
-                    s += "t" + PosAsStr(c->tiePosition) + " ";
+                if (PositionType::none != c.tiePosition) {
+                    s += "t" + PosAsStr(c.tiePosition) + " ";
                 }
-                if (PositionType::none != c->tupletPosition) {
-                    s += "3" + PosAsStr(c->tupletPosition) + " ";
+                if (PositionType::none != c.tupletPosition) {
+                    s += "3" + PosAsStr(c.tupletPosition) + " ";
                 }
-                s += std::to_string(c->symbol) + (c->stemUp ? "u " : "d ");
-            } while ((++c)->note == &note);
+                s += std::to_string(c.symbol) + (c.stemUp ? "u " : "d ");
+            } while ((*cache)[++cIndex].note <= &note);
         }
         if (INT_MAX != selectStart && &note == &notes[selectStart]) {
             s += "< ";

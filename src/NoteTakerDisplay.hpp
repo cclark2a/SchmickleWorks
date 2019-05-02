@@ -164,7 +164,7 @@ struct NoteTakerDisplay : VirtualWidget {
     void drawBarRest(BarPosition& bar, const NoteCache& noteCache,
         int xPos, unsigned char alpha) const;
     void drawBeam(unsigned start, unsigned char alpha) const;
-    void drawBevel() const;
+    void drawBevel(NVGcontext* vg) const;
     void drawClefs() const;
     void drawDynamicPitchTempo();
     void drawFileControl();

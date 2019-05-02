@@ -137,6 +137,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     span.push_back(note);
                 }
             }
+            nt->clipboard.clear();
         }
         if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
                 (span[0].isSignature() && nt->allNotes[insertLoc].isSignature())) {

@@ -98,8 +98,8 @@ bool NoteTaker::extractClipboard(vector<DisplayNote>* span) const {
             channel = note.channel;
         } else {
             mono &= channel == note.channel;
-            locked |= !(selectChannels & (1 << note.channel));
         }
+        locked |= !(selectChannels & (1 << note.channel));
     }
     if (!mono && locked) {
         return false;
