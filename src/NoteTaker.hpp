@@ -185,17 +185,6 @@ struct NoteTaker : Module {
     bool isRunning() const;
     bool isSelectable(const DisplayNote& note) const;
 
-    int lastEndTime(unsigned end) const {
-        int result = 0;
-        for (unsigned index = 0; index < end; ++index) {
-            const DisplayNote& note = allNotes[index];
-            if (this->isSelectable(note)) {
-                result = std::max(result, note.endTime());
-            }
-        }
-        return result;
-    }
-
     static int LastEndTime(const vector<DisplayNote>& notes) {
         int result = 0;
         for (auto& note : notes) {

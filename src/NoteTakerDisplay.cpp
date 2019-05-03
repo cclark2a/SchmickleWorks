@@ -1752,6 +1752,19 @@ void NoteTakerDisplay::updateXPosition() {
         noteCache.xPosition = (int) ((stdStart + bars * BAR_WIDTH) * xAxisScale + pos);
         if (noteCache.accidentalSpace) {
             noteCache.xPosition += 8;  // space for possible accidental
+        } else if (NOTE_ON == noteCache.note->type) {  // if another note at same time allows for
+            auto next = &noteCache;                    // accidental, add space here, too
+            assert(&cache.front() < next && next < &cache.back());
+            while (++next < &cache.back()) {
+                if (noteCache.vStartTime < next->vStartTime) {
+                    break;
+                }
+                assert(noteCache.vStartTime == next->vStartTime);
+                if (next->accidentalSpace) {
+                    noteCache.xPosition += 8;
+                    break;
+                }
+            }
         }
         debug("%d [%d] stdStart %d bars %d pos %g accidental %d", &noteCache - &cache.front(),
                 noteCache.xPosition, stdStart, bars, pos, noteCache.accidentalSpace ? 8 : 0);

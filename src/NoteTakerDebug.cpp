@@ -119,8 +119,8 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
         const DisplayNote& note = notes[index];
         std::string s;
         if (cache) {
-            const NoteCache& c = (*cache)[cIndex];
             do {
+                const NoteCache& c = (*cache)[cIndex];
                 if ("" != s) {
                     debug("%s", s.c_str());
                 }

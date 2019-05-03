@@ -123,11 +123,38 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         debug("add to empty");
     } else {
         vector<DisplayNote> span;
-        // insert loc is where the new note goes, but not when the new note goes; 
-        // the new start time is 'last end time(insert loc)'
-        insertLoc = !nt->selectStart ? nt->wheelToNote(1) : nt->selectEnd;
-        unsigned iStart = !nt->selectStart ? insertLoc : nt->selectStart;
+        // Insert loc is where the new note goes, but not when the new note goes; 
+        //   the new start time is 'last end time(insert loc)'
+        unsigned iStart;
         unsigned iEnd = nt->selectEnd;
+        int lastEndTime = 0;
+        if (!nt->selectStart) {
+            iStart = insertLoc = nt->wheelToNote(1);
+        } else {
+            insertLoc = nt->selectEnd;
+            iStart = nt->selectStart;
+        // A prior edit (e.g., changing a note duration) may invalidate using select end as the
+        //   insert location. Use select end to determine the last active note to insert after,
+        //   but not the location to insert after.
+            for (unsigned index = 0; index < iEnd; ++index) {
+                const auto& note = nt->allNotes[index];
+                if (nt->isSelectable(note)) {
+                    lastEndTime = std::max(lastEndTime, note.endTime());
+                    insertLoc = nt->selectEnd;
+                }
+                if (note.startTime >= lastEndTime && index < insertLoc) {
+                    insertLoc = index;
+                }
+            }
+            debug("lastEndTime %d insertLoc %U", lastEndTime, insertLoc);
+        }
+        // insertLoc may be different channel, so can't use that start time by itself
+        // shift to selectStart time, but not less than previous end (if any) on same channel
+        int insertTime = nt->allNotes[insertLoc].startTime;
+        while (insertTime < lastEndTime) {
+            insertTime = nt->allNotes[++insertLoc].startTime;
+        }
+        debug("insertTime %d insertLoc %U", insertTime, insertLoc);
         if (!selectButton->editStart() || nt->clipboard.empty() || !nt->extractClipboard(&span)) {
             !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
             debug("iStart=%u iEnd=%u", iStart, iEnd);
@@ -165,21 +192,13 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     nt->partButton->addChannel, NOTE_ON, false };
             span.push_back(midC);
         }
-        // insertLoc may be different channel, so can't use that start time by itself
-        // shift to selectStart time, but not less than previous end (if any) on same channel
-        int priorEnd = nt->lastEndTime(insertLoc);
-        int insertTime = nt->allNotes[insertLoc].startTime;
-        while (insertTime < priorEnd) {
-            insertTime = nt->allNotes[++insertLoc].startTime;
-        }
         int nextStart = nt->nextStartTime(insertLoc);
-        debug("priorEnd %d insertTime %d nextStart %d", priorEnd, insertTime, nextStart);
-        NoteTaker::ShiftNotes(span, 0, priorEnd - span.front().startTime);
+        NoteTaker::ShiftNotes(span, 0, lastEndTime - span.front().startTime);
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, span.begin(), span.end());
         insertSize = span.size();
         // include notes on other channels that fit within the start/end window
         // shift by span duration less next start (if any) on same channel minus selectStart time
-        shiftTime = (priorEnd - insertTime)
+        shiftTime = (lastEndTime - insertTime)
                 + (NoteTaker::LastEndTime(span) - span.front().startTime);
         int availableShiftTime = nextStart - insertTime;
         debug("shift time %d available %d", shiftTime, availableShiftTime);
