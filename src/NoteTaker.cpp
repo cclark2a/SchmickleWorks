@@ -148,6 +148,8 @@ bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
 void NoteTaker::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSize) {
     if (shiftTime) {
         this->shiftNotes(insertLoc + insertSize, shiftTime);
+    } else {
+        Sort(allNotes);
     }
     display->invalidateCache();
     display->displayEnd = 0;  // force recompute of display end
@@ -427,7 +429,9 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     if (this->isEmpty()) {
         selectStart = 0;
         selectEnd = 1;
-        display->displayStart = display->displayEnd = 0;
+        display->setRange();
+        displayFrameBuffer->dirty = true;
+        debug("setSelect set empty");
         return;
     }
     assert(start < end);

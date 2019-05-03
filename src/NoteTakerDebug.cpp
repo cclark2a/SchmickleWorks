@@ -75,6 +75,8 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
             partButton->addChannel, partButton->allChannels, tempo, ppq);
     NoteTaker::DebugDump(allNotes, display->cacheInvalid ? nullptr : &display->cache,
             selectStart, selectEnd);
+    debug("clipboard");
+    NoteTaker::DebugDump(clipboard);
     this->debugDumpChannels();
     if (!inWheel && selectButton->ledOn && !partButton->ledOn && !sustainButton->ledOn
             && !fileButton->ledOn) {

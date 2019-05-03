@@ -17,6 +17,7 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     if (shiftTime) {
         NoteTaker::ShiftNotes(nt->allNotes, shiftLoc, shiftTime);
     }
+    NoteTaker::Sort(nt->allNotes);
     nt->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
     nt->display->invalidateCache();
@@ -65,8 +66,8 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     nt->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
     int wheel = nt->noteToWheel(start);
-    unsigned previous = nt->wheelToNote(wheel - 1);
-    nt->setSelect(previous, start);
+    unsigned previous = nt->wheelToNote(std::max(0, wheel - 1));
+    nt->setSelect(previous, previous < start ? start : previous + 1);
     selectButton->setSingle();
     nt->setWheelRange();  // range is smaller
 }
@@ -113,7 +114,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
-    if (!nt->noteCount()) {
+    if (!nt->noteCount() && nt->clipboard.empty()) {
         insertLoc = nt->atMidiTime(0);
         DisplayNote midC = { nullptr, 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
                 nt->partButton->addChannel, NOTE_ON, false };
@@ -146,7 +147,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     insertLoc = index;
                 }
             }
-            debug("lastEndTime %d insertLoc %U", lastEndTime, insertLoc);
+            debug("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
         }
         // insertLoc may be different channel, so can't use that start time by itself
         // shift to selectStart time, but not less than previous end (if any) on same channel
@@ -154,7 +155,8 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         while (insertTime < lastEndTime) {
             insertTime = nt->allNotes[++insertLoc].startTime;
         }
-        debug("insertTime %d insertLoc %U", insertTime, insertLoc);
+        debug("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
+                nt->clipboard.size());
         if (!selectButton->editStart() || nt->clipboard.empty() || !nt->extractClipboard(&span)) {
             !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
             debug("iStart=%u iEnd=%u", iStart, iEnd);

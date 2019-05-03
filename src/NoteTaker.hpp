@@ -339,6 +339,7 @@ struct NoteTaker : Module {
     void shiftNotes(unsigned start, int diff) {
         debug("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
         ShiftNotes(allNotes, start, diff, selectChannels);
+        Sort(allNotes);
     }
 
     // shift track end only if another shifted note bumps it out
@@ -368,20 +369,22 @@ struct NoteTaker : Module {
         if (hasTrackEnd) {
             notes.back().startTime = trackEndTime;
         }
-        // don't use std::sort function; use insertion sort to minimize reordering
         if (sort) {
-            debug("pre insert sort");
-            DebugDump(notes);
-            for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
-                auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
-                std::rotate(insertion_point, it, it + 1);
-            }
-            debug("post insert sort");
-            DebugDump(notes);
+            Sort(notes);
         }
    }
   
 	void step() override;
+
+    // don't use std::sort function; use insertion sort to minimize reordering
+    static void Sort(vector<DisplayNote>& notes) {
+        debug("sort notes");
+        for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
+            auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
+            std::rotate(insertion_point, it, it + 1);
+        }
+    }
+
     json_t *toJson() override;
     void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
     void updateHorizontal();

@@ -265,6 +265,7 @@ void NoteTaker::updateHorizontal() {
             }
         }
         if (noteChanged) {
+            Sort(allNotes);
             display->invalidateCache();
             display->rangeInvalid = true;
         }
@@ -279,6 +280,8 @@ void NoteTaker::updateHorizontal() {
                     start, end, wheelValue, wheelStart);
         } else {
             start = this->wheelToNote(wheelValue);
+            selectButton->saveZero = SelectButton::State::single == selectButton->state
+                    && !start;
             end = this->nextAfter(start, 1);
             debug("start %u end %u wheelValue %d", start, end, wheelValue);
         }
