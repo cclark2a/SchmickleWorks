@@ -372,7 +372,6 @@ float NoteTakerDisplay::cacheWidth(const NoteCache& noteCache) const {
 }
 
 void NoteTakerDisplay::clearTuplet(unsigned index, unsigned limit) {
-    assert(oldSchool);
     assert(PositionType::left == cache[index].tupletPosition);
     int chan = nt->allNotes[index].channel;
     cache[index].tupletPosition = PositionType::none;
@@ -821,11 +820,7 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     textFont = FontFB::load(textFontName, nvgContext);
     if (cacheInvalid) {
         vg = nvgContext;
-        if (oldSchool) {
-            this->updateXPosition();
-        } else {
-            this->updateXPosition();
-        }
+        this->updateXPosition();
         cacheInvalid = false;
     }
     if (rangeInvalid) {
@@ -837,7 +832,6 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     if (nt->runUnitTest) { // to do : remove this from shipping code
         UnitTest(nt);
         nt->runUnitTest = false;
-        fb->dirty = true;
         return;
     }
 #endif
@@ -861,11 +855,7 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
     this->drawSelectionRect();
     bar.init();
     this->setUpAccidentals();
-    if (oldSchool) {
-        this->drawNotes();
-    } else {
-        this->drawNotes();
-    }
+    this->drawNotes();
     this->drawBars();
     nvgRestore(vg);
     this->recenterVerticalWheel();

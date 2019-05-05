@@ -111,6 +111,8 @@ struct NoteTaker : Module {
     bool sawClockLow = false;
     bool sawResetLow = false;
 
+    int debugMidiCount = 0;
+
     NoteTaker();
 
     bool advancePlayStart(int midiTime, unsigned lastNote) {
@@ -155,6 +157,16 @@ struct NoteTaker : Module {
         if (start < selectEnd) {
             assert(TRACK_END != allNotes[selectEnd - 1].type);
             clipboard.assign(allNotes.begin() + start, allNotes.begin() + selectEnd);
+        }
+    }
+
+    void copySelectableNotes() {
+        clipboard.clear();
+        for (unsigned index = selectStart; index < selectEnd; ++index) {
+            auto& note = allNotes[index];
+            if (this->isSelectable(note)) {
+                clipboard.push_back(note);
+            }
         }
     }
 
@@ -282,6 +294,7 @@ struct NoteTaker : Module {
     }
 
     void setScoreEmpty();
+    void setSelectableScoreEmpty();
 
     void setGateLow(const DisplayNote& note) {
         auto &chan = channels[note.channel];
@@ -320,6 +333,7 @@ struct NoteTaker : Module {
                 chan.gateLow = 0;
                 if (channel < CV_OUTPUTS) {
                     outputs[GATE1_OUTPUT + channel].value = 0;
+                    debug("set expired low %d", channel);
                 }
             }
             if (chan.noteEnd < midiTime) {

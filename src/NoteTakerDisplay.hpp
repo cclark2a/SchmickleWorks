@@ -140,7 +140,6 @@ struct NoteTakerDisplay : VirtualWidget {
     bool downSelected = false;
     bool leadingTempo = false;
     bool rangeInvalid = false;
-    bool oldSchool = false;
 
     NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m, FramebufferWidget* ,
             std::string mfn, std::string tfn);

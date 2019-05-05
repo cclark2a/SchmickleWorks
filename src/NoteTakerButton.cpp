@@ -37,10 +37,21 @@ void CutButton::draw(NVGcontext* vg) {
 void CutButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     NoteTakerButton::onDragEnd(e);
-    FileButton* fileButton = nt->fileButton;
-    if (fileButton->ledOn) {
+    if (nt->fileButton->ledOn) {
+        nt->selectStart = 0;
+        nt->selectEnd = nt->allNotes.size() - 1;
         nt->copyNotes();  // allows add to undo accidental cut / clear all
         nt->setScoreEmpty();
+        nt->display->invalidateCache();
+        nt->setSelectStart(nt->atMidiTime(0));
+        nt->setWheelRange();
+        return;
+    }
+    if (nt->partButton->ledOn) {
+        nt->selectStart = 0;
+        nt->selectEnd = nt->allNotes.size() - 1;
+        nt->copySelectableNotes();
+        nt->setSelectableScoreEmpty();
         nt->display->invalidateCache();
         nt->setSelectStart(nt->atMidiTime(0));
         nt->setWheelRange();
@@ -110,7 +121,7 @@ void InsertButton::draw(NVGcontext* vg) {
 void InsertButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
     SelectButton* selectButton = nt->selectButton;
-    nt->turnOffLedButtons();  // turn off pitch, file, sustain
+    nt->turnOffLedButtons();  // turn off pitch, file, sustain, etc
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
@@ -292,13 +303,16 @@ void RestButton::onDragEnd(EventDragEnd& e) {
 
 void RunButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
+    nt->debugMidiCount = 0;
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
         nt->zeroGates();
     } else {
         nt->resetRun();
+        nt->display->setRange();
         nt->horizontalWheel->lastRealValue = INT_MAX;
         nt->verticalWheel->lastValue = INT_MAX;
+        nt->playSelection();
     }
     if (!nt->fileButton->ledOn && !nt->partButton->ledOn && !nt->sustainButton->ledOn) {
         nt->setWheelRange();
@@ -343,7 +357,7 @@ void SelectButton::onDragEnd(EventDragEnd& e) {
         } break;
         case State::extend:
             assert(!ledOn);
-            nt->copyNotes();
+            nt->copySelectableNotes();
             state = State::ledOff; // does not call setOff because saveZero should not change
         break;
         default:

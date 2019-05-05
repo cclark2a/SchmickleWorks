@@ -144,8 +144,11 @@ void UnitTest(NoteTaker* n) {
     assert(4 == n->horizontalCount());
 
     debug("restore defaults");
+    n->resetState();
     n->fromJson(saveState);
     json_decref(saveState);
+    n->display->invalidateCache();
+    n->display->rangeInvalid = true;
 }
 
 #endif

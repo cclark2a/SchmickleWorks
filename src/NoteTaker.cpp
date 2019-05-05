@@ -313,6 +313,8 @@ void NoteTaker::playSelection() {
     elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime, ppq);
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     this->setPlayStart();
+    int midiTime = SecondsToMidi(elapsedSeconds, ppq);
+    this->advancePlayStart(midiTime, allNotes.size() - 1);
 }
 
 void NoteTaker::reset() {
@@ -400,8 +402,6 @@ void NoteTaker::setPlayStart() {
     }
     tempo = stdMSecsPerQuarterNote;
     this->zeroGates();
-    int midiTime = SecondsToMidi(elapsedSeconds, ppq);
-    this->advancePlayStart(midiTime, allNotes.size() - 1);
 }
 
 void NoteTaker::setScoreEmpty() {
@@ -415,6 +415,21 @@ void NoteTaker::setScoreEmpty() {
     if (display) {
         display->invalidateCache();
     }
+}
+
+void NoteTaker::setSelectableScoreEmpty() {
+    auto iter = allNotes.begin();
+    while (iter != allNotes.end()) {
+        if (this->isSelectable(*iter)) {
+            iter = allNotes.erase(iter);
+        } else {
+            ++iter;
+        }
+    }
+    display->invalidateCache();
+    display->displayEnd = 0;  // force recompute of display end
+    this->setSelect(0, 1);
+    this->setWheelRange();
 }
 
  //   to do
@@ -492,6 +507,11 @@ void NoteTaker::step() {
     if (!runButton) {
         return;  // do nothing if we're not set up yet
     }
+#if RUN_UNIT_TEST
+    if (runUnitTest) {
+        return;
+    }
+#endif
     bool running = this->isRunning();
     float clockCycle = 0;
     int localTempo;
@@ -553,8 +573,11 @@ void NoteTaker::step() {
     // read data from display notes to determine pitch
     // note on event start changes cv and sets gate high
     // note on event duration sets gate low
-    elapsedSeconds += engineGetSampleTime() * this->beatsPerHalfSecond(localTempo);
     int midiTime = SecondsToMidi(elapsedSeconds, ppq);
+    if (false && running && ++debugMidiCount < 100) {
+        debug("midiTime %d elapsedSeconds %g playStart %u", midiTime, elapsedSeconds, playStart);
+    }
+    elapsedSeconds += engineGetSampleTime() * this->beatsPerHalfSecond(localTempo);
     if (midiTime >= midiClockOut) {
         midiClockOut += ppq;
         outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
@@ -569,6 +592,7 @@ void NoteTaker::step() {
             this->resetRun();
             outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
             eosTime = realSeconds + 0.01f;
+            this->advancePlayStart(midiTime, allNotes.size() - 1);
         } else {
             this->setExpiredGatesLow(INT_MAX);
         }
@@ -601,10 +625,10 @@ void NoteTaker::step() {
                     note.startTime + channelInfo.sustain(note.duration);
             channelInfo.noteEnd = endTime;
             channelInfo.noteIndex = noteIndex;
-            if (false) debug("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d",
-                    note.channel, channelInfo.gateLow, channelInfo.noteEnd, channelInfo.noteIndex,
-                    prior, midiTime);
             if (note.channel < CV_OUTPUTS) {
+                if (true) debug("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d old %g",
+                        note.channel, channelInfo.gateLow, channelInfo.noteEnd, channelInfo.noteIndex,
+                        prior, midiTime, outputs[GATE1_OUTPUT + note.channel].value);
                 outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
             }
         }
@@ -617,14 +641,18 @@ void NoteTaker::step() {
             float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             if (runningWithButtonsOff()) {
                 bias += inputs[V_OCT_INPUT].value;
-                bias += (verticalWheel->wheelValue() - 60) / 12.f;
+                bias += ((int) verticalWheel->value - 60) / 12.f;
             }
+            if (true) debug("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
+                note.channel, bias,
+                inputs[V_OCT_INPUT].value, verticalWheel->value,
+                note.pitch() / 12.f, bias + note.pitch() / 12.f,
+                outputs[CV1_OUTPUT + note.channel].value);
             outputs[CV1_OUTPUT + note.channel].value = bias + note.pitch() / 12.f;
         }
     }
     if (running) {
         // to do : don't write to same state in different threads
-        // to do : select selStart through selEnd, move displayStart / end calc to display thread
         if (INT_MAX != selStart && selectStart != selStart) {
             (void) this->setSelectStart(selStart);
         }
