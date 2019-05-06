@@ -69,10 +69,9 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
     debug("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
     debug("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
-    debug("select s/e %u %u display s/e %u %u chans 0x%02x part.addChan %d part.allChan %d tempo %d"
-            " ppq %d",
+    debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %dtempo %d ppq %d",
             selectStart, selectEnd, display->displayStart, display->displayEnd, selectChannels, 
-            partButton->addChannel, partButton->allChannels, tempo, ppq);
+            this->unlockedChannel(), tempo, ppq);
     NoteTaker::DebugDump(allNotes, display->cacheInvalid ? nullptr : &display->cache,
             selectStart, selectEnd);
     debug("clipboard");

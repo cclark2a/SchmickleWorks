@@ -110,6 +110,7 @@ struct NoteTaker : Module {
     #endif
     bool sawClockLow = false;
     bool sawResetLow = false;
+    bool clipboardInvalid = true;
 
     int debugMidiCount = 0;
 
@@ -148,7 +149,14 @@ struct NoteTaker : Module {
 
     float beatsPerHalfSecond(int tempo) const;
 
+    // to do : once clipboard is set, don't reset unless:
+    // selection range was enlarged
+    // insert or cut
+    // 
     void copyNotes() {
+        if (!clipboardInvalid) {
+            return;
+        }
         unsigned start = selectStart;
         // don't allow midi header on clipboard
         if (MIDI_HEADER == allNotes[selectStart].type) {
@@ -158,9 +166,13 @@ struct NoteTaker : Module {
             assert(TRACK_END != allNotes[selectEnd - 1].type);
             clipboard.assign(allNotes.begin() + start, allNotes.begin() + selectEnd);
         }
+        clipboardInvalid = false;
     }
 
     void copySelectableNotes() {
+        if (!clipboardInvalid) {
+            return;
+        }
         clipboard.clear();
         for (unsigned index = selectStart; index < selectEnd; ++index) {
             auto& note = allNotes[index];
@@ -168,6 +180,7 @@ struct NoteTaker : Module {
                 clipboard.push_back(note);
             }
         }
+        clipboardInvalid = false;
     }
 
     void debugDumpChannels() const {
@@ -401,6 +414,16 @@ struct NoteTaker : Module {
 
     json_t *toJson() override;
     void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
+
+    unsigned unlockedChannel() const {
+        for (unsigned x = 0; x < CHANNEL_COUNT; ++x) {
+            if (selectChannels & (1 << x)) {
+                return x;
+            }
+        }
+        return 0;
+    }
+
     void updateHorizontal();
     void updateVertical();
     void validate() const;

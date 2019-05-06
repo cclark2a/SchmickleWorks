@@ -211,7 +211,6 @@ struct NoteTakerDisplay : VirtualWidget {
     void recenterVerticalWheel();
 
     void reset() {
-        xAxisOffset = 0;
         xAxisScale = 0.25;
         xControlOffset = 0;
         dynamicPitchAlpha = 0;

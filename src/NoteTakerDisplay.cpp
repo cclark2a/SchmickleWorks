@@ -40,13 +40,13 @@ void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
     int barCount = (noteCache.vStartTime - tsStart) / duration + priorBars;
     if (barCount) {
         pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
-        debug("addPos [%d] xMin %g xPos %d", barCount, pos[barCount].xMin, noteCache.xPosition);
+        if (false) debug("addPos [%d] xMin %g xPos %d", barCount, pos[barCount].xMin, noteCache.xPosition);
     }
     // note the adds duration less one to round up
     barCount = (noteCache.vEndTime() - tsStart + duration - 1) / duration + priorBars;  // rounds up
     if (barCount) {
         pos[barCount].xMax = std::max(pos[barCount].xMax, noteCache.xPosition + cacheWidth);
-        debug("addPos [%d] xMax %g xPos %d width %g", barCount, pos[barCount].xMax,
+        if (false) debug("addPos [%d] xMax %g xPos %d width %g", barCount, pos[barCount].xMax,
                 noteCache.xPosition, cacheWidth);
     }
 }
@@ -468,7 +468,7 @@ void NoteTakerDisplay::drawBars() {
             continue;
         }
         this->drawBarAt(p.second.useMax ? p.second.xMax : (p.second.xMin + p.second.xMax) / 2);
-        debug("[%d] drawBars min %g max %g useMax %d", p.first, p.second.xMin, p.second.xMax,
+        if (false) debug("[%d] drawBars min %g max %g useMax %d", p.first, p.second.xMin, p.second.xMax,
                 p.second.useMax);
     }
 }
@@ -754,7 +754,7 @@ void NoteTakerDisplay::drawSelectionRect() const {
     int width = 4;
     int yTop = 0;
     int yHeight = box.size.y;
-    unsigned channel = nt->selectButton->editStart() ? 1 << nt->partButton->addChannel :
+    unsigned channel = nt->selectButton->editStart() ? 1 << nt->unlockedChannel() :
             nt->selectChannels;
     const DisplayNote* note = nullptr;
     if (nt->selectStart + 1 == nt->selectEnd) {
@@ -1185,7 +1185,7 @@ void NoteTakerDisplay::drawSustainControl() const {
     this->drawVerticalControl();
     // draw horizontal control
     nvgBeginPath(vg);
-    NoteTakerChannel& channel = nt->channels[nt->partButton->addChannel];
+    NoteTakerChannel& channel = nt->channels[nt->unlockedChannel()];
     int susMin = std::max(6, channel.sustainMin);
     int susMax = channel.sustainMin == channel.sustainMax ? 0
             : std::max(6, channel.sustainMax - channel.sustainMin);
@@ -1676,7 +1676,7 @@ static void track_pos(std::list<PosAdjust>& posAdjust, float xOff, int endTime) 
     if (xOff > 0) {
         PosAdjust adjust = { xOff, endTime };
         posAdjust.push_back(adjust);
-        debug("xOff %g endTime %d", xOff, endTime);
+        if (false) debug("xOff %g endTime %d", xOff, endTime);
     }
 }
 
@@ -1725,7 +1725,7 @@ void NoteTakerDisplay::updateXPosition() {
             }
         }
         if (nextAdjust.x) {
-            debug("posAdjust x %g time %d", nextAdjust.x, nextAdjust.time);
+            if (false) debug("posAdjust x %g time %d", nextAdjust.x, nextAdjust.time);
             pos += nextAdjust.x;
             auto iter = posAdjust.begin();
             while (iter != posAdjust.end()) {
@@ -1756,7 +1756,7 @@ void NoteTakerDisplay::updateXPosition() {
                 }
             }
         }
-        debug("%d [%d] stdStart %d bars %d pos %g accidental %d", &noteCache - &cache.front(),
+        if (false) debug("%d [%d] stdStart %d bars %d pos %g accidental %d", &noteCache - &cache.front(),
                 noteCache.xPosition, stdStart, bars, pos, noteCache.accidentalSpace ? 8 : 0);
         const DisplayNote& note = *noteCache.note;
         switch (note.type) {
@@ -1774,7 +1774,7 @@ void NoteTakerDisplay::updateXPosition() {
                     float xOff = drawWidth - NoteDurations::InStd(noteCache.vDuration, nt->ppq)
                             * xAxisScale;
                     track_pos(posAdjust, xOff, noteCache.vEndTime());
-                    debug("%d track_pos xOff %g cache start %d dur %d", &noteCache - &cache.front(),
+                    if (false) debug("%d track_pos xOff %g cache start %d dur %d", &noteCache - &cache.front(),
                             xOff, noteCache.vStartTime, noteCache.vDuration);
                 } break;
             case KEY_SIGNATURE:

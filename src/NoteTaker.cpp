@@ -25,7 +25,12 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         //   3) voltage step marks beat
         // for 3), second step determines bphs -- tempo change always lags 1 beat
         // playback continues for one beat after clock stops
+        static float lastRatio = 0;
         float tempoRatio = this->wheelToTempo(horizontalWheel->value);
+        if (lastRatio != tempoRatio) {
+            displayFrameBuffer->dirty = true;
+            lastRatio = tempoRatio;
+        }
         deltaTime *= tempoRatio;
     }
     return deltaTime;
@@ -99,7 +104,7 @@ bool NoteTaker::extractClipboard(vector<DisplayNote>* span) const {
     }
     *span = clipboard;
     if (locked) {
-        MapChannel(*span, partButton->addChannel); 
+        MapChannel(*span, this->unlockedChannel()); 
     }
     return true;
 }
@@ -185,6 +190,7 @@ void NoteTaker::loadScore() {
     if (!parser.parseMidi()) {
         this->setScoreEmpty();
     }
+    display->resetXAxisOffset();
     this->resetRun();
     display->invalidateCache();
     this->setSelectStart(this->atMidiTime(0));
@@ -329,6 +335,9 @@ void NoteTaker::resetState() {
     for (auto channel : channels) {
         channel.reset();
     }
+    if (display) {
+        display->resetXAxisOffset();
+    }
     this->resetRun();
     selectChannels = ALL_CHANNELS;
     this->setScoreEmpty();
@@ -349,7 +358,7 @@ bool NoteTaker::resetControls() {
             (NoteTakerButton*) timeButton }) {
         button->reset();
     }
-    partButton->resetChannels();
+//    partButton->resetChannels();
     this->horizontalWheel->reset();
     this->verticalWheel->reset();
     this->setWheelRange();
@@ -370,7 +379,6 @@ void NoteTaker::resetRun() {
     sawClockLow = false;
     sawResetLow = false;
     if (display) {
-        display->resetXAxisOffset();
         display->displayStart = display->displayEnd = 0;
     }
     this->setPlayStart();
@@ -556,7 +564,7 @@ void NoteTaker::step() {
             int startTime = allNotes[insertLoc].startTime;
             DisplayNote note = { nullptr, startTime, duration,
                     { midiNote, 0, stdKeyPressure, stdKeyPressure},
-                    partButton->addChannel, NOTE_ON, false };
+                     (uint8_t) this->unlockedChannel(), NOTE_ON, false };
             allNotes.insert(allNotes.begin() + insertLoc, note);
             this->insertFinal(duration, insertLoc, 1);
         }
@@ -564,6 +572,7 @@ void NoteTaker::step() {
     } else {
         localTempo = this->externalTempo(clockCycle);
         if (resetCycle) {
+            display->resetXAxisOffset();
             this->resetRun();
         }
     }
@@ -589,6 +598,7 @@ void NoteTaker::step() {
         playStart = 0;
         if (running) {
             // to do : add option to stop running
+            display->resetXAxisOffset();
             this->resetRun();
             outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
             eosTime = realSeconds + 0.01f;
@@ -678,7 +688,11 @@ unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
     if (!value) {
         return 0;  // midi header
     }
-    assert(value >= 0);
+    if (!dbug && value < 0) {
+        debug("! didn't expect < 0 : value: %d", value);
+        return 0;
+    }
+    assert(value > 0);
     assert(value < (int) allNotes.size());
     int count = value - 1;
     int lastStart = -1;
@@ -692,12 +706,15 @@ unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
             }
         }
         if (TRACK_END == note.type) {
-            assert(count <= 0);
+            if (count > 0) {
+                debug("! expected 0 wheelToNote value at track end; value: %d", value);
+                assert(!dbug);                
+            }
             return allNotes.size() - 1;
         }
     }
+    debug("! out of range wheelToNote value %d", value);
     if (dbug) {
-        debug("wheelToNote value %d", value);
         this->debugDump(false, true);
         assert(0);  // probably means wheel range is larger than selectable note count
     }
@@ -707,7 +724,10 @@ unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
 float NoteTaker::wheelToTempo(float value) const {
     int horzIndex = (int) value;
     int floor = NoteDurations::ToStd(horzIndex);
-    int ceil = NoteDurations::ToStd(horzIndex + 1);
+    int next = horzIndex + 1;
+    // artificial limit imposed by storing tempo in note data
+    const float largest = INT_MAX / 500000.f;
+    float ceil = (unsigned) next < NoteDurations::Count() ? NoteDurations::ToStd(next) : largest;
     float interp = floor + (ceil - floor) * (value - horzIndex);
     return stdTimePerQuarterNote / interp;
 }

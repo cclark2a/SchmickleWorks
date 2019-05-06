@@ -36,6 +36,7 @@ void CutButton::draw(NVGcontext* vg) {
 
 void CutButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
+    nt->clipboardInvalid = true;
     NoteTakerButton::onDragEnd(e);
     if (nt->fileButton->ledOn) {
         nt->selectStart = 0;
@@ -120,6 +121,7 @@ void InsertButton::draw(NVGcontext* vg) {
 
 void InsertButton::onDragEnd(EventDragEnd& e) {
     NoteTaker* nt = nModule();
+    nt->clipboardInvalid = true;
     SelectButton* selectButton = nt->selectButton;
     nt->turnOffLedButtons();  // turn off pitch, file, sustain, etc
     unsigned insertLoc;
@@ -128,7 +130,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
     if (!nt->noteCount() && nt->clipboard.empty()) {
         insertLoc = nt->atMidiTime(0);
         DisplayNote midC = { nullptr, 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
-                nt->partButton->addChannel, NOTE_ON, false };
+                (uint8_t) nt->unlockedChannel(), NOTE_ON, false };
         nt->allNotes.insert(nt->allNotes.begin() + insertLoc, midC);
         insertSize = 1;
         shiftTime = nt->ppq;
@@ -154,7 +156,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     lastEndTime = std::max(lastEndTime, note.endTime());
                     insertLoc = nt->selectEnd;
                 }
-                if (note.startTime >= lastEndTime && index < insertLoc) {
+                if (note.isNoteOrRest() && note.startTime >= lastEndTime && index < insertLoc) {
                     insertLoc = index;
                 }
             }
@@ -202,7 +204,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         }
         if (span.empty()) {
             DisplayNote midC = { nullptr, 0, nt->ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
-                    nt->partButton->addChannel, NOTE_ON, false };
+                    (uint8_t) nt->unlockedChannel(), NOTE_ON, false };
             span.push_back(midC);
         }
         int nextStart = nt->nextStartTime(insertLoc);
@@ -263,19 +265,14 @@ void PartButton::onDragEnd(EventDragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
         this->onTurnOff();
+    } else if (nt->selectButton->editEnd()) {
+        nt->clipboardInvalid = true;
+        nt->copySelectableNotes();
     }
-    debug("part button onDragEnd ledOn %d part %d allChannels %d addChannel %u",
-            ledOn, nt->horizontalWheel->part(), allChannels, addChannel);
+    debug("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
+            ledOn, nt->horizontalWheel->part(), nt->selectChannels, nt->unlockedChannel());
     nt->turnOffLedButtons(this);
     nt->setWheelRange();  // range is larger
-}
-
-void PartButton::onTurnOff() {
-    if (!allChannels) {
-        // allChannels, addChannel updated interactively so it is visible in UI
-        nModule()->selectChannels |= 1 << addChannel;
-    }
-    EditLEDButton::onTurnOff();
 }
 
 void RestButton::draw(NVGcontext* vg) {
@@ -295,7 +292,7 @@ void RestButton::onDragEnd(EventDragEnd& e) {
     }
     onDragEndPreamble(e);
     DisplayNote rest = { nullptr, startTime, nt->ppq, { 0, 0, 0, 0},
-            nt->partButton->addChannel, REST_TYPE, false };
+            (uint8_t) nt->unlockedChannel(), REST_TYPE, false };
     shiftTime = rest.duration;
     nt->allNotes.insert(nt->allNotes.begin() + insertLoc, rest);
     AdderButton::onDragEnd(e);
@@ -310,6 +307,8 @@ void RunButton::onDragEnd(EventDragEnd& e) {
     } else {
         nt->resetRun();
         nt->display->setRange();
+        unsigned next = nt->nextAfter(nt->selectStart, 1);
+        nt->setSelectStart(next < nt->allNotes.size() - 1 ? next : 0);
         nt->horizontalWheel->lastRealValue = INT_MAX;
         nt->verticalWheel->lastValue = INT_MAX;
         nt->playSelection();

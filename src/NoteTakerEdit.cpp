@@ -22,13 +22,13 @@ void NoteTaker::setHorizontalWheelRange() {
     }
     if (partButton->ledOn) {
         horizontalWheel->setLimits(-1, CV_OUTPUTS);
-        horizontalWheel->setValue(partButton->addChannel);
+        horizontalWheel->setValue(this->unlockedChannel());
         horizontalWheel->speed = 1;
         return;
     }
     if (sustainButton->ledOn) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - 1);
-        int sustainMinDuration = channels[partButton->addChannel].sustainMin;
+        int sustainMinDuration = channels[this->unlockedChannel()].sustainMin;
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, ppq));
         horizontalWheel->speed = 1;
         return;
@@ -79,8 +79,7 @@ void NoteTaker::setHorizontalWheelRange() {
     } else {
         int wheelMin = selectButton->editStart() ? 0 : 1;
         float wheelMax = this->horizontalCount() + .999f;
-        debug("wheelMax %g", wheelMax);
-        this->debugDump(false, true);
+        debug("horizontalWheel->setLimits wheelMin %d wheelMax %g", wheelMin, wheelMax);
         horizontalWheel->setLimits(wheelMin, wheelMax);
         if (this->isEmpty()) {
             value = 0;
@@ -172,16 +171,10 @@ void NoteTaker::updateHorizontal() {
         return;
     }
     if (partButton->ledOn) {
-        int part = horizontalWheel->part();
-        partButton->allChannels = part < 0;
-        if (!partButton->allChannels) {
-            partButton->addChannel = (uint8_t) part;
-            // to do : update selectChannels before part button is turned off ?
-        }
         return;
     }
     if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = channels[partButton->addChannel];
+        NoteTakerChannel& channel = channels[this->unlockedChannel()];
         channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value,
                 NoteDurations::ToMidi(horizontalWheel->value, ppq));
         return;
@@ -272,6 +265,7 @@ void NoteTaker::updateHorizontal() {
     } else {
         unsigned start, end;
         if (selectButton->editEnd()) {
+            clipboardInvalid = true;
             int wheelStart = this->noteToWheel(
                     selectButton->selStart - (int) selectButton->saveZero) + 1;
             start = this->wheelToNote(std::min(wheelValue, wheelStart));
@@ -344,7 +338,7 @@ void NoteTaker::updateVertical() {
         return;
     }
     if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = channels[partButton->addChannel];
+        NoteTakerChannel& channel = channels[this->unlockedChannel()];
         int sustainDuration = INT_MAX;
         switch(wheelValue) {
             case 3: // to do : create enum to identify values

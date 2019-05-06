@@ -225,32 +225,8 @@ struct KeyButton : AdderButton {
 // select / [ part / choose channels to copy ] / insert / part / choose where to insert / add
 // (no select) / part / choose channel / add or cut
 struct PartButton : EditLEDButton {
-    uint8_t addChannel = 0;  // channel for single note inserts
-    bool allChannels = true;  // if false, paste is moved to addChannel
-
     void draw(NVGcontext *vg) override;
-
-    void fromJson(json_t* root) override {
-        NoteTakerButton::fromJson(root);
-        addChannel = json_integer_value(json_object_get(root, "addChannel"));
-        allChannels = json_boolean_value(json_object_get(root, "allChannels"));
-    }
-
     void onDragEnd(EventDragEnd &e) override;
-    void onTurnOff() override;
-
-    // note: not reset because turning off button is separate from resetting channel state
-    void resetChannels() {
-        addChannel = 0;
-        allChannels = true;
-    }
-
-    json_t *toJson() const override {
-        json_t* root = NoteTakerButton::toJson();
-        json_object_set_new(root, "addChannel", json_integer(addChannel));
-        json_object_set_new(root, "allChannels", json_boolean(allChannels));
-        return root;
-    }
 };
 
 // if selection, exchange note / reset
