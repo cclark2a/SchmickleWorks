@@ -21,7 +21,7 @@ static vector<uint8_t>::const_iterator find_next_note(const vector<uint8_t>& mid
         }
     }
     if (noteIter + 2 >= midi.end()) {
-        debug ("no note after delta");
+        debug ("! no note after delta");
         return midi.end();
     }
     if ((*noteIter & midiCVMask) == midiNoteOn) { // if note on, look for note off within 16 bytes
@@ -47,7 +47,7 @@ static vector<uint8_t>::const_iterator find_next_note(const vector<uint8_t>& mid
 }
 
 bool NoteTakerParseMidi::parseMidi() {
-    debug("parseMidi start");
+    if (debugVerbose) debug("parseMidi start");
     vector<DisplayNote> parsedNotes;
     if (midi.size() < 14) {
         debug("MIDI file too small size=%llu", midi.size());
@@ -105,13 +105,13 @@ bool NoteTakerParseMidi::parseMidi() {
         }
         ++trackCount;
         midiTime = 0;
-        debug("trackLength %d", trackLength);
+        if (debugVerbose) debug("trackLength %d", trackLength);
         unsigned lowNibble;
         // find next note; note on followed by note off, within a short distance
         // don't allow delta time to include next note
         while (!trackEnded && trackLength) {
             const auto messageStart = iter;
-            vector<uint8_t>::const_iterator limit = find_next_note(midi, iter);
+            vector<uint8_t>::const_iterator limit = trackLength > 4 ? find_next_note(midi, iter) : midi.end();
             midiTime += this->safeMidi_size8(limit, iter, ppq);
             if (0 == (*iter & 0x80)) {
                 debug("%d expected high bit set on channel voice message: %02x", midiTime, *iter);
@@ -218,7 +218,7 @@ bool NoteTakerParseMidi::parseMidi() {
                 break;
                 case MIDI_SYSTEM:
                     displayNote.channel = 0xFF;
-                    debug("system message 0x%02x", lowNibble);
+                    if (debugVerbose) debug("system message 0x%02x", lowNibble);
                     switch (lowNibble) {
                         case 0x0:  // system exclusive
                             displayNote.data[0] = iter - midi.begin();  // offset of message start
@@ -264,7 +264,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                 debug("expected meta event length");
                                 return false;
                             }
-                            debug("meta event 0x%02x", displayNote.data[0]);
+                            if (debugVerbose) debug("meta event 0x%02x", displayNote.data[0]);
                             switch (displayNote.data[0]) {
                                 case 0x00:  // sequence number: 
                                             // http://midi.teragonaudio.com/tech/midifile/seq.htm                                   
@@ -467,10 +467,10 @@ bool NoteTakerParseMidi::parseMidi() {
         }
         lastTime = note.startTime;
     }
-    NoteTaker::DebugDump(withRests);
+    if (debugVerbose) NoteTaker::DebugDump(withRests);
     displayNotes.swap(withRests);
     ntPpq = ppq;
-    debug("ntPpq %d", ntPpq);
+    if (debugVerbose) debug("ntPpq %d", ntPpq);
     return true;
 }
 

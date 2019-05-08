@@ -54,7 +54,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
     }
     std::set<LastNote> lastNotes;
     int lastTime = 0;
-    for (auto& n : nt.allNotes) {
+    for (auto& n : nt.notes) {
         switch(n.type) {
             case MIDI_HEADER:
                 break;

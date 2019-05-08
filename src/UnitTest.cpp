@@ -12,7 +12,7 @@ static void Press(NoteTaker* n, MomentarySwitch* ms) {
     ms->onDragStart(evs);
     EventDragEnd evd;
     ms->onDragEnd(evd);
-    n->debugDump();
+    if (n->debugVerbose) n->debugDump();
 }
 
 static void WheelUp(NoteTaker* n, float value) {
@@ -20,7 +20,6 @@ static void WheelUp(NoteTaker* n, float value) {
     assert(n->verticalWheel->minValue <= n->verticalWheel->maxValue);
     n->verticalWheel->value = 
             std::max(n->verticalWheel->minValue, std::min(n->verticalWheel->maxValue, value));
-    n->verticalWheel->lastValue = INT_MAX;
     n->updateVertical();
 }
 
@@ -43,15 +42,136 @@ static void ExerciseWheels(NoteTaker* n) {
     }
 }
 
+// construct unit test out of parts that can be called independently
+// difficult to test for correctness, but should find crashes
+/*  high level
+    add note / part / pitch / duration
+    add rest / duration
+    + low level
+    
+    low level
+    press button
+    move wheel
+    pulse input
+ */
+
+// file button + vertical wheel potentially reads/writes to file system
+// Unit test shouldn't modify files.
+// Note NoteTaker loadScore, saveScore override midi dir while test is running
+//  to read/write files from test directory instead of midi directory
+static void LowLevelAction(NoteTaker* n, int control) {
+    switch (control) {
+        case NoteTaker::RUN_BUTTON:
+            Press(n, n->runButton);
+        break;
+        case NoteTaker::EXTEND_BUTTON:
+            Press(n, n->selectButton);
+        break;
+        case NoteTaker::INSERT_BUTTON:
+            Press(n, n->insertButton);
+        break;
+        case NoteTaker::CUT_BUTTON:
+            Press(n, n->cutButton);
+        break;
+        case NoteTaker::REST_BUTTON:
+            Press(n, n->restButton);
+        break;
+        case NoteTaker::PART_BUTTON:
+            Press(n, n->partButton);
+        break;
+        case NoteTaker::FILE_BUTTON:
+            Press(n, n->fileButton);
+        break;
+        case NoteTaker::SUSTAIN_BUTTON:
+            Press(n, n->sustainButton);
+        break;
+        case NoteTaker::TIME_BUTTON:
+            Press(n, n->timeButton);
+        break;
+        case NoteTaker::KEY_BUTTON:
+            Press(n, n->keyButton);
+        break;
+        case NoteTaker::TIE_BUTTON:
+            Press(n, n->tieButton);
+        break;
+        case NoteTaker::TRILL_BUTTON:
+            Press(n, n->trillButton);
+        break;
+        case NoteTaker::TEMPO_BUTTON:
+            Press(n, n->tempoButton);
+        break;
+        case NoteTaker::VERTICAL_WHEEL: {
+            float value = n->verticalWheel->minValue + ((float) rand() / RAND_MAX
+                    * (n->verticalWheel->maxValue - n->verticalWheel->minValue));
+            WheelUp(n, value);  
+        } break;
+        case NoteTaker::HORIZONTAL_WHEEL: {
+            float value = n->horizontalWheel->minValue + ((float) rand() / RAND_MAX
+                    * (n->horizontalWheel->maxValue - n->horizontalWheel->minValue));
+            WheelLeft(n, value);
+        } break;
+        case NoteTaker::NUM_PARAMS + NoteTaker::V_OCT_INPUT: 
+        case NoteTaker::NUM_PARAMS + NoteTaker::CLOCK_INPUT: 
+        case NoteTaker::NUM_PARAMS + NoteTaker::RESET_INPUT: {
+            float value = -10 + (float) rand() / RAND_MAX * 20;
+            n->inputs[control - NoteTaker::NUM_PARAMS].value = value;
+        } break;
+        default:
+            assert(0);  // shouldn't land here
+    }
+}
+
+static void LowLevelTestDigits(NoteTaker* n) {
+    int counters[6];
+    for (int digits = 1; digits <= 5; ++digits) {
+        for (int index = 0; index < digits; ++ index) {
+            counters[index] = 0;
+        }
+        do {
+            int index = 0;
+            while (++counters[index] == NoteTaker::NUM_PARAMS + NoteTaker::NUM_INPUTS) {
+                counters[index] = 0;
+                ++index;
+            }
+            if (counters[digits]) {
+                break;
+            }
+            n->resetState();
+            for (index = 0; index < digits; ++index) {
+                LowLevelAction(n, counters[index]);
+                n->validate();
+            }
+        } while (true);
+    }
+}
+
+static void LowLevelTestDigitsSolo(NoteTaker* n) {
+    int counters[] = { 4, 10, 14, 1, 0, 0 };
+    int digits = 5;
+    n->resetState();
+    for (int index = 0; index < digits; ++index) {
+        LowLevelAction(n, counters[index]);
+    }
+}
+
+static void LowLevelRandom(NoteTaker* n, unsigned seed, int steps) {
+    srand(seed);
+    n->resetState();
+    for (int index = 0; index < steps; ++index) {
+        int control = rand() % (NoteTaker::NUM_PARAMS + NoteTaker::NUM_INPUTS);
+        LowLevelAction(n, control);
+    }
+}
+
 static void AddTwoNotes(NoteTaker* n) {
     n->resetState();
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     unsigned note1 = n->wheelToNote(1);
-    WheelUp(n, n->allNotes[note1].pitch() + 1);
+    WheelUp(n, n->notes[note1].pitch() + 1);
 }
 
-void UnitTest(NoteTaker* n) {
+static void Expected(NoteTaker* n) {
     json_t* saveState = n->toJson();
     n->reset();
     debug("delete a note with empty score");
@@ -74,10 +194,10 @@ void UnitTest(NoteTaker* n) {
     debug("add two notes with empty score, check order");
     AddTwoNotes(n);
     unsigned note1 = n->wheelToNote(1);
-    assert(4 == n->allNotes.size());
+    assert(4 == n->notes.size());
     assert(2 == n->horizontalCount());
     unsigned note2 = n->wheelToNote(2);
-    assert(n->allNotes[note1].pitch() < n->allNotes[note2].pitch());
+    assert(n->notes[note1].pitch() < n->notes[note2].pitch());
     Press(n, n->cutButton);
     assert(!n->isEmpty());
     Press(n, n->cutButton);
@@ -121,7 +241,7 @@ void UnitTest(NoteTaker* n) {
     Press(n, n->selectButton);
     WheelLeft(n, 2);
     Press(n, n->insertButton);
-    assert(6 == n->allNotes.size());
+    assert(6 == n->notes.size());
     assert(4 == n->horizontalCount());
 
     debug("copy and paste");
@@ -140,7 +260,7 @@ void UnitTest(NoteTaker* n) {
     debug("cnp wheel left 1");
     n->debugDump();
     Press(n, n->insertButton);
-    assert(6 == n->allNotes.size());
+    assert(6 == n->notes.size());
     assert(4 == n->horizontalCount());
 
     debug("restore defaults");
@@ -149,6 +269,25 @@ void UnitTest(NoteTaker* n) {
     json_decref(saveState);
     n->display->invalidateCache();
     n->display->rangeInvalid = true;
+}
+
+void UnitTest(NoteTaker* n, TestType test) {
+    n->unitTestRunning = true;
+    switch (test) {
+        case TestType::digit:
+            LowLevelTestDigitsSolo(n);
+            LowLevelTestDigits(n);
+            break;
+        case TestType::random:
+            LowLevelRandom(n, 2, 10);
+            break;
+        case TestType::expected:
+            Expected(n);
+            break;
+        default:
+            assert(0);
+    }
+    n->unitTestRunning = false;
 }
 
 #endif

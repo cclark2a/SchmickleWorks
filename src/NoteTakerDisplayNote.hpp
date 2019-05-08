@@ -59,7 +59,7 @@ struct DisplayNote {
     }
 
     void setPitch(int pitch) {
-        assert(pitch);  // to do : remove this, since pitch of zero is legal
+        assert(pitch >= 0 && pitch <= 127);
         data[0] = pitch;
         assertValid(NOTE_ON);
     }
@@ -101,13 +101,13 @@ struct DisplayNote {
 
     // if set, gate is kept high through next note (no midi note off until after next note on?)
     bool slur() const {
-        assertValid(NOTE_ON);
+        assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);
         return data[1];
     }
 
     void setSlur(bool slur) {
         data[1] = slur;
-        assertValid(NOTE_ON);
+        assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);
     }
 
     int tracks() const {

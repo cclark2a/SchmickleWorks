@@ -316,14 +316,14 @@ unsigned NoteTakerDisplay::cachePrevious(unsigned index) {
 void NoteTakerDisplay::cacheTuplets() {
     array<unsigned, CHANNEL_COUNT> tripStarts;
     tripStarts.fill(INT_MAX);
-    for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
-        const DisplayNote& note = nt->allNotes[index];
+    for (unsigned index = 0; index < nt->notes.size(); ++index) {
+        const DisplayNote& note = nt->notes[index];
         if (NOTE_ON != note.type) {
             continue;
         }
         unsigned& tripStart = tripStarts[note.channel];
         if (INT_MAX != tripStart) {
-            const DisplayNote& start = nt->allNotes[tripStart];
+            const DisplayNote& start = nt->notes[tripStart];
             int totalDuration = note.endTime() - start.startTime;
             if (totalDuration > nt->ppq * 4) {
                 // to do : use time signature to limit triplet to bar 
@@ -373,10 +373,10 @@ float NoteTakerDisplay::cacheWidth(const NoteCache& noteCache) const {
 
 void NoteTakerDisplay::clearTuplet(unsigned index, unsigned limit) {
     assert(PositionType::left == cache[index].tupletPosition);
-    int chan = nt->allNotes[index].channel;
+    int chan = nt->notes[index].channel;
     cache[index].tupletPosition = PositionType::none;
     while (++index < limit) {
-        if (chan == nt->allNotes[index].channel) {
+        if (chan == nt->notes[index].channel) {
             assert(PositionType::mid == cache[index].tupletPosition);
             cache[index].tupletPosition = PositionType::none;
         }
@@ -749,7 +749,7 @@ void NoteTakerDisplay::drawNotes() {
 void NoteTakerDisplay::drawSelectionRect() const {
     // draw selection rect
     unsigned start = nt->selectEndPos(nt->selectStart);
-    auto& startNote = nt->allNotes[start];
+    auto& startNote = nt->notes[start];
     int xStart = startNote.cache->xPosition - 10;
     int width = 4;
     int yTop = 0;
@@ -758,7 +758,7 @@ void NoteTakerDisplay::drawSelectionRect() const {
             nt->selectChannels;
     const DisplayNote* note = nullptr;
     if (nt->selectStart + 1 == nt->selectEnd) {
-        note = &nt->allNotes[nt->selectStart];
+        note = &nt->notes[nt->selectStart];
         if (!note->isSignature()) {
             note = nullptr;
         }
@@ -778,10 +778,10 @@ void NoteTakerDisplay::drawSelectionRect() const {
             yHeight = 13;
         }
         if (nt->selectEnd > 0) {
-            auto& selStartNote = nt->allNotes[nt->selectStart];
+            auto& selStartNote = nt->notes[nt->selectStart];
             xStart = selStartNote.cache->xPosition - 8;
             unsigned selEndPos = nt->selectEndPos(nt->selectEnd - 1);
-            auto& selEndNote = nt->allNotes[selEndPos];
+            auto& selEndNote = nt->notes[selEndPos];
             width = selEndNote.cache->xPosition - xStart;
         }
     }
@@ -824,18 +824,18 @@ void NoteTakerDisplay::draw(NVGcontext* nvgContext) {
         cacheInvalid = false;
     }
     if (rangeInvalid) {
-        assert(nt->allNotes.front().cache == &cache.front());
-        assert(cache.front().note == &nt->allNotes.front());
+        assert(nt->notes.front().cache == &cache.front());
+        assert(cache.front().note == &nt->notes.front());
         this->updateRange();
     }
 #if RUN_UNIT_TEST
     if (nt->runUnitTest) { // to do : remove this from shipping code
-        UnitTest(nt);
+        UnitTest(nt, TestType::digit);
         nt->runUnitTest = false;
         return;
     }
 #endif
-    if (!nt->allNotes.size()) {
+    if (!nt->notes.size()) {
         return;  // do nothing if we're not set up yet
     }
     nvgSave(vg);
@@ -1470,8 +1470,8 @@ void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* 
 // compute ties first, so we know how many notes to draw
 void NoteTakerDisplay::setCacheDuration() {
     bool sort = false;
-    for (unsigned index = 0; index < nt->allNotes.size(); ++index) {
-        DisplayNote& note = nt->allNotes[index];
+    for (unsigned index = 0; index < nt->notes.size(); ++index) {
+        DisplayNote& note = nt->notes[index];
         cache.emplace_back();
         NoteCache& cacheEntry = cache.back();
         cacheEntry.note = &note;
@@ -1543,8 +1543,8 @@ void NoteTakerDisplay::setCacheDuration() {
         last->cache = &entry;
     }
     // check to see if things moved
-    assert(nt->allNotes.front().cache == &cache.front());
-    assert(cache.front().note == &nt->allNotes.front());
+    assert(nt->notes.front().cache == &cache.front());
+    assert(cache.front().note == &nt->notes.front());
     debug("finished setCacheDuration");
 }
 
@@ -1589,7 +1589,7 @@ void NoteTakerDisplay::updateRange() {
         // compute xAxisOffset first; then use that and boxWidth to figure displayStart, displayEnd
         float oldX = xAxisOffset;
         if (nt->selectEnd != oldEnd && nt->selectStart == oldStart) { // only end moved
-            const NoteCache* last = nt->allNotes[nt->selectEnd].cache - 1;
+            const NoteCache* last = nt->notes[nt->selectEnd].cache - 1;
             xAxisOffset = (this->cacheWidth(*last) > boxWidth ?
                 nt->xPosAtEndStart() :  // show beginning of end
                 selectEndXPos - boxWidth) + displayEndMargin;  // show all of end
@@ -1648,7 +1648,7 @@ void NoteTakerDisplay::setUpAccidentals() {
     // prepare accidental, key, bar state prior to drawing
     // to do : could optimize this to skip notes except for bar prior to displayStart
     for (unsigned index = 0; index < displayStart; ++index) {
-        const DisplayNote& note = nt->allNotes[index];
+        const DisplayNote& note = nt->notes[index];
         switch (note.type) {
             case NOTE_ON: {
                 this->advanceBar(index);
@@ -1687,10 +1687,10 @@ void NoteTakerDisplay::updateXPosition() {
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     bar.init();
     cache.clear();
-    cache.reserve(nt->allNotes.size());
+    cache.reserve(nt->notes.size());
     this->setCacheDuration();  // adds cache per tied note part, sets its duration and note index
-    assert(nt->allNotes.front().cache == &cache.front());
-    assert(cache.front().note == &nt->allNotes.front());
+    assert(nt->notes.front().cache == &cache.front());
+    assert(cache.front().note == &nt->notes.front());
     for (auto& noteCache : cache) {
         noteCache.beamPosition = PositionType::none;
         noteCache.beamCount = 0;
@@ -1796,7 +1796,7 @@ void NoteTakerDisplay::updateXPosition() {
                 pos += TEMPO_WIDTH * xAxisScale;
                 break;
             case TRACK_END:
-                debug("[%u] xPos %d start %d", noteCache.note - &nt->allNotes.front(),
+                debug("[%u] xPos %d start %d", noteCache.note - &nt->notes.front(),
                         noteCache.xPosition, note.stdStart(nt->ppq));
                 break;
             default:
@@ -1805,7 +1805,7 @@ void NoteTakerDisplay::updateXPosition() {
         }
     }
     this->cacheSlurs();
-    assert(nt->allNotes.front().cache == &cache.front());
-    assert(cache.front().note == &nt->allNotes.front());
+    assert(nt->notes.front().cache == &cache.front());
+    assert(cache.front().note == &nt->notes.front());
 }
 

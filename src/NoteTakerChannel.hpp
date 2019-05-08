@@ -66,7 +66,7 @@ struct NoteTakerChannel {
     }
 
     void reset() {
-        debug("channel reset");
+    //    debug("channel reset");
         releaseMax = DefaultLimit(Limit::releaseMax);
         releaseMin = DefaultLimit(Limit::releaseMin);
         sustainMin = DefaultLimit(Limit::sustainMin);

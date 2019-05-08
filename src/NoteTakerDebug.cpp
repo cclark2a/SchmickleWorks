@@ -69,16 +69,15 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
     debug("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
     debug("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
-    debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %dtempo %d ppq %d",
+    debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
             selectStart, selectEnd, display->displayStart, display->displayEnd, selectChannels, 
             this->unlockedChannel(), tempo, ppq);
-    NoteTaker::DebugDump(allNotes, display->cacheInvalid ? nullptr : &display->cache,
+    NoteTaker::DebugDump(notes, display->cacheInvalid ? nullptr : &display->cache,
             selectStart, selectEnd);
     debug("clipboard");
     NoteTaker::DebugDump(clipboard);
     this->debugDumpChannels();
-    if (!inWheel && selectButton->ledOn && !partButton->ledOn && !sustainButton->ledOn
-            && !fileButton->ledOn) {
+    if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !this->isRunning()) {
         std::string w2n;
         for (int index = horizontalWheel->minValue; index <= horizontalWheel->maxValue; ++index) {
             w2n += " " + std::to_string(index) + "/"
@@ -87,7 +86,7 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
         debug("wheelToNote:%s", w2n.c_str());
         std::string n2w;
         unsigned idx = 0;
-        for (const auto& note : allNotes) {
+        for (const auto& note : notes) {
             n2w += " " + std::to_string(idx++) + "/"
                     + std::to_string(this->noteToWheel(note, false));
         }
@@ -186,7 +185,8 @@ void NoteTaker::validate() const {
     bool sawHeader = false;
     bool sawTrailer = false;
     bool malformed = false;
-    for (const auto& note : allNotes) {
+    for (const auto& note : notes) {
+        note.assertValid(note.type);
         switch (note.type) {
             case MIDI_HEADER:
                 if (sawHeader) {

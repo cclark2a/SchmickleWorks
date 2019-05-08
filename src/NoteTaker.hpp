@@ -23,28 +23,28 @@ struct HorizontalWheel;
 struct VerticalWheel;
 
 struct NoteTaker : Module {
-	enum ParamIds {
-        RUN_BUTTON,
-        EXTEND_BUTTON,
-        INSERT_BUTTON,
-        CUT_BUTTON,
-        REST_BUTTON,
-        PART_BUTTON,
-        FILE_BUTTON,
-        SUSTAIN_BUTTON,
-        TIME_BUTTON,
-        KEY_BUTTON,
-        TIE_BUTTON,
-        TRILL_BUTTON,
-        TEMPO_BUTTON,
-        VERTICAL_WHEEL,
-        HORIZONTAL_WHEEL,
+	enum ParamIds {       // numbers used by unit test
+        RUN_BUTTON,       // 0
+        EXTEND_BUTTON,    // 1
+        INSERT_BUTTON,    // 2
+        CUT_BUTTON,       // 3
+        REST_BUTTON,      // 4
+        PART_BUTTON,      // 5
+        FILE_BUTTON,      // 6
+        SUSTAIN_BUTTON,   // 7
+        TIME_BUTTON,      // 8
+        KEY_BUTTON,       // 9
+        TIE_BUTTON,       // 10
+        TRILL_BUTTON,     // 11
+        TEMPO_BUTTON,     // 12
+        VERTICAL_WHEEL,   // 13
+        HORIZONTAL_WHEEL, // 14
 		NUM_PARAMS
 	};
 	enum InputIds {
-		V_OCT_INPUT,
-        CLOCK_INPUT,
-        RESET_INPUT,
+		V_OCT_INPUT,      // 15
+        CLOCK_INPUT,      // 16
+        RESET_INPUT,      // 17
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -67,7 +67,7 @@ struct NoteTaker : Module {
     vector<vector<uint8_t>> storage;
 	std::shared_ptr<Font> musicFont = nullptr;
     // state saved into json
-    vector<DisplayNote> allNotes;
+    vector<DisplayNote> notes;
     vector<DisplayNote> clipboard;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
     FramebufferWidget* displayFrameBuffer = nullptr;
@@ -87,7 +87,7 @@ struct NoteTaker : Module {
     TrillButton* trillButton = nullptr;
     HorizontalWheel* horizontalWheel = nullptr;
     VerticalWheel* verticalWheel = nullptr;
-    unsigned selectStart = 0;               // index into allNotes of first selected (any channel)
+    unsigned selectStart = 0;               // index into notes of first selected (any channel)
     unsigned selectEnd = 1;                 // one past last selected
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
@@ -106,19 +106,20 @@ struct NoteTaker : Module {
     int midiClockOut = INT_MAX;
     float clockOutTime = FLT_MAX;
     #if RUN_UNIT_TEST
-    bool runUnitTest = true;  // to do : ship with this disabled
+    bool runUnitTest = false;  // to do : ship with this disabled
+    bool unitTestRunning = false;
     #endif
     bool sawClockLow = false;
     bool sawResetLow = false;
     bool clipboardInvalid = true;
-
+    bool debugVerbose = false;
     int debugMidiCount = 0;
 
     NoteTaker();
 
     bool advancePlayStart(int midiTime, unsigned lastNote) {
         do {
-            const auto& note = allNotes[playStart];
+            const auto& note = notes[playStart];
             if (note.isNoteOrRest() && note.endTime() > midiTime) {
                 break;
             }
@@ -136,8 +137,8 @@ struct NoteTaker : Module {
     }
 
     unsigned atMidiTime(int midiTime) const {
-        for (unsigned index = 0; index < allNotes.size(); ++index) {
-            const DisplayNote& note = allNotes[index];
+        for (unsigned index = 0; index < notes.size(); ++index) {
+            const DisplayNote& note = notes[index];
             if (midiTime < note.startTime || TRACK_END == note.type
                     || (note.isNoteOrRest() && midiTime == note.startTime)) {
                 return index;
@@ -159,12 +160,12 @@ struct NoteTaker : Module {
         }
         unsigned start = selectStart;
         // don't allow midi header on clipboard
-        if (MIDI_HEADER == allNotes[selectStart].type) {
+        if (MIDI_HEADER == notes[selectStart].type) {
             ++start;
         }
         if (start < selectEnd) {
-            assert(TRACK_END != allNotes[selectEnd - 1].type);
-            clipboard.assign(allNotes.begin() + start, allNotes.begin() + selectEnd);
+            assert(TRACK_END != notes[selectEnd - 1].type);
+            clipboard.assign(notes.begin() + start, notes.begin() + selectEnd);
         }
         clipboardInvalid = false;
     }
@@ -175,7 +176,7 @@ struct NoteTaker : Module {
         }
         clipboard.clear();
         for (unsigned index = selectStart; index < selectEnd; ++index) {
-            auto& note = allNotes[index];
+            auto& note = notes[index];
             if (this->isSelectable(note)) {
                 clipboard.push_back(note);
             }
@@ -186,7 +187,7 @@ struct NoteTaker : Module {
     void debugDumpChannels() const {
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
             auto& chan = channels[index];
-            if (chan.noteIndex >= allNotes.size()) {
+            if (chan.noteIndex >= notes.size()) {
                 continue;
             }
             debug("[%d] %s", index, chan.debugString().c_str());
@@ -231,22 +232,25 @@ struct NoteTaker : Module {
         }    
     }
 
+    bool menuButtonOn() const;
+    std::string midiDir() const;
+
     // to do : figure out how to safely delineate start and end for insertion
     // probably don't need nextAfter and nextStartTime, both
     unsigned nextAfter(unsigned first, unsigned len) const {
         assert(len);
         unsigned start = first + len;
-        const auto& priorNote = allNotes[start - 1];
+        const auto& priorNote = notes[start - 1];
         if (!priorNote.duration) {
             return start;
         }
         int priorTime = priorNote.startTime;
-        int startTime = allNotes[start].startTime;
+        int startTime = notes[start].startTime;
         if (priorTime < startTime) {
             return start;
         }
-        for (unsigned index = start; index < allNotes.size(); ++index) {
-            const DisplayNote& note = allNotes[index];
+        for (unsigned index = start; index < notes.size(); ++index) {
+            const DisplayNote& note = notes[index];
             if (note.startTime > startTime) {
                 return index;
             }
@@ -256,19 +260,19 @@ struct NoteTaker : Module {
     }
 
     int nextStartTime(unsigned start) const {
-        for (unsigned index = start; index < allNotes.size(); ++index) {
-            const DisplayNote& note = allNotes[index];
+        for (unsigned index = start; index < notes.size(); ++index) {
+            const DisplayNote& note = notes[index];
             if (this->isSelectable(note)) {
                 return note.startTime;
             }
         }
-        return allNotes.back().startTime;
+        return notes.back().startTime;
     }
 
     // to do : need only early exit if result > 0 ?
     int noteCount() const {
         int result = 0;
-        for (auto& note : allNotes) {
+        for (auto& note : notes) {
             if (NOTE_ON == note.type && note.isSelectable(selectChannels)) {
                 ++result;
             }
@@ -277,12 +281,12 @@ struct NoteTaker : Module {
     }
 
     unsigned noteIndex(const DisplayNote& note) const {
-        return (unsigned) (&note - &allNotes.front());
+        return (unsigned) (&note - &notes.front());
     }
 
     int noteToWheel(unsigned index, bool dbug = true) const {
-        assert(index < allNotes.size());
-        return noteToWheel(allNotes[index], dbug);
+        assert(index < notes.size());
+        return noteToWheel(notes[index], dbug);
     }
 
     int noteToWheel(const DisplayNote& , bool dbug = true) const;
@@ -297,10 +301,10 @@ struct NoteTaker : Module {
     void saveScore();
 
     unsigned selectEndPos(unsigned select) const {
-        const DisplayNote& first = allNotes[select];
+        const DisplayNote& first = notes[select];
         const DisplayNote* test;
         do {
-            test = &allNotes[++select];
+            test = &notes[++select];
         } while (first.isNoteOrRest() && test->isNoteOrRest()
                 && first.startTime == test->startTime);
         return select;
@@ -364,9 +368,9 @@ struct NoteTaker : Module {
     void setWheelRange();
 
     void shiftNotes(unsigned start, int diff) {
-        debug("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
-        ShiftNotes(allNotes, start, diff, selectChannels);
-        Sort(allNotes);
+        if (debugVerbose) debug("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
+        ShiftNotes(notes, start, diff, selectChannels);
+        Sort(notes);
     }
 
     // shift track end only if another shifted note bumps it out
@@ -389,7 +393,7 @@ struct NoteTaker : Module {
             } else {
                 sort = true;
             }
-            if (hasTrackEnd) {
+            if (hasTrackEnd && TRACK_END != note.type) {
                 trackEndTime = std::max(trackEndTime, note.endTime());
             }
         }
@@ -404,8 +408,8 @@ struct NoteTaker : Module {
 	void step() override;
 
     // don't use std::sort function; use insertion sort to minimize reordering
-    static void Sort(vector<DisplayNote>& notes) {
-        debug("sort notes");
+    static void Sort(vector<DisplayNote>& notes, bool debugging = false) {
+        if (debugging) debug("sort notes");
         for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
             auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
             std::rotate(insertion_point, it, it + 1);
@@ -427,7 +431,7 @@ struct NoteTaker : Module {
     void updateHorizontal();
     void updateVertical();
     void validate() const;
-    unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in allNotes
+    unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in notes
     float wheelToTempo(float value) const;
     void writeStorage(unsigned index) const;
     int xPosAtEndEnd() const;
@@ -436,7 +440,7 @@ struct NoteTaker : Module {
     int xPosAtStartStart() const;
 
     void zeroGates() {
-        debug("zero gates");
+        if (debugVerbose) debug("zero gates");
         for (auto& channel : channels) {
             channel.noteIndex = INT_MAX;
             channel.gateLow = channel.noteEnd = 0;

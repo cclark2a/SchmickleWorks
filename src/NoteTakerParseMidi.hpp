@@ -19,6 +19,7 @@ private:
     vector<DisplayNote>& displayNotes;
     array<NoteTakerChannel, CHANNEL_COUNT>& channels;
     int& ntPpq;
+    bool debugVerbose = false;
 
     template<std::size_t size>
     bool match_midi(vector<uint8_t>::const_iterator& iter, const std::array<uint8_t, size>& data) {

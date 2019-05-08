@@ -21,8 +21,8 @@ bool DisplayNote::isValid() const {
                 debug("invalid note pitch %d\n", data[0]);
                 return false;
             }
-            if ((unsigned) data[1] >= NoteDurations::Count()) {
-                debug("invalid on note index %d\n", data[1]);
+            if (data[1] != !!data[1]) {
+                debug("invalid slur %d\n", data[1]);
                 return false;
             }
             if (0 > data[2] || data[2] > 127) {
@@ -35,6 +35,14 @@ bool DisplayNote::isValid() const {
             }
         break;
         case REST_TYPE:
+            if (channel > CHANNEL_COUNT) {
+                debug("invalid note channel %d\n", channel);
+                return false;
+            }
+            if (data[1] != !!data[1]) {
+                debug("invalid slur %d\n", data[1]);
+                return false;
+            }
         break;
         case MIDI_HEADER:
             if (0 > data[0] || data[0] > 2) {
@@ -82,6 +90,8 @@ bool DisplayNote::isValid() const {
             }
             break;
         }
+        case TRACK_END:
+        break;
         default:
             debug("to do: validate %d\n", type);
             assert(0);

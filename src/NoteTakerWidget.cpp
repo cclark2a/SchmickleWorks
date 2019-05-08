@@ -26,6 +26,7 @@ struct NoteTakerWidget : ModuleWidget {
         auto fb = module->displayFrameBuffer = new FramebufferWidget();
         fb->box.pos = Vec();
 	fb->box.size = Vec(RACK_GRID_WIDTH * 14, RACK_GRID_WIDTH * 12);
+        fb->dirty = true;
         module->display = new NoteTakerDisplay(Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2), // pos
                  Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9),  // size
                  module, fb, musicFontName, textFontName);

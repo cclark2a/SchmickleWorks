@@ -31,5 +31,11 @@ extern Model *modelNoteTaker;
 #define RUN_UNIT_TEST 1 // to do : set to zero for shipping code
 
 #if RUN_UNIT_TEST
-    void UnitTest(struct NoteTaker* );
+    enum class TestType {
+        digit,
+        random,
+        expected,
+    };
+
+    void UnitTest(struct NoteTaker* , TestType );
 #endif

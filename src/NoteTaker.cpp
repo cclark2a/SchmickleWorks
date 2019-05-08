@@ -37,7 +37,7 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
 }
 
 void NoteTaker::enableInsertSignature(unsigned loc) {
-    unsigned insertLoc = this->atMidiTime(allNotes[loc].startTime);
+    unsigned insertLoc = this->atMidiTime(notes[loc].startTime);
     std::pair<NoteTakerButton*,  DisplayType> pairs[] = {
             { (NoteTakerButton*) keyButton, KEY_SIGNATURE },
             { (NoteTakerButton*) timeButton, TIME_SIGNATURE },
@@ -48,13 +48,13 @@ void NoteTaker::enableInsertSignature(unsigned loc) {
 }
 
 void NoteTaker::eraseNotes(unsigned start, unsigned end) {
-    debug("eraseNotes start %u end %u", start, end);
-    for (auto iter = allNotes.begin() + end; iter-- != allNotes.begin() + start; ) {
+    if (debugVerbose) debug("eraseNotes start %u end %u", start, end);
+    for (auto iter = notes.begin() + end; iter-- != notes.begin() + start; ) {
         if (iter->isSelectable(selectChannels)) {
-            allNotes.erase(iter);
+            notes.erase(iter);
         }
     }
-    this->debugDump(true, true);  // wheel range is inconsistent here
+    if (debugVerbose) this->debugDump(true, true);  // wheel range is inconsistent here
 }
 
 int NoteTaker::externalTempo(bool clockEdge) {
@@ -114,7 +114,7 @@ bool NoteTaker::extractClipboard(vector<DisplayNote>* span) const {
 unsigned NoteTaker::horizontalCount() const {
     unsigned count = 0;
     int lastStart = -1;
-    for (auto& note : allNotes) {
+    for (auto& note : notes) {
         if (this->isSelectable(note) && lastStart != note.startTime) {
             ++count;
             if (note.isNoteOrRest()) {
@@ -129,7 +129,7 @@ bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
     unsigned before = loc;
     const DisplayNote* note;
     while (before) {
-        note = &allNotes[--before];
+        note = &notes[--before];
         if (type == note->type) {
             return true;
         }
@@ -137,8 +137,8 @@ bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
             break;
         }
     }
-    while (loc < allNotes.size()) {
-        note = &allNotes[loc];
+    while (loc < notes.size()) {
+        note = &notes[loc];
         if (type == note->type) {
             return true;
         }
@@ -154,19 +154,19 @@ void NoteTaker::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSi
     if (shiftTime) {
         this->shiftNotes(insertLoc + insertSize, shiftTime);
     } else {
-        Sort(allNotes);
+        Sort(notes);
     }
     display->invalidateCache();
     display->displayEnd = 0;  // force recompute of display end
     this->setSelect(insertLoc, this->nextAfter(insertLoc, insertSize));
-    debug("insert final");
+    if (debugVerbose) debug("insert final");
     this->setWheelRange();  // range is larger
     this->playSelection();
-    this->debugDump(true);
+    if (debugVerbose) this->debugDump(true);
 }
 
 bool NoteTaker::isEmpty() const {
-    for (auto& note : allNotes) {
+    for (auto& note : notes) {
         if (this->isSelectable(note)) {
             return false;
         }
@@ -185,7 +185,7 @@ bool NoteTaker::isSelectable(const DisplayNote& note) const {
 void NoteTaker::loadScore() {
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
-    NoteTakerParseMidi parser(storage[index], allNotes, channels, ppq);
+    NoteTakerParseMidi parser(storage[index], notes, channels, ppq);
     DebugDumpRawMidi(storage[index]);
     if (!parser.parseMidi()) {
         this->setScoreEmpty();
@@ -193,27 +193,69 @@ void NoteTaker::loadScore() {
     display->resetXAxisOffset();
     this->resetRun();
     display->invalidateCache();
-    this->setSelectStart(this->atMidiTime(0));
+    unsigned atZero = this->atMidiTime(0);
+    atZero -= TRACK_END == notes[atZero].type;
+    this->setSelectStart(atZero);
 }
 
 // to do : allow for triplet + slurred ?
 void NoteTaker::makeNormal() {
     // to do : if notes are slurred (missing note off) or odd timed (triplets) restore
     for (unsigned index = selectStart; index < selectEnd; ++index) {
-        DisplayNote& note = allNotes[index];
-        if (note.isSelectable(selectChannels)) {
+        DisplayNote& note = notes[index];
+        if (note.isNoteOrRest() && note.isSelectable(selectChannels)) {
             note.setSlur(false);
         }
     }
 }
 
+// allows two or more notes, or two or more rests: to be tied
+// repeats for each channel, to allow multiple channels to be selected and slurred at once
 void NoteTaker::makeSlur() {
-    // to do
-    for (unsigned index = selectStart; index < selectEnd; ++index) {
-        DisplayNote& note = allNotes[index];
-        if (note.isSelectable(selectChannels)) {
-            note.setSlur(true);
+    // to do: disallow choosing slur in UI if there isn't at least one pair.
+    // For now, avoid singletons and non-notes
+    unsigned start = -1;
+    unsigned count = 0;
+    int channel = -1;  // active channel to be slurred
+    DisplayType type = UNUSED;
+    array<unsigned, CHANNEL_COUNT> channels;  // track end of slurred notes
+    channels.fill(0);
+    for (unsigned index = selectStart; index <= selectEnd; ++index) {  // note that this goes 1 past
+        if (index != selectEnd) {
+            auto& note = notes[index];
+            if (index < channels[note.channel]) {  // skip if channel has already been slurred
+                continue;
+            }
+            if (UNUSED == type && note.isNoteOrRest()) {   // allow pairing notes or rests
+                type = note.type;
+            }
+            if (type == note.type) {
+                if (note.isSelectable(selectChannels)) {
+                    if ((unsigned) -1 == start) {
+                        start = index;
+                        channel = note.channel;
+                    } else if (channel == note.channel) {
+                        ++count;
+                    }
+                }
+                continue;
+            }
         }
+        if ((unsigned) -1 == start || count < 2) {
+            continue;
+        }
+        for (unsigned inner = start; inner < index; ++inner) {
+            auto& iNote = notes[index];
+            if (type == iNote.type && channel == iNote.channel) {
+                iNote.setSlur(true);
+            }
+        }
+        channels[channel] = index;
+        index = start + 1;
+        start = -1;
+        count = 0;
+        channel = -1;
+        type = UNUSED;
     }
 }
 
@@ -242,7 +284,7 @@ void NoteTaker::makeTuplet() {
     // count number of beats or beat fractions, find smallest factor
     int last = 0;
     for (unsigned index = selectStart; index < selectEnd; ++index) {
-        const DisplayNote& note = allNotes[index];
+        const DisplayNote& note = notes[index];
         if (note.isSelectable(selectChannels)) {
             int restDuration = last - note.startTime;
             if (restDuration > 0) {    // implied rest
@@ -272,7 +314,7 @@ void NoteTaker::makeTuplet() {
         last = 0;
         int factor = 3 == tuple ? 1 : 3;
         for (unsigned index = selectStart; index < selectEnd; ++index) {
-            DisplayNote& note = allNotes[index];
+            DisplayNote& note = notes[index];
             int restDuration = last - note.startTime;
             if (restDuration > 0) {
                 adjustment -= restDuration / tuple;
@@ -289,10 +331,15 @@ void NoteTaker::makeTuplet() {
     display->invalidateCache();
 }
 
+// true if a button that brings up a secondary menu on display is active
+bool NoteTaker::menuButtonOn() const {
+    return fileButton->ledOn || partButton->ledOn || sustainButton->ledOn || tieButton->ledOn;
+}
+
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
     int count = 0;
     int lastStart = -1;
-    for (auto& note : allNotes) {
+    for (auto& note : notes) {
         if (this->isSelectable(note) && lastStart != note.startTime) {
             ++count;
             if (note.isNoteOrRest()) {
@@ -316,11 +363,11 @@ int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
 
 void NoteTaker::playSelection() {
     this->zeroGates();
-    elapsedSeconds = MidiToSeconds(allNotes[selectStart].startTime, ppq);
+    elapsedSeconds = MidiToSeconds(notes[selectStart].startTime, ppq);
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     this->setPlayStart();
     int midiTime = SecondsToMidi(elapsedSeconds, ppq);
-    this->advancePlayStart(midiTime, allNotes.size() - 1);
+    this->advancePlayStart(midiTime, notes.size() - 1);
 }
 
 void NoteTaker::reset() {
@@ -329,8 +376,8 @@ void NoteTaker::reset() {
 }
 
 void NoteTaker::resetState() {
-    debug("notetaker reset");
-    allNotes.clear();
+    if (debugVerbose) debug("notetaker reset");
+    notes.clear();
     clipboard.clear();
     for (auto channel : channels) {
         channel.reset();
@@ -380,14 +427,13 @@ void NoteTaker::resetRun() {
     sawResetLow = false;
     if (display) {
         display->displayStart = display->displayEnd = 0;
+        display->rangeInvalid = true;
     }
     this->setPlayStart();
 }
 
 bool NoteTaker::runningWithButtonsOff() const {
-    return this->isRunning() && !fileButton->ledOn
-            && !partButton->ledOn && !sustainButton->ledOn && !tieButton->ledOn;
-
+    return this->isRunning() && !this->menuButtonOn();
 }
 
 void NoteTaker::saveScore() {
@@ -405,7 +451,7 @@ void NoteTaker::saveScore() {
 // to do : could optimize with binary search
 void NoteTaker::setPlayStart() {
     playStart = 0;
-    if (!allNotes.size()) {
+    if (!notes.size()) {
         return;
     }
     tempo = stdMSecsPerQuarterNote;
@@ -416,8 +462,8 @@ void NoteTaker::setScoreEmpty() {
     vector<uint8_t> emptyMidi;
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
-    DebugDumpRawMidi(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, allNotes, channels, ppq);
+    if (debugVerbose) DebugDumpRawMidi(emptyMidi);
+    NoteTakerParseMidi emptyParser(emptyMidi, notes, channels, ppq);
     bool success = emptyParser.parseMidi();
     assert(success);
     if (display) {
@@ -426,10 +472,10 @@ void NoteTaker::setScoreEmpty() {
 }
 
 void NoteTaker::setSelectableScoreEmpty() {
-    auto iter = allNotes.begin();
-    while (iter != allNotes.end()) {
+    auto iter = notes.begin();
+    while (iter != notes.end()) {
         if (this->isSelectable(*iter)) {
-            iter = allNotes.erase(iter);
+            iter = notes.erase(iter);
         } else {
             ++iter;
         }
@@ -454,15 +500,15 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         selectEnd = 1;
         display->setRange();
         displayFrameBuffer->dirty = true;
-        debug("setSelect set empty");
+        if (debugVerbose) debug("setSelect set empty");
         return;
     }
     assert(start < end);
-    assert(allNotes.size() >= 2);
-    assert(end <= allNotes.size() - 1);
+    assert(notes.size() >= 2);
+    assert(end <= notes.size() - 1);
     display->setRange();
     this->enableInsertSignature(end);  // disable buttons that already have signatures in score
-    debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
+    if (debugVerbose) debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
     selectStart = start;
     selectEnd = end;
     displayFrameBuffer->dirty = true;
@@ -477,7 +523,7 @@ bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
         debug("setSelectEnd < s:%u e:%u", selectStart, selectEnd);
     } else if (end == selectButton->selStart) {
         unsigned start = selectButton->selStart;
-        assert(TRACK_END != allNotes[start].type);
+        assert(TRACK_END != notes[start].type);
         unsigned end = this->wheelToNote(wheelValue + 1);
         this->setSelect(start, end);
         debug("setSelectEnd == s:%u e:%u", selectStart, selectEnd);
@@ -495,8 +541,8 @@ bool NoteTaker::setSelectStart(unsigned start) {
     unsigned end = start;
     do {
         ++end;
-    } while (allNotes[start].startTime == allNotes[end].startTime && allNotes[start].isNoteOrRest()
-            && allNotes[end].isNoteOrRest());
+    } while (notes[start].startTime == notes[end].startTime && notes[start].isNoteOrRest()
+            && notes[end].isNoteOrRest());
     this->setSelect(start, end);
     return true;
 }
@@ -561,11 +607,11 @@ void NoteTaker::step() {
             int midiNote = (int) ((inputs[V_OCT_INPUT].value - bias) * 12);
             unsigned insertLoc = !this->noteCount() ? this->atMidiTime(0) : !selectStart ?
                     this->wheelToNote(1) : selectEnd;
-            int startTime = allNotes[insertLoc].startTime;
+            int startTime = notes[insertLoc].startTime;
             DisplayNote note = { nullptr, startTime, duration,
                     { midiNote, 0, stdKeyPressure, stdKeyPressure},
                      (uint8_t) this->unlockedChannel(), NOTE_ON, false };
-            allNotes.insert(allNotes.begin() + insertLoc, note);
+            notes.insert(notes.begin() + insertLoc, note);
             this->insertFinal(duration, insertLoc, 1);
         }
         localTempo = tempo;
@@ -593,7 +639,7 @@ void NoteTaker::step() {
         clockOutTime = 0.001f + realSeconds;
     }
     this->setExpiredGatesLow(midiTime);
-    unsigned lastNote = running ? allNotes.size() - 1 : selectEnd - 1;
+    unsigned lastNote = running ? notes.size() - 1 : selectEnd - 1;
     if (this->advancePlayStart(midiTime, lastNote)) {
         playStart = 0;
         if (running) {
@@ -602,7 +648,7 @@ void NoteTaker::step() {
             this->resetRun();
             outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
             eosTime = realSeconds + 0.01f;
-            this->advancePlayStart(midiTime, allNotes.size() - 1);
+            this->advancePlayStart(midiTime, notes.size() - 1);
         } else {
             this->setExpiredGatesLow(INT_MAX);
         }
@@ -612,7 +658,7 @@ void NoteTaker::step() {
     unsigned selStart = INT_MAX;
     unsigned selEnd = 0;
     while (++start <= lastNote) {
-        const auto& note = allNotes[start];
+        const auto& note = notes[start];
         if (note.startTime > midiTime) {
             break;
         }
@@ -693,10 +739,10 @@ unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
         return 0;
     }
     assert(value > 0);
-    assert(value < (int) allNotes.size());
+    assert(value < (int) notes.size());
     int count = value - 1;
     int lastStart = -1;
-    for (auto& note : allNotes) {
+    for (auto& note : notes) {
         if (this->isSelectable(note) && lastStart != note.startTime) {
             if (--count < 0) {
                 return this->noteIndex(note);
@@ -710,7 +756,7 @@ unsigned NoteTaker::wheelToNote(int value, bool dbug) const {
                 debug("! expected 0 wheelToNote value at track end; value: %d", value);
                 assert(!dbug);                
             }
-            return allNotes.size() - 1;
+            return notes.size() - 1;
         }
     }
     debug("! out of range wheelToNote value %d", value);
@@ -734,22 +780,22 @@ float NoteTaker::wheelToTempo(float value) const {
 
 int NoteTaker::xPosAtEndStart() const {
     assert(display && !display->cacheInvalid);
-    return allNotes[selectEnd - 1].cache->xPosition;
+    return notes[selectEnd - 1].cache->xPosition;
 }
 
 int NoteTaker::xPosAtEndEnd() const {
     assert(display && !display->cacheInvalid);
-    const NoteCache* noteCache = allNotes[selectEnd - 1].cache;
+    const NoteCache* noteCache = notes[selectEnd - 1].cache;
     return display->xEndPos(*noteCache);
 }
 
 int NoteTaker::xPosAtStartEnd() const {
     assert(display && !display->cacheInvalid);
     unsigned startEnd = this->selectEndPos(selectStart);
-    return allNotes[startEnd].cache->xPosition;
+    return notes[startEnd].cache->xPosition;
 }
 
 int NoteTaker::xPosAtStartStart() const {
     assert(display && !display->cacheInvalid);
-    return allNotes[selectStart].cache->xPosition;
+    return notes[selectStart].cache->xPosition;
 }

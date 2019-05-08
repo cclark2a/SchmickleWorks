@@ -74,9 +74,8 @@ struct NoteTakerStorage {
         encoded->insert(encoded->end(), out, &out[4]);
     }
 
-    static void WriteMidi(const vector<uint8_t>& midi, unsigned slot) {
-        std::string dest = assetLocal("plugins/Schmickleworks/midi/");
-        dest += std::to_string(slot) + ".mid";
+    static void WriteMidi(const vector<uint8_t>& midi, unsigned slot, std::string dir) {
+        std::string dest = dir + std::to_string(slot) + ".mid";
         int err = remove(dest.c_str());
         if (err) {
             debug("remove %s err %d", dest.c_str(), err);
@@ -89,9 +88,8 @@ struct NoteTakerStorage {
         fout.close();
     }
 
-    static bool ReadMidi(vector<uint8_t>* midi, unsigned slot) {
-        std::string dest = assetLocal("plugins/Schmickleworks/midi/");
-        dest += std::to_string(slot) + ".mid";
+    static bool ReadMidi(vector<uint8_t>* midi, unsigned slot, std::string dir) {
+        std::string dest = dir + std::to_string(slot) + ".mid";
         std::ifstream in(dest.c_str(), std::ifstream::binary);
         if (in.fail()) {
             debug("%s not opened for reading", dest.c_str());
@@ -104,13 +102,24 @@ struct NoteTakerStorage {
 
 };
 
+std::string NoteTaker::midiDir() const {
+    std::string dir = assetLocal("plugins/Schmickleworks/midi/");
+#if RUN_UNIT_TEST
+    if (unitTestRunning) {
+        dir = assetLocal("plugins/Schmickleworks/test/");
+    }
+#endif
+    return dir;
+}
+
 // sets up 10 empty slots in addition to any read slots
 void NoteTaker::readStorage() {
     unsigned limit = 10;
     storage.clear();
+    std::string dir = this->midiDir();
     for (unsigned index = 0; index < limit; ++index) {
         vector<uint8_t> midi;
-        if (NoteTakerStorage::ReadMidi(&midi, index)) {
+        if (NoteTakerStorage::ReadMidi(&midi, index, dir)) {
             storage.push_back(midi);
             ++limit;
         } else {
@@ -120,16 +129,17 @@ void NoteTaker::readStorage() {
 }
 
 void NoteTaker::writeStorage(unsigned slot) const {
-    NoteTakerStorage::WriteMidi(storage[slot], slot);
+    std::string dir = this->midiDir();
+    NoteTakerStorage::WriteMidi(storage[slot], slot, dir);
 }
 
 json_t *NoteTaker::toJson() {
     json_t* root = json_object();
-    json_t* notes = json_array();
-    for (const auto& note : allNotes) {
-        json_array_append_new(notes, note.toJson());
+    json_t* _notes = json_array();
+    for (const auto& note : notes) {
+        json_array_append_new(_notes, note.toJson());
     }
-    json_object_set_new(root, "allNotes", notes);
+    json_object_set_new(root, "notes", _notes);
     json_t* clip = json_array();
     for (const auto& note : clipboard) {
         json_array_append_new(clip, note.toJson());
@@ -163,12 +173,12 @@ json_t *NoteTaker::toJson() {
 }
 
 void NoteTaker::fromJson(json_t *root) {
-    json_t* notes = json_object_get(root, "allNotes");
+    json_t* _notes = json_object_get(root, "notes");
     size_t index;
     json_t* value;
-    allNotes.resize(json_array_size(notes));
-    json_array_foreach(notes, index, value) {
-        allNotes[index].fromJson(value);
+    notes.resize(json_array_size(_notes));
+    json_array_foreach(_notes, index, value) {
+        notes[index].fromJson(value);
     }
     json_t* clip = json_object_get(root, "clipboard");
     clipboard.resize(json_array_size(clip));
