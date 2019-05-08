@@ -333,7 +333,8 @@ void RunButton::onDragEnd(EventDragEnd& e) {
         nt->resetRun();
         nt->display->setRange();
         unsigned next = nt->nextAfter(nt->selectStart, 1);
-        nt->setSelectStart(next < nt->notes.size() - 1 ? next : 0);
+        nt->setSelectStart(next < nt->notes.size() - 1 ? next : 
+                nt->selectButton->editEnd() ? 1 : 0);
         nt->horizontalWheel->lastRealValue = INT_MAX;
         nt->verticalWheel->lastValue = INT_MAX;
         nt->playSelection();
