@@ -146,7 +146,7 @@ static void LowLevelTestDigits(NoteTaker* n) {
 }
 
 static void LowLevelTestDigitsSolo(NoteTaker* n) {
-    int counters[] = {2, 1, 1, 0, 0, 0};
+    int counters[] = {2, 5, 3, 4, 0, 0};
     int digits = 5;
     n->resetState();
     for (int index = 0; index < digits; ++index) {

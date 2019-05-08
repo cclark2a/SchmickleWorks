@@ -20,8 +20,8 @@ static vector<uint8_t>::const_iterator find_next_note(const vector<uint8_t>& mid
             break;
         }
     }
+    // there is not necessarily any note on / off info in the midi file
     if (noteIter + 2 >= midi.end()) {
-        debug ("! no note after delta");
         return midi.end();
     }
     if ((*noteIter & midiCVMask) == midiNoteOn) { // if note on, look for note off within 16 bytes

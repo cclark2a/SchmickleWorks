@@ -69,6 +69,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
     unsigned end = nt->selectEnd;
     if (!start || end <= 1) {
         debug("*** selectButton should have been set to edit start, save zero");
+        assert(0);
         return;
     }
     if (selectButton->editEnd()) {
@@ -172,7 +173,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
                     insertLoc = index;
                 }
             }
-            debug("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
+            if (nt->debugVerbose) debug("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
         }
         // insertLoc may be different channel, so can't use that start time by itself
         // shift to selectStart time, but not less than previous end (if any) on same channel
@@ -180,11 +181,11 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         while (insertTime < lastEndTime) {
             insertTime = nt->notes[++insertLoc].startTime;
         }
-        debug("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
+        if (nt->debugVerbose) debug("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
                 nt->clipboard.size());
         if (!selectButton->editStart() || nt->clipboard.empty() || !nt->extractClipboard(&span)) {
-            !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
-            debug("iStart=%u iEnd=%u", iStart, iEnd);
+            if (nt->debugVerbose) !nt->selectStart ? debug("left of first note") : debug("duplicate selection");
+            if (nt->debugVerbose) debug("iStart=%u iEnd=%u", iStart, iEnd);
             for (unsigned index = iStart; index < iEnd; ++index) {
                 const auto& note = nt->notes[index];
                 if (nt->isSelectable(note)) {
@@ -196,9 +197,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
         if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
                 (span[0].isSignature() && nt->notes[insertLoc].isSignature())) {
             span.clear();
-            if (nt->debugVerbose) {
-                debug("insert button : none selectable"); nt->debugDump();
-            }
+            if (nt->debugVerbose) { debug("insert button : none selectable"); nt->debugDump(); }
             for (unsigned index = iStart; index < nt->notes.size(); ++index) {
                 const auto& note = nt->notes[index];
                 if (NOTE_ON == note.type && nt->isSelectable(note)) {
@@ -334,7 +333,7 @@ void RunButton::onDragEnd(EventDragEnd& e) {
         nt->display->setRange();
         unsigned next = nt->nextAfter(nt->selectStart, 1);
         nt->setSelectStart(next < nt->notes.size() - 1 ? next : 
-                nt->selectButton->editEnd() ? 1 : 0);
+                nt->selectButton->editStart() ? 0 : 1);
         nt->horizontalWheel->lastRealValue = INT_MAX;
         nt->verticalWheel->lastValue = INT_MAX;
         nt->playSelection();
@@ -505,11 +504,8 @@ void TimeButton::draw(NVGcontext* vg) {
 }
 
 void TrillButton::onDragEnd(EventDragEnd& e) {
-    NoteTaker* nt = nModule();
-    if (nt->isRunning()) {
-        return;
-    }
-   AdderButton::onDragEnd(e);
+    // to do : implement?
+    return;
 }
 
 void TrillButton::draw(NVGcontext* vg) {

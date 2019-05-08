@@ -106,7 +106,7 @@ struct NoteTaker : Module {
     int midiClockOut = INT_MAX;
     float clockOutTime = FLT_MAX;
     #if RUN_UNIT_TEST
-    bool runUnitTest = true;  // to do : ship with this disabled
+    bool runUnitTest = false;  // to do : ship with this disabled
     bool unitTestRunning = false;
     #endif
     bool sawClockLow = false;

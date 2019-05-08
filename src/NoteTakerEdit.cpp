@@ -272,14 +272,14 @@ void NoteTaker::updateHorizontal() {
                     selectButton->selStart - (int) selectButton->saveZero) + 1;
             start = this->wheelToNote(std::min(wheelValue, wheelStart));
             end = this->wheelToNote(std::max(wheelValue + 1, wheelStart));
-            debug("start %u end %u wheelValue %d wheelStart %d",
+            if (debugVerbose) debug("start %u end %u wheelValue %d wheelStart %d",
                     start, end, wheelValue, wheelStart);
         } else {
             start = this->wheelToNote(wheelValue);
             selectButton->saveZero = SelectButton::State::single == selectButton->state
                     && !start;
             end = this->nextAfter(start, 1);
-            debug("start %u end %u wheelValue %d", start, end, wheelValue);
+            if (debugVerbose) debug("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         assert(start < end);
         if (start != selectStart || end != selectEnd) {

@@ -186,7 +186,7 @@ void NoteTaker::loadScore() {
     unsigned index = (unsigned) horizontalWheel->value;
     assert(index < storage.size());
     NoteTakerParseMidi parser(storage[index], notes, channels, ppq);
-    DebugDumpRawMidi(storage[index]);
+    if (debugVerbose) DebugDumpRawMidi(storage[index]);
     if (!parser.parseMidi()) {
         this->setScoreEmpty();
     }
