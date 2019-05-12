@@ -65,7 +65,7 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq) {
     }
     int inTsStartTime = note.startTime - tsStart;
     int startBar = inTsStartTime / duration;
-    int inTsEndTime = note.endTime() - tsStart;  // end time relative to tpime signature start
+    int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
     int endBar = (inTsEndTime - 1) / duration;
     if (startBar == endBar) {
         return 1;
@@ -73,6 +73,12 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq) {
     leader = (startBar + 1) * duration - note.startTime;
     int trailer = inTsEndTime - endBar * duration;
     assert(0 <= trailer);
+    if (trailer >= duration) {
+        debug("notesTied trailer %d duration %d inTsEndTime %d endBar %d inTsStartTime %d"
+                " startBar %de leader %d",
+                trailer, duration, inTsEndTime, endBar, inTsStartTime, startBar, leader);
+        debug("note %s", note.debugString().c_str());
+    }
     assert(trailer < duration);
     int result = NoteTakerDisplay::TiedCount(duration, leader, ppq);
     result += endBar - startBar - 1;  // # of bars with whole notes
@@ -338,17 +344,22 @@ void NoteTakerDisplay::cacheTuplets() {
                     NoteCache* noteCache = start.cache;
                     noteCache->tupletPosition = PositionType::left;
                     int chan = start.channel;
-                    NoteCache* last = nullptr;
-                    while (++noteCache < &cache.back()) {
-                        if (noteCache->note != &note) {
+                    NoteCache* last = note.cache;
+                    NoteCache* next = last;
+                    while (++next < &cache.back()) {
+                        if (chan != next->channel) {
+                            continue;
+                        }
+                        if (next->note != &note) {
                             break;
                         }
+                        last = next;
+                    }
+                    while (++noteCache < last) {
                         if (chan == noteCache->channel) {
                             noteCache->tupletPosition = PositionType::mid;
-                            last = noteCache;
                         }
                     }
-                    assert(last);
                     last->tupletPosition = PositionType::right;
                     tripStart = INT_MAX;
                 }
@@ -704,7 +715,7 @@ void NoteTakerDisplay::drawNotes() {
                 }
             } break;
             case REST_TYPE:
-                this->drawBarRest(bar, noteCache, noteCache.xPosition + 8,
+                this->drawBarRest(bar, noteCache, noteCache.xPosition,
                         nt->isSelectable(note) ? 0xff : 0x7f);
             break;
             case MIDI_HEADER:
@@ -1123,8 +1134,10 @@ void NoteTakerDisplay::drawTie(unsigned start, unsigned char alpha) const {
     while (++index < cache.size() && chan != cache[index].channel)
         ;
     this->setBeamPos(start, index, &bp);
-    assert(PositionType::right == cache[index].tiePosition
-            || PositionType::mid == cache[index].tiePosition);
+    if (PositionType::right != cache[index].tiePosition
+            && PositionType::mid != cache[index].tiePosition) {
+                debug("** missing tie end %s", cache[start].note->debugString().c_str());
+            }
     SetNoteColor(vg, chan, alpha);
     this->drawArc(bp, start, index);
 }
@@ -1503,6 +1516,7 @@ void NoteTakerDisplay::setCacheDuration() {
             cache.pop_back();
             do {
                 do {
+                    debug("add tie to %s", note.debugString().c_str());
                     cache.emplace_back();
                     NoteCache& tiePart = cache.back();
                     tiePart.note = &note;

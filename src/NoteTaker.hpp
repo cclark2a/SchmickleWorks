@@ -112,7 +112,7 @@ struct NoteTaker : Module {
     bool sawClockLow = false;
     bool sawResetLow = false;
     bool clipboardInvalid = true;
-    bool debugVerbose = false;
+    bool debugVerbose = true;
     int debugMidiCount = 0;
 
     NoteTaker();

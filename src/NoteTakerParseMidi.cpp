@@ -173,6 +173,7 @@ bool NoteTakerParseMidi::parseMidi() {
                         }
                         if (ri->duration > 0) {
                             debug("unexpected note on %s", ri->debugString().c_str());
+                            continue;
                             return false;
                         }
                         debug("%u note off %s", &*ri - &parsedNotes.front(), 
@@ -425,12 +426,21 @@ bool NoteTakerParseMidi::parseMidi() {
             }
         }
     } while (iter != midi.end());
-    for (auto it = parsedNotes.begin(), end = parsedNotes.end(); it != end; ++it) {
-        auto const insertion_point = std::upper_bound(parsedNotes.begin(), it, *it);
-        std::rotate(insertion_point, it, it + 1);
-    }
+    NoteTaker::Sort(parsedNotes);
     if (trackEnd.startTime < 0) {
         trackEnd.startTime = midiTime;
+    }
+    if (parsedNotes.back().endTime() < midiTime) {
+        displayNote.type = REST_TYPE;
+        displayNote.startTime = parsedNotes.back().endTime();
+        displayNote.duration = midiTime - displayNote.startTime;
+        displayNote.channel = parsedNotes.back().channel;
+        if (0xFF == displayNote.channel) {
+            // to do : document if rest in channel 2 is saved, it is loaded in chan
+            // zero because midi does not contain rests, and cannot assign a channel
+            displayNote.channel = 0;
+        }
+        parsedNotes.push_back(displayNote);
     }
     parsedNotes.push_back(trackEnd);
     // insert rests

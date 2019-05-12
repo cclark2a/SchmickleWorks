@@ -35,6 +35,10 @@ void NoteTaker::setHorizontalWheelRange() {
     }
     if (tieButton->ledOn) {
         horizontalWheel->setLimits(0, 2);
+        // to do : if already slurred, set value to zero
+        //         if already triplet, set value to two
+        // to do : create circle : 
+        //         trip-slur slur norm trip trip-slur ...
         horizontalWheel->setValue(1);
         horizontalWheel->speed = 1;
         return;

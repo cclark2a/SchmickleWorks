@@ -199,6 +199,8 @@ void NoteTaker::loadScore() {
 }
 
 // to do : allow for triplet + slurred ?
+// to do : if triplet, make normal
+// to do : if triplet, start UI selection on triplet
 void NoteTaker::makeNormal() {
     // to do : if notes are slurred (missing note off) or odd timed (triplets) restore
     for (unsigned index = selectStart; index < selectEnd; ++index) {
@@ -234,6 +236,7 @@ void NoteTaker::makeSlur() {
                     if ((unsigned) -1 == start) {
                         start = index;
                         channel = note.channel;
+                        count = 1;
                     } else if (channel == note.channel) {
                         ++count;
                     }
@@ -245,7 +248,7 @@ void NoteTaker::makeSlur() {
             continue;
         }
         for (unsigned inner = start; inner < index; ++inner) {
-            auto& iNote = notes[index];
+            auto& iNote = notes[inner];
             if (type == iNote.type && channel == iNote.channel) {
                 iNote.setSlur(true);
             }
@@ -278,26 +281,31 @@ void NoteTaker::makeTuplet() {
             beats *= smallest / divisor;
             smallest = divisor;
         }
-        beats += divisor / smallest;
+        debug("divisor %d smallest %d", divisor, smallest);
+        beats += duration / smallest;
         return true;
     };
     // count number of beats or beat fractions, find smallest factor
     int last = 0;
     for (unsigned index = selectStart; index < selectEnd; ++index) {
         const DisplayNote& note = notes[index];
-        if (note.isSelectable(selectChannels)) {
-            int restDuration = last - note.startTime;
-            if (restDuration > 0) {    // implied rest
-                if (!addBeat(restDuration)) {
-                    return;
-                }
-            }
-            if (!addBeat(note.duration)) {
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        int restDuration = last - note.startTime;
+        if (restDuration > 0) {    // implied rest
+            debug("add implied rest %d", restDuration);
+            if (!addBeat(restDuration)) {
                 return;
             }
-            last = note.endTime();
         }
+        debug("add beat %s", note.debugString().c_str());
+        if (!addBeat(note.duration)) {
+            return;
+        }
+        last = note.endTime();
     }
+    debug("beats : %d", beats);
     if (beats % 3) {
         return;   // to do : only support triplets for now
     }
@@ -315,6 +323,9 @@ void NoteTaker::makeTuplet() {
         int factor = 3 == tuple ? 1 : 3;
         for (unsigned index = selectStart; index < selectEnd; ++index) {
             DisplayNote& note = notes[index];
+            if (!note.isSelectable(selectChannels)) {
+                continue;
+            }
             int restDuration = last - note.startTime;
             if (restDuration > 0) {
                 adjustment -= restDuration / tuple;

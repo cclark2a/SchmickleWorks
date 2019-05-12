@@ -126,6 +126,8 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
                 }
                 s = std::to_string(index);
                 s += " [" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
+                s += "vS:" + std::to_string(c.vStartTime) + " vD:" + std::to_string(c.vDuration);
+                s += " ";
                 if (PositionType::none != c.slurPosition) {
                     s += "s" + PosAsStr(c.slurPosition) + " ";
                 }
@@ -138,8 +140,10 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
                 if (PositionType::none != c.tupletPosition) {
                     s += "3" + PosAsStr(c.tupletPosition) + " ";
                 }
-                s += std::to_string(c.symbol) + (c.stemUp ? "u " : "d ");
-            } while ((*cache)[++cIndex].note <= &note);
+                s += std::to_string(c.symbol) +  (c.accidentalSpace ? "#" : "")
+                        + (c.endsOnBeat ? "b" : "") + (c.stemUp ? "u " : "d ");
+                ++cIndex;
+            } while (cIndex < cache->size() && (*cache)[cIndex].note <= &note);
         }
         if (INT_MAX != selectStart && &note == &notes[selectStart]) {
             s += "< ";

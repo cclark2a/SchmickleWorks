@@ -48,6 +48,7 @@ void CutButton::onDragEnd(EventDragEnd& e) {
         nt->setScoreEmpty();
         nt->display->invalidateCache();
         nt->setSelectStart(nt->atMidiTime(0));
+        nt->selectButton->setSingle();
         nt->setWheelRange();
         return;
     }
