@@ -227,6 +227,16 @@ void NoteTakerDisplay::cacheBeams() {
     for (unsigned cacheIndex = 0; cacheIndex < cache.size(); ++cacheIndex) {
         NoteCache& noteCache = cache[cacheIndex];
         if (NOTE_ON != noteCache.note->type) {
+            for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
+                if (255 != noteCache.channel && chan != noteCache.channel) {
+                    continue;
+                }
+                unsigned& beamStart = beamStarts[chan];
+                if (INT_MAX != beamStart) {
+                    this->closeBeam(beamStart, cacheIndex);
+                    beamStart = INT_MAX;
+                }
+            }
             continue;
         }
         unsigned& beamStart = beamStarts[noteCache.channel];
