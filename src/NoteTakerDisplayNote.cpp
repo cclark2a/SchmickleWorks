@@ -100,7 +100,7 @@ bool DisplayNote::isValid() const {
     return true;
 }
 
-json_t* DisplayNote::toJson() const {
+json_t* DisplayNote::dataToJson() const {
     json_t* root = json_object();
     json_object_set_new(root, "startTime", json_integer(startTime));
     json_object_set_new(root, "duration", json_integer(duration));
@@ -114,7 +114,7 @@ json_t* DisplayNote::toJson() const {
     return root;
 }
 
-void DisplayNote::fromJson(json_t* root) {
+void DisplayNote::dataFromJson(json_t* root) {
     cache = nullptr;
     startTime = json_integer_value(json_object_get(root, "startTime"));
     duration = json_integer_value(json_object_get(root, "duration"));

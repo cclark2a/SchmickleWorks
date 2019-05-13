@@ -139,36 +139,36 @@ void NoteTaker::writeStorage(unsigned slot) const {
     NoteTakerStorage::WriteMidi(storage[slot], slot, dir);
 }
 
-json_t *NoteTaker::toJson() {
+json_t *NoteTaker::dataToJson() {
     json_t* root = json_object();
     json_t* _notes = json_array();
     for (const auto& note : notes) {
-        json_array_append_new(_notes, note.toJson());
+        json_array_append_new(_notes, note.dataToJson());
     }
     json_object_set_new(root, "notes", _notes);
     json_t* clip = json_array();
     for (const auto& note : clipboard) {
-        json_array_append_new(clip, note.toJson());
+        json_array_append_new(clip, note.dataToJson());
     }
     json_object_set_new(root, "clipboard", clip);
     json_t* chans = json_array();
     for (const auto& channel : channels) {
-        json_array_append_new(chans, channel.toJson());
+        json_array_append_new(chans, channel.dataToJson());
     }
     json_object_set_new(root, "channels", chans);
     // many of these are no-ops, but permits statefulness to change without recoding this block
-    json_object_set_new(root, "display", display->toJson());
-    json_object_set_new(root, "cutButton", cutButton->toJson());
-    json_object_set_new(root, "fileButton", fileButton->toJson());
-    json_object_set_new(root, "insertButton", insertButton->toJson());
-    json_object_set_new(root, "partButton", partButton->toJson());
-    json_object_set_new(root, "restButton", restButton->toJson());
-    json_object_set_new(root, "runButton", runButton->toJson());
-    json_object_set_new(root, "selectButton", selectButton->toJson());
-    json_object_set_new(root, "sustainButton", sustainButton->toJson());
-    json_object_set_new(root, "timeButton", timeButton->toJson());
-    json_object_set_new(root, "horizontalWheel", horizontalWheel->toJson());
-    json_object_set_new(root, "verticalWheel", verticalWheel->toJson());
+    json_object_set_new(root, "display", display->dataToJson());
+    json_object_set_new(root, "cutButton", cutButton->dataToJson());
+    json_object_set_new(root, "fileButton", fileButton->dataToJson());
+    json_object_set_new(root, "insertButton", insertButton->dataToJson());
+    json_object_set_new(root, "partButton", partButton->dataToJson());
+    json_object_set_new(root, "restButton", restButton->dataToJson());
+    json_object_set_new(root, "runButton", runButton->dataToJson());
+    json_object_set_new(root, "selectButton", selectButton->dataToJson());
+    json_object_set_new(root, "sustainButton", sustainButton->dataToJson());
+    json_object_set_new(root, "timeButton", timeButton->dataToJson());
+    json_object_set_new(root, "horizontalWheel", horizontalWheel->dataToJson());
+    json_object_set_new(root, "verticalWheel", verticalWheel->dataToJson());
     // end of mostly no-op section
     json_object_set_new(root, "selectStart", json_integer(selectStart));
     json_object_set_new(root, "selectEnd", json_integer(selectEnd));
@@ -178,36 +178,36 @@ json_t *NoteTaker::toJson() {
     return root;
 }
 
-void NoteTaker::fromJson(json_t *root) {
+void NoteTaker::dataFromJson(json_t *root) {
     json_t* _notes = json_object_get(root, "notes");
     size_t index;
     json_t* value;
     notes.resize(json_array_size(_notes));
     json_array_foreach(_notes, index, value) {
-        notes[index].fromJson(value);
+        notes[index].dataFromJson(value);
     }
     json_t* clip = json_object_get(root, "clipboard");
     clipboard.resize(json_array_size(clip));
     json_array_foreach(clip, index, value) {
-        clipboard[index].fromJson(value);
+        clipboard[index].dataFromJson(value);
     }
     json_t* chans = json_object_get(root, "channels");
     json_array_foreach(chans, index, value) {
-        channels[index].fromJson(value);
+        channels[index].dataFromJson(value);
     }
     // read back controls' state
-    display->fromJson(json_object_get(root, "display"));
-    cutButton->fromJson(json_object_get(root, "cutButton"));
-    fileButton->fromJson(json_object_get(root, "fileButton"));
-    insertButton->fromJson(json_object_get(root, "insertButton"));
-    partButton->fromJson(json_object_get(root, "partButton"));
-    restButton->fromJson(json_object_get(root, "restButton"));
-    runButton->fromJson(json_object_get(root, "runButton"));
-    selectButton->fromJson(json_object_get(root, "selectButton"));
-    sustainButton->fromJson(json_object_get(root, "sustainButton"));
-    timeButton->fromJson(json_object_get(root, "timeButton"));
-    horizontalWheel->fromJson(json_object_get(root, "horizontalWheel"));
-    verticalWheel->fromJson(json_object_get(root, "verticalWheel"));
+    display->dataFromJson(json_object_get(root, "display"));
+    cutButton->dataFromJson(json_object_get(root, "cutButton"));
+    fileButton->dataFromJson(json_object_get(root, "fileButton"));
+    insertButton->dataFromJson(json_object_get(root, "insertButton"));
+    partButton->dataFromJson(json_object_get(root, "partButton"));
+    restButton->dataFromJson(json_object_get(root, "restButton"));
+    runButton->dataFromJson(json_object_get(root, "runButton"));
+    selectButton->dataFromJson(json_object_get(root, "selectButton"));
+    sustainButton->dataFromJson(json_object_get(root, "sustainButton"));
+    timeButton->dataFromJson(json_object_get(root, "timeButton"));
+    horizontalWheel->dataFromJson(json_object_get(root, "horizontalWheel"));
+    verticalWheel->dataFromJson(json_object_get(root, "verticalWheel"));
     // end of controls' state
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));

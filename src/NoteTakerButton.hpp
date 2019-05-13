@@ -7,12 +7,24 @@ struct NoteTaker;
 // to do : turn off led buttons as needed : 
 // e.g., partButton and fileButton are exclusive
 
-struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
+struct ButtonWidget : widget::Widget {
+	void draw(const DrawArgs& args) override;
+};
+
+struct NoteTakerButton : widget::OpaqueWidget {
+	widget::FramebufferWidget* fb;
     int af = 0;  // animation frame, 0 to 1
     bool hasLed = false;
     bool ledOn = false;
 
-    virtual void fromJson(json_t* root) {
+    NoteTakerButton() {
+        fb = new widget::FramebufferWidget;
+        addChild(fb);
+        ButtonWidget* sw = new ButtonWidget;
+        fb->addChild(sw);
+    }
+
+    virtual void dataFromJson(json_t* root) {
         if (!hasLed) {
             return;
         }
@@ -20,10 +32,11 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         af = ledOn ? 1 : 0;
     }
 
-    void onDragStart(EventDragStart &e) override {
-	    EventAction eAction;
-	    onAction(eAction);
-	    dirty = true;
+    void onDragStart(const event::DragStart &e) override {
+        if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+            return;
+        }
+	    fb->dirty = true;
         if (hasLed) {
             af = af ? 0 : 1;
         } else {
@@ -31,8 +44,8 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
         }
     }
 
-    void onDragEnd(EventDragEnd &e) override {
-	    dirty = true;
+    void onDragEnd(const event::DragEnd &e) override {
+	    fb->dirty = true;
         if (hasLed) {
             ledOn = !ledOn;
         } else {
@@ -46,19 +59,14 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
     }
 
     NoteTaker* nModule() {
-        return (NoteTaker* ) module;
+        return this->getAncestorOfType<NoteTaker>();
     }
 
-    const NoteTaker* nModule() const {
-        return (const NoteTaker* ) module;
-    }
-
-    void reset() override {
+    virtual void reset() {
         NoteTakerButton::onTurnOff();
-        MomentarySwitch::reset();
     }
 
-    virtual json_t *toJson() const {
+    virtual json_t *dataToJson() const {
         if (!hasLed) {
             return nullptr;
         }
@@ -68,13 +76,19 @@ struct NoteTakerButton : FramebufferWidget, MomentarySwitch {
     }
 };
 
+void ButtonWidget::draw(const DrawArgs& args) {
+    auto button = this->getAncestorOfType<NoteTakerButton>();
+    button->draw(args);
+}
+
 struct EditButton : NoteTakerButton {
     EditButton() {
         box.size.x = 20;
         box.size.y = 40;
     }
 
-    void draw(NVGcontext *vg) override {
+    void draw(const DrawArgs& args) override {
+        NVGcontext* vg = args.vg;
         nvgScale(vg, .75, .75);
         // draw shadow
         nvgBeginPath(vg);
@@ -134,7 +148,7 @@ struct EditButton : NoteTakerButton {
         return nvgRGB(0xF7, 0x37, 0x17);
     }
 
-    void onDragStart(EventDragStart &e) override;
+    void onDragStart(const event::DragStart &e) override;
 };
 
 struct EditLEDButton : EditButton {
@@ -154,8 +168,8 @@ struct AdderButton : EditButton {
     int shiftTime;
     int duration; 
 
-    void onDragEndPreamble(EventDragEnd &e);
-    void onDragEnd(EventDragEnd &e) override;
+    void onDragEndPreamble(const event::DragEnd &e);
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 // by default, wheels control pitch, duration
@@ -193,31 +207,31 @@ struct AdderButton : EditButton {
 //   select off discards clipboard
 //   if cut is saved in clipboard, insert adds clipboard as paste
 struct CutButton : EditButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 
 // hidden button to dump notes for debugging
 struct DumpButton : NoteTakerButton {
-    void onDragEnd(EventDragEnd &e) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct FileButton : EditLEDButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 // insert adds new note to right of select, defaulting to selected note / cut buffer
 // insert turns off select
 struct InsertButton : EditButton {
-    void draw(NVGcontext *vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct KeyButton : AdderButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 // stateful button that chooses part to add, and parts to insert before
@@ -225,16 +239,16 @@ struct KeyButton : AdderButton {
 // select / [ part / choose channels to copy ] / insert / part / choose where to insert / add
 // (no select) / part / choose channel / add or cut
 struct PartButton : EditLEDButton {
-    void draw(NVGcontext *vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 // if selection, exchange note / reset
 // if insertion, insert/delete rest
 // if duration, horizontal changes rest size, vertical has no effect
 struct RestButton : AdderButton {
-    void draw(NVGcontext *vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 // to do : consider allowing quick on/off to advance to next note in selection
@@ -246,7 +260,8 @@ struct RunButton : NoteTakerButton {
     }
 
     // to do : make a run button that depresses
-    void draw(NVGcontext* vg) override {
+    void draw(const DrawArgs& args) override {
+        auto vg = args.vg;
         // draw shadow
         nvgBeginPath(vg);
         nvgCircle(vg, 12 - af, 14 - af * 3, 10);
@@ -276,7 +291,7 @@ struct RunButton : NoteTakerButton {
         nvgFill(vg);
     }
 
-    void onDragEnd(EventDragEnd &e) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 // select button permits moving selection before, after, and between notes
@@ -295,18 +310,18 @@ struct SelectButton : EditLEDButton {
     bool saveZero = true;    // set if single was at left-most position
     State state = State::single;
 
-    void draw(NVGcontext *vg) override;
+    void draw(const DrawArgs& ) override;
     bool editEnd() const { return ledOn && State::extend == state; }
     bool editStart() const { return ledOn && State::single == state; }
 
-    void fromJson(json_t* root) override {
-        NoteTakerButton::fromJson(root);
+    void dataFromJson(json_t* root) override {
+        NoteTakerButton::dataFromJson(root);
         state = (State) json_integer_value(json_object_get(root, "state"));
         selStart = json_integer_value(json_object_get(root, "selStart"));
         saveZero = json_integer_value(json_object_get(root, "saveZero"));
     }
 
-    void onDragEnd(EventDragEnd &e) override;
+    void onDragEnd(const event::DragEnd &e) override;
 
     void onTurnOff() override {
         state = State::ledOff;
@@ -333,8 +348,8 @@ struct SelectButton : EditLEDButton {
         return EditLEDButton::ledColor();
     }
 
-    json_t *toJson() const override {
-        json_t* root = NoteTakerButton::toJson();
+    json_t *dataToJson() const override {
+        json_t* root = NoteTakerButton::dataToJson();
         json_object_set_new(root, "state", json_integer((int) state));
         json_object_set_new(root, "selStart", json_integer(selStart));
         json_object_set_new(root, "saveZero", json_integer(saveZero));
@@ -343,13 +358,13 @@ struct SelectButton : EditLEDButton {
 };
 
 struct SustainButton : EditLEDButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct TempoButton : AdderButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct TieButton : EditLEDButton {
@@ -361,17 +376,17 @@ struct TieButton : EditLEDButton {
 
     State state = State::normal;
 
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct TimeButton : AdderButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct TrillButton : AdderButton {
-    void draw(NVGcontext* vg) override;
-    void onDragEnd(EventDragEnd &e) override;
+    void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 

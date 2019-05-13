@@ -203,7 +203,7 @@ struct NoteTaker : Module {
     void eraseNotes(unsigned start, unsigned end);
     int externalTempo(bool clockEdge);
     bool extractClipboard(vector<DisplayNote>* ) const;
-    void fromJson(json_t *rootJ) override;
+    void dataFromJson(json_t *rootJ) override;
     unsigned horizontalCount() const;
     bool insertContains(unsigned loc, DisplayType type) const;
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
@@ -290,10 +290,10 @@ struct NoteTaker : Module {
     }
 
     int noteToWheel(const DisplayNote& , bool dbug = true) const;
+    void onReset() override;
     void playSelection();
 
     void readStorage();
-    void reset() override;
     void resetRun();
     void resetState();
     bool resetControls();
@@ -416,7 +416,7 @@ struct NoteTaker : Module {
         }
     }
 
-    json_t *toJson() override;
+    json_t *dataToJson() override;
     void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
 
     unsigned unlockedChannel() const {

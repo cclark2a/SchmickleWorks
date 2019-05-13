@@ -120,7 +120,7 @@ struct NoteTakerChannel {
         return sustainMax;
     }
 
-    json_t* toJson() const {
+    json_t* dataToJson() const {
         json_t* root = json_object();
         json_object_set_new(root, "releaseMax", json_integer(releaseMax));
         json_object_set_new(root, "releaseMin", json_integer(releaseMin));
@@ -129,7 +129,7 @@ struct NoteTakerChannel {
         return root;
     }
 
-    void fromJson(json_t* root) {
+    void dataFromJson(json_t* root) {
         releaseMax = json_integer_value(json_object_get(root, "releaseMax"));
         releaseMin = json_integer_value(json_object_get(root, "releaseMin"));
         sustainMin = json_integer_value(json_object_get(root, "sustainMin"));

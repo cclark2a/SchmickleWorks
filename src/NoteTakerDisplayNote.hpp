@@ -208,8 +208,8 @@ struct DisplayNote {
         return NoteDurations::InStd(startTime, ppq);
     }
 
-    json_t* toJson() const;
-    void fromJson(json_t* rootJ);
+    json_t* dataToJson() const;
+    void dataFromJson(json_t* rootJ);
 
     std::string debugString() const;
 };

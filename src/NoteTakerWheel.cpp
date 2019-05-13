@@ -188,14 +188,14 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
 	nvgStroke(vg);
 }
 
-void HorizontalWheel::onDragMove(EventDragMove& e) {
-    std::swap(e.mouseRel.x, e.mouseRel.y);
-    e.mouseRel.y = -e.mouseRel.y;
+void HorizontalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
-    ((NoteTaker*) module)->updateHorizontal();
+    auto nt = this->getAncestorOfType<NoteTaker>();
+    nt->updateHorizontal();
 }
 
-void VerticalWheel::onDragMove(EventDragMove& e) {
+void VerticalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
-    ((NoteTaker*) module)->updateVertical();
+    auto nt = this->getAncestorOfType<NoteTaker>();
+    nt->updateVertical();
 }

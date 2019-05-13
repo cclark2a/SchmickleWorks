@@ -11,9 +11,9 @@
 	// - onReset, onRandomize, onCreate, onDelete: implements special behavior
     //   when user clicks these from the context menu
 
-NoteTaker::NoteTaker() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-    this->reset();
-    musicFont = Font::load(assetPlugin(plugin, "res/MusiSync3.ttf"));
+NoteTaker::NoteTaker() {
+    this->onReset();
+    musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
 }
 
 float NoteTaker::beatsPerHalfSecond(int localTempo) const {
@@ -26,7 +26,7 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         // for 3), second step determines bphs -- tempo change always lags 1 beat
         // playback continues for one beat after clock stops
         static float lastRatio = 0;
-        float tempoRatio = this->wheelToTempo(horizontalWheel->value);
+        float tempoRatio = this->wheelToTempo(horizontalWheel->paramQuantity->getValue());
         if (lastRatio != tempoRatio) {
             displayFrameBuffer->dirty = true;
             lastRatio = tempoRatio;
@@ -62,7 +62,7 @@ int NoteTaker::externalTempo(bool clockEdge) {
         if (clockEdge) {
             // upward edge, advance clock
             if (!this->isRunning()) {
-                EventDragEnd e;
+                event::DragEnd e;
                 runButton->onDragEnd(e);
             } else {
                 externalClockTempo =
@@ -183,7 +183,7 @@ bool NoteTaker::isSelectable(const DisplayNote& note) const {
 }
 
 void NoteTaker::loadScore() {
-    unsigned index = (unsigned) horizontalWheel->value;
+    unsigned index = (unsigned) horizontalWheel->paramQuantity->getValue();
     assert(index < storage.size());
     NoteTakerParseMidi parser(storage[index], notes, channels, ppq);
     if (debugVerbose) DebugDumpRawMidi(storage[index]);
@@ -381,7 +381,7 @@ void NoteTaker::playSelection() {
     this->advancePlayStart(midiTime, notes.size() - 1);
 }
 
-void NoteTaker::reset() {
+void NoteTaker::onReset() {
     this->resetState();
     this->readStorage();
 }
@@ -402,7 +402,7 @@ void NoteTaker::resetState() {
     selectStart = 0;
     selectEnd = 1;
     this->resetControls();
-    Module::reset();
+    Module::onReset();
 }
 
 bool NoteTaker::resetControls() {
@@ -448,7 +448,7 @@ bool NoteTaker::runningWithButtonsOff() const {
 }
 
 void NoteTaker::saveScore() {
-    unsigned index = (unsigned) horizontalWheel->value;
+    unsigned index = (unsigned) horizontalWheel->paramQuantity->getValue();
     assert(index <= storage.size());
     if (storage.size() == index) {
         storage.push_back(vector<uint8_t>());
@@ -560,7 +560,7 @@ bool NoteTaker::setSelectStart(unsigned start) {
 
 // since this runs on a high frequency thread, avoid state except to play notes
 void NoteTaker::step() {
-    realSeconds += engineGetSampleTime();
+    realSeconds += APP->engine->getSampleTime();
     if (eosTime < realSeconds) {
         outputs[EOS_OUTPUT].value = 0;
         eosTime = FLT_MAX;
@@ -708,11 +708,11 @@ void NoteTaker::step() {
             float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             if (runningWithButtonsOff()) {
                 bias += inputs[V_OCT_INPUT].value;
-                bias += ((int) verticalWheel->value - 60) / 12.f;
+                bias += ((int) verticalWheel->paramQuantity->getValue() - 60) / 12.f;
             }
             if (true) debug("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
                 note.channel, bias,
-                inputs[V_OCT_INPUT].value, verticalWheel->value,
+                inputs[V_OCT_INPUT].value, verticalWheel->paramQuantity->getValue(),
                 note.pitch() / 12.f, bias + note.pitch() / 12.f,
                 outputs[CV1_OUTPUT + note.channel].value);
             outputs[CV1_OUTPUT + note.channel].value = bias + note.pitch() / 12.f;

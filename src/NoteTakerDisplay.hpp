@@ -104,7 +104,7 @@ struct FontFB {
     }
 };
 
-struct NoteTakerDisplay : VirtualWidget {
+struct NoteTakerDisplay : widget::Widget {
 	std::shared_ptr<FontFB> musicFont;
 	std::shared_ptr<FontFB> textFont;
     NoteTaker* nt;
@@ -184,7 +184,7 @@ struct NoteTakerDisplay : VirtualWidget {
     void drawVerticalControl() const;
     void drawVerticalLabel(const char* label, bool enabled, bool selected, float y) const;
 
-    void fromJson(json_t* root) {
+    void dataFromJson(json_t* root) {
         displayStart = json_integer_value(json_object_get(root, "displayStart"));
         displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
         xAxisOffset = json_real_value(json_object_get(root, "xAxisOffset"));
@@ -275,7 +275,7 @@ struct NoteTakerDisplay : VirtualWidget {
         return count;
     }
 
-    json_t *toJson() const {
+    json_t *dataToJson() const {
         json_t* root = json_object();
         json_object_set_new(root, "displayStart", json_integer(displayStart));
         json_object_set_new(root, "displayEnd", json_integer(displayEnd));

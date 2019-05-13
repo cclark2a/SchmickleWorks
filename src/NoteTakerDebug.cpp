@@ -79,7 +79,8 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
     this->debugDumpChannels();
     if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !this->isRunning()) {
         std::string w2n;
-        for (int index = horizontalWheel->minValue; index <= horizontalWheel->maxValue; ++index) {
+        for (int index = horizontalWheel->paramQuantity->minValue;
+                index <= horizontalWheel->paramQuantity->maxValue; ++index) {
             w2n += " " + std::to_string(index) + "/"
                     + std::to_string((int) this->wheelToNote(index, false));
         }

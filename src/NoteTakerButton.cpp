@@ -4,7 +4,7 @@
 #include "NoteTaker.hpp"
 
 // try to get rest working as well as note
-void AdderButton::onDragEndPreamble(EventDragEnd& e) {
+void AdderButton::onDragEndPreamble(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     // insertLoc, shiftTime set by caller
     shiftLoc = insertLoc + 1;
@@ -12,7 +12,7 @@ void AdderButton::onDragEndPreamble(EventDragEnd& e) {
     if (nt->debugVerbose) debug("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
 }
 
-void AdderButton::onDragEnd(EventDragEnd& e) {
+void AdderButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (shiftTime) {
         NoteTaker::ShiftNotes(nt->notes, shiftLoc, shiftTime);
@@ -26,15 +26,16 @@ void AdderButton::onDragEnd(EventDragEnd& e) {
     nt->setWheelRange();  // range is larger
 }
 
-void CutButton::draw(NVGcontext* vg) {
-        EditButton::draw(vg);
+void CutButton::draw(const DrawArgs& args) {
+    EditButton::draw(args);
+    NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, nModule()->musicFont->handle);
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, ";", NULL);
 }
 
-void CutButton::onDragEnd(EventDragEnd& e) {
+void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -90,12 +91,12 @@ void CutButton::onDragEnd(EventDragEnd& e) {
 }
 
 // hidden
-void DumpButton::onDragEnd(EventDragEnd& e) {
+void DumpButton::onDragEnd(const event::DragEnd& e) {
     nModule()->debugDump();
     NoteTakerButton::onDragEnd(e);
 }
 
-void EditButton::onDragStart(EventDragStart& e) {
+void EditButton::onDragStart(const event::DragStart& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -104,7 +105,7 @@ void EditButton::onDragStart(EventDragStart& e) {
     NoteTakerButton::onDragStart(e);
 }
 
-void FileButton::onDragEnd(EventDragEnd& e) {
+void FileButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -130,7 +131,7 @@ void InsertButton::draw(NVGcontext* vg) {
     nvgText(vg, 8 + af, 41 - af, "H", NULL);
 }
 
-void InsertButton::onDragEnd(EventDragEnd& e) {
+void InsertButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -243,7 +244,7 @@ void InsertButton::onDragEnd(EventDragEnd& e) {
 }
 
 // insert key signature
-void KeyButton::onDragEnd(EventDragEnd& e) {
+void KeyButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -277,7 +278,7 @@ void PartButton::draw(NVGcontext* vg) {
     nvgText(vg, 8 + af, 41 - af, "\"", NULL);
 }
 
-void PartButton::onDragEnd(EventDragEnd& e) {
+void PartButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -303,14 +304,14 @@ void RestButton::draw(NVGcontext* vg) {
     nvgText(vg, 8 + af, 41 - af, "t", NULL);
 }
 
-void RestButton::onDragEnd(EventDragEnd& e) {
+void RestButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
     }
     nt->turnOffLedButtons();  // turn off pitch, file, sustain, etc
     if (!nt->selectButton->editStart()) {
-        EventDragEnd e;
+        event::DragEnd e;
         nt->cutButton->onDragEnd(e);
         if (nt->debugVerbose) nt->debugDump();
     }
@@ -323,7 +324,7 @@ void RestButton::onDragEnd(EventDragEnd& e) {
     AdderButton::onDragEnd(e);
 }
 
-void RunButton::onDragEnd(EventDragEnd& e) {
+void RunButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     nt->debugMidiCount = 0;
     NoteTakerButton::onDragEnd(e);
@@ -352,7 +353,7 @@ void SelectButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, "<", NULL);  // was \u00E0
 }
 
-void SelectButton::onDragEnd(EventDragEnd& e) {
+void SelectButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -416,7 +417,7 @@ void SelectButton::setSingle() {
     ledOn = true;
 }
 
-void SustainButton::onDragEnd(EventDragEnd& e) {
+void SustainButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -434,7 +435,7 @@ void SustainButton::draw(NVGcontext* vg) {
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
 
-void TempoButton::onDragEnd(EventDragEnd& e) {
+void TempoButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -459,7 +460,7 @@ void TempoButton::draw(NVGcontext* vg) {
     nvgText(vg, 5 + af, 41 - af, "@", NULL);
 }
 
-void TieButton::onDragEnd(EventDragEnd& e) {
+void TieButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -478,7 +479,7 @@ void TieButton::draw(NVGcontext* vg) {
 }
 
 // insert time signature
-void TimeButton::onDragEnd(EventDragEnd& e) {
+void TimeButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker* nt = nModule();
     if (nt->isRunning()) {
         return;
@@ -504,7 +505,7 @@ void TimeButton::draw(NVGcontext* vg) {
     nvgText(vg, 8 + af, 41 - af, "4", NULL);
 }
 
-void TrillButton::onDragEnd(EventDragEnd& e) {
+void TrillButton::onDragEnd(const event::DragEnd& e) {
     // to do : implement?
     return;
 }

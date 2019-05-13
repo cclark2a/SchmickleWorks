@@ -172,7 +172,7 @@ static void AddTwoNotes(NoteTaker* n) {
 }
 
 static void Expected(NoteTaker* n) {
-    json_t* saveState = n->toJson();
+    json_t* saveState = n->dataToJson();
     n->reset();
     debug("delete a note with empty score");
     Press(n, n->cutButton);
@@ -265,7 +265,7 @@ static void Expected(NoteTaker* n) {
 
     debug("restore defaults");
     n->resetState();
-    n->fromJson(saveState);
+    n->dataFromJson(saveState);
     json_decref(saveState);
     n->display->invalidateCache();
     n->display->rangeInvalid = true;
