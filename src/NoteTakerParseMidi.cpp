@@ -430,31 +430,24 @@ bool NoteTakerParseMidi::parseMidi() {
     if (trackEnd.startTime < 0) {
         trackEnd.startTime = midiTime;
     }
-    if (parsedNotes.back().endTime() < midiTime) {
-        displayNote.type = REST_TYPE;
-        displayNote.startTime = parsedNotes.back().endTime();
-        displayNote.duration = midiTime - displayNote.startTime;
-        displayNote.channel = parsedNotes.back().channel;
-        if (0xFF == displayNote.channel) {
-            // to do : document if rest in channel 2 is saved, it is loaded in chan
-            // zero because midi does not contain rests, and cannot assign a channel
-            displayNote.channel = 0;
-        }
-        parsedNotes.push_back(displayNote);
-    }
     parsedNotes.push_back(trackEnd);
     // insert rests
     int lastNoteEnd = 0;
     vector<DisplayNote> withRests;
     withRests.reserve(parsedNotes.size());
     for (const auto& note : parsedNotes) {
-        if (NOTE_ON == note.type && lastNoteEnd < note.startTime) {
+        if ((NOTE_ON == note.type || TRACK_END == note.type) && lastNoteEnd < note.startTime) {
             // to do : create constructor so this can call emplace_back ?
             DisplayNote rest;
             rest.startTime = lastNoteEnd;
             rest.duration = note.startTime - lastNoteEnd;
             memset(rest.data, 0, sizeof(rest.data));
-            rest.channel = 0xFF;
+            rest.channel = note.channel;
+            if (0xFF == rest.channel) {
+                // to do : document if rest in channel 2 is saved, it is loaded in chan
+                // zero because midi does not contain rests, and cannot assign a channel
+                rest.channel = 0;
+            }
             rest.type = REST_TYPE;
             rest.selected = false;
             withRests.push_back(rest);

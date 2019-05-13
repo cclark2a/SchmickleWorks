@@ -61,6 +61,7 @@ void BarPosition::init() {
 
 int BarPosition::notesTied(const DisplayNote& note, int ppq) {
     if (INT_MAX == duration) {
+        leader = note.duration;
         return NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
     }
     int inTsStartTime = note.startTime - tsStart;

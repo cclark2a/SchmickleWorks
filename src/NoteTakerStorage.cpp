@@ -95,6 +95,12 @@ struct NoteTakerStorage {
             debug("%s not opened for reading", dest.c_str());
             return false;
         }
+        in.unsetf(std::ios::skipws);    // don't skip whitespace (!)
+        std::streampos fileSize;        // get the file size to reserve space
+        in.seekg(0, std::ios::end);
+        fileSize = in.tellg();
+        in.seekg(0, std::ios::beg);
+        midi->reserve(fileSize);        
         std::istream_iterator<uint8_t> start(in), end;
         midi->insert(midi->begin(), start, end);
         return true;
