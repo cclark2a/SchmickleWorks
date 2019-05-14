@@ -11,7 +11,7 @@ struct ButtonWidget : widget::Widget {
 	void draw(const DrawArgs& args) override;
 };
 
-struct NoteTakerButton : widget::OpaqueWidget {
+struct NoteTakerButton : ParamWidget {
 	widget::FramebufferWidget* fb;
     int af = 0;  // animation frame, 0 to 1
     bool hasLed = false;
@@ -22,9 +22,11 @@ struct NoteTakerButton : widget::OpaqueWidget {
         addChild(fb);
         ButtonWidget* sw = new ButtonWidget;
         fb->addChild(sw);
+        this->setValue(0);
+        this->setLimits(0, 1);
     }
 
-    virtual void dataFromJson(json_t* root) {
+    virtual void fromJson(json_t* root) {
         if (!hasLed) {
             return;
         }
@@ -58,15 +60,25 @@ struct NoteTakerButton : widget::OpaqueWidget {
         af = 0;
     }
 
-    NoteTaker* nModule() {
-        return this->getAncestorOfType<NoteTaker>();
-    }
-
-    virtual void reset() {
+    void reset() override {
         NoteTakerButton::onTurnOff();
+        ParamWidget::reset();
     }
 
-    virtual json_t *dataToJson() const {
+    void setLimits(float lo, float hi) {
+        if (paramQuantity) {
+            paramQuantity->minValue = lo;
+            paramQuantity->maxValue = hi;
+        }
+    }
+
+    void setValue(float value) {
+        if (paramQuantity) {
+            paramQuantity->setValue(value);
+        }
+    }
+
+    virtual json_t *toJson() const {
         if (!hasLed) {
             return nullptr;
         }
@@ -75,11 +87,6 @@ struct NoteTakerButton : widget::OpaqueWidget {
         return root;
     }
 };
-
-void ButtonWidget::draw(const DrawArgs& args) {
-    auto button = this->getAncestorOfType<NoteTakerButton>();
-    button->draw(args);
-}
 
 struct EditButton : NoteTakerButton {
     EditButton() {
@@ -314,8 +321,8 @@ struct SelectButton : EditLEDButton {
     bool editEnd() const { return ledOn && State::extend == state; }
     bool editStart() const { return ledOn && State::single == state; }
 
-    void dataFromJson(json_t* root) override {
-        NoteTakerButton::dataFromJson(root);
+    void fromJson(json_t* root) override {
+        NoteTakerButton::fromJson(root);
         state = (State) json_integer_value(json_object_get(root, "state"));
         selStart = json_integer_value(json_object_get(root, "selStart"));
         saveZero = json_integer_value(json_object_get(root, "saveZero"));
@@ -348,8 +355,8 @@ struct SelectButton : EditLEDButton {
         return EditLEDButton::ledColor();
     }
 
-    json_t *dataToJson() const override {
-        json_t* root = NoteTakerButton::dataToJson();
+    json_t *toJson() const override {
+        json_t* root = NoteTakerButton::toJson();
         json_object_set_new(root, "state", json_integer((int) state));
         json_object_set_new(root, "selStart", json_integer(selStart));
         json_object_set_new(root, "saveZero", json_integer(saveZero));

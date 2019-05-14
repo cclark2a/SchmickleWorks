@@ -2,6 +2,11 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
+void WheelWidget::draw(const DrawArgs& args) {
+    auto wheel = this->getAncestorOfType<NoteTakerWheel>();
+    wheel->draw(args);
+}
+
 // frame varies from 0 to 1 to rotate the wheel
 void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
     nvgShapeAntiAlias(vg, 1);
@@ -190,12 +195,12 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
 
 void HorizontalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
-    auto nt = this->getAncestorOfType<NoteTaker>();
+    auto nt = this->getAncestorOfType<NoteTakerWidget>();
     nt->updateHorizontal();
 }
 
 void VerticalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
-    auto nt = this->getAncestorOfType<NoteTaker>();
+    auto nt = this->getAncestorOfType<NoteTakerWidget>();
     nt->updateVertical();
 }

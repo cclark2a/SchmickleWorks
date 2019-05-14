@@ -13,7 +13,6 @@
 
 NoteTaker::NoteTaker() {
     this->onReset();
-    musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
 }
 
 float NoteTaker::beatsPerHalfSecond(int localTempo) const {
@@ -26,7 +25,7 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         // for 3), second step determines bphs -- tempo change always lags 1 beat
         // playback continues for one beat after clock stops
         static float lastRatio = 0;
-        float tempoRatio = this->wheelToTempo(horizontalWheel->paramQuantity->getValue());
+        float tempoRatio = this->wheelToTempo(horizontalWheel->getValue());
         if (lastRatio != tempoRatio) {
             displayFrameBuffer->dirty = true;
             lastRatio = tempoRatio;
@@ -34,17 +33,6 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         deltaTime *= tempoRatio;
     }
     return deltaTime;
-}
-
-void NoteTaker::enableInsertSignature(unsigned loc) {
-    unsigned insertLoc = this->atMidiTime(notes[loc].startTime);
-    std::pair<NoteTakerButton*,  DisplayType> pairs[] = {
-            { (NoteTakerButton*) keyButton, KEY_SIGNATURE },
-            { (NoteTakerButton*) timeButton, TIME_SIGNATURE },
-            { (NoteTakerButton*) tempoButton, MIDI_TEMPO } };
-    for (auto& pair : pairs) {
-        pair.first->af = this->insertContains(insertLoc, pair.second);
-    }
 }
 
 void NoteTaker::eraseNotes(unsigned start, unsigned end) {
@@ -73,56 +61,6 @@ int NoteTaker::externalTempo(bool clockEdge) {
         return externalClockTempo;
     }
     return tempo;
-}
-
-// for clipboard to be usable, either: all notes in clipboard are active, 
-// or: all notes in clipboard are with a single channel (to paste to same or another channel)
-// mono   locked
-// false  false   copy all notes unchanged (return true)
-// false  true    do nothing (return false)
-// true   false   copy all notes unchanged (return true)
-// true   true    copy all notes to unlocked channel (return true)
-bool NoteTaker::extractClipboard(vector<DisplayNote>* span) const {
-    bool mono = true;
-    bool locked = false;
-    int channel = -1;
-    for (auto& note : clipboard) {
-        if (!note.isNoteOrRest()) {
-            mono = false;
-            locked |= selectChannels != ALL_CHANNELS;
-            continue;
-        }
-        if (channel < 0) {
-            channel = note.channel;
-        } else {
-            mono &= channel == note.channel;
-        }
-        locked |= !(selectChannels & (1 << note.channel));
-    }
-    if (!mono && locked) {
-        return false;
-    }
-    *span = clipboard;
-    if (locked) {
-        MapChannel(*span, this->unlockedChannel()); 
-    }
-    return true;
-}
-
-// to compute range for horizontal wheel when selecting notes
-// to do : horizontalCount, noteToWheel, wheelToNote share loop logic. Consolidate?
-unsigned NoteTaker::horizontalCount() const {
-    unsigned count = 0;
-    int lastStart = -1;
-    for (auto& note : notes) {
-        if (this->isSelectable(note) && lastStart != note.startTime) {
-            ++count;
-            if (note.isNoteOrRest()) {
-                lastStart = note.startTime;
-            }
-        }
-    }
-    return count;
 }
 
 bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
@@ -165,25 +103,12 @@ void NoteTaker::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSi
     if (debugVerbose) this->debugDump(true);
 }
 
-bool NoteTaker::isEmpty() const {
-    for (auto& note : notes) {
-        if (this->isSelectable(note)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool NoteTaker::isRunning() const {
     return runButton->ledOn;
 }
 
-bool NoteTaker::isSelectable(const DisplayNote& note) const {
-    return note.isSelectable(selectChannels);
-}
-
 void NoteTaker::loadScore() {
-    unsigned index = (unsigned) horizontalWheel->paramQuantity->getValue();
+    unsigned index = (unsigned) horizontalWheel->getValue();
     assert(index < storage.size());
     NoteTakerParseMidi parser(storage[index], notes, channels, ppq);
     if (debugVerbose) DebugDumpRawMidi(storage[index]);
@@ -342,11 +267,6 @@ void NoteTaker::makeTuplet() {
     display->invalidateCache();
 }
 
-// true if a button that brings up a secondary menu on display is active
-bool NoteTaker::menuButtonOn() const {
-    return fileButton->ledOn || partButton->ledOn || sustainButton->ledOn || tieButton->ledOn;
-}
-
 int NoteTaker::noteToWheel(const DisplayNote& match, bool dbug) const {
     int count = 0;
     int lastStart = -1;
@@ -405,27 +325,10 @@ void NoteTaker::resetState() {
     Module::onReset();
 }
 
-bool NoteTaker::resetControls() {
-    if (!display) {
-        return false;
-    }
-    this->turnOffLedButtons();
-    for (NoteTakerButton* button : {
-            (NoteTakerButton*) cutButton, (NoteTakerButton*) insertButton,
-            (NoteTakerButton*) restButton, (NoteTakerButton*) selectButton,
-            (NoteTakerButton*) timeButton }) {
-        button->reset();
-    }
-//    partButton->resetChannels();
-    this->horizontalWheel->reset();
-    this->verticalWheel->reset();
-    this->setWheelRange();
-    display->reset();
-    return true;
-}
-
 void NoteTaker::resetRun() {
-    outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+    if (!disabled) {
+        outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+    }
     elapsedSeconds = 0;
     clockHighTime = FLT_MAX;
     lastClock = 0;
@@ -443,12 +346,8 @@ void NoteTaker::resetRun() {
     this->setPlayStart();
 }
 
-bool NoteTaker::runningWithButtonsOff() const {
-    return this->isRunning() && !this->menuButtonOn();
-}
-
 void NoteTaker::saveScore() {
-    unsigned index = (unsigned) horizontalWheel->paramQuantity->getValue();
+    unsigned index = (unsigned) horizontalWheel->getValue();
     assert(index <= storage.size());
     if (storage.size() == index) {
         storage.push_back(vector<uint8_t>());
@@ -495,34 +394,6 @@ void NoteTaker::setSelectableScoreEmpty() {
     display->displayEnd = 0;  // force recompute of display end
     this->setSelect(0, 1);
     this->setWheelRange();
-}
-
- //   to do
-    // think about whether : the whole selection fits on the screen
-    // the last note fits on the screen if increasing the end
-    // the first note fits on the screen if decreasing start
-        // scroll small selections to center?
-        // move larger selections the smallest amount?
-        // prefer to show start? end?
-        // while playing, scroll a 'page' at a time?
-void NoteTaker::setSelect(unsigned start, unsigned end) {
-    if (this->isEmpty()) {
-        selectStart = 0;
-        selectEnd = 1;
-        display->setRange();
-        displayFrameBuffer->dirty = true;
-        if (debugVerbose) debug("setSelect set empty");
-        return;
-    }
-    assert(start < end);
-    assert(notes.size() >= 2);
-    assert(end <= notes.size() - 1);
-    display->setRange();
-    this->enableInsertSignature(end);  // disable buttons that already have signatures in score
-    if (debugVerbose) debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
-    selectStart = start;
-    selectEnd = end;
-    displayFrameBuffer->dirty = true;
 }
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
@@ -643,7 +514,7 @@ void NoteTaker::step() {
     if (false && running && ++debugMidiCount < 100) {
         debug("midiTime %d elapsedSeconds %g playStart %u", midiTime, elapsedSeconds, playStart);
     }
-    elapsedSeconds += engineGetSampleTime() * this->beatsPerHalfSecond(localTempo);
+    elapsedSeconds += APP->engine->getSampleTime() * this->beatsPerHalfSecond(localTempo);
     if (midiTime >= midiClockOut) {
         midiClockOut += ppq;
         outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
@@ -708,11 +579,11 @@ void NoteTaker::step() {
             float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             if (runningWithButtonsOff()) {
                 bias += inputs[V_OCT_INPUT].value;
-                bias += ((int) verticalWheel->paramQuantity->getValue() - 60) / 12.f;
+                bias += ((int) verticalWheel->getValue() - 60) / 12.f;
             }
             if (true) debug("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
                 note.channel, bias,
-                inputs[V_OCT_INPUT].value, verticalWheel->paramQuantity->getValue(),
+                inputs[V_OCT_INPUT].value, verticalWheel->getValue(),
                 note.pitch() / 12.f, bias + note.pitch() / 12.f,
                 outputs[CV1_OUTPUT + note.channel].value);
             outputs[CV1_OUTPUT + note.channel].value = bias + note.pitch() / 12.f;
@@ -722,20 +593,6 @@ void NoteTaker::step() {
         // to do : don't write to same state in different threads
         if (INT_MAX != selStart && selectStart != selStart) {
             (void) this->setSelectStart(selStart);
-        }
-    }
-}
-
-// never turns off select button, since it cannot be turned off if score is empty,
-// and it contains state that should not be arbitrarily deleted. select button
-// is explicitly reset only when notetaker overall state is reset
-void NoteTaker::turnOffLedButtons(const NoteTakerButton* exceptFor) {
-    for (NoteTakerButton* button : {
-                (NoteTakerButton*) fileButton, (NoteTakerButton*) partButton,
-                (NoteTakerButton*) runButton, (NoteTakerButton*) sustainButton,
-                (NoteTakerButton*) tieButton }) {
-        if (exceptFor != button) {
-            button->onTurnOff();
         }
     }
 }

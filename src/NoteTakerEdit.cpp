@@ -3,37 +3,35 @@
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
 
-void NoteTaker::setHorizontalWheelRange() {
-    if (!runButton) {
-        return;
-    }
-    if (this->isRunning()) {
+void NoteTakerWidget::setHorizontalWheelRange() {
+    HorizontalWheel* horizontalWheel = this->widget<HorizontalWheel>();
+    if (this->widget<RunButton>()->ledOn) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - .001f); // tempo relative to quarter note
         horizontalWheel->setValue(NoteDurations::FromStd(stdTimePerQuarterNote));
         horizontalWheel->speed = 1;
         return;
     }
-    if (fileButton->ledOn) {
+    if (this->widget<FileButton>()->ledOn) {
         // to do : here, and in other places: set speed proportional to limits
         horizontalWheel->setLimits(0, storage.size());
         horizontalWheel->setValue(0);
         horizontalWheel->speed = 1;
         return;
     }
-    if (partButton->ledOn) {
+    if (this->widget<PartButton>()->ledOn) {
         horizontalWheel->setLimits(-1, CV_OUTPUTS);
         horizontalWheel->setValue(this->unlockedChannel());
         horizontalWheel->speed = 1;
         return;
     }
-    if (sustainButton->ledOn) {
+    if (this->widget<SustainButton>()->ledOn) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - 1);
-        int sustainMinDuration = channels[this->unlockedChannel()].sustainMin;
-        horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, ppq));
+        int sustainMinDuration = nt()->channels[this->unlockedChannel()].sustainMin;
+        horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, nt()->ppq));
         horizontalWheel->speed = 1;
         return;
     }
-    if (tieButton->ledOn) {
+    if (this->widget<TieButton>()->ledOn) {
         horizontalWheel->setLimits(0, 2);
         // to do : if already slurred, set value to zero
         //         if already triplet, set value to two
@@ -46,9 +44,9 @@ void NoteTaker::setHorizontalWheelRange() {
     // horizontal wheel range and value
     float horzSpeed = 1;
     int value = INT_MAX;
-    if (!selectButton->ledOn) {
-        const DisplayNote* note = &notes[selectStart];
-        if (selectStart + 1 == selectEnd && note->isSignature()) {
+    if (!this->widget<SelectButton>()->ledOn) {
+        const DisplayNote* note = &nt()->notes[nt()->selectStart];
+        if (nt()->selectStart + 1 == nt()->selectEnd && note->isSignature()) {
             switch (note->type) {
                 case TIME_SIGNATURE:
                     horizontalWheel->setLimits(1, 6.99f);   // denom limit 0 to 6 (2^N, 1 to 64)
@@ -69,27 +67,27 @@ void NoteTaker::setHorizontalWheelRange() {
                     assert(0); // incomplete
             }
         } else {
-            unsigned start = selectStart;
-            while (note->isSignature() && start < selectEnd) {
-                note = &notes[++start];
+            unsigned start = nt()->selectStart;
+            while (note->isSignature() && start < nt()->selectEnd) {
+                note = &nt()->notes[++start];
             }
             if (note->isNoteOrRest()) {
-                value = NoteDurations::FromMidi(note->duration, ppq);
+                value = NoteDurations::FromMidi(note->duration, nt()->ppq);
             }
             if (INT_MAX != value) {
                 horizontalWheel->setLimits(0, NoteDurations::Count() - 0.001f);
             }
         }
     } else {
-        int wheelMin = selectButton->editStart() ? 0 : 1;
+        int wheelMin = this->widget<SelectButton>()->editStart() ? 0 : 1;
         float wheelMax = this->horizontalCount() + .999f;
         if (debugVerbose) debug("horizontalWheel->setLimits wheelMin %d wheelMax %g", wheelMin, wheelMax);
         horizontalWheel->setLimits(wheelMin, wheelMax);
         if (this->isEmpty()) {
             value = 0;
         } else {
-            const DisplayNote* note = &notes[selectStart];
-            value = this->noteToWheel(*note);
+            const DisplayNote* note = &nt()->notes[nt()->selectStart];
+            value = nt()->noteToWheel(*note);
             if (value < wheelMin || value > wheelMax) {
                 debug("! note type %d value %d wheelMin %d wheelMax %g",
                         note->type, value, wheelMin, wheelMax);
@@ -105,33 +103,31 @@ void NoteTaker::setHorizontalWheelRange() {
     return;
 }
 
-void NoteTaker::setVerticalWheelRange() {
-    if (!runButton) {
-        return;
-    }
-    if (this->isRunning()) {
+void NoteTakerWidget::setVerticalWheelRange() {
+    VerticalWheel* verticalWheel = this->widget<VerticalWheel>();
+    if (this->widget<RunButton>()->ledOn) {
         verticalWheel->setLimits(0, 127);    // v/oct transpose (5 octaves up, down)
         verticalWheel->setValue(60);
         verticalWheel->speed = .1;
         return;
     }
-    if (fileButton->ledOn || partButton->ledOn) {
+    if (this->widget<FileButton>()->ledOn || this->widget<PartButton>()->ledOn) {
         verticalWheel->setLimits(0, 10);
         verticalWheel->setValue(5);
         verticalWheel->speed = 2;
         return;
     }
-    if (sustainButton->ledOn) {
+    if (this->widget<SustainButton>()->ledOn) {
         verticalWheel->setLimits(0, 3.999f);
         verticalWheel->setValue(2.5f); // sustain min
         verticalWheel->speed = 1;
         return;
     }
-    if (isEmpty()) {
+    if (this->isEmpty()) {
         return;
     }
-    DisplayNote* note = &notes[selectStart];
-    if (selectStart + 1 == selectEnd && note->isSignature()) {
+    DisplayNote* note = &nt()->notes[nt()->selectStart];
+    if (nt()->selectStart + 1 == nt()->selectEnd && note->isSignature()) {
         switch (note->type) {
             case KEY_SIGNATURE:
                 verticalWheel->setLimits(-7, 7);
@@ -151,173 +147,179 @@ void NoteTaker::setVerticalWheelRange() {
         }
         return;
     }
-    unsigned start = selectStart;
-    while (start < selectEnd && !note->isSelectable(selectChannels)) {
-        note = &notes[++start];
+    unsigned start = nt()->selectStart;
+    while (start < nt()->selectEnd && !note->isSelectable(selectChannels)) {
+        note = &nt()->notes[++start];
     }
-    bool validNote = start < selectEnd && NOTE_ON == note->type;
+    bool validNote = start < nt()->selectEnd && NOTE_ON == note->type;
     verticalWheel->setLimits(0, 127);  // range for midi pitch
     verticalWheel->setValue(validNote ? note->pitch() : 60);
     verticalWheel->speed = .1;
 }
 
-void NoteTaker::setWheelRange() {
+void NoteTakerWidget::setWheelRange() {
     this->setHorizontalWheelRange();
     this->setVerticalWheelRange();
-    if (debugVerbose) debug("setWheelRange %s %s", horizontalWheel->debugString().c_str(),
-            verticalWheel->debugString().c_str());
-    displayFrameBuffer->dirty = true;
+    if (debugVerbose) debug("setWheelRange %s %s", 
+            this->widget<HorizontalWheel>()->debugString().c_str(),
+            this->widget<VerticalWheel>()->debugString().c_str());
+    this->widget<NoteTakerDisplay>()->fb->dirty = true;
 }
 
-void NoteTaker::updateHorizontal() {
-    displayFrameBuffer->dirty |= this->menuButtonOn();
-    if (fileButton->ledOn) {
+void NoteTakerWidget::updateHorizontal() {
+    this->widget<NoteTakerDisplay>()->fb->dirty |= this->menuButtonOn();
+    if (this->widget<FileButton>()->ledOn) {
         return;
     }
-    if (partButton->ledOn) {
+    if (this->widget<PartButton>()->ledOn) {
         return;
     }
-    if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = channels[this->unlockedChannel()];
-        channel.setLimit((NoteTakerChannel::Limit) verticalWheel->value,
-                NoteDurations::ToMidi(horizontalWheel->value, ppq));
+    if (this->widget<SustainButton>()->ledOn) {
+        NoteTakerChannel& channel = nt()->channels[this->unlockedChannel()];
+        channel.setLimit((NoteTakerChannel::Limit) this->widget<VerticalWheel>()->getValue(),
+                NoteDurations::ToMidi(this->widget<HorizontalWheel>()->getValue(), nt()->ppq));
         return;
     }
-    if (this->isRunning()) {
+    if (this->widget<RunButton>()->ledOn) {
         return;
     }
-    if (tieButton->ledOn) {
-        TieButton::State prev = tieButton->state;
-        if (horizontalWheel->value < .25f) {
+    if (this->widget<TieButton>()->ledOn) {
+        TieButton::State prev = this->widget<TieButton>()->state;
+        auto horizontalWheel = this->widget<HorizontalWheel>();
+        if (horizontalWheel->getValue() < .25f) {
             // to do : disallow choosing slur if either selection is one note
             //       : or if all of selection is not notes
-            if (TieButton::State::slur != tieButton->state) {
-                this->makeSlur();
-                tieButton->state = TieButton::State::slur;
+            if (TieButton::State::slur != this->widget<TieButton>()->state) {
+                nt()->makeSlur();
+                this->widget<TieButton>()->state = TieButton::State::slur;
             }
-        } else if (horizontalWheel->value > .75f && horizontalWheel->value < 1.25f) {
-            if (TieButton::State::normal != tieButton->state) {
-                this->makeNormal();
-                tieButton->state = TieButton::State::normal;
+        } else if (horizontalWheel->getValue() > .75f && horizontalWheel->getValue() < 1.25f) {
+            if (TieButton::State::normal != this->widget<TieButton>()->state) {
+                nt()->makeNormal();
+                this->widget<TieButton>()->state = TieButton::State::normal;
             }
-        } else if (horizontalWheel->value > 1.75f) {
-            if (TieButton::State::tuplet != tieButton->state) {
-                this->makeTuplet();
-                tieButton->state = TieButton::State::tuplet;
+        } else if (horizontalWheel->getValue() > 1.75f) {
+            if (TieButton::State::tuplet != this->widget<TieButton>()->state) {
+                nt()->makeTuplet();
+                this->widget<TieButton>()->state = TieButton::State::tuplet;
             }
         }
-        if (prev != tieButton->state) {
-            display->invalidateCache();
+        if (prev != this->widget<TieButton>()->state) {
+            this->widget<NoteTakerDisplay>()->invalidateCache();
         }
         return;
     }
-    if (isEmpty()) {
+    if (this->isEmpty()) {
         return;
     }
-    bool selectOne = !selectButton->ledOn && selectStart + 1 == selectEnd;
-    DisplayNote& oneNote = notes[selectStart];
+    bool selectOne = !this->widget<SelectButton>()->ledOn && nt()->selectStart + 1 == nt()->selectEnd;
+    DisplayNote& oneNote = nt()->notes[nt()->selectStart];
     if (selectOne && MIDI_TEMPO == oneNote.type) {
-        oneNote.setTempo(this->wheelToTempo(horizontalWheel->value) * 500000);
-        displayFrameBuffer->dirty = true;
+        oneNote.setTempo(nt()->wheelToTempo(this->widget<HorizontalWheel>()->getValue()) * 500000);
+        this->widget<NoteTakerDisplay>()->fb->dirty = true;
         return;
     }
-    if (!horizontalWheel->hasChanged()) {
+    if (!this->widget<HorizontalWheel>()->hasChanged()) {
         return;
     }
-    const int wheelValue = horizontalWheel->wheelValue();
+    const int wheelValue = this->widget<HorizontalWheel>()->wheelValue();
     if (selectOne && TIME_SIGNATURE == oneNote.type) {
-        if ((int) verticalWheel->value) {
+        if ((int) this->widget<VerticalWheel>()->getValue()) {
             oneNote.setNumerator(wheelValue);
         } else {
             oneNote.setDenominator(wheelValue);
         }
-        display->invalidateCache();
+        this->widget<NoteTakerDisplay>()->invalidateCache();
         return;
     }
     bool noteChanged = false;
-    if (!selectButton->ledOn) {
+    if (!this->widget<SelectButton>()->ledOn) {
         // for now, if selection includes signature, do nothing
-        for (unsigned index = selectStart; index < selectEnd; ++index) {
-            DisplayNote& note = notes[index];
+        for (unsigned index = nt()->selectStart; index < nt()->selectEnd; ++index) {
+            DisplayNote& note = nt()->notes[index];
             if (note.isSignature()) {
                 return;
             }
         }
         array<int, CHANNEL_COUNT> diff;
         diff.fill(0);
-        for (unsigned index = selectStart; index < selectEnd; ++index) {
-            DisplayNote& note = notes[index];
+        for (unsigned index = nt()->selectStart; index < nt()->selectEnd; ++index) {
+            DisplayNote& note = nt()->notes[index];
             note.startTime += diff[note.channel];
             if (!this->isSelectable(note)) {
                 continue;
             }
             assert(note.isNoteOrRest());
             assert((unsigned) wheelValue < NoteDurations::Count());
-            int duration = NoteDurations::ToMidi(wheelValue, ppq);
+            int duration = NoteDurations::ToMidi(wheelValue, nt()->ppq);
             diff[note.channel] += duration - note.duration;
             note.duration = duration;
         }
         for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
             if (diff[chan]) {
-                ShiftNotes(notes, selectEnd, diff[chan], 1 << chan);
+                NoteTaker::ShiftNotes(nt()->notes, nt()->selectEnd, diff[chan], 1 << chan);
                 noteChanged = true;
             }
         }
         if (noteChanged) {
-            Sort(notes);
-            display->invalidateCache();
-            display->rangeInvalid = true;
+            NoteTaker::Sort(nt()->notes);
+            this->widget<NoteTakerDisplay>()->invalidateCache();
+            this->widget<NoteTakerDisplay>()->rangeInvalid = true;
         }
     } else {
         unsigned start, end;
-        if (selectButton->editEnd()) {
+        if (this->widget<SelectButton>()->editEnd()) {
             clipboardInvalid = true;
-            int wheelStart = this->noteToWheel(
-                    selectButton->selStart - (int) selectButton->saveZero) + 1;
-            start = this->wheelToNote(std::min(wheelValue, wheelStart));
-            end = this->wheelToNote(std::max(wheelValue + 1, wheelStart));
+            int wheelStart = nt()->noteToWheel(
+                    this->widget<SelectButton>()->selStart - (int) this->widget<SelectButton>()->saveZero) + 1;
+            start =  nt()->wheelToNote(std::min(wheelValue, wheelStart));
+            end =  nt()->wheelToNote(std::max(wheelValue + 1, wheelStart));
             if (debugVerbose) debug("start %u end %u wheelValue %d wheelStart %d",
                     start, end, wheelValue, wheelStart);
         } else {
-            start = this->wheelToNote(wheelValue);
-            selectButton->saveZero = SelectButton::State::single == selectButton->state
+            start =  nt()->wheelToNote(wheelValue);
+            this->widget<SelectButton>()->saveZero = SelectButton::State::single == this->widget<SelectButton>()->state
                     && !start;
-            end = this->nextAfter(start, 1);
+            end = nt()->nextAfter(start, 1);
             if (debugVerbose) debug("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         assert(start < end);
-        if (start != selectStart || end != selectEnd) {
-            this->setSelect(start, end);
+        if (start != nt()->selectStart || end != nt()->selectEnd) {
+            nt()->setSelect(start, end);
             this->setVerticalWheelRange();
             noteChanged = true;
             if (start + 1 == end) {
-                const auto& note = notes[start];
+                const auto& note = nt()->notes[start];
                 if (KEY_SIGNATURE == note.type && !note.key()) {
-                    display->dynamicSelectTimer = realSeconds + display->fadeDuration;
-                    display->dynamicSelectAlpha = 0xFF;
+                    this->widget<NoteTakerDisplay>()->dynamicSelectTimer = nt()->realSeconds
+                            + this->widget<NoteTakerDisplay>()->fadeDuration;
+                    this->widget<NoteTakerDisplay>()->dynamicSelectAlpha = 0xFF;
                 }
             }
         }
     }
     if (noteChanged) {
-        display->invalidateCache();
-        this->playSelection();
+        this->widget<NoteTakerDisplay>()->invalidateCache();
+        nt()->playSelection();
     }
 }
     
-void NoteTaker::updateVertical() {
-    if (this->isRunning()) {
+void NoteTakerWidget::updateVertical() {
+    if (this->widget<RunButton>()->ledOn) {
         return;
     }
-    displayFrameBuffer->dirty |= this->menuButtonOn();
+    this->widget<NoteTakerDisplay>()->fb->dirty |= this->menuButtonOn();
+    auto verticalWheel = this->widget<VerticalWheel>();
     if (!verticalWheel->hasChanged()) {
         return;
     }
     const int wheelValue = verticalWheel->wheelValue();
-    if (fileButton->ledOn || partButton->ledOn) {
-        if (verticalWheel->value <= 2) {
+    auto horizontalWheel = this->widget<HorizontalWheel>();
+    auto display = this->widget<NoteTakerDisplay>();
+    if (this->widget<FileButton>()->ledOn || this->widget<PartButton>()->ledOn) {
+        if (verticalWheel->getValue() <= 2) {
             display->downSelected = true;
-            if (fileButton->ledOn) {
+            if (this->widget<FileButton>()->ledOn) {
                 this->saveScore();
             } else {
                 int part = horizontalWheel->part();
@@ -328,9 +330,9 @@ void NoteTaker::updateVertical() {
                 }
             }
         }
-        if (verticalWheel->value >= 8) {
+        if (verticalWheel->getValue() >= 8) {
             display->upSelected = true;
-            if (fileButton->ledOn && (unsigned) horizontalWheel->value < storage.size()) {
+            if (this->widget<FileButton>()->ledOn && (unsigned) horizontalWheel->getValue() < storage.size()) {
                 this->loadScore();
             } else {
                 int part = horizontalWheel->part();
@@ -343,8 +345,8 @@ void NoteTaker::updateVertical() {
         }
         return;
     }
-    if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = channels[this->unlockedChannel()];
+    if (this->widget<SustainButton>()->ledOn) {
+        NoteTakerChannel& channel = nt()->channels[this->unlockedChannel()];
         int sustainDuration = INT_MAX;
         switch(wheelValue) {
             case 3: // to do : create enum to identify values
@@ -362,31 +364,31 @@ void NoteTaker::updateVertical() {
             default:
                 assert(0);
         }
-        horizontalWheel->setValue(NoteDurations::FromMidi(sustainDuration, ppq));
+        horizontalWheel->setValue(NoteDurations::FromMidi(sustainDuration, nt()->ppq));
         return;
     }
     // transpose selection
     // loop below computes diff of first note, and adds diff to subsequent notes in select
     int diff = 0;
-    for (unsigned index = selectStart ; index < selectEnd; ++index) {
-        DisplayNote& note = notes[index];
+    for (unsigned index = nt()->selectStart ; index < nt()->selectEnd; ++index) {
+        DisplayNote& note = nt()->notes[index];
         switch (note.type) {
             case KEY_SIGNATURE:
-                if (selectStart + 1 == selectEnd) {
+                if (nt()->selectStart + 1 == nt()->selectEnd) {
                     note.setKey(wheelValue);
                     display->invalidateCache();
                 }
                 break;
             case TIME_SIGNATURE:
-                if (selectStart + 1 == selectEnd && !selectButton->ledOn) {
+                if (nt()->selectStart + 1 == nt()->selectEnd && !this->widget<SelectButton>()->ledOn) {
                     if (!wheelValue) {
                         horizontalWheel->setLimits(0, 6.99f);   // denom limit 0 to 6 (2^N, 1 to 64)
-                        horizontalWheel->value = note.denominator();
+                        horizontalWheel->setValue(note.denominator());
                         // to do : override setLimits to set speed based on limit range
                         horizontalWheel->speed = 1;
                     } else {
                         horizontalWheel->setLimits(1, 99.99f);   // numer limit 0 to 99
-                        horizontalWheel->value = note.numerator();
+                        horizontalWheel->setValue(note.numerator());
                         horizontalWheel->speed = .1;
                     }
                 }
@@ -416,6 +418,6 @@ void NoteTaker::updateVertical() {
                 ;
         }
     }
-    displayFrameBuffer->dirty = true;
-    this->playSelection();
+    display->fb->dirty = true;
+    nt()->playSelection();
 }

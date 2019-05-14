@@ -64,32 +64,11 @@ struct NoteTaker : Module {
 		NUM_LIGHTS
 	};
 
-    vector<vector<uint8_t>> storage;
-	std::shared_ptr<Font> musicFont = nullptr;
     // state saved into json
     vector<DisplayNote> notes;
-    vector<DisplayNote> clipboard;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
-    FramebufferWidget* displayFrameBuffer = nullptr;
-    NoteTakerDisplay* display = nullptr;
-    CutButton* cutButton = nullptr;
-    FileButton* fileButton = nullptr;
-    InsertButton* insertButton = nullptr;
-    KeyButton* keyButton = nullptr;
-    PartButton* partButton = nullptr;
-    RestButton* restButton = nullptr;
-    RunButton* runButton = nullptr;
-    SelectButton* selectButton = nullptr;
-    SustainButton* sustainButton = nullptr;
-    TempoButton* tempoButton = nullptr;
-    TieButton* tieButton = nullptr;
-    TimeButton* timeButton = nullptr;
-    TrillButton* trillButton = nullptr;
-    HorizontalWheel* horizontalWheel = nullptr;
-    VerticalWheel* verticalWheel = nullptr;
     unsigned selectStart = 0;               // index into notes of first selected (any channel)
     unsigned selectEnd = 1;                 // one past last selected
-    unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
     int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
     // end of state saved into json; written by step
@@ -105,15 +84,10 @@ struct NoteTaker : Module {
     float eosTime = FLT_MAX;
     int midiClockOut = INT_MAX;
     float clockOutTime = FLT_MAX;
-    #if RUN_UNIT_TEST
-    bool runUnitTest = false;  // to do : ship with this disabled
-    bool unitTestRunning = false;
-    #endif
     bool sawClockLow = false;
     bool sawResetLow = false;
-    bool clipboardInvalid = true;
-    bool debugVerbose = true;
     int debugMidiCount = 0;
+    bool debugVerbose = true;
 
     NoteTaker();
 
@@ -149,40 +123,8 @@ struct NoteTaker : Module {
     }
 
     float beatsPerHalfSecond(int tempo) const;
-
-    // to do : once clipboard is set, don't reset unless:
-    // selection range was enlarged
-    // insert or cut
-    // 
-    void copyNotes() {
-        if (!clipboardInvalid) {
-            return;
-        }
-        unsigned start = selectStart;
-        // don't allow midi header on clipboard
-        if (MIDI_HEADER == notes[selectStart].type) {
-            ++start;
-        }
-        if (start < selectEnd) {
-            assert(TRACK_END != notes[selectEnd - 1].type);
-            clipboard.assign(notes.begin() + start, notes.begin() + selectEnd);
-        }
-        clipboardInvalid = false;
-    }
-
-    void copySelectableNotes() {
-        if (!clipboardInvalid) {
-            return;
-        }
-        clipboard.clear();
-        for (unsigned index = selectStart; index < selectEnd; ++index) {
-            auto& note = notes[index];
-            if (this->isSelectable(note)) {
-                clipboard.push_back(note);
-            }
-        }
-        clipboardInvalid = false;
-    }
+    void dataFromJson(json_t* rootJ) override;
+    json_t* dataToJson() override;
 
     void debugDumpChannels() const {
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
@@ -194,22 +136,16 @@ struct NoteTaker : Module {
         }
     }
 
-    void debugDump(bool validatable = true, bool inWheel = false) const;
     static void DebugDump(const vector<DisplayNote>& , const vector<NoteCache>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static void DebugDumpRawMidi(vector<uint8_t>& v);
 
-    void enableInsertSignature(unsigned loc);
     void eraseNotes(unsigned start, unsigned end);
     int externalTempo(bool clockEdge);
     bool extractClipboard(vector<DisplayNote>* ) const;
-    void dataFromJson(json_t *rootJ) override;
-    unsigned horizontalCount() const;
     bool insertContains(unsigned loc, DisplayType type) const;
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
-    bool isEmpty() const;
     bool isRunning() const;
-    bool isSelectable(const DisplayNote& note) const;
 
     static int LastEndTime(const vector<DisplayNote>& notes) {
         int result = 0;
@@ -219,7 +155,6 @@ struct NoteTaker : Module {
         return result;
     }
 
-    void loadScore();
     void makeNormal();
     void makeSlur();
     void makeTuplet();
@@ -231,9 +166,6 @@ struct NoteTaker : Module {
              }
         }    
     }
-
-    bool menuButtonOn() const;
-    std::string midiDir() const;
 
     // to do : figure out how to safely delineate start and end for insertion
     // probably don't need nextAfter and nextStartTime, both
@@ -259,27 +191,6 @@ struct NoteTaker : Module {
         return INT_MAX;
     }
 
-    int nextStartTime(unsigned start) const {
-        for (unsigned index = start; index < notes.size(); ++index) {
-            const DisplayNote& note = notes[index];
-            if (this->isSelectable(note)) {
-                return note.startTime;
-            }
-        }
-        return notes.back().startTime;
-    }
-
-    // to do : need only early exit if result > 0 ?
-    int noteCount() const {
-        int result = 0;
-        for (auto& note : notes) {
-            if (NOTE_ON == note.type && note.isSelectable(selectChannels)) {
-                ++result;
-            }
-        }
-        return result;
-    }
-
     unsigned noteIndex(const DisplayNote& note) const {
         return (unsigned) (&note - &notes.front());
     }
@@ -293,12 +204,8 @@ struct NoteTaker : Module {
     void onReset() override;
     void playSelection();
 
-    void readStorage();
     void resetRun();
     void resetState();
-    bool resetControls();
-    bool runningWithButtonsOff() const;
-    void saveScore();
 
     unsigned selectEndPos(unsigned select) const {
         const DisplayNote& first = notes[select];
@@ -363,15 +270,6 @@ struct NoteTaker : Module {
     void setSelect(unsigned start, unsigned end);
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
-    void setHorizontalWheelRange();
-    void setVerticalWheelRange();
-    void setWheelRange();
-
-    void shiftNotes(unsigned start, int diff) {
-        if (debugVerbose) debug("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
-        ShiftNotes(notes, start, diff, selectChannels);
-        Sort(notes);
-    }
 
     // shift track end only if another shifted note bumps it out
     // If all notes are selected, shift signatures. Otherwise, leave them be.
@@ -417,23 +315,9 @@ struct NoteTaker : Module {
     }
 
     json_t *dataToJson() override;
-    void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
 
-    unsigned unlockedChannel() const {
-        for (unsigned x = 0; x < CHANNEL_COUNT; ++x) {
-            if (selectChannels & (1 << x)) {
-                return x;
-            }
-        }
-        return 0;
-    }
-
-    void updateHorizontal();
-    void updateVertical();
-    void validate() const;
     unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in notes
     float wheelToTempo(float value) const;
-    void writeStorage(unsigned index) const;
     int xPosAtEndEnd() const;
     int xPosAtEndStart() const;
     int xPosAtStartEnd() const;

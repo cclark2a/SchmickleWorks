@@ -7,37 +7,47 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTaker.hpp"
 
-static void Press(NoteTaker* n, MomentarySwitch* ms) {
-    EventDragStart evs;
+static void Press(NoteTakerWidget* n, ParamWidget* ms) {
+    event::DragStart evs;
     ms->onDragStart(evs);
-    EventDragEnd evd;
+    event::DragEnd evd;
     ms->onDragEnd(evd);
     if (n->debugVerbose) n->debugDump();
 }
 
-static void WheelUp(NoteTaker* n, float value) {
-    n->verticalWheel->lastValue = INT_MAX;
-    assert(n->verticalWheel->minValue <= n->verticalWheel->maxValue);
-    n->verticalWheel->value = 
-            std::max(n->verticalWheel->minValue, std::min(n->verticalWheel->maxValue, value));
+static HorizontalWheel* HWheel(NoteTakerWidget* n) {
+    return n->getFirstDescendantOfType<HorizontalWheel>();
+}
+
+static VerticalWheel* VWheel(NoteTakerWidget* n) {
+    return n->getFirstDescendantOfType<VerticalWheel>();
+}
+
+static void WheelUp(NoteTakerWidget* n, float value) {
+    VWheel(n)->lastValue = INT_MAX;
+    assert(VWheel(n)->paramQuantity->minValue <= VWheel(n)->paramQuantity->maxValue);
+    VWheel(n)->setValue(
+            std::max(VWheel(n)->paramQuantity->minValue,
+            std::min(VWheel(n)->paramQuantity->maxValue, value)));
     n->updateVertical();
 }
 
-static void WheelLeft(NoteTaker* n, float value) {
-    n->horizontalWheel->lastValue = INT_MAX;
-    assert(n->horizontalWheel->minValue <= n->horizontalWheel->maxValue);
-    n->horizontalWheel->value =
-         std::max(n->horizontalWheel->minValue, std::min(n->horizontalWheel->maxValue, value));
+static void WheelLeft(NoteTakerWidget* n, float value) {
+    HWheel(n)->lastValue = INT_MAX;
+    assert(HWheel(n)->paramQuantity->minValue <= HWheel(n)->paramQuantity->maxValue);
+    HWheel(n)->setValue(
+         std::max(HWheel(n)->paramQuantity->minValue,
+         std::min(HWheel(n)->paramQuantity->maxValue, value)));
     n->updateHorizontal();
 }
 
-static void ExerciseWheels(NoteTaker* n) {
-    for (float v : { n->verticalWheel->minValue, n->verticalWheel->maxValue, 
-            (n->verticalWheel->minValue + n->verticalWheel->maxValue) / 2 }) {
+static void ExerciseWheels(NoteTakerWidget* n) {
+    for (float v : { VWheel(n)->paramQuantity->minValue, VWheel(n)->paramQuantity->maxValue, 
+            (VWheel(n)->paramQuantity->minValue + VWheel(n)->paramQuantity->maxValue) / 2 }) {
         WheelUp(n, v);
     }
-    for (float v : { n->horizontalWheel->minValue, n->horizontalWheel->maxValue, 
-            (n->horizontalWheel->minValue + n->horizontalWheel->maxValue) / 2 }) {
+    for (float v : { HWheel(n)->paramQuantity->minValue, HWheel(n)->paramQuantity->maxValue, 
+            (HWheel(n)->paramQuantity->minValue + HWheel(n)->paramQuantity->maxValue) / 2 }) {
         WheelLeft(n, v);
     }
 }
@@ -59,69 +69,69 @@ static void ExerciseWheels(NoteTaker* n) {
 // Unit test shouldn't modify files.
 // Note NoteTaker loadScore, saveScore override midi dir while test is running
 //  to read/write files from test directory instead of midi directory
-static void LowLevelAction(NoteTaker* n, int control) {
+static void LowLevelAction(NoteTakerWidget* n, int control) {
     switch (control) {
         case NoteTaker::RUN_BUTTON:
-            Press(n, n->runButton);
+            Press(n, n->widget<RunButton>());
         break;
         case NoteTaker::EXTEND_BUTTON:
-            Press(n, n->selectButton);
+            Press(n, n->widget<SelectButton>());
         break;
         case NoteTaker::INSERT_BUTTON:
-            Press(n, n->insertButton);
+            Press(n, n->widget<InsertButton>());
         break;
         case NoteTaker::CUT_BUTTON:
-            Press(n, n->cutButton);
+            Press(n, n->widget<CutButton>());
         break;
         case NoteTaker::REST_BUTTON:
-            Press(n, n->restButton);
+            Press(n, n->widget<RestButton>());
         break;
         case NoteTaker::PART_BUTTON:
-            Press(n, n->partButton);
+            Press(n, n->widget<PartButton>());
         break;
         case NoteTaker::FILE_BUTTON:
-            Press(n, n->fileButton);
+            Press(n, n->widget<FileButton>());
         break;
         case NoteTaker::SUSTAIN_BUTTON:
-            Press(n, n->sustainButton);
+            Press(n, n->widget<SustainButton>());
         break;
         case NoteTaker::TIME_BUTTON:
-            Press(n, n->timeButton);
+            Press(n, n->widget<TimeButton>());
         break;
         case NoteTaker::KEY_BUTTON:
-            Press(n, n->keyButton);
+            Press(n, n->widget<KeyButton>());
         break;
         case NoteTaker::TIE_BUTTON:
-            Press(n, n->tieButton);
+            Press(n, n->widget<TieButton>());
         break;
         case NoteTaker::TRILL_BUTTON:
-            Press(n, n->trillButton);
+            Press(n, n->widget<TrillButton>());
         break;
         case NoteTaker::TEMPO_BUTTON:
-            Press(n, n->tempoButton);
+            Press(n, n->widget<TempoButton>());
         break;
         case NoteTaker::VERTICAL_WHEEL: {
-            float value = n->verticalWheel->minValue + ((float) rand() / RAND_MAX
-                    * (n->verticalWheel->maxValue - n->verticalWheel->minValue));
+            float value = VWheel(n)->paramQuantity->minValue + ((float) rand() / RAND_MAX
+                    * (VWheel(n)->paramQuantity->maxValue - VWheel(n)->paramQuantity->minValue));
             WheelUp(n, value);  
         } break;
         case NoteTaker::HORIZONTAL_WHEEL: {
-            float value = n->horizontalWheel->minValue + ((float) rand() / RAND_MAX
-                    * (n->horizontalWheel->maxValue - n->horizontalWheel->minValue));
+            float value = HWheel(n)->paramQuantity->minValue + ((float) rand() / RAND_MAX
+                    * (HWheel(n)->paramQuantity->maxValue - HWheel(n)->paramQuantity->minValue));
             WheelLeft(n, value);
         } break;
         case NoteTaker::NUM_PARAMS + NoteTaker::V_OCT_INPUT: 
         case NoteTaker::NUM_PARAMS + NoteTaker::CLOCK_INPUT: 
         case NoteTaker::NUM_PARAMS + NoteTaker::RESET_INPUT: {
             float value = -10 + (float) rand() / RAND_MAX * 20;
-            n->inputs[control - NoteTaker::NUM_PARAMS].value = value;
+            n->nt()->inputs[control - NoteTaker::NUM_PARAMS].value = value;
         } break;
         default:
             assert(0);  // shouldn't land here
     }
 }
 
-static void LowLevelTestDigits(NoteTaker* n) {
+static void LowLevelTestDigits(NoteTakerWidget* n) {
     int counters[6];
     for (int digits = 1; digits <= 5; ++digits) {
         for (int index = 0; index < digits; ++ index) {
@@ -136,7 +146,8 @@ static void LowLevelTestDigits(NoteTaker* n) {
             if (counters[digits]) {
                 break;
             }
-            n->resetState();
+            n->nt()->resetState();
+            n->resetControls();
             for (index = 0; index < digits; ++index) {
                 LowLevelAction(n, counters[index]);
                 n->validate();
@@ -145,133 +156,136 @@ static void LowLevelTestDigits(NoteTaker* n) {
     }
 }
 
-static void LowLevelTestDigitsSolo(NoteTaker* n) {
+static void LowLevelTestDigitsSolo(NoteTakerWidget* n) {
     int counters[] = {2, 5, 3, 4, 0, 0};
     int digits = 5;
-    n->resetState();
+    n->nt()->resetState();
+    n->resetControls();
     for (int index = 0; index < digits; ++index) {
         LowLevelAction(n, counters[index]);
     }
 }
 
-static void LowLevelRandom(NoteTaker* n, unsigned seed, int steps) {
+static void LowLevelRandom(NoteTakerWidget* n, unsigned seed, int steps) {
     srand(seed);
-    n->resetState();
+    n->nt()->resetState();
+    n->resetControls();
     for (int index = 0; index < steps; ++index) {
         int control = rand() % (NoteTaker::NUM_PARAMS + NoteTaker::NUM_INPUTS);
         LowLevelAction(n, control);
     }
 }
 
-static void AddTwoNotes(NoteTaker* n) {
-    n->resetState();
-    Press(n, n->insertButton);
-    Press(n, n->insertButton);
-    unsigned note1 = n->wheelToNote(1);
-    WheelUp(n, n->notes[note1].pitch() + 1);
+static void AddTwoNotes(NoteTakerWidget* n) {
+    n->nt()->resetState();
+    Press(n, n->widget<InsertButton>());
+    Press(n, n->widget<InsertButton>());
+    unsigned note1 = n->nt()->wheelToNote(1);
+    WheelUp(n, n->nt()->notes[note1].pitch() + 1);
 }
 
-static void Expected(NoteTaker* n) {
-    json_t* saveState = n->dataToJson();
-    n->reset();
+static void Expected(NoteTakerWidget* n) {
+    json_t* saveState = n->toJson();
+    n->nt()->onReset();
     debug("delete a note with empty score");
-    Press(n, n->cutButton);
+    Press(n, n->widget<CutButton>());
 
     debug("add a note with empty score, delete same");
-    Press(n, n->insertButton);
+    Press(n, n->widget<InsertButton>());
     assert(!n->isEmpty());
-    Press(n, n->cutButton);
+    Press(n, n->widget<CutButton>());
     assert(n->isEmpty());
 
     debug("add two notes with empty score, delete same");
-    Press(n, n->insertButton);
-    Press(n, n->insertButton);
-    Press(n, n->cutButton);
+    Press(n, n->widget<InsertButton>());
+    Press(n, n->widget<InsertButton>());
+    Press(n, n->widget<CutButton>());
     assert(!n->isEmpty());
-    Press(n, n->cutButton);
+    Press(n, n->widget<CutButton>());
     assert(n->isEmpty());
 
     debug("add two notes with empty score, check order");
     AddTwoNotes(n);
-    unsigned note1 = n->wheelToNote(1);
-    assert(4 == n->notes.size());
+    unsigned note1 = n->nt()->wheelToNote(1);
+    assert(4 == n->nt()->notes.size());
     assert(2 == n->horizontalCount());
-    unsigned note2 = n->wheelToNote(2);
-    assert(n->notes[note1].pitch() < n->notes[note2].pitch());
-    Press(n, n->cutButton);
+    unsigned note2 = n->nt()->wheelToNote(2);
+    assert(n->nt()->notes[note1].pitch() < n->nt()->notes[note2].pitch());
+    Press(n, n->widget<CutButton>());
     assert(!n->isEmpty());
-    Press(n, n->cutButton);
+    Press(n, n->widget<CutButton>());
     assert(n->isEmpty());
 
     debug("press select button with empty score");
     n->resetControls();
-    assert(n->selectButton->editStart());
+    assert(n->widget<SelectButton>()->editStart());
     ExerciseWheels(n);
-    Press(n, n->selectButton);
-    assert(n->selectButton->editStart());
+    Press(n, n->widget<SelectButton>());
+    assert(n->widget<SelectButton>()->editStart());
     ExerciseWheels(n);
-    Press(n, n->selectButton);
-    assert(n->selectButton->editStart());
+    Press(n, n->widget<SelectButton>());
+    assert(n->widget<SelectButton>()->editStart());
     ExerciseWheels(n);
-    Press(n, n->selectButton);
-    assert(n->selectButton->editStart());
+    Press(n, n->widget<SelectButton>());
+    assert(n->widget<SelectButton>()->editStart());
     ExerciseWheels(n);
     n->validate();
 
     debug("press part button with empty score");
     n->resetControls();
-    assert(!n->partButton->ledOn);
+    assert(!n->widget<PartButton>()->ledOn);
     ExerciseWheels(n);
-    Press(n, n->partButton);
-    assert(n->partButton->ledOn);
+    Press(n, n->widget<PartButton>());
+    assert(n->widget<PartButton>()->ledOn);
     ExerciseWheels(n);
-    Press(n, n->partButton);
-    assert(!n->partButton->ledOn);
-    Press(n, n->partButton);
-    Press(n, n->selectButton);
+    Press(n, n->widget<PartButton>());
+    assert(!n->widget<PartButton>()->ledOn);
+    Press(n, n->widget<PartButton>());
+    Press(n, n->widget<SelectButton>());
     ExerciseWheels(n);
-    Press(n, n->cutButton);
+    Press(n, n->widget<CutButton>());
     ExerciseWheels(n);
     n->validate();
 
     debug("duplicate");
     AddTwoNotes(n);
-    Press(n, n->selectButton);
+    Press(n, n->widget<SelectButton>());
     WheelLeft(n, 0);
-    Press(n, n->selectButton);
+    Press(n, n->widget<SelectButton>());
     WheelLeft(n, 2);
-    Press(n, n->insertButton);
-    assert(6 == n->notes.size());
+    Press(n, n->widget<InsertButton>());
+    assert(6 == n->nt()->notes.size());
     assert(4 == n->horizontalCount());
 
     debug("copy and paste");
     AddTwoNotes(n);
-    Press(n, n->selectButton);
+    Press(n, n->widget<SelectButton>());
     WheelLeft(n, 0);
     debug("cnp wheel left 0");
     n->debugDump();
-    Press(n, n->selectButton);
+    Press(n, n->widget<SelectButton>());
     WheelLeft(n, 2);
     debug("cnp wheel left 2");
     n->debugDump();
-    Press(n, n->selectButton);
-    Press(n, n->selectButton);
+    Press(n, n->widget<SelectButton>());
+    Press(n, n->widget<SelectButton>());
     WheelLeft(n, 1);
     debug("cnp wheel left 1");
     n->debugDump();
-    Press(n, n->insertButton);
-    assert(6 == n->notes.size());
+    Press(n, n->widget<InsertButton>());
+    assert(6 == n->nt()->notes.size());
     assert(4 == n->horizontalCount());
 
     debug("restore defaults");
-    n->resetState();
-    n->dataFromJson(saveState);
+    n->nt()->resetState();
+    n->resetControls();
+    n->fromJson(saveState);
     json_decref(saveState);
-    n->display->invalidateCache();
-    n->display->rangeInvalid = true;
+    n->widget<NoteTakerDisplay>()->invalidateCache();
+    n->widget<NoteTakerDisplay>()->rangeInvalid = true;
 }
 
-void UnitTest(NoteTaker* n, TestType test) {
+void UnitTest(NoteTakerWidget* n, TestType test) {
     n->unitTestRunning = true;
     switch (test) {
         case TestType::digit:

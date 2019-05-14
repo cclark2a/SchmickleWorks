@@ -79,35 +79,9 @@ struct BarPosition {
 
 };
 
-struct FontFB {
-	int handle;
-
-	FontFB(const std::string &filename, NVGcontext* vg) {
-        handle = nvgCreateFont(vg, filename.c_str(), filename.c_str());
-        if (handle >= 0) {
-            debug("Loaded fontFb %s", filename.c_str());
-        }
-        else {
-            debug("Failed to load fontFb %s", filename.c_str());
-        }
-    }
-
-	~FontFB() {
-    }
-
-	static std::shared_ptr<FontFB> load(const std::string &filename, NVGcontext* vg) {
-        static std::map<std::string, std::weak_ptr<FontFB>> cache;
-        auto sp = cache[filename].lock();
-        if (!sp)
-            cache[filename] = sp = std::make_shared<FontFB>(filename, vg);
-        return sp;
-    }
-};
-
 struct NoteTakerDisplay : widget::Widget {
-	std::shared_ptr<FontFB> musicFont;
-	std::shared_ptr<FontFB> textFont;
-    NoteTaker* nt;
+	std::shared_ptr<Font> musicFont;
+	std::shared_ptr<Font> textFont;
     FramebufferWidget* fb;
     std::string musicFontName;
     std::string textFontName;
@@ -141,8 +115,7 @@ struct NoteTakerDisplay : widget::Widget {
     bool leadingTempo = false;
     bool rangeInvalid = false;
 
-    NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTaker* m, FramebufferWidget* ,
-            std::string mfn, std::string tfn);
+    NoteTakerDisplay(const Vec& pos, const Vec& size, std::string mfn, std::string tfn);
     void advanceBar(unsigned index);
     void applyKeySignature();
     void cacheBeams();
@@ -154,7 +127,7 @@ struct NoteTakerDisplay : widget::Widget {
     void clearTuplet(unsigned index, unsigned limit);
     void closeBeam(unsigned start, unsigned limit);
     void closeSlur(unsigned start, unsigned limit);
-    void draw(NVGcontext* ) override;
+    void draw(const DrawArgs& ) override;
     void drawArc(const BeamPositions& bp, unsigned start, unsigned index) const;
     void drawBars();
     void drawBarAt(int xPos);
@@ -184,7 +157,7 @@ struct NoteTakerDisplay : widget::Widget {
     void drawVerticalControl() const;
     void drawVerticalLabel(const char* label, bool enabled, bool selected, float y) const;
 
-    void dataFromJson(json_t* root) {
+    void fromJson(json_t* root) {
         displayStart = json_integer_value(json_object_get(root, "displayStart"));
         displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
         xAxisOffset = json_real_value(json_object_get(root, "xAxisOffset"));
@@ -275,7 +248,7 @@ struct NoteTakerDisplay : widget::Widget {
         return count;
     }
 
-    json_t *dataToJson() const {
+    json_t *toJson() const {
         json_t* root = json_object();
         json_object_set_new(root, "displayStart", json_integer(displayStart));
         json_object_set_new(root, "displayEnd", json_integer(displayEnd));

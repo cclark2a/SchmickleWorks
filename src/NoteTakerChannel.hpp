@@ -44,6 +44,7 @@ struct NoteTakerChannel {
             default:
                 assert(0);
         }
+        return 0;
     }
 
     int getLimit(Limit limit) const {
@@ -59,6 +60,7 @@ struct NoteTakerChannel {
             default:
                 assert(0);
         }
+        return 0;
     }
 
     bool isDefault(Limit limit) const {
