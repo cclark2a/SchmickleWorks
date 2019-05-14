@@ -1,5 +1,6 @@
 
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 
 void WheelWidget::draw(const DrawArgs& args) {

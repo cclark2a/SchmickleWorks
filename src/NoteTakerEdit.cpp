@@ -2,6 +2,7 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 
 void NoteTakerWidget::setHorizontalWheelRange() {
     HorizontalWheel* horizontalWheel = this->widget<HorizontalWheel>();
@@ -87,7 +88,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
             value = 0;
         } else {
             const DisplayNote* note = &nt()->notes[nt()->selectStart];
-            value = nt()->noteToWheel(*note);
+            value = this->noteToWheel(*note);
             if (value < wheelMin || value > wheelMax) {
                 debug("! note type %d value %d wheelMin %d wheelMax %g",
                         note->type, value, wheelMin, wheelMax);
@@ -190,17 +191,17 @@ void NoteTakerWidget::updateHorizontal() {
             // to do : disallow choosing slur if either selection is one note
             //       : or if all of selection is not notes
             if (TieButton::State::slur != this->widget<TieButton>()->state) {
-                nt()->makeSlur();
+                this->makeSlur();
                 this->widget<TieButton>()->state = TieButton::State::slur;
             }
         } else if (horizontalWheel->getValue() > .75f && horizontalWheel->getValue() < 1.25f) {
             if (TieButton::State::normal != this->widget<TieButton>()->state) {
-                nt()->makeNormal();
+                this->makeNormal();
                 this->widget<TieButton>()->state = TieButton::State::normal;
             }
         } else if (horizontalWheel->getValue() > 1.75f) {
             if (TieButton::State::tuplet != this->widget<TieButton>()->state) {
-                nt()->makeTuplet();
+                this->makeTuplet();
                 this->widget<TieButton>()->state = TieButton::State::tuplet;
             }
         }
@@ -270,14 +271,14 @@ void NoteTakerWidget::updateHorizontal() {
         unsigned start, end;
         if (this->widget<SelectButton>()->editEnd()) {
             clipboardInvalid = true;
-            int wheelStart = nt()->noteToWheel(
+            int wheelStart = this->noteToWheel(
                     this->widget<SelectButton>()->selStart - (int) this->widget<SelectButton>()->saveZero) + 1;
-            start =  nt()->wheelToNote(std::min(wheelValue, wheelStart));
-            end =  nt()->wheelToNote(std::max(wheelValue + 1, wheelStart));
+            start =  this->wheelToNote(std::min(wheelValue, wheelStart));
+            end =  this->wheelToNote(std::max(wheelValue + 1, wheelStart));
             if (debugVerbose) debug("start %u end %u wheelValue %d wheelStart %d",
                     start, end, wheelValue, wheelStart);
         } else {
-            start =  nt()->wheelToNote(wheelValue);
+            start =  this->wheelToNote(wheelValue);
             this->widget<SelectButton>()->saveZero = SelectButton::State::single == this->widget<SelectButton>()->state
                     && !start;
             end = nt()->nextAfter(start, 1);

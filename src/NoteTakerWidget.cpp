@@ -1,7 +1,10 @@
 #include "NoteTaker.hpp"
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
+#include "NoteTakerMakeMidi.hpp"
+#include "NoteTakerParseMidi.hpp"
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 
 struct DisplayBevel : Widget {
     DisplayBevel() {
@@ -49,6 +52,7 @@ struct DisplayBevel : Widget {
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
+    module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     std::string musicFontName = asset::plugin(pluginInstance, "res/MusiSync3.ttf");
@@ -142,6 +146,17 @@ void NoteTakerWidget::enableInsertSignature(unsigned loc) {
     }
 }
 
+void NoteTakerWidget::eraseNotes(unsigned start, unsigned end) {
+    if (debugVerbose) debug("eraseNotes start %u end %u", start, end);
+    auto& notes = nt()->notes;
+    for (auto iter = notes.begin() + end; iter-- != notes.begin() + start; ) {
+        if (iter->isSelectable(selectChannels)) {
+            notes.erase(iter);
+        }
+    }
+    if (debugVerbose) this->debugDump(true, true);  // wheel range is inconsistent here
+}
+
 // for clipboard to be usable, either: all notes in clipboard are active, 
 // or: all notes in clipboard are with a single channel (to paste to same or another channel)
 // mono   locked
@@ -192,6 +207,22 @@ unsigned NoteTakerWidget::horizontalCount() const {
     return count;
 }
 
+void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSize) {
+    if (shiftTime) {
+        this->shiftNotes(insertLoc + insertSize, shiftTime);
+    } else {
+        NoteTaker::Sort(nt()->notes);
+    }
+    auto display = this->widget<NoteTakerDisplay>();
+    display->invalidateCache();
+    display->displayEnd = 0;  // force recompute of display end
+    nt()->setSelect(insertLoc, nt()->nextAfter(insertLoc, insertSize));
+    if (debugVerbose) debug("insert final");
+    this->setWheelRange();  // range is larger
+    nt()->playSelection();
+    if (debugVerbose) this->debugDump(true);
+}
+
 bool NoteTakerWidget::isEmpty() const {
     for (auto& note : nt()->notes) {
         if (this->isSelectable(note)) {
@@ -203,6 +234,171 @@ bool NoteTakerWidget::isEmpty() const {
 
 bool NoteTakerWidget::isSelectable(const DisplayNote& note) const {
     return note.isSelectable(selectChannels);
+}
+
+void NoteTakerWidget::loadScore() {
+    auto horizontalWheel = this->widget<HorizontalWheel>();
+    unsigned index = (unsigned) horizontalWheel->getValue();
+    assert(index < storage.size());
+    NoteTakerParseMidi parser(storage[index], nt()->notes, nt()->channels, nt()->ppq);
+    if (debugVerbose) NoteTaker::DebugDumpRawMidi(storage[index]);
+    if (!parser.parseMidi()) {
+        nt()->setScoreEmpty();
+    }
+    auto display = this->widget<NoteTakerDisplay>();
+    display->resetXAxisOffset();
+    nt()->resetRun();
+    display->invalidateCache();
+    unsigned atZero = nt()->atMidiTime(0);
+    atZero -= TRACK_END == nt()->notes[atZero].type;
+    nt()->setSelectStart(atZero);
+}
+
+// to do : allow for triplet + slurred ?
+// to do : if triplet, make normal
+// to do : if triplet, start UI selection on triplet
+void NoteTakerWidget::makeNormal() {
+    // to do : if notes are slurred (missing note off) or odd timed (triplets) restore
+    auto nt = this->nt();
+    for (unsigned index = nt->selectStart; index < nt->selectEnd; ++index) {
+        DisplayNote& note = nt->notes[index];
+        if (note.isNoteOrRest() && note.isSelectable(selectChannels)) {
+            note.setSlur(false);
+        }
+    }
+}
+
+// allows two or more notes, or two or more rests: to be tied
+// repeats for each channel, to allow multiple channels to be selected and slurred at once
+void NoteTakerWidget::makeSlur() {
+    // to do: disallow choosing slur in UI if there isn't at least one pair.
+    // For now, avoid singletons and non-notes
+    unsigned start = -1;
+    unsigned count = 0;
+    int channel = -1;  // active channel to be slurred
+    DisplayType type = UNUSED;
+    array<unsigned, CHANNEL_COUNT> channels;  // track end of slurred notes
+    channels.fill(0);
+    auto nt = this->nt();
+    for (unsigned index = nt->selectStart; index <= nt->selectEnd; ++index) {  // note that this goes 1 past
+        if (index != nt->selectEnd) {
+            auto& note = nt->notes[index];
+            if (index < channels[note.channel]) {  // skip if channel has already been slurred
+                continue;
+            }
+            if (UNUSED == type && note.isNoteOrRest()) {   // allow pairing notes or rests
+                type = note.type;
+            }
+            if (type == note.type) {
+                if (note.isSelectable(selectChannels)) {
+                    if ((unsigned) -1 == start) {
+                        start = index;
+                        channel = note.channel;
+                        count = 1;
+                    } else if (channel == note.channel) {
+                        ++count;
+                    }
+                }
+                continue;
+            }
+        }
+        if ((unsigned) -1 == start || count < 2) {
+            continue;
+        }
+        for (unsigned inner = start; inner < index; ++inner) {
+            auto& iNote = nt->notes[inner];
+            if (type == iNote.type && channel == iNote.channel) {
+                iNote.setSlur(true);
+            }
+        }
+        channels[channel] = index;
+        index = start + 1;
+        start = -1;
+        count = 0;
+        channel = -1;
+        type = UNUSED;
+    }
+}
+
+// if current selection includes durations not in std note durations, do nothing
+// the assumption is that in this case, durations have already been tupletized 
+void NoteTakerWidget::makeTuplet() {
+    auto nt = this->nt();
+    int smallest = NoteDurations::ToMidi(NoteDurations::Count() - 1, nt->ppq);
+    int beats = 0;
+    auto addBeat = [&](int duration) {
+        if (NoteDurations::Closest(duration, nt->ppq) != duration) {
+            debug("can't tuple nonstandard duration %d ppq %d", duration, nt->ppq);
+            return false;
+        }
+        int divisor = (int) gcd(smallest, duration);
+        if (NoteDurations::Closest(divisor, nt->ppq) != divisor) {
+            debug("can't tuple gcd: smallest %d divisor %d ppq %d", smallest, divisor, nt->ppq);
+            return false;
+        }
+        if (divisor < smallest) {
+            beats *= smallest / divisor;
+            smallest = divisor;
+        }
+        debug("divisor %d smallest %d", divisor, smallest);
+        beats += duration / smallest;
+        return true;
+    };
+    // count number of beats or beat fractions, find smallest factor
+    int last = 0;
+    for (unsigned index = nt->selectStart; index < nt->selectEnd; ++index) {
+        const DisplayNote& note = nt->notes[index];
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        int restDuration = last - note.startTime;
+        if (restDuration > 0) {    // implied rest
+            debug("add implied rest %d", restDuration);
+            if (!addBeat(restDuration)) {
+                return;
+            }
+        }
+        debug("add beat %s", note.debugString().c_str());
+        if (!addBeat(note.duration)) {
+            return;
+        }
+        last = note.endTime();
+    }
+    debug("beats : %d", beats);
+    if (beats % 3) {
+        return;   // to do : only support triplets for now
+    }
+    // to do : to support 5-tuple, ppq must be a multiple of 5
+    //       : to support 7-tuple, ppq must be a multiple of 7
+    // to do : general tuple rules are complicated, so only implement a few simple ones
+    // to do : respect time signature (ignored for now)
+    int adjustment = 0;
+    for (int tuple : { 3, 5, 7 } ) {
+        // 3 in time of 2, 5 in time of 4, 7 in time of 4
+        if (beats % tuple) {
+            continue;
+        }
+        last = 0;
+        int factor = 3 == tuple ? 1 : 3;
+        for (unsigned index = nt->selectStart; index < nt->selectEnd; ++index) {
+            DisplayNote& note = nt->notes[index];
+            if (!note.isSelectable(selectChannels)) {
+                continue;
+            }
+            int restDuration = last - note.startTime;
+            if (restDuration > 0) {
+                adjustment -= restDuration / tuple;
+            }
+            note.startTime += adjustment;
+            int delta = note.duration * factor / tuple;
+            adjustment -= delta;
+            note.duration -= delta;
+            last = note.endTime();
+        }
+        break;
+    }
+    this->shiftNotes(nt->selectEnd, adjustment);
+    this->widget<NoteTakerDisplay>()->invalidateCache();
 }
 
 // true if a button that brings up a secondary menu on display is active
@@ -234,6 +430,45 @@ int NoteTakerWidget::noteCount() const {
     return result;
 }
 
+int NoteTakerWidget::noteToWheel(unsigned index, bool dbug) const {
+    auto nt = this->nt();
+    assert(index < nt->notes.size());
+    return this->noteToWheel(nt->notes[index], dbug);
+}
+
+int NoteTakerWidget::noteToWheel(const DisplayNote& match, bool dbug) const {
+    int count = 0;
+    int lastStart = -1;
+    for (auto& note : this->nt()->notes) {
+        if (this->isSelectable(note) && lastStart != note.startTime) {
+            ++count;
+            if (note.isNoteOrRest()) {
+                lastStart = note.startTime;
+            }
+        }
+        if (&match == &note) {
+            return count + (TRACK_END == match.type);
+        }
+    }
+    if (MIDI_HEADER == match.type) {
+        return -1;
+    }
+    if (dbug) {
+        debug("noteToWheel match %s", match.debugString().c_str());
+        debugDump(false, true);
+        assert(0);
+    }
+    return -1;
+}
+
+NoteTaker* NoteTakerWidget::nt() {
+    return dynamic_cast<NoteTaker* >(module);
+}
+
+const NoteTaker* NoteTakerWidget::nt() const {
+    return dynamic_cast<const NoteTaker* >(module);
+}
+
 bool NoteTakerWidget::resetControls() {
     this->turnOffLedButtons();
     for (NoteTakerButton* button : {
@@ -252,37 +487,50 @@ bool NoteTakerWidget::resetControls() {
     return true;
 }
 
+void NoteTakerWidget::resetRun() {
+    auto display = this->widget<NoteTakerDisplay>();
+    display->displayStart = display->displayEnd = 0;
+    display->rangeInvalid = true;
+}
+
+void NoteTakerWidget::resetState() {
+    clipboard.clear();
+    this->widget<NoteTakerDisplay>()->resetXAxisOffset();
+    selectChannels = ALL_CHANNELS;
+    this->resetControls();
+}
+
 bool NoteTakerWidget::runningWithButtonsOff() const {
     return this->widget<RunButton>()->ledOn && !this->menuButtonOn();
 }
 
- //   to do
-    // think about whether : the whole selection fits on the screen
-    // the last note fits on the screen if increasing the end
-    // the first note fits on the screen if decreasing start
-        // scroll small selections to center?
-        // move larger selections the smallest amount?
-        // prefer to show start? end?
-        // while playing, scroll a 'page' at a time?
-void NoteTakerWidget::setSelect(unsigned start, unsigned end) {
-    auto display = this->widget<NoteTakerDisplay>();
-    if (this->isEmpty()) {
-        nt()->selectStart = 0;
-        nt()->selectEnd = 1;
-        display->setRange();
-        display->fb->dirty = true;
-        if (debugVerbose) debug("setSelect set empty");
-        return;
+void NoteTakerWidget::saveScore() {
+    unsigned index = (unsigned) this->widget<HorizontalWheel>()->getValue();
+    assert(index <= storage.size());
+    if (storage.size() == index) {
+        storage.push_back(vector<uint8_t>());
     }
-    assert(start < end);
-    assert(nt()->notes.size() >= 2);
-    assert(end <= nt()->notes.size() - 1);
-    display->setRange();
-    this->enableInsertSignature(end);  // disable buttons that already have signatures in score
-    if (debugVerbose) debug("setSelect old %u %u new %u %u", nt()->selectStart, nt()->selectEnd, start, end);
-    nt()->selectStart = start;
-    nt()->selectEnd = end;
-    display->fb->dirty = true;
+    auto& dest = storage[index];
+    NoteTakerMakeMidi midiMaker;
+    midiMaker.createFromNotes(*this->nt(), dest);
+    this->writeStorage(index);
+}
+
+void NoteTakerWidget::setSelectableScoreEmpty() {
+    auto& notes = nt()->notes;
+    auto iter = notes.begin();
+    while (iter != notes.end()) {
+        if (this->isSelectable(*iter)) {
+            iter = notes.erase(iter);
+        } else {
+            ++iter;
+        }
+    }
+    auto display = this->widget<NoteTakerDisplay>();
+    display->invalidateCache();
+    display->displayEnd = 0;  // force recompute of display end
+    nt()->setSelect(0, 1);
+    this->setWheelRange();
 }
 
 void NoteTakerWidget::shiftNotes(unsigned start, int diff) {
@@ -305,6 +553,46 @@ void NoteTakerWidget::turnOffLedButtons(const NoteTakerButton* exceptFor) {
             button->onTurnOff();
         }
     }
+}
+
+
+// counts to nth selectable note; returns index into notes array
+unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
+    if (!value) {
+        return 0;  // midi header
+    }
+    if (!dbug && value < 0) {
+        debug("! didn't expect < 0 : value: %d", value);
+        return 0;
+    }
+    auto& notes = nt()->notes;
+    assert(value > 0);
+    assert(value < (int) notes.size());
+    int count = value - 1;
+    int lastStart = -1;
+    for (auto& note : notes) {
+        if (this->isSelectable(note) && lastStart != note.startTime) {
+            if (--count < 0) {
+                return nt()->noteIndex(note);
+            }
+            if (note.isNoteOrRest()) {
+                lastStart = note.startTime;
+            }
+        }
+        if (TRACK_END == note.type) {
+            if (count > 0) {
+                debug("! expected 0 wheelToNote value at track end; value: %d", value);
+                assert(!dbug);                
+            }
+            return notes.size() - 1;
+        }
+    }
+    debug("! out of range wheelToNote value %d", value);
+    if (dbug) {
+        this->debugDump(false, true);
+        assert(0);  // probably means wheel range is larger than selectable note count
+    }
+    return (unsigned) -1;
 }
 
 // Specify the Module and ModuleWidget subclass, human-readable

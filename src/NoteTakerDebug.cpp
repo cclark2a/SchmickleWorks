@@ -2,6 +2,7 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 
 struct DisplayTypeNames {
     DisplayType type;
@@ -65,19 +66,26 @@ std::string DisplayNote::debugString() const {
     return s;
 }
 
-void NoteTaker::debugDump(bool validatable, bool inWheel) const {
+void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
+    NoteTakerWidget* ntw = const_cast<NoteTakerWidget*>(this);
+    auto display = ntw->widget<NoteTakerDisplay>();
     debug("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
+    auto horizontalWheel = ntw->widget<HorizontalWheel>();
+    auto verticalWheel = ntw->widget<VerticalWheel>();
     debug("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
+    auto nt = this->nt();
     debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
-            selectStart, selectEnd, display->displayStart, display->displayEnd, selectChannels, 
-            this->unlockedChannel(), tempo, ppq);
-    NoteTaker::DebugDump(notes, display->cacheInvalid ? nullptr : &display->cache,
-            selectStart, selectEnd);
+            nt->selectStart, nt->selectEnd, display->displayStart, display->displayEnd, selectChannels, 
+            this->unlockedChannel(), nt->tempo, nt->ppq);
+    NoteTaker::DebugDump(nt->notes, display->cacheInvalid ? nullptr : &display->cache,
+            nt->selectStart, nt->selectEnd);
     debug("clipboard");
     NoteTaker::DebugDump(clipboard);
-    this->debugDumpChannels();
-    if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !this->isRunning()) {
+    nt->debugDumpChannels();
+    auto selectButton = ntw->widget<SelectButton>();
+    auto runButton = ntw->widget<RunButton>();
+    if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !runButton->ledOn) {
         std::string w2n;
         for (int index = horizontalWheel->paramQuantity->minValue;
                 index <= horizontalWheel->paramQuantity->maxValue; ++index) {
@@ -87,7 +95,7 @@ void NoteTaker::debugDump(bool validatable, bool inWheel) const {
         debug("wheelToNote:%s", w2n.c_str());
         std::string n2w;
         unsigned idx = 0;
-        for (const auto& note : notes) {
+        for (const auto& note : nt->notes) {
             n2w += " " + std::to_string(idx++) + "/"
                     + std::to_string(this->noteToWheel(note, false));
         }
@@ -183,14 +191,14 @@ void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
     debug("%s", s.c_str());
 }
 
-void NoteTaker::validate() const {
+void NoteTakerWidget::validate() const {
     int time = 0;
     array<int, CHANNEL_COUNT> channelTimes;
     channelTimes.fill(0);
     bool sawHeader = false;
     bool sawTrailer = false;
     bool malformed = false;
-    for (const auto& note : notes) {
+    for (const auto& note : this->nt()->notes) {
         note.assertValid(note.type);
         switch (note.type) {
             case MIDI_HEADER:

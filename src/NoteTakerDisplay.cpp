@@ -1,6 +1,7 @@
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerButton.hpp"
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 
 static void draw_stem(NVGcontext*vg, float x, int ys, int ye) {
@@ -895,13 +896,14 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
 void NoteTakerDisplay::drawDynamicPitchTempo() {
     auto ntw = NTW(this);
     auto nt = NT(this);
-    if (!nt->fileButton->ledOn) {
-        if (nt->verticalWheel->hasChanged()) {
+    if (!ntw->widget<FileButton>()->ledOn) {
+        if (ntw->widget<VerticalWheel>()->hasChanged()) {
             dynamicPitchTimer = nt->realSeconds + fadeDuration;
         }
-        if (!leadingTempo && nt->horizontalWheel->lastRealValue != nt->horizontalWheel->getValue()) {
+        auto horizontalWheel = ntw->widget<HorizontalWheel>();
+        if (!leadingTempo && horizontalWheel->lastRealValue != horizontalWheel->getValue()) {
             dynamicTempoTimer = nt->realSeconds + fadeDuration;
-            nt->horizontalWheel->lastRealValue = nt->horizontalWheel->getValue();
+            horizontalWheel->lastRealValue = horizontalWheel->getValue();
         }
         dynamicTempoAlpha = (int) (255 * (dynamicTempoTimer - nt->realSeconds) / fadeDuration);
         dynamicPitchAlpha = (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration);
@@ -909,7 +911,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
     if (dynamicPitchAlpha > 0) {
         NoteCache noteCache;
         DisplayNote note = {&noteCache, 0, nt->ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
-        note.setPitch((int) nt->verticalWheel->getValue());
+        note.setPitch((int) ntw->widget<VerticalWheel>()->getValue());
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 10, 2, 10, box.size.y - 4);
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicPitchAlpha));
@@ -928,13 +930,15 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
 }
 
 void NoteTakerDisplay::drawFileControl() {
-    bool loadEnabled = (unsigned) nt->horizontalWheel->getValue() < nt->storage.size();
+    auto ntw = NTW(this);
+    auto horizontalWheel = ntw->widget<HorizontalWheel>();
+    bool loadEnabled = (unsigned) horizontalWheel->getValue() < ntw->storage.size();
     this->drawVerticalLabel("load", loadEnabled, upSelected, 0);
     this->drawVerticalLabel("save", true, downSelected, box.size.y - 50);
     this->drawVerticalControl();
     // draw horizontal control
     const float boxWidth = 25;
-    float fSlot = nt->horizontalWheel->getValue();
+    float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
     nvgBeginPath(vg);
     nvgRect(vg, 40 + (slot - xControlOffset) * boxWidth, box.size.y - boxWidth - 5,
@@ -984,20 +988,20 @@ void NoteTakerDisplay::drawFileControl() {
     // horizontalWheel->value auto-drifts towards integer, range of 0 to nt->storage.size()
     fb->dirty |= fSlot != slot;
     if (fSlot < slot) {
-        nt->horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
+        horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
     } else if (fSlot > slot) {
-        nt->horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
+        horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
     }
     // xControlOffset draws current location, 0 to nt->storage.size() - 4
-    if (nt->horizontalWheel->getValue() - xControlOffset > 3) {
+    if (horizontalWheel->getValue() - xControlOffset > 3) {
         xControlOffset += .04f;
-    } else if (nt->horizontalWheel->getValue() < xControlOffset) {
+    } else if (horizontalWheel->getValue() < xControlOffset) {
         xControlOffset -= .04f;
     }
     if (xControlOffset != floorf(xControlOffset)) {
-        if (xControlOffset > 0 && (nt->horizontalWheel->getValue() - xControlOffset < 1
+        if (xControlOffset > 0 && (horizontalWheel->getValue() - xControlOffset < 1
                 || (xControlOffset - floorf(xControlOffset) < .5
-                && nt->horizontalWheel->getValue() - xControlOffset < 3))) {
+                && horizontalWheel->getValue() - xControlOffset < 3))) {
             xControlOffset = std::max(floorf(xControlOffset), xControlOffset - .04f);
         } else {
             xControlOffset = std::min(ceilf(xControlOffset), xControlOffset + .04f);
@@ -1005,13 +1009,13 @@ void NoteTakerDisplay::drawFileControl() {
         fb->dirty = true;
     }
     const int first = std::max(0, (int) (xControlOffset - 1));
-    const int last = std::min((int) nt->storage.size(), (int) (xControlOffset + 5));
+    const int last = std::min((int) ntw->storage.size(), (int) (xControlOffset + 5));
     nvgSave(vg);
     nvgScissor(vg, 40 - boxWidth / 2, box.size.y - boxWidth - 5, boxWidth * 5, boxWidth);
     for (int index = first; index < last; ++index) {
         nvgSave(vg);
         nvgTranslate(vg, 40 + (index - xControlOffset) * boxWidth, box.size.y - boxWidth - 5);
-        if (nt->storage[index].empty()) {
+        if (ntw->storage[index].empty()) {
             drawEmpty(index);
         } else {
             drawNote(index);
@@ -1024,7 +1028,7 @@ void NoteTakerDisplay::drawFileControl() {
             nvgRect(vg, boxWidth / 2, 0, boxWidth / 2, boxWidth);
             nvgFillPaint(vg, paint);
             nvgFill(vg);
-        } else if (last - 1 == index && xControlOffset + 4.5 < (float) nt->storage.size()) {
+        } else if (last - 1 == index && xControlOffset + 4.5 < (float) ntw->storage.size()) {
             NVGpaint paint = nvgLinearGradient(vg, 0, 0, boxWidth / 2, 0,
                     nvgRGBA(0xFF, 0xFF, 0xFF, 0xFF), nvgRGBA(0xFF, 0xFF, 0xFF, 0));
             nvgBeginPath(vg);
@@ -1035,11 +1039,11 @@ void NoteTakerDisplay::drawFileControl() {
         nvgRestore(vg);
     }
     nvgRestore(vg);
-    unsigned index = nt->storage.size();
+    unsigned index = ntw->storage.size();
     if (index * boxWidth <= box.size.x) {
         drawEmpty(index);
     }
-    float wheel = nt->horizontalWheel->getValue();
+    float wheel = horizontalWheel->getValue();
     nvgBeginPath(vg);
     nvgRect(vg, 40 + (wheel - xControlOffset) * boxWidth, box.size.y - boxWidth - 5,
             boxWidth, boxWidth);
@@ -1049,8 +1053,10 @@ void NoteTakerDisplay::drawFileControl() {
 }
 
 void NoteTakerDisplay::drawPartControl() const {
-    int part = nt->horizontalWheel->part();
-    bool lockEnable = part < 0 ? true : nt->selectChannels & (1 << part);
+    auto ntw = NTW(this);
+    auto horizontalWheel = ntw->widget<HorizontalWheel>();
+    int part = horizontalWheel->part();
+    bool lockEnable = part < 0 ? true : ntw->selectChannels & (1 << part);
     bool editEnable = part < 0 ? true : !lockEnable;
     // to do : locked disabled if channel is already locked, etc
     this->drawVerticalLabel("lock", lockEnable, upSelected, 0);
@@ -1070,7 +1076,7 @@ void NoteTakerDisplay::drawPartControl() const {
         nvgBeginPath(vg);
         nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 15,
                 boxWidth, boxHeight);
-        bool chanLocked = ~nt->selectChannels & (1 << index);
+        bool chanLocked = ~ntw->selectChannels & (1 << index);
         if (index >= 0 && chanLocked) {
             nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 25,
                    boxWidth, 10);            
@@ -1172,7 +1178,8 @@ void NoteTakerDisplay::drawSustainControl() const {
     nvgRect(vg, box.size.x - 35, 25, 35, box.size.y - 30);
     nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x7f));
     nvgFill(vg);
-    int select = (int) nt->verticalWheel->getValue();
+    auto ntw = NTW(this);
+    int select = (int) ntw->widget<VerticalWheel>()->getValue();
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
     nvgBeginPath(vg);
     nvgMoveTo(vg, box.size.x - 30, 30);
@@ -1203,7 +1210,8 @@ void NoteTakerDisplay::drawSustainControl() const {
     this->drawVerticalControl();
     // draw horizontal control
     nvgBeginPath(vg);
-    NoteTakerChannel& channel = nt->channels[nt->unlockedChannel()];
+    auto nt = NT(this);
+    const NoteTakerChannel& channel = nt->channels[ntw->unlockedChannel()];
     int susMin = std::max(6, channel.sustainMin);
     int susMax = channel.sustainMin == channel.sustainMax ? 0
             : std::max(6, channel.sustainMax - channel.sustainMin);
@@ -1284,6 +1292,7 @@ void NoteTakerDisplay::drawTempo(int xPos, int tempo, unsigned char alpha) {
     nvgText(vg, xPos + 3, 10, "H", nullptr);
     nvgFontFaceId(vg, textFont->handle);
     nvgFontSize(vg, 12);
+    auto nt = NT(this);
     std::string tempoStr("= " + std::to_string((int) (120.f * nt->beatsPerHalfSecond(tempo))));
     nvgText(vg, xPos + 7, 10, tempoStr.c_str(), nullptr);
 }
@@ -1316,17 +1325,19 @@ void NoteTakerDisplay::drawTieControl() {
         nvgTranslate(vg, boxSpace, 0);
     }
     nvgRestore(vg);
-    float fSlot = nt->horizontalWheel->getValue();
+    auto ntw = NTW(this);
+    auto horizontalWheel = ntw->widget<HorizontalWheel>();
+    float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
     if (fSlot < slot) {
-        nt->horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
+        horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
         fb->dirty = true;
     } else if (fSlot > slot) {
-        nt->horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
+        horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
         fb->dirty = true;
     }
     nvgBeginPath(vg);
-    nvgRect(vg, leftEdge + (nt->horizontalWheel->getValue()) * boxSpace,
+    nvgRect(vg, leftEdge + (horizontalWheel->getValue()) * boxSpace,
             box.size.y - boxWidth - 5, boxWidth, boxWidth);
     nvgStrokeWidth(vg, 3);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
@@ -1385,8 +1396,10 @@ void NoteTakerDisplay::drawVerticalControl() const {
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
     nvgBeginPath(vg);
-    float value = nt->verticalWheel->getValue();
-    float range = nt->verticalWheel->paramQuantity->maxValue;
+    auto ntw = NTW(this);
+    auto verticalWheel = ntw->widget<VerticalWheel>();
+    float value = verticalWheel->getValue();
+    float range = verticalWheel->paramQuantity->maxValue;
     float yPos = box.size.y - 20 - value * (box.size.y - 40) / range;
     nvgMoveTo(vg, box.size.x - 10, yPos);
     nvgLineTo(vg, box.size.x - 5, yPos - 3);
@@ -1421,9 +1434,11 @@ void NoteTakerDisplay::drawVerticalLabel(const char* label, bool enabled,
 
 void NoteTakerDisplay::recenterVerticalWheel() {
     if (upSelected || downSelected) {
-        float val = nt->verticalWheel->getValue();
+        auto ntw = NTW(this);
+        auto verticalWheel = ntw->widget<VerticalWheel>();
+        float val = verticalWheel->getValue();
         const float autoLoadSaveWheelSpeed = .2f;
-        nt->verticalWheel->setValue(nt->verticalWheel->getValue()
+        verticalWheel->setValue(verticalWheel->getValue()
                 + (val > 5 ? -autoLoadSaveWheelSpeed : +autoLoadSaveWheelSpeed));
         if (5 - autoLoadSaveWheelSpeed < val && val < 5 + autoLoadSaveWheelSpeed) {
             upSelected = false;
@@ -1489,6 +1504,7 @@ void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* 
 // compute ties first, so we know how many notes to draw
 void NoteTakerDisplay::setCacheDuration() {
     bool sort = false;
+    auto nt = NT(this);
     for (unsigned index = 0; index < nt->notes.size(); ++index) {
         DisplayNote& note = nt->notes[index];
         cache.emplace_back();
@@ -1576,6 +1592,7 @@ void NoteTakerDisplay::setKeySignature(int key) {
 }
 
 void NoteTakerDisplay::setRange() {
+    auto nt = NT(this);
     oldStart = nt->selectStart;
     oldEnd = nt->selectEnd;
     rangeInvalid = true;
@@ -1583,6 +1600,9 @@ void NoteTakerDisplay::setRange() {
 
 void NoteTakerDisplay::updateRange() {
     rangeInvalid = false;
+    auto ntw = NTW(this);
+    auto selectButton = ntw->widget<SelectButton>();
+    auto nt = NT(this);
     int selectStartXPos = nt->xPosAtStartStart();
     int selectEndXPos = nt->xPosAtEndEnd();
     int selectWidth = selectEndXPos - selectStartXPos;
@@ -1593,7 +1613,7 @@ void NoteTakerDisplay::updateRange() {
     debug("old displayStart %u displayEnd %u", displayStart, displayEnd);
     // note condition to require the first quarter note of a very long note to be visible
     const int displayQuarterNoteWidth = stdTimePerQuarterNote * xAxisScale;
-    const int displayStartMargin = nt->selectButton->editStart() ? 0 : displayQuarterNoteWidth;
+    const int displayStartMargin = selectButton->editStart() ? 0 : displayQuarterNoteWidth;
     const int displayEndMargin = displayQuarterNoteWidth * 2 - displayStartMargin;
     bool startIsVisible = xAxisOffset + displayStartMargin <= selectStartXPos
             && selectStartXPos + displayStartMargin <= displayEndXPos;
@@ -1667,6 +1687,7 @@ void NoteTakerDisplay::updateRange() {
 void NoteTakerDisplay::setUpAccidentals() {
     // prepare accidental, key, bar state prior to drawing
     // to do : could optimize this to skip notes except for bar prior to displayStart
+    auto nt = NT(this);
     for (unsigned index = 0; index < displayStart; ++index) {
         const DisplayNote& note = nt->notes[index];
         switch (note.type) {
@@ -1702,6 +1723,7 @@ static void track_pos(std::list<PosAdjust>& posAdjust, float xOff, int endTime) 
 
 void NoteTakerDisplay::updateXPosition() {
     assert(vg);
+    auto nt = NT(this);
     nvgFontFaceId(vg, musicFont->handle);
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);

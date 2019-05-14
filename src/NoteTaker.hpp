@@ -3,24 +3,7 @@
 #include "NoteTakerChannel.hpp"
 #include "NoteTakerDisplayNote.hpp"
 
-struct CutButton;
-struct DumpButton;
-struct FileButton;
-struct InsertButton;
-struct KeyButton;
-struct NoteTakerButton;
-struct PartButton;
-struct RestButton;
-struct RunButton;
-struct SelectButton;
-struct SustainButton;
-struct TempoButton;
-struct TieButton;
-struct TimeButton;
-struct TrillButton;
-struct NoteTakerDisplay;
-struct HorizontalWheel;
-struct VerticalWheel;
+struct NoteTakerWidget;
 
 struct NoteTaker : Module {
 	enum ParamIds {       // numbers used by unit test
@@ -64,6 +47,7 @@ struct NoteTaker : Module {
 		NUM_LIGHTS
 	};
 
+    NoteTakerWidget* mainWidget;
     // state saved into json
     vector<DisplayNote> notes;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
@@ -140,11 +124,9 @@ struct NoteTaker : Module {
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static void DebugDumpRawMidi(vector<uint8_t>& v);
 
-    void eraseNotes(unsigned start, unsigned end);
     int externalTempo(bool clockEdge);
     bool extractClipboard(vector<DisplayNote>* ) const;
     bool insertContains(unsigned loc, DisplayType type) const;
-    void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
     bool isRunning() const;
 
     static int LastEndTime(const vector<DisplayNote>& notes) {
@@ -154,10 +136,6 @@ struct NoteTaker : Module {
         }
         return result;
     }
-
-    void makeNormal();
-    void makeSlur();
-    void makeTuplet();
 
     static void MapChannel(vector<DisplayNote>& notes, unsigned channel) {
          for (auto& note : notes) {
@@ -195,12 +173,6 @@ struct NoteTaker : Module {
         return (unsigned) (&note - &notes.front());
     }
 
-    int noteToWheel(unsigned index, bool dbug = true) const {
-        assert(index < notes.size());
-        return noteToWheel(notes[index], dbug);
-    }
-
-    int noteToWheel(const DisplayNote& , bool dbug = true) const;
     void onReset() override;
     void playSelection();
 
@@ -218,10 +190,9 @@ struct NoteTaker : Module {
     }
 
     void setScoreEmpty();
-    void setSelectableScoreEmpty();
 
     void setGateLow(const DisplayNote& note) {
-        auto &chan = channels[note.channel];
+        auto& chan = channels[note.channel];
         chan.gateLow = 0;
         chan.noteEnd = 0;
     }
@@ -233,7 +204,7 @@ struct NoteTaker : Module {
         static array<int, CHANNEL_COUNT> debugCount {-1, -1, -1, -1};
         static int debugMidiTime = -1;
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
-            auto &chan = channels[channel];
+            auto& chan = channels[channel];
             if (!chan.noteEnd) {
                 continue;
             }
@@ -314,9 +285,6 @@ struct NoteTaker : Module {
         }
     }
 
-    json_t *dataToJson() override;
-
-    unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in notes
     float wheelToTempo(float value) const;
     int xPosAtEndEnd() const;
     int xPosAtEndStart() const;

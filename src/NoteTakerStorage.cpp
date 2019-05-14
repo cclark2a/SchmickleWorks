@@ -1,6 +1,7 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 #include <fstream>
 #include <iterator>

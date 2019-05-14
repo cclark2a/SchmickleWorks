@@ -5,6 +5,7 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 
 static void Press(NoteTakerWidget* n, ParamWidget* ms) {
@@ -180,7 +181,7 @@ static void AddTwoNotes(NoteTakerWidget* n) {
     n->nt()->resetState();
     Press(n, n->widget<InsertButton>());
     Press(n, n->widget<InsertButton>());
-    unsigned note1 = n->nt()->wheelToNote(1);
+    unsigned note1 = n->wheelToNote(1);
     WheelUp(n, n->nt()->notes[note1].pitch() + 1);
 }
 
@@ -206,10 +207,10 @@ static void Expected(NoteTakerWidget* n) {
 
     debug("add two notes with empty score, check order");
     AddTwoNotes(n);
-    unsigned note1 = n->nt()->wheelToNote(1);
+    unsigned note1 = n->wheelToNote(1);
     assert(4 == n->nt()->notes.size());
     assert(2 == n->horizontalCount());
-    unsigned note2 = n->nt()->wheelToNote(2);
+    unsigned note2 = n->wheelToNote(2);
     assert(n->nt()->notes[note1].pitch() < n->nt()->notes[note2].pitch());
     Press(n, n->widget<CutButton>());
     assert(!n->isEmpty());

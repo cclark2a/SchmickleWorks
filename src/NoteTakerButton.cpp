@@ -1,6 +1,7 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
+#include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 
 // try to get rest working as well as note
@@ -14,6 +15,7 @@ void AdderButton::onDragEndPreamble(const event::DragEnd& e) {
 
 void AdderButton::onDragEnd(const event::DragEnd& e) {
     auto ntw = NTW(this);
+    auto nt = NT(this);
     if (shiftTime) {
         NoteTaker::ShiftNotes(ntw->nt()->notes, shiftLoc, shiftTime);
     }
@@ -21,7 +23,7 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     NTWidget<SelectButton>(this)->setOff();
     NoteTakerButton::onDragEnd(e);
     NTWidget<NoteTakerDisplay>(this)->invalidateCache();
-    ntw->setSelect(insertLoc, insertLoc + 1);
+    nt->setSelect(insertLoc, insertLoc + 1);
     ntw->turnOffLedButtons();
     ntw->setWheelRange();  // range is larger
 }
@@ -63,7 +65,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         nt->selectStart = 0;
         nt->selectEnd = nt->notes.size() - 1;
         ntw->copySelectableNotes();
-        nt->setSelectableScoreEmpty();
+        ntw->setSelectableScoreEmpty();
         NTWidget<NoteTakerDisplay>(this)->invalidateCache();
         nt->setSelectStart(nt->atMidiTime(0));
         ntw->setWheelRange();
@@ -84,13 +86,13 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         ntw->copyNotes();
     }
     int shiftTime = nt->notes[start].startTime - nt->notes[end].startTime;
-    nt->eraseNotes(start, end);
+    ntw->eraseNotes(start, end);
     ntw->shiftNotes(start, shiftTime);
     NTWidget<NoteTakerDisplay>(this)->invalidateCache();
     ntw->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
-    int wheel = nt->noteToWheel(start);
-    unsigned previous = nt->wheelToNote(std::max(0, wheel - 1));
+    int wheel = ntw->noteToWheel(start);
+    unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
     nt->setSelect(previous, previous < start ? start : previous + 1);
     selectButton->setSingle();
     ntw->setWheelRange();  // range is smaller
@@ -103,7 +105,6 @@ void DumpButton::onDragEnd(const event::DragEnd& e) {
 }
 
 void EditButton::onDragStart(const event::DragStart& e) {
-    NoteTaker* nt = NT(this);
     if (NTW(this)->widget<RunButton>()->ledOn) {
         return;
     }
@@ -113,7 +114,6 @@ void EditButton::onDragStart(const event::DragStart& e) {
 
 void FileButton::onDragEnd(const event::DragEnd& e) {
     auto ntw = NTW(this);
-    NoteTaker* nt = NT(this);
     if (ntw->widget<RunButton>()->ledOn) {
         return;
     }
@@ -168,7 +168,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         unsigned iEnd = nt->selectEnd;
         int lastEndTime = 0;
         if (!nt->selectStart) {
-            iStart = insertLoc = nt->wheelToNote(1);
+            iStart = insertLoc = ntw->wheelToNote(1);
         } else {
             insertLoc = nt->selectEnd;
             iStart = nt->selectStart;
@@ -249,7 +249,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (nt->debugVerbose) ntw->debugDump(false);
     }
     selectButton->setOff();
-    nt->insertFinal(shiftTime, insertLoc, insertSize);
+    ntw->insertFinal(shiftTime, insertLoc, insertSize);
     NoteTakerButton::onDragEnd(e);
 }
 
@@ -381,7 +381,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         case State::ledOff: {
             assert(ledOn);
             state = State::single; // does not call setSingle because saveZero should not change
-            unsigned start = saveZero ? nt->wheelToNote(0) : nt->selectStart;
+            unsigned start = saveZero ? ntw->wheelToNote(0) : nt->selectStart;
             nt->setSelect(start, nt->nextAfter(start, 1));
         } break;
         case State::single: {
@@ -391,11 +391,11 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             if (!ntw->horizontalCount()) {
                 break;  // can't start selection if there's nothing to select
             }
-            int wheelStart = nt->noteToWheel(nt->selectStart);
+            int wheelStart = ntw->noteToWheel(nt->selectStart);
             saveZero = !wheelStart;
             state = State::extend;
             int wheelIndex = std::max(1, wheelStart);
-            selStart = nt->wheelToNote(wheelIndex);
+            selStart = ntw->wheelToNote(wheelIndex);
             assert(MIDI_HEADER != nt->notes[selStart].type);
             assert(TRACK_END != nt->notes[selStart].type);
             const auto& note = nt->notes[selStart];
@@ -428,8 +428,9 @@ void SelectButton::setOff() {
 }
 
 void SelectButton::setSingle() {
-    NoteTaker* nt = NT(this);
-    saveZero = !nt->noteToWheel(nt->selectStart);
+    auto ntw = NTW(this);
+    auto nt = NT(this);
+    saveZero = !ntw->noteToWheel(nt->selectStart);
     state = State::single;
     af = 1;
     ledOn = true;
