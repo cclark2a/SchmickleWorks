@@ -135,7 +135,7 @@ struct NoteTakerDisplay : VirtualWidget {
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
-    bool cacheInvalid = false;
+    bool cacheInvalid = true;
     bool upSelected = false;
     bool downSelected = false;
     bool leadingTempo = false;
