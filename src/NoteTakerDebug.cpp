@@ -76,10 +76,10 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
     auto nt = this->nt();
     debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
-            nt->selectStart, nt->selectEnd, display->displayStart, display->displayEnd, selectChannels, 
+            nt->selStart(), nt->selEnd(), display->displayStart, display->displayEnd, selectChannels, 
             this->unlockedChannel(), nt->tempo, nt->ppq);
-    NoteTaker::DebugDump(nt->notes, display->cacheInvalid ? nullptr : &display->cache,
-            nt->selectStart, nt->selectEnd);
+    NoteTaker::DebugDump(nt->notes(), display->cacheInvalid ? nullptr : &display->cache,
+            nt->selStart(), nt->selEnd());
     debug("clipboard");
     NoteTaker::DebugDump(clipboard);
     nt->debugDumpChannels();
@@ -95,7 +95,7 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
         debug("wheelToNote:%s", w2n.c_str());
         std::string n2w;
         unsigned idx = 0;
-        for (const auto& note : nt->notes) {
+        for (const auto& note : nt->notes()) {
             n2w += " " + std::to_string(idx++) + "/"
                     + std::to_string(this->noteToWheel(note, false));
         }
@@ -198,7 +198,7 @@ void NoteTakerWidget::validate() const {
     bool sawHeader = false;
     bool sawTrailer = false;
     bool malformed = false;
-    for (const auto& note : this->nt()->notes) {
+    for (const auto& note : this->nt()->notes()) {
         note.assertValid(note.type);
         switch (note.type) {
             case MIDI_HEADER:

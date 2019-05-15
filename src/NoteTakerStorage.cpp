@@ -143,7 +143,7 @@ void NoteTakerWidget::writeStorage(unsigned slot) const {
 json_t *NoteTaker::dataToJson() {
     json_t* root = json_object();
     json_t* _notes = json_array();
-    for (const auto& note : notes) {
+    for (const auto& note : notes()) {
         json_array_append_new(_notes, note.dataToJson());
     }
     json_object_set_new(root, "notes", _notes);
@@ -152,8 +152,8 @@ json_t *NoteTaker::dataToJson() {
         json_array_append_new(chans, channel.dataToJson());
     }
     json_object_set_new(root, "channels", chans);
-    json_object_set_new(root, "selectStart", json_integer(selectStart));
-    json_object_set_new(root, "selectEnd", json_integer(selectEnd));
+    json_object_set_new(root, "selectStart", json_integer(selStart()));
+    json_object_set_new(root, "selectEnd", json_integer(selEnd()));
     json_object_set_new(root, "tempo", json_integer(tempo));
     json_object_set_new(root, "ppq", json_integer(ppq));
     return root;
@@ -188,16 +188,16 @@ void NoteTaker::dataFromJson(json_t *root) {
     json_t* _notes = json_object_get(root, "notes");
     size_t index;
     json_t* value;
-    notes.resize(json_array_size(_notes));
+    notes().resize(json_array_size(_notes));
     json_array_foreach(_notes, index, value) {
-        notes[index].dataFromJson(value);
+        notes()[index].dataFromJson(value);
     }
     json_t* chans = json_object_get(root, "channels");
     json_array_foreach(chans, index, value) {
         channels[index].dataFromJson(value);
     }
-    selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
+    selStart() = json_integer_value(json_object_get(root, "selectStart"));
+    selEnd() = json_integer_value(json_object_get(root, "selectEnd"));
     tempo = json_integer_value(json_object_get(root, "tempo"));
     ppq = json_integer_value(json_object_get(root, "ppq"));
 }

@@ -61,7 +61,7 @@ bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
     unsigned before = loc;
     const DisplayNote* note;
     while (before) {
-        note = &notes[--before];
+        note = &notes()[--before];
         if (type == note->type) {
             return true;
         }
@@ -69,8 +69,8 @@ bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
             break;
         }
     }
-    while (loc < notes.size()) {
-        note = &notes[loc];
+    while (loc < notes().size()) {
+        note = &notes()[loc];
         if (type == note->type) {
             return true;
         }
@@ -88,11 +88,11 @@ bool NoteTaker::isRunning() const {
 
 void NoteTaker::playSelection() {
     this->zeroGates();
-    elapsedSeconds = MidiToSeconds(notes[selectStart].startTime, ppq);
+    elapsedSeconds = MidiToSeconds(notes()[selStart()].startTime, ppq);
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     this->setPlayStart();
     int midiTime = SecondsToMidi(elapsedSeconds, ppq);
-    this->advancePlayStart(midiTime, notes.size() - 1);
+    this->advancePlayStart(midiTime, notes().size() - 1);
 }
 
 void NoteTaker::onReset() {
@@ -104,14 +104,14 @@ void NoteTaker::onReset() {
 
 void NoteTaker::resetState() {
     if (debugVerbose) debug("notetaker reset");
-    notes.clear();
+    notes().clear();
     for (auto channel : channels) {
         channel.reset();
     }
     this->resetRun();
     this->setScoreEmpty();
-    selectStart = 0;
-    selectEnd = 1;
+    selStart() = 0;
+    selEnd() = 1;
     mainWidget->resetState();
     mainWidget->resetControls();
 }
@@ -135,7 +135,7 @@ void NoteTaker::resetRun() {
 // to do : could optimize with binary search
 void NoteTaker::setPlayStart() {
     playStart = 0;
-    if (!notes.size()) {
+    if (!notes().size()) {
         return;
     }
     tempo = stdMSecsPerQuarterNote;
@@ -147,7 +147,7 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
     if (debugVerbose) DebugDumpRawMidi(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, notes, channels, ppq);
+    NoteTakerParseMidi emptyParser(emptyMidi, notes(), channels, ppq);
     bool success = emptyParser.parseMidi();
     assert(success);
     auto display = mainWidget->widget<NoteTakerDisplay>();
@@ -165,47 +165,47 @@ void NoteTaker::setScoreEmpty() {
 void NoteTaker::setSelect(unsigned start, unsigned end) {
     auto display = mainWidget->widget<NoteTakerDisplay>();
     if (mainWidget->isEmpty()) {
-        selectStart = 0;
-        selectEnd = 1;
+        selStart() = 0;
+        selEnd() = 1;
         display->setRange();
         display->fb->dirty = true;
         if (debugVerbose) debug("setSelect set empty");
         return;
     }
     assert(start < end);
-    assert(notes.size() >= 2);
-    assert(end <= notes.size() - 1);
+    assert(notes().size() >= 2);
+    assert(end <= notes().size() - 1);
     display->setRange();
     if (!this->isRunning()) {
         mainWidget->enableInsertSignature(end);  // disable buttons that already have signatures in score
     }
-    if (debugVerbose) debug("setSelect old %u %u new %u %u", selectStart, selectEnd, start, end);
-    selectStart = start;
-    selectEnd = end;
+    if (debugVerbose) debug("setSelect old %u %u new %u %u", selStart(), selEnd(), start, end);
+    selStart() = start;
+    selEnd() = end;
     display->fb->dirty = true;
 }
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
     auto selectButton = mainWidget->widget<SelectButton>();
     debug("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
-            wheelValue, end, selectButton->selStart, selectStart, selectEnd);
+            wheelValue, end, selectButton->selStart, selStart(), selEnd());
     bool changed = true;
     if (end < selectButton->selStart) {
         this->setSelect(end, selectButton->selStart);
-        debug("setSelectEnd < s:%u e:%u", selectStart, selectEnd);
+        debug("setSelectEnd < s:%u e:%u", selStart(), selEnd());
     } else if (end == selectButton->selStart) {
         unsigned start = selectButton->selStart;
-        assert(TRACK_END != notes[start].type);
+        assert(TRACK_END != notes()[start].type);
         unsigned end = mainWidget->wheelToNote(wheelValue + 1);
         this->setSelect(start, end);
-        debug("setSelectEnd == s:%u e:%u", selectStart, selectEnd);
-    } else if (end != selectEnd) {
+        debug("setSelectEnd == s:%u e:%u", selStart(), selEnd());
+    } else if (end != selEnd()) {
         this->setSelect(selectButton->selStart, end);
-        debug("setSelectEnd > s:%u e:%u", selectStart, selectEnd);
+        debug("setSelectEnd > s:%u e:%u", selStart(), selEnd());
     } else {
         changed = false;
     }
-    assert(selectEnd != selectStart);
+    assert(selEnd() != selStart());
     return changed;
 }
 
@@ -213,8 +213,8 @@ bool NoteTaker::setSelectStart(unsigned start) {
     unsigned end = start;
     do {
         ++end;
-    } while (notes[start].startTime == notes[end].startTime && notes[start].isNoteOrRest()
-            && notes[end].isNoteOrRest());
+    } while (notes()[start].startTime == notes()[end].startTime && notes()[start].isNoteOrRest()
+            && notes()[end].isNoteOrRest());
     this->setSelect(start, end);
     return true;
 }
@@ -275,13 +275,13 @@ void NoteTaker::step() {
         if (duration) { // to do : make bias common const (if it really is one)
             const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             int midiNote = (int) ((inputs[V_OCT_INPUT].value - bias) * 12);
-            unsigned insertLoc = !mainWidget->noteCount() ? this->atMidiTime(0) : !selectStart ?
-                    mainWidget->wheelToNote(1) : selectEnd;
-            int startTime = notes[insertLoc].startTime;
+            unsigned insertLoc = !mainWidget->noteCount() ? this->atMidiTime(0) : !selStart() ?
+                    mainWidget->wheelToNote(1) : selEnd();
+            int startTime = notes()[insertLoc].startTime;
             DisplayNote note = { nullptr, startTime, duration,
                     { midiNote, 0, stdKeyPressure, stdKeyPressure},
                      (uint8_t) mainWidget->unlockedChannel(), NOTE_ON, false };
-            notes.insert(notes.begin() + insertLoc, note);
+            notes().insert(notes().begin() + insertLoc, note);
             mainWidget->insertFinal(duration, insertLoc, 1);
         }
         localTempo = tempo;
@@ -309,7 +309,7 @@ void NoteTaker::step() {
         clockOutTime = 0.001f + realSeconds;
     }
     this->setExpiredGatesLow(midiTime);
-    unsigned lastNote = running ? notes.size() - 1 : selectEnd - 1;
+    unsigned lastNote = running ? notes().size() - 1 : selEnd() - 1;
     if (this->advancePlayStart(midiTime, lastNote)) {
         playStart = 0;
         if (running) {
@@ -318,17 +318,16 @@ void NoteTaker::step() {
             this->resetRun();
             outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
             eosTime = realSeconds + 0.01f;
-            this->advancePlayStart(midiTime, notes.size() - 1);
+            this->advancePlayStart(midiTime, notes().size() - 1);
         } else {
             this->setExpiredGatesLow(INT_MAX);
         }
         return;
     }
     unsigned start = playStart - 1;
-    unsigned selStart = INT_MAX;
-    unsigned selEnd = 0;
+    unsigned sStart = INT_MAX;
     while (++start <= lastNote) {
-        const auto& note = notes[start];
+        const auto& note = notes()[start];
         if (note.startTime > midiTime) {
             break;
         }
@@ -359,8 +358,7 @@ void NoteTaker::step() {
             }
         }
         if (running) {
-            selStart = std::min(selStart, start);
-            selEnd = std::max(selEnd, start + 1);
+            sStart = std::min(sStart, start);
         }
         // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
         if (note.channel < CV_OUTPUTS) {
@@ -380,8 +378,8 @@ void NoteTaker::step() {
     }
     if (running) {
         // to do : don't write to same state in different threads
-        if (INT_MAX != selStart && selectStart != selStart) {
-            (void) this->setSelectStart(selStart);
+        if (INT_MAX != sStart && selStart() != sStart) {
+            (void) this->setSelectStart(sStart);
         }
     }
 }
@@ -399,23 +397,23 @@ float NoteTaker::wheelToTempo(float value) const {
 
 int NoteTaker::xPosAtEndStart() const {
     assert(!mainWidget->widget<NoteTakerDisplay>()->cacheInvalid);
-    return notes[selectEnd - 1].cache->xPosition;
+    return notes()[selEnd() - 1].cache->xPosition;
 }
 
 int NoteTaker::xPosAtEndEnd() const {
     auto display = mainWidget->widget<NoteTakerDisplay>();
     assert(!display->cacheInvalid);
-    const NoteCache* noteCache = notes[selectEnd - 1].cache;
+    const NoteCache* noteCache = notes()[selEnd() - 1].cache;
     return display->xEndPos(*noteCache);
 }
 
 int NoteTaker::xPosAtStartEnd() const {
     assert(!mainWidget->widget<NoteTakerDisplay>()->cacheInvalid);
-    unsigned startEnd = this->selectEndPos(selectStart);
-    return notes[startEnd].cache->xPosition;
+    unsigned startEnd = this->selectEndPos(selStart());
+    return notes()[startEnd].cache->xPosition;
 }
 
 int NoteTaker::xPosAtStartStart() const {
     assert(!mainWidget->widget<NoteTakerDisplay>()->cacheInvalid);
-    return notes[selectStart].cache->xPosition;
+    return notes()[selStart()].cache->xPosition;
 }

@@ -46,8 +46,8 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     float horzSpeed = 1;
     int value = INT_MAX;
     if (!this->widget<SelectButton>()->ledOn) {
-        const DisplayNote* note = &nt()->notes[nt()->selectStart];
-        if (nt()->selectStart + 1 == nt()->selectEnd && note->isSignature()) {
+        const DisplayNote* note = &nt()->notes()[nt()->selStart()];
+        if (nt()->selStart() + 1 == nt()->selEnd() && note->isSignature()) {
             switch (note->type) {
                 case TIME_SIGNATURE:
                     horizontalWheel->setLimits(1, 6.99f);   // denom limit 0 to 6 (2^N, 1 to 64)
@@ -68,9 +68,9 @@ void NoteTakerWidget::setHorizontalWheelRange() {
                     assert(0); // incomplete
             }
         } else {
-            unsigned start = nt()->selectStart;
-            while (note->isSignature() && start < nt()->selectEnd) {
-                note = &nt()->notes[++start];
+            unsigned start = nt()->selStart();
+            while (note->isSignature() && start < nt()->selEnd()) {
+                note = &nt()->notes()[++start];
             }
             if (note->isNoteOrRest()) {
                 value = NoteDurations::FromMidi(note->duration, nt()->ppq);
@@ -87,7 +87,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         if (this->isEmpty()) {
             value = 0;
         } else {
-            const DisplayNote* note = &nt()->notes[nt()->selectStart];
+            const DisplayNote* note = &nt()->notes()[nt()->selStart()];
             value = this->noteToWheel(*note);
             if (value < wheelMin || value > wheelMax) {
                 debug("! note type %d value %d wheelMin %d wheelMax %g",
@@ -127,8 +127,8 @@ void NoteTakerWidget::setVerticalWheelRange() {
     if (this->isEmpty()) {
         return;
     }
-    DisplayNote* note = &nt()->notes[nt()->selectStart];
-    if (nt()->selectStart + 1 == nt()->selectEnd && note->isSignature()) {
+    DisplayNote* note = &nt()->notes()[nt()->selStart()];
+    if (nt()->selStart() + 1 == nt()->selEnd() && note->isSignature()) {
         switch (note->type) {
             case KEY_SIGNATURE:
                 verticalWheel->setLimits(-7, 7);
@@ -148,11 +148,11 @@ void NoteTakerWidget::setVerticalWheelRange() {
         }
         return;
     }
-    unsigned start = nt()->selectStart;
-    while (start < nt()->selectEnd && !note->isSelectable(selectChannels)) {
-        note = &nt()->notes[++start];
+    unsigned start = nt()->selStart();
+    while (start < nt()->selEnd() && !note->isSelectable(selectChannels)) {
+        note = &nt()->notes()[++start];
     }
-    bool validNote = start < nt()->selectEnd && NOTE_ON == note->type;
+    bool validNote = start < nt()->selEnd() && NOTE_ON == note->type;
     verticalWheel->setLimits(0, 127);  // range for midi pitch
     verticalWheel->setValue(validNote ? note->pitch() : 60);
     verticalWheel->speed = .1;
@@ -213,8 +213,8 @@ void NoteTakerWidget::updateHorizontal() {
     if (this->isEmpty()) {
         return;
     }
-    bool selectOne = !this->widget<SelectButton>()->ledOn && nt()->selectStart + 1 == nt()->selectEnd;
-    DisplayNote& oneNote = nt()->notes[nt()->selectStart];
+    bool selectOne = !this->widget<SelectButton>()->ledOn && nt()->selStart() + 1 == nt()->selEnd();
+    DisplayNote& oneNote = nt()->notes()[nt()->selStart()];
     if (selectOne && MIDI_TEMPO == oneNote.type) {
         oneNote.setTempo(nt()->wheelToTempo(this->widget<HorizontalWheel>()->getValue()) * 500000);
         this->widget<NoteTakerDisplay>()->fb->dirty = true;
@@ -236,16 +236,16 @@ void NoteTakerWidget::updateHorizontal() {
     bool noteChanged = false;
     if (!this->widget<SelectButton>()->ledOn) {
         // for now, if selection includes signature, do nothing
-        for (unsigned index = nt()->selectStart; index < nt()->selectEnd; ++index) {
-            DisplayNote& note = nt()->notes[index];
+        for (unsigned index = nt()->selStart(); index < nt()->selEnd(); ++index) {
+            DisplayNote& note = nt()->notes()[index];
             if (note.isSignature()) {
                 return;
             }
         }
         array<int, CHANNEL_COUNT> diff;
         diff.fill(0);
-        for (unsigned index = nt()->selectStart; index < nt()->selectEnd; ++index) {
-            DisplayNote& note = nt()->notes[index];
+        for (unsigned index = nt()->selStart(); index < nt()->selEnd(); ++index) {
+            DisplayNote& note = nt()->notes()[index];
             note.startTime += diff[note.channel];
             if (!this->isSelectable(note)) {
                 continue;
@@ -258,12 +258,12 @@ void NoteTakerWidget::updateHorizontal() {
         }
         for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
             if (diff[chan]) {
-                NoteTaker::ShiftNotes(nt()->notes, nt()->selectEnd, diff[chan], 1 << chan);
+                NoteTaker::ShiftNotes(nt()->notes(), nt()->selEnd(), diff[chan], 1 << chan);
                 noteChanged = true;
             }
         }
         if (noteChanged) {
-            NoteTaker::Sort(nt()->notes);
+            NoteTaker::Sort(nt()->notes());
             this->widget<NoteTakerDisplay>()->invalidateCache();
             this->widget<NoteTakerDisplay>()->rangeInvalid = true;
         }
@@ -285,12 +285,12 @@ void NoteTakerWidget::updateHorizontal() {
             if (debugVerbose) debug("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         assert(start < end);
-        if (start != nt()->selectStart || end != nt()->selectEnd) {
+        if (start != nt()->selStart() || end != nt()->selEnd()) {
             nt()->setSelect(start, end);
             this->setVerticalWheelRange();
             noteChanged = true;
             if (start + 1 == end) {
-                const auto& note = nt()->notes[start];
+                const auto& note = nt()->notes()[start];
                 if (KEY_SIGNATURE == note.type && !note.key()) {
                     this->widget<NoteTakerDisplay>()->dynamicSelectTimer = nt()->realSeconds
                             + this->widget<NoteTakerDisplay>()->fadeDuration;
@@ -371,17 +371,17 @@ void NoteTakerWidget::updateVertical() {
     // transpose selection
     // loop below computes diff of first note, and adds diff to subsequent notes in select
     int diff = 0;
-    for (unsigned index = nt()->selectStart ; index < nt()->selectEnd; ++index) {
-        DisplayNote& note = nt()->notes[index];
+    for (unsigned index = nt()->selStart() ; index < nt()->selEnd(); ++index) {
+        DisplayNote& note = nt()->notes()[index];
         switch (note.type) {
             case KEY_SIGNATURE:
-                if (nt()->selectStart + 1 == nt()->selectEnd) {
+                if (nt()->selStart() + 1 == nt()->selEnd()) {
                     note.setKey(wheelValue);
                     display->invalidateCache();
                 }
                 break;
             case TIME_SIGNATURE:
-                if (nt()->selectStart + 1 == nt()->selectEnd && !this->widget<SelectButton>()->ledOn) {
+                if (nt()->selStart() + 1 == nt()->selEnd() && !this->widget<SelectButton>()->ledOn) {
                     if (!wheelValue) {
                         horizontalWheel->setLimits(0, 6.99f);   // denom limit 0 to 6 (2^N, 1 to 64)
                         horizontalWheel->setValue(note.denominator());

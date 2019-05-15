@@ -80,10 +80,8 @@ struct BarPosition {
 };
 
 struct NoteTakerDisplay : widget::Widget {
-	std::shared_ptr<Font> musicFont;
 	std::shared_ptr<Font> textFont;
     FramebufferWidget* fb;
-    std::string musicFontName;
     std::string textFontName;
     NVGcontext* vg = nullptr;
     BarPosition bar;
@@ -115,7 +113,7 @@ struct NoteTakerDisplay : widget::Widget {
     bool leadingTempo = false;
     bool rangeInvalid = false;
 
-    NoteTakerDisplay(const Vec& pos, const Vec& size, std::string mfn, std::string tfn);
+    NoteTakerDisplay(const Vec& pos, const Vec& size);
     void advanceBar(unsigned index);
     void applyKeySignature();
     void cacheBeams();
