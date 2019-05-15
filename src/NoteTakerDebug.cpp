@@ -74,15 +74,15 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto verticalWheel = ntw->widget<VerticalWheel>();
     debug("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
-    auto nt = this->nt();
+    auto n = this->n();
     debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
-            nt->selStart(), nt->selEnd(), display->displayStart, display->displayEnd, selectChannels, 
-            this->unlockedChannel(), nt->tempo, nt->ppq);
-    NoteTaker::DebugDump(nt->notes(), display->cacheInvalid ? nullptr : &display->cache,
-            nt->selStart(), nt->selEnd());
+            n.selectStart, n.selectEnd, display->displayStart, display->displayEnd, selectChannels, 
+            this->unlockedChannel(), nt()->tempo, n.ppq);
+    NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &display->cache,
+            n.selectStart, n.selectEnd);
     debug("clipboard");
     NoteTaker::DebugDump(clipboard);
-    nt->debugDumpChannels();
+    this->nt()->debugDumpChannels();
     auto selectButton = ntw->widget<SelectButton>();
     auto runButton = ntw->widget<RunButton>();
     if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !runButton->ledOn) {
@@ -95,14 +95,14 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
         debug("wheelToNote:%s", w2n.c_str());
         std::string n2w;
         unsigned idx = 0;
-        for (const auto& note : nt->notes()) {
+        for (const auto& note : n.notes) {
             n2w += " " + std::to_string(idx++) + "/"
                     + std::to_string(this->noteToWheel(note, false));
         }
         debug("noteToWheel:%s", n2w.c_str());
     }
     if (validatable) {
-        this->validate();
+        this->n().validate();
     }
 }
 
@@ -191,14 +191,14 @@ void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
     debug("%s", s.c_str());
 }
 
-void NoteTakerWidget::validate() const {
+void Notes::validate() const {
     int time = 0;
     array<int, CHANNEL_COUNT> channelTimes;
     channelTimes.fill(0);
     bool sawHeader = false;
     bool sawTrailer = false;
     bool malformed = false;
-    for (const auto& note : this->nt()->notes()) {
+    for (const auto& note : notes) {
         note.assertValid(note.type);
         switch (note.type) {
             case MIDI_HEADER:

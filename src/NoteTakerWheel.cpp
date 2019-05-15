@@ -3,11 +3,6 @@
 #include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 
-void WheelWidget::draw(const DrawArgs& args) {
-    auto wheel = this->getAncestorOfType<NoteTakerWheel>();
-    wheel->draw(args);
-}
-
 // frame varies from 0 to 1 to rotate the wheel
 void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
     nvgShapeAntiAlias(vg, 1);

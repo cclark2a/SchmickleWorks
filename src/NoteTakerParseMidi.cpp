@@ -87,7 +87,7 @@ bool NoteTakerParseMidi::parseMidi() {
     int trackCount = -1;
     int midiTime;
     parsedNotes.push_back(displayNote);
-    DisplayNote trackEnd = {nullptr, -1, 0, {0, 0, 0, 0}, 0xFF, TRACK_END, false};  // for missing end
+    DisplayNote trackEnd = {nullptr, 0, 0, {0, 0, 0, 0}, 0xFF, TRACK_END, false};  // for missing end
     do {
         bool trackEnded = false;
         vector<uint8_t>::const_iterator trk = iter;

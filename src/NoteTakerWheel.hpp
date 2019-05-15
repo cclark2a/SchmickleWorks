@@ -2,22 +2,13 @@
 
 #include "SchmickleWorks.hpp"
 
-struct WheelWidget : widget::Widget {
-	void draw(const DrawArgs& args) override;
-};
-
 struct NoteTakerWheel : app::Knob {
-	widget::FramebufferWidget* fb;
     float lastRealValue = INT_MAX;  // manually maintained
     int lastValue = INT_MAX;
     Vec size;
     int shadow;
 
     NoteTakerWheel() {
-        fb = new widget::FramebufferWidget;
-        this->addChild(fb);
-        WheelWidget* wh = new WheelWidget;
-        fb->addChild(wh);
     }
 
     virtual std::string debugString() const {
@@ -26,6 +17,10 @@ struct NoteTakerWheel : app::Knob {
     }
 
     void drawGear(NVGcontext *vg, float frame);
+
+    FramebufferWidget* fb() const {
+        return dynamic_cast<FramebufferWidget*>(parent);
+    }
 
     void fromJson(json_t* root) {
         speed = json_real_value(json_object_get(root, "speed"));
@@ -39,12 +34,8 @@ struct NoteTakerWheel : app::Knob {
 	    Knob::onHoverScroll(e);
     }
 
-    void step() override {
-        fb->step();
-    }
-
     void onChange(const event::Change &e) override {
-        fb->dirty = true;
+        this->fb()->dirty = true;
 	    Knob::onChange(e);
     }
 

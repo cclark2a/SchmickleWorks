@@ -151,7 +151,7 @@ static void LowLevelTestDigits(NoteTakerWidget* n) {
             n->resetControls();
             for (index = 0; index < digits; ++index) {
                 LowLevelAction(n, counters[index]);
-                n->validate();
+                n->n().validate();
             }
         } while (true);
     }
@@ -182,7 +182,7 @@ static void AddTwoNotes(NoteTakerWidget* n) {
     Press(n, n->widget<InsertButton>());
     Press(n, n->widget<InsertButton>());
     unsigned note1 = n->wheelToNote(1);
-    WheelUp(n, n->nt()->notes()[note1].pitch() + 1);
+    WheelUp(n, n->n().notes[note1].pitch() + 1);
 }
 
 static void Expected(NoteTakerWidget* n) {
@@ -208,10 +208,10 @@ static void Expected(NoteTakerWidget* n) {
     debug("add two notes with empty score, check order");
     AddTwoNotes(n);
     unsigned note1 = n->wheelToNote(1);
-    assert(4 == n->nt()->notes().size());
+    assert(4 == n->n().notes.size());
     assert(2 == n->horizontalCount());
     unsigned note2 = n->wheelToNote(2);
-    assert(n->nt()->notes()[note1].pitch() < n->nt()->notes()[note2].pitch());
+    assert(n->n().notes[note1].pitch() < n->n().notes[note2].pitch());
     Press(n, n->widget<CutButton>());
     assert(!n->isEmpty());
     Press(n, n->widget<CutButton>());
@@ -230,7 +230,7 @@ static void Expected(NoteTakerWidget* n) {
     Press(n, n->widget<SelectButton>());
     assert(n->widget<SelectButton>()->editStart());
     ExerciseWheels(n);
-    n->validate();
+    n->n().validate();
 
     debug("press part button with empty score");
     n->resetControls();
@@ -246,7 +246,7 @@ static void Expected(NoteTakerWidget* n) {
     ExerciseWheels(n);
     Press(n, n->widget<CutButton>());
     ExerciseWheels(n);
-    n->validate();
+    n->n().validate();
 
     debug("duplicate");
     AddTwoNotes(n);
@@ -255,7 +255,7 @@ static void Expected(NoteTakerWidget* n) {
     Press(n, n->widget<SelectButton>());
     WheelLeft(n, 2);
     Press(n, n->widget<InsertButton>());
-    assert(6 == n->nt()->notes().size());
+    assert(6 == n->n().notes.size());
     assert(4 == n->horizontalCount());
 
     debug("copy and paste");
@@ -274,7 +274,7 @@ static void Expected(NoteTakerWidget* n) {
     debug("cnp wheel left 1");
     n->debugDump();
     Press(n, n->widget<InsertButton>());
-    assert(6 == n->nt()->notes().size());
+    assert(6 == n->n().notes.size());
     assert(4 == n->horizontalCount());
 
     debug("restore defaults");

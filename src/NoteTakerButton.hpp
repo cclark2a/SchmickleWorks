@@ -3,27 +3,33 @@
 #include "SchmickleWorks.hpp"
 
 struct NoteTaker;
+struct NoteTakerButton;
 
 // to do : turn off led buttons as needed : 
 // e.g., partButton and fileButton are exclusive
 
-struct ButtonWidget : widget::Widget {
-	void draw(const DrawArgs& args) override;
+struct ButtonBuffer : Widget {
+	FramebufferWidget* fb;
+
+    ButtonBuffer(ParamWidget* );
+
+    template <class T> T* widget() {
+        return this->getFirstDescendantOfType<T>();
+    }
 };
 
 struct NoteTakerButton : ParamWidget {
-	widget::FramebufferWidget* fb;
     int af = 0;  // animation frame, 0 to 1
     bool hasLed = false;
     bool ledOn = false;
 
     NoteTakerButton() {
-        fb = new widget::FramebufferWidget;
-        addChild(fb);
-        ButtonWidget* sw = new ButtonWidget;
-        fb->addChild(sw);
         this->setValue(0);
         this->setLimits(0, 1);
+    }
+
+    FramebufferWidget* fb() const {
+        return dynamic_cast<FramebufferWidget*>(parent);
     }
 
     virtual void fromJson(json_t* root) {
@@ -38,7 +44,10 @@ struct NoteTakerButton : ParamWidget {
         if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
             return;
         }
-	    fb->dirty = true;
+        auto framebuffer = this->fb();
+        if (framebuffer) {
+            framebuffer->dirty = true;
+        }
         if (hasLed) {
             af = af ? 0 : 1;
         } else {
@@ -47,7 +56,10 @@ struct NoteTakerButton : ParamWidget {
     }
 
     void onDragEnd(const event::DragEnd &e) override {
-	    fb->dirty = true;
+        auto framebuffer = this->fb();
+        if (framebuffer) {
+            framebuffer->dirty = true;
+        }
         if (hasLed) {
             ledOn = !ledOn;
         } else {

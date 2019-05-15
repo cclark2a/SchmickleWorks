@@ -5,6 +5,7 @@
 struct BarPosition;
 struct BeamPositions;
 struct DisplayNote;
+struct Notes;
 struct NoteTaker;
 
 const uint8_t TREBLE_TOP = 29;  // smaller values need additional staff lines and/or 8/15va
@@ -79,10 +80,19 @@ struct BarPosition {
 
 };
 
-struct NoteTakerDisplay : widget::Widget {
-	std::shared_ptr<Font> textFont;
+struct DisplayBuffer : Widget {
     FramebufferWidget* fb;
-    std::string textFontName;
+
+    DisplayBuffer(const Vec& pos, const Vec& size);
+
+    template <class T> T* widget() {
+        return this->getFirstDescendantOfType<T>();
+    }
+
+};
+
+struct NoteTakerDisplay : Widget {
+    Notes* previewNotes = nullptr; // hardcoded set of notes for preview
     NVGcontext* vg = nullptr;
     BarPosition bar;
     vector<NoteCache> cache;  // where note is drawn (computed cache, not saved)
@@ -113,7 +123,7 @@ struct NoteTakerDisplay : widget::Widget {
     bool leadingTempo = false;
     bool rangeInvalid = false;
 
-    NoteTakerDisplay(const Vec& pos, const Vec& size);
+    NoteTakerDisplay(const Vec& size);
     void advanceBar(unsigned index);
     void applyKeySignature();
     void cacheBeams();
@@ -139,12 +149,12 @@ struct NoteTakerDisplay : widget::Widget {
     void drawDynamicPitchTempo();
     void drawFileControl();
     void drawFreeNote(const DisplayNote& note, NoteCache* noteCache, int xPos,
-            unsigned char alpha) const;
+            unsigned char alpha);
     void drawKeySignature(unsigned index);
     void drawNote(Accidental , const NoteCache&, unsigned char alpha, int size) const;
     void drawNotes();
     void drawPartControl() const;
-    void drawSelectionRect() const;
+    void drawSelectionRect();
     void drawSlur(unsigned start, unsigned char alpha) const;
     void drawStaffLines() const;
     void drawSustainControl() const;
@@ -155,6 +165,10 @@ struct NoteTakerDisplay : widget::Widget {
     void drawVerticalControl() const;
     void drawVerticalLabel(const char* label, bool enabled, bool selected, float y) const;
 
+    FramebufferWidget* fb() {
+        return dynamic_cast<FramebufferWidget*>(parent);
+    }
+
     void fromJson(json_t* root) {
         displayStart = json_integer_value(json_object_get(root, "displayStart"));
         displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
@@ -164,7 +178,7 @@ struct NoteTakerDisplay : widget::Widget {
 
     void invalidateCache() {
         cacheInvalid = true;
-        fb->dirty = true;
+        this->fb()->dirty = true;
     }
 
     unsigned lastAt(unsigned start, int ppq) const {
@@ -179,6 +193,7 @@ struct NoteTakerDisplay : widget::Widget {
         return index;
     }
 
+    const Notes* notes();
     void recenterVerticalWheel();
 
     void reset() {
@@ -259,7 +274,7 @@ struct NoteTakerDisplay : widget::Widget {
     void updateXPosition();
     void _updateXPosition();  // in progress replacement
 
-    int xEndPos(const NoteCache& noteCache) {
+    int xEndPos(const NoteCache& noteCache) const {
         return noteCache.xPosition + this->cacheWidth(noteCache);
     }
 

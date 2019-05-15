@@ -2,6 +2,7 @@
 
 #include "NoteTakerDisplayNote.hpp"
 
+struct Notes;
 struct NoteTaker;
 struct NoteTakerButton;
 
@@ -19,6 +20,7 @@ struct NoteTakerWidget : ModuleWidget {
 #endif
 
     NoteTakerWidget(NoteTaker* module);
+    void addButton(ParamWidget* );
     void copyNotes();
     void copySelectableNotes();
     void debugDump(bool validatable = true, bool inWheel = false) const;
@@ -40,6 +42,7 @@ struct NoteTakerWidget : ModuleWidget {
     int noteCount() const;
     int noteToWheel(unsigned index, bool dbug = true) const;
     int noteToWheel(const DisplayNote& , bool dbug = true) const;
+    const Notes& n() const;
     NoteTaker* nt();
     const NoteTaker* nt() const;
     void readStorage();
@@ -67,7 +70,6 @@ struct NoteTakerWidget : ModuleWidget {
 
     void updateHorizontal();
     void updateVertical();
-    void validate() const;
     unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in notes
 
     template <class T> T* widget() {

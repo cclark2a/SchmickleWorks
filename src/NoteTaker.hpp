@@ -3,6 +3,7 @@
 #include "NoteTakerChannel.hpp"
 #include "NoteTakerDisplayNote.hpp"
 
+struct NoteTakerDisplay;
 struct NoteTakerWidget;
 
 // break out notes and range so that preview can draw notes without instantiated module
@@ -10,6 +11,24 @@ struct Notes {
     vector<DisplayNote> notes;
     unsigned selectStart = 0;               // index into notes of first selected (any channel)
     unsigned selectEnd = 1;                 // one past last selected
+    int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
+
+
+    unsigned selectEndPos(unsigned select) const {
+        const DisplayNote& first = notes[select];
+        const DisplayNote* test;
+        do {
+            test = &notes[++select];
+        } while (first.isNoteOrRest() && test->isNoteOrRest()
+                && first.startTime == test->startTime);
+        return select;
+    }
+
+    int xPosAtEndEnd(const NoteTakerDisplay* ) const;
+    int xPosAtEndStart(const NoteTakerDisplay* ) const;
+    int xPosAtStartEnd(const NoteTakerDisplay* ) const;
+    int xPosAtStartStart(const NoteTakerDisplay* ) const;
+    void validate() const;
 };
 
 struct NoteTaker : Module {
@@ -59,7 +78,6 @@ struct NoteTaker : Module {
     Notes n;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
-    int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
     double realSeconds = 0;                 // seconds for UI timers
@@ -82,7 +100,7 @@ struct NoteTaker : Module {
 
     bool advancePlayStart(int midiTime, unsigned lastNote) {
         do {
-            const auto& note = notes()[playStart];
+            const auto& note = n.notes[playStart];
             if (note.isNoteOrRest() && note.endTime() > midiTime) {
                 break;
             }
@@ -100,8 +118,8 @@ struct NoteTaker : Module {
     }
 
     unsigned atMidiTime(int midiTime) const {
-        for (unsigned index = 0; index < notes().size(); ++index) {
-            const DisplayNote& note = notes()[index];
+        for (unsigned index = 0; index < n.notes.size(); ++index) {
+            const DisplayNote& note = n.notes[index];
             if (midiTime < note.startTime || TRACK_END == note.type
                     || (note.isNoteOrRest() && midiTime == note.startTime)) {
                 return index;
@@ -118,7 +136,7 @@ struct NoteTaker : Module {
     void debugDumpChannels() const {
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
             auto& chan = channels[index];
-            if (chan.noteIndex >= notes().size()) {
+            if (chan.noteIndex >= n.notes.size()) {
                 continue;
             }
             debug("[%d] %s", index, chan.debugString().c_str());
@@ -155,17 +173,17 @@ struct NoteTaker : Module {
     unsigned nextAfter(unsigned first, unsigned len) const {
         assert(len);
         unsigned start = first + len;
-        const auto& priorNote = notes()[start - 1];
+        const auto& priorNote = n.notes[start - 1];
         if (!priorNote.duration) {
             return start;
         }
         int priorTime = priorNote.startTime;
-        int startTime = notes()[start].startTime;
+        int startTime = n.notes[start].startTime;
         if (priorTime < startTime) {
             return start;
         }
-        for (unsigned index = start; index < notes().size(); ++index) {
-            const DisplayNote& note = notes()[index];
+        for (unsigned index = start; index < n.notes.size(); ++index) {
+            const DisplayNote& note = n.notes[index];
             if (note.startTime > startTime) {
                 return index;
             }
@@ -175,15 +193,7 @@ struct NoteTaker : Module {
     }
 
     unsigned noteIndex(const DisplayNote& note) const {
-        return (unsigned) (&note - &notes().front());
-    }
-
-    vector<DisplayNote>& notes() {
-        return n.notes;
-    }
-
-    const vector<DisplayNote>& notes() const {
-        return n.notes;
+        return (unsigned) (&note - &n.notes.front());
     }
 
     void onReset() override;
@@ -191,32 +201,6 @@ struct NoteTaker : Module {
 
     void resetRun();
     void resetState();
-
-    unsigned selectEndPos(unsigned select) const {
-        const DisplayNote& first = notes()[select];
-        const DisplayNote* test;
-        do {
-            test = &notes()[++select];
-        } while (first.isNoteOrRest() && test->isNoteOrRest()
-                && first.startTime == test->startTime);
-        return select;
-    }
-
-    unsigned& selEnd() {
-        return n.selectEnd;
-    }
-
-    unsigned selEnd() const {
-        return n.selectEnd;
-    }
-
-    unsigned& selStart() {
-        return n.selectStart;
-    }
-
-    unsigned selStart() const {
-        return n.selectStart;
-    }
 
     void setScoreEmpty();
 
@@ -315,10 +299,6 @@ struct NoteTaker : Module {
     }
 
     float wheelToTempo(float value) const;
-    int xPosAtEndEnd() const;
-    int xPosAtEndStart() const;
-    int xPosAtStartEnd() const;
-    int xPosAtStartStart() const;
 
     void zeroGates() {
         if (debugVerbose) debug("zero gates");
