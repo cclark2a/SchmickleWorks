@@ -67,14 +67,10 @@ std::string DisplayNote::debugString() const {
 }
 
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
-    NoteTakerWidget* ntw = const_cast<NoteTakerWidget*>(this);
-    auto display = ntw->widget<NoteTakerDisplay>();
     debug("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
-    auto horizontalWheel = ntw->widget<HorizontalWheel>();
-    auto verticalWheel = ntw->widget<VerticalWheel>();
     debug("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
-    auto n = this->n();
+    auto& n = this->n();
     debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
             n.selectStart, n.selectEnd, display->displayStart, display->displayEnd, selectChannels, 
             this->unlockedChannel(), nt()->tempo, n.ppq);
@@ -83,8 +79,6 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     debug("clipboard");
     NoteTaker::DebugDump(clipboard);
     this->nt()->debugDumpChannels();
-    auto selectButton = ntw->widget<SelectButton>();
-    auto runButton = ntw->widget<RunButton>();
     if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !runButton->ledOn) {
         std::string w2n;
         for (int index = horizontalWheel->paramQuantity->minValue;

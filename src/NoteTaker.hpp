@@ -13,6 +13,9 @@ struct Notes {
     unsigned selectEnd = 1;                 // one past last selected
     int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
 
+    Notes() {}
+    Notes( const Notes& ) = delete; // non construction-copyable
+    Notes& operator=( const Notes& ) = delete; // non copyable
 
     unsigned selectEndPos(unsigned select) const {
         const DisplayNote& first = notes[select];
@@ -46,14 +49,15 @@ struct NoteTaker : Module {
         TIE_BUTTON,       // 10
         TRILL_BUTTON,     // 11
         TEMPO_BUTTON,     // 12
-        VERTICAL_WHEEL,   // 13
-        HORIZONTAL_WHEEL, // 14
+        DUMP_BUTTON,      // 13
+        VERTICAL_WHEEL,   // 14
+        HORIZONTAL_WHEEL, // 15
 		NUM_PARAMS
 	};
 	enum InputIds {
-		V_OCT_INPUT,      // 15
-        CLOCK_INPUT,      // 16
-        RESET_INPUT,      // 17
+		V_OCT_INPUT,      // 16
+        CLOCK_INPUT,      // 17
+        RESET_INPUT,      // 18
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -194,6 +198,14 @@ struct NoteTaker : Module {
 
     unsigned noteIndex(const DisplayNote& note) const {
         return (unsigned) (&note - &n.notes.front());
+    }
+
+    NoteTakerWidget* ntw() {
+        return mainWidget;
+    }
+
+    const NoteTakerWidget* ntw() const {
+        return mainWidget;
     }
 
     void onReset() override;

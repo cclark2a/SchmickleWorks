@@ -163,13 +163,14 @@ const char* downBeamNoteSymbols[] = { "h", "h", "h.", "h", "h.", "h", "h.", "h",
 const char* restSymbols[] =         { "o", "p", "p,", "q", "q,", "r", "r,", "s", "s,", "t", "t,",
                                            "u", "u,", "v", "v,", "w", "w,", "x", "x,", "y" };
 
-DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size) {
+DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw) {
     fb = new FramebufferWidget();
     fb->box.pos = pos;
     fb->box.size = Vec(RACK_GRID_WIDTH * 14, RACK_GRID_WIDTH * 12);
     fb->dirty = true;
     this->addChild(fb);
     auto display = new NoteTakerDisplay(size);
+    display->mainWidget = mainWidget = _ntw;
     fb->addChild(display);
 }
 
@@ -486,7 +487,7 @@ void NoteTakerDisplay::drawBarRest(BarPosition& bar, const NoteCache& noteCache,
     // to do : if rest is part of triplet, adjust duration before lookup
     const float yPos = 36 * 3 - 49;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgText(vg, xPos, yPos, restSymbols[noteCache.symbol], nullptr);
 }
@@ -571,7 +572,7 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
 
 void NoteTakerDisplay::drawClefs() const {
          // draw treble and bass clefs
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgText(vg, 5, 60, "(", NULL);
@@ -600,7 +601,7 @@ void NoteTakerDisplay::drawKeySignature(unsigned index) {
     unsigned keySig;
     const uint8_t* accKeys, * bassKeys;
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     if (keySignature > 0) {
@@ -615,7 +616,7 @@ void NoteTakerDisplay::drawKeySignature(unsigned index) {
         bassKeys = bassFlatKeys;
     } else {    
         if (dynamicSelectAlpha > 0) {
-            auto nt = NT(this);
+            auto nt = ntw()->nt();
             dynamicSelectAlpha = (int) (255 * (dynamicSelectTimer - nt->realSeconds) / fadeDuration);
             nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicSelectAlpha));
             nvgText(vg, xPos, 32 * 3 - 48, "%", NULL);
@@ -660,7 +661,7 @@ void NoteTakerDisplay::drawNote(Accidental accidental,
         nvgStroke(vg);
     }
     SetNoteColor(vg, noteCache.channel, alpha);
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, size);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     if (24 == size) {   // to do : something better than this
@@ -680,7 +681,7 @@ void NoteTakerDisplay::drawNote(Accidental accidental,
 }
 
 void NoteTakerDisplay::drawNotes() {
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     const auto& n = *this->notes();
     for (unsigned index = displayStart; index < displayEnd; ++index) {
         const NoteCache& noteCache = cache[index];
@@ -725,7 +726,7 @@ void NoteTakerDisplay::drawNotes() {
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
                 std::string numerator = std::to_string(note.numerator());
                 int xPos = noteCache.xPosition - 4 * (numerator.size() - 1) + 3;
-                nvgFontFaceId(vg, MusicFont(this));
+                nvgFontFaceId(vg, ntw->musicFont());
                 nvgFontSize(vg, NOTE_FONT_SIZE);
                 nvgText(vg, xPos, 32 * 3 - 49, numerator.c_str(), NULL);
                 nvgText(vg, xPos, 44 * 3 - 49, numerator.c_str(), NULL);
@@ -750,7 +751,7 @@ void NoteTakerDisplay::drawNotes() {
 
 void NoteTakerDisplay::drawSelectionRect() {
     // draw selection rect
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     const auto& n = *this->notes();
     unsigned start = n.selectEndPos(n.selectStart);
     auto& startNote = n.notes[start];
@@ -758,7 +759,7 @@ void NoteTakerDisplay::drawSelectionRect() {
     int width = 4;
     int yTop = 0;
     int yHeight = box.size.y;
-    auto selectButton = ntw->widget<SelectButton>();
+    auto selectButton = ntw->selectButton;
     unsigned channel = selectButton->editStart() ? 1 << ntw->unlockedChannel() :
             ntw->selectChannels;
     const DisplayNote* note = nullptr;
@@ -775,11 +776,11 @@ void NoteTakerDisplay::drawSelectionRect() {
         nvgFill(vg);
     }
     if (!selectButton->editStart()) {
-        if (ntw->widget<FileButton>()->ledOn) {
+        if (ntw->fileButton->ledOn) {
             yHeight = box.size.y - 35;
         }
         if (note && TIME_SIGNATURE == note->type && !selectButton->ledOn) {
-            yTop = (1 - (int) ntw->widget<VerticalWheel>()->getValue()) * 12 + 35;
+            yTop = (1 - (int) ntw->verticalWheel->getValue()) * 12 + 35;
             yHeight = 13;
         }
         if (n.selectEnd > 0) {
@@ -821,7 +822,7 @@ void NoteTakerDisplay::drawStaffLines() const {
 }
 
 void NoteTakerDisplay::draw(const DrawArgs& args) {
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     const auto& n = *this->notes();
     vg = args.vg;
     if (cacheInvalid) {
@@ -864,16 +865,16 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     this->drawBars();
     nvgRestore(vg);
     this->recenterVerticalWheel();
-    if (ntw->widget<FileButton>()->ledOn) {
+    if (ntw->fileButton->ledOn) {
         this->drawFileControl();
     }
-    if (ntw->widget<PartButton>()->ledOn) {
+    if (ntw->partButton->ledOn) {
         this->drawPartControl();
     }
-    if (ntw->widget<SustainButton>()->ledOn) {
+    if (ntw->sustainButton->ledOn) {
         this->drawSustainControl();
     }
-    if (ntw->widget<TieButton>()->ledOn) {
+    if (ntw->tieButton->ledOn) {
         this->drawTieControl();
     }
     if (ntw->runningWithButtonsOff()) {
@@ -884,13 +885,13 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
 }
 
 void NoteTakerDisplay::drawDynamicPitchTempo() {
-    auto ntw = NTW(this);
-    if (!ntw->widget<FileButton>()->ledOn) {
-        auto nt = NT(this);
-        if (ntw->widget<VerticalWheel>()->hasChanged()) {
+    auto ntw = this->ntw();
+    if (!ntw->fileButton->ledOn) {
+        auto nt = ntw->nt();
+        if (ntw->verticalWheel->hasChanged()) {
             dynamicPitchTimer = nt->realSeconds + fadeDuration;
         }
-        auto horizontalWheel = ntw->widget<HorizontalWheel>();
+        auto horizontalWheel = ntw->horizontalWheel;
         if (!leadingTempo && horizontalWheel->lastRealValue != horizontalWheel->getValue()) {
             dynamicTempoTimer = nt->realSeconds + fadeDuration;
             horizontalWheel->lastRealValue = horizontalWheel->getValue();
@@ -902,7 +903,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
         const auto& n = *this->notes();
         NoteCache noteCache;
         DisplayNote note = {&noteCache, 0, n.ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
-        note.setPitch((int) ntw->widget<VerticalWheel>()->getValue());
+        note.setPitch((int) ntw->verticalWheel->getValue());
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 10, 2, 10, box.size.y - 4);
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicPitchAlpha));
@@ -921,8 +922,8 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
 }
 
 void NoteTakerDisplay::drawFileControl() {
-    auto ntw = NTW(this);
-    auto horizontalWheel = ntw->widget<HorizontalWheel>();
+    auto ntw = this->ntw();
+    auto horizontalWheel = ntw->horizontalWheel;
     bool loadEnabled = (unsigned) horizontalWheel->getValue() < ntw->storage.size();
     this->drawVerticalLabel("load", loadEnabled, upSelected, 0);
     this->drawVerticalLabel("save", true, downSelected, box.size.y - 50);
@@ -950,7 +951,7 @@ void NoteTakerDisplay::drawFileControl() {
     auto drawNumber = [&](unsigned index) {
         float textX = boxWidth - 2;
         float textY = 8;
-        nvgFontFaceId(vg, TextFont(this));
+        nvgFontFaceId(vg, ntw->textFont());
         nvgFontSize(vg, 10);
         nvgTextAlign(vg, NVG_ALIGN_RIGHT);
         std::string label = std::to_string(index);
@@ -970,7 +971,7 @@ void NoteTakerDisplay::drawFileControl() {
         nvgStrokeWidth(vg, 1);
         nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
         nvgStroke(vg);
-        nvgFontFaceId(vg, MusicFont(this));
+        nvgFontFaceId(vg, ntw->musicFont());
         nvgFontSize(vg, 16);
         nvgTextAlign(vg, NVG_ALIGN_CENTER);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
@@ -1044,8 +1045,8 @@ void NoteTakerDisplay::drawFileControl() {
 }
 
 void NoteTakerDisplay::drawPartControl() const {
-    auto ntw = NTW(this);
-    auto horizontalWheel = ntw->widget<HorizontalWheel>();
+    auto ntw = this->ntw();
+    auto horizontalWheel = ntw->horizontalWheel;
     int part = horizontalWheel->part();
     bool lockEnable = part < 0 ? true : ntw->selectChannels & (1 << part);
     bool editEnable = part < 0 ? true : !lockEnable;
@@ -1061,7 +1062,7 @@ void NoteTakerDisplay::drawPartControl() const {
 //    nvgRect(vg, 40, box.size.y - 15, boxWidth * 4, 10);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7f));
     nvgFill(vg);
-    nvgFontFaceId(vg, TextFont(this));
+    nvgFontFaceId(vg, ntw->textFont());
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     for (int index = -1; index < (int) CV_OUTPUTS; ++index) {
         nvgBeginPath(vg);
@@ -1169,8 +1170,8 @@ void NoteTakerDisplay::drawSustainControl() const {
     nvgRect(vg, box.size.x - 35, 25, 35, box.size.y - 30);
     nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x7f));
     nvgFill(vg);
-    auto ntw = NTW(this);
-    int select = (int) ntw->widget<VerticalWheel>()->getValue();
+    auto ntw = this->ntw();
+    int select = (int) ntw->verticalWheel->getValue();
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
     nvgBeginPath(vg);
     nvgMoveTo(vg, box.size.x - 30, 30);
@@ -1201,7 +1202,7 @@ void NoteTakerDisplay::drawSustainControl() const {
     this->drawVerticalControl();
     // draw horizontal control
     nvgBeginPath(vg);
-    auto nt = NT(this);
+    auto nt = ntw->nt();
     const NoteTakerChannel& channel = nt->channels[ntw->unlockedChannel()];
     int susMin = std::max(6, channel.sustainMin);
     int susMax = channel.sustainMin == channel.sustainMax ? 0
@@ -1256,7 +1257,7 @@ void NoteTakerDisplay::drawSustainControl() const {
         nvgStrokeWidth(vg, 1 + (0 == select));
         nvgStroke(vg);
     }
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw->musicFont());
     nvgFontSize(vg, 24);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 2 == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
@@ -1278,12 +1279,12 @@ void NoteTakerDisplay::drawSustainControl() const {
 
 void NoteTakerDisplay::drawTempo(int xPos, int tempo, unsigned char alpha) {
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, 16);
     nvgText(vg, xPos + 3, 10, "H", nullptr);
-    nvgFontFaceId(vg, TextFont(this));
+    nvgFontFaceId(vg, ntw()->textFont());
     nvgFontSize(vg, 12);
-    auto nt = NT(this);
+    auto nt = ntw()->nt();
     std::string tempoStr("= " + std::to_string((int) (120.f * nt->beatsPerHalfSecond(tempo))));
     nvgText(vg, xPos + 7, 10, tempoStr.c_str(), nullptr);
 }
@@ -1308,7 +1309,7 @@ void NoteTakerDisplay::drawTieControl() {
         nvgStrokeWidth(vg, 1);
         nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
         nvgStroke(vg);
-        nvgFontFaceId(vg, MusicFont(this));
+        nvgFontFaceId(vg, ntw()->musicFont());
         nvgFontSize(vg, 16);
         nvgTextAlign(vg, NVG_ALIGN_CENTER);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
@@ -1316,8 +1317,8 @@ void NoteTakerDisplay::drawTieControl() {
         nvgTranslate(vg, boxSpace, 0);
     }
     nvgRestore(vg);
-    auto ntw = NTW(this);
-    auto horizontalWheel = ntw->widget<HorizontalWheel>();
+    auto ntw = this->ntw();
+    auto horizontalWheel = ntw->horizontalWheel;
     float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
     if (fSlot < slot) {
@@ -1354,7 +1355,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     assert(PositionType::right == cache[index].tupletPosition);
     SetNoteColor(vg, chan, alpha);
     // draw '3' at center of notes above or below staff
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     float centerX = (bp.sx + bp.ex) / 2;
@@ -1387,8 +1388,8 @@ void NoteTakerDisplay::drawVerticalControl() const {
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
     nvgBeginPath(vg);
-    auto ntw = NTW(this);
-    auto verticalWheel = ntw->widget<VerticalWheel>();
+    auto ntw = this->ntw();
+    auto verticalWheel = ntw->verticalWheel;
     float value = verticalWheel->getValue();
     float range = verticalWheel->paramQuantity->maxValue;
     float yPos = box.size.y - 20 - value * (box.size.y - 40) / range;
@@ -1401,7 +1402,7 @@ void NoteTakerDisplay::drawVerticalControl() const {
 
 void NoteTakerDisplay::drawVerticalLabel(const char* label, bool enabled,
         bool selected, float y) const {
-    nvgFontFaceId(vg, TextFont(this));
+    nvgFontFaceId(vg, ntw()->textFont());
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_RIGHT);
     if (enabled) {
@@ -1424,7 +1425,7 @@ void NoteTakerDisplay::drawVerticalLabel(const char* label, bool enabled,
 }
 
 const Notes* NoteTakerDisplay::notes() {
-    auto nt = NT(this);
+    auto nt = ntw()->nt();
     if (nt) {
         return &nt->n;
     }
@@ -1458,8 +1459,8 @@ const Notes* NoteTakerDisplay::notes() {
 
 void NoteTakerDisplay::recenterVerticalWheel() {
     if (upSelected || downSelected) {
-        auto ntw = NTW(this);
-        auto verticalWheel = ntw->widget<VerticalWheel>();
+        auto ntw = this->ntw();
+        auto verticalWheel = ntw->verticalWheel;
         float val = verticalWheel->getValue();
         const float autoLoadSaveWheelSpeed = .2f;
         verticalWheel->setValue(verticalWheel->getValue()
@@ -1624,8 +1625,8 @@ void NoteTakerDisplay::setRange() {
 
 void NoteTakerDisplay::updateRange() {
     rangeInvalid = false;
-    auto ntw = NTW(this);
-    auto selectButton = ntw->widget<SelectButton>();
+    auto ntw = this->ntw();
+    auto selectButton = ntw->selectButton;
     const auto& n = *this->notes();
     int selectStartXPos = n.xPosAtStartStart(this);
     int selectEndXPos = n.xPosAtEndEnd(this);
@@ -1748,7 +1749,7 @@ static void track_pos(std::list<PosAdjust>& posAdjust, float xOff, int endTime) 
 void NoteTakerDisplay::updateXPosition() {
     const auto& n = *this->notes();
     assert(vg);
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     bar.init();

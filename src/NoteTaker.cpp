@@ -48,10 +48,10 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         // for 3), second step determines bphs -- tempo change always lags 1 beat
         // playback continues for one beat after clock stops
         static float lastRatio = 0;
-        auto horizontalWheel = mainWidget->widget<HorizontalWheel>();
+        auto horizontalWheel = ntw()->horizontalWheel;
         float tempoRatio = this->wheelToTempo(horizontalWheel->getValue());
         if (lastRatio != tempoRatio) {
-            auto display = mainWidget->widget<DisplayBuffer>();
+            auto display = ntw()->displayBuffer;
             display->fb->dirty = true;
             lastRatio = tempoRatio;
         }
@@ -66,7 +66,7 @@ int NoteTaker::externalTempo(bool clockEdge) {
             // upward edge, advance clock
             if (!this->isRunning()) {
                 event::DragEnd e;
-                auto runButton = mainWidget->widget<RunButton>();
+                auto runButton = ntw()->runButton;
                 runButton->onDragEnd(e);
             } else {
                 externalClockTempo =
@@ -105,7 +105,7 @@ bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
 }
 
 bool NoteTaker::isRunning() const {
-    return mainWidget->widget<RunButton>()->ledOn;
+    return ntw()->runButton->ledOn;
 }
 
 void NoteTaker::playSelection() {
@@ -172,8 +172,7 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerParseMidi emptyParser(emptyMidi, n.notes, channels, n.ppq);
     bool success = emptyParser.parseMidi();
     assert(success);
-    auto display = mainWidget->widget<NoteTakerDisplay>();
-    display->invalidateCache();
+    ntw()->display->invalidateCache();
 }
 
  //   to do
@@ -185,13 +184,13 @@ void NoteTaker::setScoreEmpty() {
         // prefer to show start? end?
         // while playing, scroll a 'page' at a time?
 void NoteTaker::setSelect(unsigned start, unsigned end) {
-    auto dBuffer = mainWidget->widget<DisplayBuffer>();
-    auto display = dBuffer->widget<NoteTakerDisplay>();
+    auto displayBuffer = ntw()->displayBuffer;
+    auto display = ntw()->display;
     if (mainWidget->isEmpty()) {
         n.selectStart = 0;
         n.selectEnd = 1;
         display->setRange();
-        dBuffer->fb->dirty = true;
+        displayBuffer->fb->dirty = true;
         if (debugVerbose) debug("setSelect set empty");
         return;
     }
@@ -205,11 +204,11 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     if (debugVerbose) debug("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
     n.selectStart = start;
     n.selectEnd = end;
-    dBuffer->fb->dirty = true;
+    displayBuffer->fb->dirty = true;
 }
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
-    auto selectButton = mainWidget->widget<SelectButton>();
+    auto selectButton = ntw()->selectButton;
     debug("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
             wheelValue, end, selectButton->selStart, n.selectStart, n.selectEnd);
     bool changed = true;
@@ -278,7 +277,7 @@ void NoteTaker::step() {
             resetHighTime = realSeconds;
         }
     }
-    auto selectButton = mainWidget->widget<SelectButton>();
+    auto selectButton = ntw()->selectButton;
     if (clockCycle && !running && selectButton->editStart() && inputs[CLOCK_INPUT].active
             && inputs[V_OCT_INPUT].active) {
         int duration = 0;
@@ -311,7 +310,7 @@ void NoteTaker::step() {
     } else {
         localTempo = this->externalTempo(clockCycle);
         if (resetCycle) {
-            mainWidget->widget<NoteTakerDisplay>()->resetXAxisOffset();
+            ntw()->display->resetXAxisOffset();
             this->resetRun();
         }
     }
@@ -337,7 +336,7 @@ void NoteTaker::step() {
         playStart = 0;
         if (running) {
             // to do : add option to stop running
-            mainWidget->widget<NoteTakerDisplay>()->resetXAxisOffset();
+            ntw()->display->resetXAxisOffset();
             this->resetRun();
             outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
             eosTime = realSeconds + 0.01f;
@@ -386,7 +385,7 @@ void NoteTaker::step() {
         // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
         if (note.channel < CV_OUTPUTS) {
             float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-            auto verticalWheel = mainWidget->widget<VerticalWheel>();
+            auto verticalWheel = ntw()->verticalWheel;
             if (mainWidget->runningWithButtonsOff()) {
                 bias += inputs[V_OCT_INPUT].value;
                 bias += ((int) verticalWheel->getValue() - 60) / 12.f;

@@ -81,17 +81,18 @@ struct BarPosition {
 };
 
 struct DisplayBuffer : Widget {
-    FramebufferWidget* fb;
+    NoteTakerWidget* mainWidget = nullptr;
+    FramebufferWidget* fb = nullptr;
 
-    DisplayBuffer(const Vec& pos, const Vec& size);
+    DisplayBuffer(const Vec& pos, const Vec& size,  NoteTakerWidget*);
 
-    template <class T> T* widget() {
-        return this->getFirstDescendantOfType<T>();
+    NoteTakerWidget* ntw() {
+         return mainWidget;
     }
-
 };
 
 struct NoteTakerDisplay : Widget {
+    NoteTakerWidget* mainWidget;
     Notes* previewNotes = nullptr; // hardcoded set of notes for preview
     NVGcontext* vg = nullptr;
     BarPosition bar;
@@ -194,6 +195,15 @@ struct NoteTakerDisplay : Widget {
     }
 
     const Notes* notes();
+
+    NoteTakerWidget* ntw() {
+         return mainWidget;
+    }
+
+    const NoteTakerWidget* ntw() const {
+         return mainWidget;
+    }
+
     void recenterVerticalWheel();
 
     void reset() {

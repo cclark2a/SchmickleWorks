@@ -2,23 +2,26 @@
 
 #include "SchmickleWorks.hpp"
 
+struct Notes;
 struct NoteTaker;
-struct NoteTakerButton;
+struct NoteTakerWidget;
 
 // to do : turn off led buttons as needed : 
 // e.g., partButton and fileButton are exclusive
 
 struct ButtonBuffer : Widget {
-	FramebufferWidget* fb;
+    NoteTakerWidget* mainWidget = nullptr;
+	FramebufferWidget* fb = nullptr;
 
     ButtonBuffer(ParamWidget* );
 
-    template <class T> T* widget() {
-        return this->getFirstDescendantOfType<T>();
+    NoteTakerWidget* ntw() {
+         return mainWidget;
     }
 };
 
 struct NoteTakerButton : ParamWidget {
+    NoteTakerWidget* mainWidget;
     int af = 0;  // animation frame, 0 to 1
     bool hasLed = false;
     bool ledOn = false;
@@ -38,6 +41,14 @@ struct NoteTakerButton : ParamWidget {
         }
         ledOn = json_boolean_value(json_object_get(root, "ledOn"));
         af = ledOn ? 1 : 0;
+    }
+
+    NoteTakerWidget* ntw() {
+        return mainWidget;
+    }
+
+    const NoteTakerWidget* ntw() const {
+        return mainWidget;
     }
 
     void onDragStart(const event::DragStart &e) override {
@@ -258,6 +269,10 @@ struct KeyButton : AdderButton {
 // select / [ part / choose channels to copy ] / insert / part / choose where to insert / add
 // (no select) / part / choose channel / add or cut
 struct PartButton : EditLEDButton {
+    PartButton() {
+        debug("PartButton %p", this);
+    }
+    
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
 };
@@ -328,6 +343,10 @@ struct SelectButton : EditLEDButton {
     unsigned selStart = 1;   // note index where extend grows from, >= 1
     bool saveZero = true;    // set if single was at left-most position
     State state = State::single;
+
+    SelectButton() {
+        ledOn = true;
+    }
 
     void draw(const DrawArgs& ) override;
     bool editEnd() const { return ledOn && State::extend == state; }

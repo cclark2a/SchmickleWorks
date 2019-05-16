@@ -2,7 +2,23 @@
 
 #include "SchmickleWorks.hpp"
 
+struct NoteTakerWidget;
+struct NoteTaker;
+struct Notes;
+
+struct WheelBuffer : Widget {
+    NoteTakerWidget* mainWidget = nullptr;
+	FramebufferWidget* fb = nullptr;
+
+    WheelBuffer(ParamWidget* );
+
+    NoteTakerWidget* ntw() {
+         return mainWidget;
+    }
+};
+
 struct NoteTakerWheel : app::Knob {
+    NoteTakerWidget* mainWidget;
     float lastRealValue = INT_MAX;  // manually maintained
     int lastValue = INT_MAX;
     Vec size;
@@ -67,6 +83,19 @@ struct NoteTakerWheel : app::Knob {
         lastValue = result;
         return true;
     }
+
+    NoteTakerWidget* ntw() {
+        return mainWidget;
+    }
+
+    const NoteTakerWidget* ntw() const {
+        return mainWidget;
+    }
+
+    NoteTaker* nt();
+    const NoteTaker* nt() const;
+    Notes* n();
+    const Notes* n() const;
 
     void setLimits(float lo, float hi) {
         if (paramQuantity) {

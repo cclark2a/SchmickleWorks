@@ -6,7 +6,7 @@
 
 // try to get rest working as well as note
 void AdderButton::onDragEndPreamble(const event::DragEnd& e) {
-    NoteTaker* nt = NT(this);
+    NoteTaker* nt = this->ntw()->nt();
     // insertLoc, shiftTime set by caller
     shiftLoc = insertLoc + 1;
     startTime = nt->n.notes[insertLoc].startTime;
@@ -14,15 +14,15 @@ void AdderButton::onDragEndPreamble(const event::DragEnd& e) {
 }
 
 void AdderButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     auto nt = ntw->nt();
     if (shiftTime) {
         NoteTaker::ShiftNotes(nt->n.notes, shiftLoc, shiftTime);
     }
     NoteTaker::Sort(nt->n.notes);
-    NTWidget<SelectButton>(this)->setOff();
+    ntw->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
-    NTWidget<NoteTakerDisplay>(this)->invalidateCache();
+    ntw->display->invalidateCache();
     nt->setSelect(insertLoc, insertLoc + 1);
     ntw->turnOffLedButtons();
     ntw->setWheelRange();  // range is larger
@@ -38,43 +38,43 @@ ButtonBuffer::ButtonBuffer(ParamWidget* button) {
 void CutButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, ";", NULL);
 }
 
 void CutButton::onDragEnd(const rack::event::DragEnd& e) {
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto n = nt->n;
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto& n = nt->n;
+    if (ntw->runButton->ledOn) {
         return;
     }
     ntw->clipboardInvalid = true;
     NoteTakerButton::onDragEnd(e);
-    if (NTWidget<FileButton>(this)->ledOn) {
+    SelectButton* selectButton = ntw->selectButton;
+    if (ntw->fileButton->ledOn) {
         n.selectStart = 0;
         n.selectEnd = n.notes.size() - 1;
         ntw->copyNotes();  // allows add to undo accidental cut / clear all
         nt->setScoreEmpty();
-        NTWidget<NoteTakerDisplay>(this)->invalidateCache();
+        ntw->display->invalidateCache();
         nt->setSelectStart(nt->atMidiTime(0));
-        NTWidget<SelectButton>(this)->setSingle();
+        selectButton->setSingle();
         ntw->setWheelRange();
         return;
     }
-    if (NTWidget<PartButton>(this)->ledOn) {
+    if (ntw->partButton->ledOn) {
         n.selectStart = 0;
         n.selectEnd = n.notes.size() - 1;
         ntw->copySelectableNotes();
         ntw->setSelectableScoreEmpty();
-        NTWidget<NoteTakerDisplay>(this)->invalidateCache();
+        ntw->display->invalidateCache();
         nt->setSelectStart(nt->atMidiTime(0));
         ntw->setWheelRange();
         return;
     }
-    SelectButton* selectButton = NTWidget<SelectButton>(this);
     if (selectButton->editStart() && selectButton->saveZero) {
         return;
     }
@@ -91,7 +91,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
     ntw->eraseNotes(start, end);
     ntw->shiftNotes(start, shiftTime);
-    NTWidget<NoteTakerDisplay>(this)->invalidateCache();
+    ntw->display->invalidateCache();
     ntw->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
     int wheel = ntw->noteToWheel(start);
@@ -103,21 +103,22 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
 
 // hidden
 void DumpButton::onDragEnd(const event::DragEnd& e) {
-    NTW(this)->debugDump();
+    this->ntw()->debugDump();
     NoteTakerButton::onDragEnd(e);
 }
 
 void EditButton::onDragStart(const event::DragStart& e) {
-    if (NTW(this)->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
-    NTWidget<RunButton>(this)->ledOn = false;
+    ntw->runButton->ledOn = false;
     NoteTakerButton::onDragStart(e);
 }
 
 void FileButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     NoteTakerButton::onDragEnd(e);
@@ -128,7 +129,7 @@ void FileButton::onDragEnd(const event::DragEnd& e) {
 void FileButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 5 + af, 41 - af, ":", NULL);
@@ -137,21 +138,20 @@ void FileButton::draw(const DrawArgs& args) {
 void InsertButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 41 - af, "H", NULL);
 }
 
 void InsertButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto n = nt->n;
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto& n = nt->n;
+    if (ntw->runButton->ledOn) {
         return;
     }
     ntw->clipboardInvalid = true;
-    SelectButton* selectButton = NTWidget<SelectButton>(this);
     ntw->turnOffLedButtons();  // turn off pitch, file, sustain, etc
     unsigned insertLoc;
     unsigned insertSize;
@@ -199,7 +199,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         }
         if (nt->debugVerbose) debug("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
                 ntw->clipboard.size());
-        if (!selectButton->editStart() || ntw->clipboard.empty() || !ntw->extractClipboard(&span)) {
+        if (!ntw->selectButton->editStart() || ntw->clipboard.empty() || !ntw->extractClipboard(&span)) {
             if (nt->debugVerbose) !n.selectStart ? debug("left of first note") : debug("duplicate selection");
             if (nt->debugVerbose) debug("iStart=%u iEnd=%u", iStart, iEnd);
             for (unsigned index = iStart; index < iEnd; ++index) {
@@ -249,22 +249,22 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         shiftTime = std::max(0, shiftTime - availableShiftTime);
         if (nt->debugVerbose) debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
                 insertLoc, insertSize, shiftTime, n.selectStart, n.selectEnd);
-        NTWidget<NoteTakerDisplay>(this)->invalidateCache();
+        ntw->display->invalidateCache();
         if (nt->debugVerbose) ntw->debugDump(false);
     }
-    selectButton->setOff();
+    ntw->selectButton->setOff();
     ntw->insertFinal(shiftTime, insertLoc, insertSize);
     NoteTakerButton::onDragEnd(e);
 }
 
 // insert key signature
 void KeyButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     auto nt = ntw->nt();
-    auto n = nt->n;
+    auto& n = nt->n;
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
     if (nt->insertContains(insertLoc, KEY_SIGNATURE)) {
         return;
@@ -280,7 +280,7 @@ void KeyButton::onDragEnd(const event::DragEnd& e) {
 void KeyButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 6 + af, 33 - af, "#", NULL);
@@ -290,26 +290,26 @@ void KeyButton::draw(const DrawArgs& args) {
 void PartButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 41 - af, "\"", NULL);
 }
 
 void PartButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
         this->onTurnOff();
-    } else if (NTWidget<SelectButton>(this)->editEnd()) {
+    } else if (ntw->selectButton->editEnd()) {
         ntw->clipboardInvalid = true;
         ntw->copySelectableNotes();
     }
     if (ntw->debugVerbose) debug("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
-            ledOn, NTWidget<HorizontalWheel>(this)->part(), ntw->selectChannels, ntw->unlockedChannel());
+            ledOn, ntw->horizontalWheel->part(), ntw->selectChannels, ntw->unlockedChannel());
     ntw->turnOffLedButtons(this);
     ntw->setWheelRange();  // range is larger
 }
@@ -317,23 +317,23 @@ void PartButton::onDragEnd(const event::DragEnd& e) {
 void RestButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 36);
     nvgText(vg, 8 + af, 41 - af, "t", NULL);
 }
 
 void RestButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     auto nt = ntw->nt();
-    auto n = nt->n;
+    auto& n = nt->n;
     ntw->turnOffLedButtons();  // turn off pitch, file, sustain, etc
-    if (!NTWidget<SelectButton>(this)->editStart()) {
+    if (!ntw->selectButton->editStart()) {
         event::DragEnd e;
-        NTWidget<CutButton>(this)->onDragEnd(e);
+        ntw->cutButton->onDragEnd(e);
         if (ntw->debugVerbose) ntw->debugDump();
     }
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
@@ -346,21 +346,21 @@ void RestButton::onDragEnd(const event::DragEnd& e) {
 }
 
 void RunButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto n = nt->n;
+    auto& n = nt->n;
     nt->debugMidiCount = 0;
     NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
         nt->zeroGates();
     } else {
         nt->resetRun();
-        NTWidget<NoteTakerDisplay>(this)->setRange();
+        ntw->display->setRange();
         unsigned next = nt->nextAfter(n.selectStart, 1);
         nt->setSelectStart(next < n.notes.size() - 1 ? next : 
-                NTWidget<SelectButton>(this)->editStart() ? 0 : 1);
-        NTWidget<HorizontalWheel>(this)->lastRealValue = INT_MAX;
-        NTWidget<VerticalWheel>(this)->lastValue = INT_MAX;
+                ntw->selectButton->editStart() ? 0 : 1);
+        ntw->horizontalWheel->lastRealValue = INT_MAX;
+        ntw->verticalWheel->lastValue = INT_MAX;
         nt->playSelection();
     }
     if (!ntw->menuButtonOn()) {
@@ -371,19 +371,19 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
 void SelectButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, "<", NULL);  // was \u00E0
 }
 
 void SelectButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     auto nt = ntw->nt();
-    auto n = nt->n;
+    auto& n = nt->n;
     NoteTakerButton::onDragEnd(e);
     switch (state) {
         case State::ledOff: {
@@ -436,9 +436,9 @@ void SelectButton::setOff() {
 }
 
 void SelectButton::setSingle() {
-    auto ntw = NTW(this);
+    auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto n = nt->n;
+    auto& n = nt->n;
     saveZero = !ntw->noteToWheel(n.selectStart);
     state = State::single;
     af = 1;
@@ -446,8 +446,8 @@ void SelectButton::setSingle() {
 }
 
 void SustainButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     NoteTakerButton::onDragEnd(e);
@@ -458,19 +458,19 @@ void SustainButton::onDragEnd(const event::DragEnd& e) {
 void SustainButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
 
 void TempoButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     auto nt = ntw->nt();
-    auto n = nt->n;
+    auto& n = nt->n;
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
     if (nt->insertContains(insertLoc, MIDI_TEMPO)) {
         return;
@@ -486,15 +486,15 @@ void TempoButton::onDragEnd(const event::DragEnd& e) {
 void TempoButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 5 + af, 41 - af, "@", NULL);
 }
 
 void TieButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     NoteTakerButton::onDragEnd(e);
@@ -505,7 +505,7 @@ void TieButton::onDragEnd(const event::DragEnd& e) {
 void TieButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 1 + af, 41 - af, ">", NULL);
@@ -513,12 +513,12 @@ void TieButton::draw(const DrawArgs& args) {
 
 // insert time signature
 void TimeButton::onDragEnd(const event::DragEnd& e) {
-    auto ntw = NTW(this);
-    if (ntw->widget<RunButton>()->ledOn) {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn) {
         return;
     }
     auto nt = ntw->nt();
-    auto n = nt->n;
+    auto& n = nt->n;
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
     if (nt->insertContains(insertLoc, TIME_SIGNATURE)) {
         return;
@@ -534,7 +534,7 @@ void TimeButton::onDragEnd(const event::DragEnd& e) {
 void TimeButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 33 - af, "4", NULL);
@@ -549,7 +549,7 @@ void TrillButton::onDragEnd(const event::DragEnd& e) {
 void TrillButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, MusicFont(this));
+    nvgFontFaceId(vg, ntw()->musicFont());
     nvgFillColor(vg, nvgRGB(0, 0, 0));
     nvgFontSize(vg, 24);
     nvgText(vg, 8.5 + af, 41 - af, "?", NULL);
