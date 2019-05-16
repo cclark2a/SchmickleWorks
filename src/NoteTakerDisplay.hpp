@@ -84,7 +84,7 @@ struct DisplayBuffer : Widget {
     NoteTakerWidget* mainWidget = nullptr;
     FramebufferWidget* fb = nullptr;
 
-    DisplayBuffer(const Vec& pos, const Vec& size,  NoteTakerWidget*);
+    DisplayBuffer(const Vec& pos, const Vec& size,  NoteTakerWidget* );
 
     NoteTakerWidget* ntw() {
          return mainWidget;
@@ -124,7 +124,7 @@ struct NoteTakerDisplay : Widget {
     bool leadingTempo = false;
     bool rangeInvalid = false;
 
-    NoteTakerDisplay(const Vec& size);
+    NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw);
     void advanceBar(unsigned index);
     void applyKeySignature();
     void cacheBeams();

@@ -2,15 +2,16 @@
 
 #include "SchmickleWorks.hpp"
 
-struct NoteTakerWidget;
 struct NoteTaker;
+struct NoteTakerWidget;
+struct NoteTakerWheel;
 struct Notes;
 
 struct WheelBuffer : Widget {
     NoteTakerWidget* mainWidget = nullptr;
 	FramebufferWidget* fb = nullptr;
 
-    WheelBuffer(ParamWidget* );
+    WheelBuffer(NoteTakerWidget* , NoteTakerWheel* );
 
     NoteTakerWidget* ntw() {
          return mainWidget;
@@ -28,8 +29,9 @@ struct NoteTakerWheel : app::Knob {
     }
 
     virtual std::string debugString() const {
-        return std::to_string(paramQuantity->getValue()) + " (" + std::to_string(paramQuantity->minValue) + ", "
-                + std::to_string(paramQuantity->maxValue) + ")";
+        auto pq = paramQuantity;
+        return std::to_string(pq->getValue()) + " (" + std::to_string(pq->minValue) + ", "
+                + std::to_string(pq->maxValue) + ")";
     }
 
     void drawGear(NVGcontext *vg, float frame);

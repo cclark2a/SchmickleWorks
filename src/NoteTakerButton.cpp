@@ -28,10 +28,11 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     ntw->setWheelRange();  // range is larger
 }
 
-ButtonBuffer::ButtonBuffer(ParamWidget* button) {
+ButtonBuffer::ButtonBuffer(NoteTakerWidget* _ntw, NoteTakerButton* button) {
     fb = new FramebufferWidget();
     fb->dirty = true;
     this->addChild(fb);
+    button->mainWidget = mainWidget = _ntw;
     fb->addChild(button);
 }
 

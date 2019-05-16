@@ -49,19 +49,19 @@ struct DisplayBevel : Widget {
 
 };
 
-void NoteTakerWidget::addButton(NoteTakerButton* button) {
+void NoteTakerWidget::addButton(const Vec& size, NoteTakerButton* button) {
+    button->box.size = size;
     button->mainWidget = this;
     params.push_back(button);
-    ButtonBuffer* buffer = new ButtonBuffer(button);
-    buffer->mainWidget = this;
+    ButtonBuffer* buffer = new ButtonBuffer(this, button);
     this->addChild(buffer);
 }
 
-void NoteTakerWidget::addWheel(NoteTakerWheel* wheel) {
+void NoteTakerWidget::addWheel(const Vec& size, NoteTakerWheel* wheel) {
+    wheel->box.size = size;
     wheel->mainWidget = this;
     params.push_back(wheel);
-    WheelBuffer* buffer = new WheelBuffer(wheel);
-    buffer->mainWidget = this;
+    WheelBuffer* buffer = new WheelBuffer(this, wheel);
     this->addChild(buffer);
 }
 
@@ -79,13 +79,15 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
     display = displayBuffer->getFirstDescendantOfType<NoteTakerDisplay>();
     assert(display);
     panel->addChild(new DisplayBevel(displayPos, displaySize));
-    addWheel(horizontalWheel = createParam<HorizontalWheel>(
-            Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f),
-            module, NoteTaker::HORIZONTAL_WHEEL));
+    Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
+    Vec hWheelSize = Vec(200, RACK_GRID_WIDTH * 90);
+    addWheel(hWheelSize, (horizontalWheel = createParam<HorizontalWheel>(
+            hWheelPos, module, NoteTaker::HORIZONTAL_WHEEL)));
     // vertical wheel is horizontal wheel (+x) rotated ccw (-y); value and limits are negated
-    addWheel(verticalWheel = createParam<VerticalWheel>(
-            Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 50),
-            module, NoteTaker::VERTICAL_WHEEL));
+    Vec vWheelPos = Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 150);
+    Vec vWheelSize = Vec(RACK_GRID_WIDTH * 90, 200);
+    addWheel(vWheelSize, (verticalWheel = createParam<VerticalWheel>(
+            vWheelPos, module, NoteTaker::VERTICAL_WHEEL)));
 
     addInput(createInput<PJ301MPort>(Vec(140, 306), module, NoteTaker::V_OCT_INPUT));
     addInput(createInput<PJ301MPort>(Vec(172, 306), module, NoteTaker::CLOCK_INPUT));
@@ -99,23 +101,38 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
             addOutput(createOutput<PJ301MPort>(Vec(12 + i * 32, 338), module,
                     NoteTaker::GATE1_OUTPUT + i));
     }
-
-    addButton(runButton = createParam<RunButton>(Vec(200, 172), module, NoteTaker::RUN_BUTTON));
-    addButton(selectButton = createParam<SelectButton>(Vec(30, 202), module, NoteTaker::EXTEND_BUTTON));
-    addButton(insertButton = createParam<InsertButton>(Vec(62, 202), module, NoteTaker::INSERT_BUTTON));
-    addButton(cutButton = createParam<CutButton>(Vec(94, 202), module, NoteTaker::CUT_BUTTON));
-    addButton(restButton = createParam<RestButton>(Vec(126, 202), module, NoteTaker::REST_BUTTON));
-    addButton(partButton = createParam<PartButton>(Vec(158, 202), module, NoteTaker::PART_BUTTON));
-    addButton(fileButton = createParam<FileButton>(Vec(190, 202), module, NoteTaker::FILE_BUTTON));
-    addButton(sustainButton = createParam<SustainButton>(Vec(30, 252), module, NoteTaker::SUSTAIN_BUTTON));
-    addButton(timeButton = createParam<TimeButton>(Vec(62, 252), module, NoteTaker::TIME_BUTTON));
-    addButton(keyButton = createParam<KeyButton>(Vec(94, 252), module, NoteTaker::KEY_BUTTON));
-    addButton(tieButton = createParam<TieButton>(Vec(126, 252), module, NoteTaker::TIE_BUTTON));
-    addButton(trillButton = createParam<TrillButton>(Vec(158, 252), module, NoteTaker::TRILL_BUTTON));
-    addButton(tempoButton = createParam<TempoButton>(Vec(190, 252), module, NoteTaker::TEMPO_BUTTON));
+    Vec editButtonSize = Vec(20, 40);
+    Vec runButtonSize = Vec(25, 25);
+    addButton(runButtonSize, (runButton = 
+            createParam<RunButton>(Vec(200, 172), module, NoteTaker::RUN_BUTTON)));
+    addButton(editButtonSize, (selectButton =
+            createParam<SelectButton>(Vec(30, 202), module, NoteTaker::EXTEND_BUTTON)));
+    addButton(editButtonSize, (insertButton =
+            createParam<InsertButton>(Vec(62, 202), module, NoteTaker::INSERT_BUTTON)));
+    addButton(editButtonSize, (cutButton = 
+            createParam<CutButton>(Vec(94, 202), module, NoteTaker::CUT_BUTTON)));
+    addButton(editButtonSize, (restButton = 
+            createParam<RestButton>(Vec(126, 202), module, NoteTaker::REST_BUTTON)));
+    addButton(editButtonSize, (partButton = 
+            createParam<PartButton>(Vec(158, 202), module, NoteTaker::PART_BUTTON)));
+    addButton(editButtonSize, (fileButton = 
+            createParam<FileButton>(Vec(190, 202), module, NoteTaker::FILE_BUTTON)));
+    addButton(editButtonSize, (sustainButton = 
+            createParam<SustainButton>(Vec(30, 252), module, NoteTaker::SUSTAIN_BUTTON)));
+    addButton(editButtonSize, (timeButton = 
+            createParam<TimeButton>(Vec(62, 252), module, NoteTaker::TIME_BUTTON)));
+    addButton(editButtonSize, (keyButton = 
+            createParam<KeyButton>(Vec(94, 252), module, NoteTaker::KEY_BUTTON)));
+    addButton(editButtonSize, (tieButton = 
+            createParam<TieButton>(Vec(126, 252), module, NoteTaker::TIE_BUTTON)));
+    addButton(editButtonSize, (trillButton = 
+            createParam<TrillButton>(Vec(158, 252), module, NoteTaker::TRILL_BUTTON)));
+    addButton(editButtonSize, (tempoButton = 
+            createParam<TempoButton>(Vec(190, 252), module, NoteTaker::TEMPO_BUTTON)));
 
     // debug button is hidden to the right of tempo
-    addButton(dumpButton = createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON));
+    addButton(editButtonSize, (dumpButton = 
+            createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
 
     if (module) {
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?

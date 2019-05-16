@@ -201,9 +201,10 @@ void VerticalWheel::onDragMove(const event::DragMove& e) {
     nt->updateVertical();
 }
 
-WheelBuffer::WheelBuffer(ParamWidget* button) {
+WheelBuffer::WheelBuffer(NoteTakerWidget* _ntw, NoteTakerWheel* wheel) {
     fb = new FramebufferWidget();
     fb->dirty = true;
     this->addChild(fb);
-    fb->addChild(button);
+    wheel->mainWidget = mainWidget = _ntw;
+    fb->addChild(wheel);
 }

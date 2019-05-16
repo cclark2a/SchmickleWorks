@@ -4,6 +4,7 @@
 
 struct Notes;
 struct NoteTaker;
+struct NoteTakerButton;
 struct NoteTakerWidget;
 
 // to do : turn off led buttons as needed : 
@@ -13,7 +14,7 @@ struct ButtonBuffer : Widget {
     NoteTakerWidget* mainWidget = nullptr;
 	FramebufferWidget* fb = nullptr;
 
-    ButtonBuffer(ParamWidget* );
+    ButtonBuffer(NoteTakerWidget* , NoteTakerButton* );
 
     NoteTakerWidget* ntw() {
          return mainWidget;
@@ -112,10 +113,6 @@ struct NoteTakerButton : ParamWidget {
 };
 
 struct EditButton : NoteTakerButton {
-    EditButton() {
-        box.size.x = 20;
-        box.size.y = 40;
-    }
 
     void draw(const DrawArgs& args) override {
         NVGcontext* vg = args.vg;
@@ -289,8 +286,6 @@ struct RestButton : AdderButton {
 struct RunButton : NoteTakerButton {
     RunButton() {
         hasLed = true;
-        box.size.x = 25;
-        box.size.y = 45;
     }
 
     // to do : make a run button that depresses

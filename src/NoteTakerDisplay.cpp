@@ -164,18 +164,19 @@ const char* restSymbols[] =         { "o", "p", "p,", "q", "q,", "r", "r,", "s",
                                            "u", "u,", "v", "v,", "w", "w,", "x", "x,", "y" };
 
 DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw) {
+    mainWidget = _ntw;
     fb = new FramebufferWidget();
-    fb->box.pos = pos;
-    fb->box.size = size;
     fb->dirty = true;
     this->addChild(fb);
-    auto display = new NoteTakerDisplay(size);
-    display->mainWidget = mainWidget = _ntw;
+    auto display = new NoteTakerDisplay(pos, size, _ntw);
+    display->box.pos = pos;
     fb->addChild(display);
 }
 
-NoteTakerDisplay::NoteTakerDisplay(const Vec& size)
+NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw)
     : pitchMap(sharpMap) {
+    mainWidget = _ntw;
+    box.pos = pos;
     box.size = size;
     assert(sizeof(upFlagNoteSymbols) / sizeof(char*) == NoteDurations::Count());
     assert(sizeof(downFlagNoteSymbols) / sizeof(char*) == NoteDurations::Count());

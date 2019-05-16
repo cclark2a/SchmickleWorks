@@ -58,8 +58,8 @@ struct NoteTakerWidget : ModuleWidget {
 #endif
 
     NoteTakerWidget(NoteTaker* module);
-    void addButton(NoteTakerButton* );
-    void addWheel(NoteTakerWheel* );
+    void addButton(const Vec& size, NoteTakerButton* );
+    void addWheel(const Vec& size, NoteTakerWheel* );
     void copyNotes();
     void copySelectableNotes();
     void debugDump(bool validatable = true, bool inWheel = false) const;
