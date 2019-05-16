@@ -141,7 +141,7 @@ void NoteTakerWidget::writeStorage(unsigned slot) const {
 }
 
 json_t *NoteTaker::dataToJson() {
-    json_t* root = json_object();
+    json_t *root = json_object();
     json_t* _notes = json_array();
     for (const auto& note : n.notes) {
         json_array_append_new(_notes, note.dataToJson());
@@ -160,7 +160,7 @@ json_t *NoteTaker::dataToJson() {
 }
 
 json_t *NoteTakerWidget::toJson() {
-    json_t* root = json_object();
+    json_t *root = ModuleWidget::toJson();
     json_t* clip = json_array();
     for (const auto& note : clipboard) {
         json_array_append_new(clip, note.dataToJson());
@@ -203,6 +203,7 @@ void NoteTaker::dataFromJson(json_t *root) {
 }
 
 void NoteTakerWidget::fromJson(json_t *root) {
+    ModuleWidget::fromJson(root);
     json_t* clip = json_object_get(root, "clipboard");
     size_t index;
     json_t* value;

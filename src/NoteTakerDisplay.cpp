@@ -166,7 +166,7 @@ const char* restSymbols[] =         { "o", "p", "p,", "q", "q,", "r", "r,", "s",
 DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw) {
     fb = new FramebufferWidget();
     fb->box.pos = pos;
-    fb->box.size = Vec(RACK_GRID_WIDTH * 14, RACK_GRID_WIDTH * 12);
+    fb->box.size = size;
     fb->dirty = true;
     this->addChild(fb);
     auto display = new NoteTakerDisplay(size);

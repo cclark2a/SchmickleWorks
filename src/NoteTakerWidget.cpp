@@ -7,15 +7,16 @@
 #include "NoteTakerWidget.hpp"
 
 struct DisplayBevel : Widget {
-    DisplayBevel() {
-        this->box.pos = Vec(RACK_GRID_WIDTH - 2, RACK_GRID_WIDTH * 2 - 2);
-        this->box.size = Vec(RACK_GRID_WIDTH * 12 + 4, RACK_GRID_WIDTH * 9 + 4);
+    const float bevel = -2;
+
+    DisplayBevel(Vec& displayPos, Vec& displaySize) {
+        this->box.pos = Vec(displayPos.x + bevel, displayPos.y + bevel);
+        this->box.size = Vec(displaySize.x, displaySize.y);
     }
 
     void draw(const DrawArgs& args) override {
         NVGcontext* vg = args.vg;
-        nvgTranslate(vg, 2, 2);
-        const float bevel = -2;
+        nvgTranslate(vg, -bevel, -bevel);
         nvgBeginPath(vg);
         nvgMoveTo(vg, 0, 0);
         nvgLineTo(vg, 0, box.size.y);
@@ -72,11 +73,12 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
     _textFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/leaguegothic-regular-webfont.ttf"));
-    this->addChild(displayBuffer = new DisplayBuffer(Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2), // pos
-                    Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9), this));  // size
+    Vec displayPos = Vec(RACK_GRID_WIDTH, RACK_GRID_WIDTH * 2);
+    Vec displaySize = Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9);
+    this->addChild(displayBuffer = new DisplayBuffer(displayPos, displaySize, this));
     display = displayBuffer->getFirstDescendantOfType<NoteTakerDisplay>();
     assert(display);
-    panel->addChild(new DisplayBevel());
+    panel->addChild(new DisplayBevel(displayPos, displaySize));
     addWheel(horizontalWheel = createParam<HorizontalWheel>(
             Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f),
             module, NoteTaker::HORIZONTAL_WHEEL));
