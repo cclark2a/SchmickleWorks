@@ -18,12 +18,13 @@ struct WheelBuffer : Widget {
     }
 };
 
-struct NoteTakerWheel : app::Knob {
+struct NoteTakerWheel : app::SliderKnob {
     NoteTakerWidget* mainWidget;
+    Vec gearSize;  // reversed for vertical wheel since it is drawn rotated
     float lastRealValue = INT_MAX;  // manually maintained
     int lastValue = INT_MAX;
-    Vec size;
     int shadow;
+    bool inUse = false;
 
     NoteTakerWheel() {
     }
@@ -34,7 +35,7 @@ struct NoteTakerWheel : app::Knob {
                 + std::to_string(pq->maxValue) + ")";
     }
 
-    void drawGear(NVGcontext *vg, float frame);
+    void drawGear(NVGcontext *vg, float frame) const;
 
     FramebufferWidget* fb() const {
         return dynamic_cast<FramebufferWidget*>(parent);
@@ -55,6 +56,12 @@ struct NoteTakerWheel : app::Knob {
     void onChange(const event::Change &e) override {
         this->fb()->dirty = true;
 	    Knob::onChange(e);
+    }
+
+    void onDragEnd(const event::DragEnd& ) override;
+
+    void onDragStart(const event::DragStart& ) override {
+        inUse = true;
     }
 
     void reset() override {
@@ -119,8 +126,6 @@ struct NoteTakerWheel : app::Knob {
 
 struct HorizontalWheel : NoteTakerWheel {
     HorizontalWheel() {
-        size.x = box.size.x = 100;
-        size.y = box.size.y = 17;
         speed = 1;
         shadow = 3;
         horizontal = true;
@@ -133,6 +138,7 @@ struct HorizontalWheel : NoteTakerWheel {
     }
 
     void draw(const DrawArgs& args) override {
+        gearSize = box.size;
         drawGear(args.vg, 1.f - fmodf(this->getValue() + 1, 1));
     }
 
@@ -147,8 +153,6 @@ struct HorizontalWheel : NoteTakerWheel {
 
 struct VerticalWheel : NoteTakerWheel {
     VerticalWheel() {
-        size.y = box.size.x = 17;
-        size.x = box.size.y = 100;
         speed = .1;
         shadow = 1;
         this->setValue(60);
@@ -163,6 +167,7 @@ struct VerticalWheel : NoteTakerWheel {
         NVGcontext* vg = args.vg;
         nvgTranslate(vg, 0, box.size.y);
         nvgRotate(vg, -M_PI / 2);
+        gearSize = Vec(box.size.y, box.size.x);
         drawGear(vg, 1.f - fmodf(this->getValue() + 1, 1));
     }
 

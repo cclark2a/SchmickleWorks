@@ -293,29 +293,29 @@ struct RunButton : NoteTakerButton {
         auto vg = args.vg;
         // draw shadow
         nvgBeginPath(vg);
-        nvgCircle(vg, 12 - af, 14 - af * 3, 10);
+        nvgCircle(vg, 13 - af, 14 - af * 3, 10);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x11));
         nvgFill(vg);
         // draw hole
         nvgBeginPath(vg);
-        nvgCircle(vg, 10, 10, 10);
+        nvgCircle(vg, 11, 10, 10);
         nvgFillColor(vg, nvgRGB(0, 0, 0));
         nvgFill(vg);
         // draw edge
         if (!af) {
             nvgBeginPath(vg);
-            nvgCircle(vg, 10, 10, 9.5);
+            nvgCircle(vg, 11, 10, 9.5);
             nvgFillColor(vg, nvgRGB(0xCC, 0xCC, 0xCC));
             nvgFill(vg);
         }
         // draw face
         nvgBeginPath(vg);
-        nvgCircle(vg, 9 + af, 11 - af, 9.5);
+        nvgCircle(vg, 10 + af, 11 - af, 9.5);
         nvgFillColor(vg, nvgRGB(0xAA, 0xAA, 0xAA));
         nvgFill(vg);
         // draw LED
         nvgBeginPath(vg);
-        nvgCircle(vg, 9 + af, 11 - af, 5);
+        nvgCircle(vg, 10 + af, 11 - af, 5);
         nvgFillColor(vg, ledOn ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
         nvgFill(vg);
     }

@@ -1,27 +1,27 @@
-
+#include "NoteTakerDisplay.hpp"
 #include "NoteTakerWheel.hpp"
 #include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 
 // frame varies from 0 to 1 to rotate the wheel
-void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
+void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) const {
     nvgShapeAntiAlias(vg, 1);
     int topcolor = 0xdf;
-    int bottom = size.y - 5;
+    int bottom = gearSize.y - 12;
     nvgBeginPath(vg);
-    nvgRect(vg, 0, 0, size.x, bottom);
+    nvgRect(vg, 0, 0, gearSize.x, bottom);
     nvgFillColor(vg, nvgRGB(topcolor, topcolor, topcolor));
     nvgFill(vg);
     nvgBeginPath(vg);
     nvgMoveTo(vg, 0, bottom / 2);
-    nvgLineTo(vg, size.x / 2, bottom);
-    nvgLineTo(vg, size.x, bottom / 2);
-    nvgLineTo(vg, size.x, bottom);
+    nvgLineTo(vg, gearSize.x / 2, bottom);
+    nvgLineTo(vg, gearSize.x, bottom / 2);
+    nvgLineTo(vg, gearSize.x, bottom);
     nvgLineTo(vg, 0, bottom);
     nvgFillColor(vg, nvgRGB(0xaf, 0xaf, 0xaf));
     nvgFill(vg);
     nvgBeginPath(vg);
-    nvgRect(vg, 0, 0, size.x, bottom);
+    nvgRect(vg, 0, 0, gearSize.x, bottom);
     nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
     float frameWidth = 1;
     nvgStrokeWidth(vg, frameWidth);
@@ -29,19 +29,19 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
     // draw shadow cast by wheel
     nvgBeginPath(vg);
     nvgMoveTo(vg, 0, bottom);
-    nvgLineTo(vg, size.x, bottom);
-    nvgQuadTo(vg, size.x * shadow / 4, bottom + 18, 4, bottom);
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x11));
+    nvgLineTo(vg, gearSize.x, bottom);
+    nvgQuadTo(vg, gearSize.x * shadow / 4, bottom + 18, 4, bottom);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x0b));
     nvgFill(vg);
     // draw wheel
-    nvgScissor(vg, frameWidth / 2, frameWidth / 2, size.x - frameWidth, size.y);
+    nvgScissor(vg, frameWidth / 2, frameWidth / 2, gearSize.x - frameWidth, gearSize.y);
     const int segments = 40;
     const float depth = 2;  // tooth depth
-    const float radius = size.x * 2 / 3;
+    const float radius = gearSize.x * 2 / 3;
     const float height = bottom / 2;
     const float slant = 3;
     float endTIx = 0, endTIy = 0, endTOx = 0, endTOy = 0, endBIy = 0, endBOy = 0;
-    nvgTranslate(vg, size.x / 2, -radius / slant + 10);
+    nvgTranslate(vg, gearSize.x / 2, -radius / slant + 10);
     for (int i = segments / 8 - 3; i <= 3 * segments / 8 + 3; ++i) {
         float angle = (i + frame * 2) * 2 * M_PI / segments;
         float ax = cosf(angle), ay = sinf(angle);
@@ -187,6 +187,11 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) {
     nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
     nvgStrokeWidth(vg, .5f);
 	nvgStroke(vg);
+}
+
+void NoteTakerWheel::onDragEnd(const event::DragEnd& ) {
+    inUse = false;
+    ntw()->displayBuffer->fb->dirty = true;
 }
 
 void HorizontalWheel::onDragMove(const event::DragMove& e) {

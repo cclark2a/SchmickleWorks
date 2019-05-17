@@ -979,11 +979,13 @@ void NoteTakerDisplay::drawFileControl() {
         nvgText(vg, boxWidth / 2, boxWidth - 3, "H", NULL);
     };
     // horizontalWheel->value auto-drifts towards integer, range of 0 to storage size
-    this->fb()->dirty |= fSlot != slot;
-    if (fSlot < slot) {
-        horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
-    } else if (fSlot > slot) {
-        horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
+    if (!ntw->horizontalWheel->inUse) {
+        this->fb()->dirty |= fSlot != slot;
+        if (fSlot < slot) {
+            horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
+        } else if (fSlot > slot) {
+            horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
+        }
     }
     // xControlOffset draws current location, 0 to storage size - 4
     if (horizontalWheel->getValue() - xControlOffset > 3) {
@@ -1322,12 +1324,13 @@ void NoteTakerDisplay::drawTieControl() {
     auto horizontalWheel = ntw->horizontalWheel;
     float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
-    if (fSlot < slot) {
-        horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
-        this->fb()->dirty = true;
-    } else if (fSlot > slot) {
-        horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
-        this->fb()->dirty = true;
+    if (!ntw->horizontalWheel->inUse) {
+        this->fb()->dirty |= fSlot != slot;
+        if (fSlot < slot) {
+            horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
+        } else if (fSlot > slot) {
+            horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
+        }
     }
     nvgBeginPath(vg);
     nvgRect(vg, leftEdge + (horizontalWheel->getValue()) * boxSpace,

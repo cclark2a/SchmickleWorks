@@ -80,12 +80,12 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
     assert(display);
     panel->addChild(new DisplayBevel(displayPos, displaySize));
     Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
-    Vec hWheelSize = Vec(200, RACK_GRID_WIDTH * 90);
+    Vec hWheelSize = Vec(100, 23);
     addWheel(hWheelSize, (horizontalWheel = createParam<HorizontalWheel>(
             hWheelPos, module, NoteTaker::HORIZONTAL_WHEEL)));
     // vertical wheel is horizontal wheel (+x) rotated ccw (-y); value and limits are negated
-    Vec vWheelPos = Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 150);
-    Vec vWheelSize = Vec(RACK_GRID_WIDTH * 90, 200);
+    Vec vWheelPos = Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 50);
+    Vec vWheelSize = Vec(23, 100);
     addWheel(vWheelSize, (verticalWheel = createParam<VerticalWheel>(
             vWheelPos, module, NoteTaker::VERTICAL_WHEEL)));
 
@@ -101,8 +101,8 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
             addOutput(createOutput<PJ301MPort>(Vec(12 + i * 32, 338), module,
                     NoteTaker::GATE1_OUTPUT + i));
     }
-    Vec editButtonSize = Vec(20, 40);
-    Vec runButtonSize = Vec(25, 25);
+    Vec editButtonSize = Vec(22, 43);
+    Vec runButtonSize = Vec(24, 24);
     addButton(runButtonSize, (runButton = 
             createParam<RunButton>(Vec(200, 172), module, NoteTaker::RUN_BUTTON)));
     addButton(editButtonSize, (selectButton =
