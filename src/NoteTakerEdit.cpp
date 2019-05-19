@@ -19,7 +19,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         return;
     }
     PartButton* pb = partButton;
-    debug("pb %p", pb);
+    DEBUG("pb %p", pb);
     if (partButton->ledOn) {
         horizontalWheel->setLimits(-1, CV_OUTPUTS);
         horizontalWheel->setValue(this->unlockedChannel());
@@ -84,7 +84,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     } else {
         int wheelMin = selectButton->editStart() ? 0 : 1;
         float wheelMax = this->horizontalCount() + .999f;
-        if (debugVerbose) debug("horizontalWheel->setLimits wheelMin %d wheelMax %g", wheelMin, wheelMax);
+        if (debugVerbose) DEBUG("horizontalWheel->setLimits wheelMin %d wheelMax %g", wheelMin, wheelMax);
         horizontalWheel->setLimits(wheelMin, wheelMax);
         if (this->isEmpty()) {
             value = 0;
@@ -92,7 +92,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
             const DisplayNote* note = &n.notes[n.selectStart];
             value = this->noteToWheel(*note);
             if (value < wheelMin || value > wheelMax) {
-                debug("! note type %d value %d wheelMin %d wheelMax %g",
+                DEBUG("! note type %d value %d wheelMin %d wheelMax %g",
                         note->type, value, wheelMin, wheelMax);
                 this->debugDump();
                 assert(0);
@@ -163,7 +163,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
 void NoteTakerWidget::setWheelRange() {
     this->setHorizontalWheelRange();
     this->setVerticalWheelRange();
-    if (debugVerbose) debug("setWheelRange %s %s", 
+    if (debugVerbose) DEBUG("setWheelRange %s %s", 
             horizontalWheel->debugString().c_str(),
             verticalWheel->debugString().c_str());
     displayBuffer->fb->dirty = true;
@@ -278,14 +278,14 @@ void NoteTakerWidget::updateHorizontal() {
                     selectButton->selStart - (int) selectButton->saveZero) + 1;
             start =  this->wheelToNote(std::min(wheelValue, wheelStart));
             end =  this->wheelToNote(std::max(wheelValue + 1, wheelStart));
-            if (debugVerbose) debug("start %u end %u wheelValue %d wheelStart %d",
+            if (debugVerbose) DEBUG("start %u end %u wheelValue %d wheelStart %d",
                     start, end, wheelValue, wheelStart);
         } else {
             start =  this->wheelToNote(wheelValue);
             selectButton->saveZero = SelectButton::State::single == selectButton->state
                     && !start;
             end = nt()->nextAfter(start, 1);
-            if (debugVerbose) debug("start %u end %u wheelValue %d", start, end, wheelValue);
+            if (debugVerbose) DEBUG("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         assert(start < end);
         if (start != n.selectStart || end != n.selectEnd) {

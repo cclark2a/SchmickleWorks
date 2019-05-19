@@ -60,23 +60,23 @@ std::string DisplayNote::debugString() const {
         case TRACK_END:
             break;
         default:
-            debug("to do: add type %d %s\n", type, typeNames[type].name);
+            DEBUG("to do: add type %d %s\n", type, typeNames[type].name);
             break;
     }
     return s;
 }
 
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
-    debug("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
-    debug("horz: %s vert: %s",
+    DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
+    DEBUG("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
     auto& n = this->n();
-    debug("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
+    DEBUG("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
             n.selectStart, n.selectEnd, display->displayStart, display->displayEnd, selectChannels, 
             this->unlockedChannel(), nt()->tempo, n.ppq);
     NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &display->cache,
             n.selectStart, n.selectEnd);
-    debug("clipboard");
+    DEBUG("clipboard");
     NoteTaker::DebugDump(clipboard);
     this->nt()->debugDumpChannels();
     if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !runButton->ledOn) {
@@ -86,14 +86,14 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             w2n += " " + std::to_string(index) + "/"
                     + std::to_string((int) this->wheelToNote(index, false));
         }
-        debug("wheelToNote:%s", w2n.c_str());
+        DEBUG("wheelToNote:%s", w2n.c_str());
         std::string n2w;
         unsigned idx = 0;
         for (const auto& note : n.notes) {
             n2w += " " + std::to_string(idx++) + "/"
                     + std::to_string(this->noteToWheel(note, false));
         }
-        debug("noteToWheel:%s", n2w.c_str());
+        DEBUG("noteToWheel:%s", n2w.c_str());
     }
     if (validatable) {
         this->n().validate();
@@ -116,7 +116,7 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         assert(i == typeNames[i].type);
     }
-    debug("notes: %d", notes.size());
+    DEBUG("notes: %d", notes.size());
     unsigned cIndex = 0;
     for (unsigned index = 0; index < notes.size(); ++index) {
         const DisplayNote& note = notes[index];
@@ -125,7 +125,7 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
             do {
                 const NoteCache& c = (*cache)[cIndex];
                 if ("" != s) {
-                    debug("%s", s.c_str());
+                    DEBUG("%s", s.c_str());
                 }
                 s = std::to_string(index);
                 s += " [" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
@@ -155,7 +155,7 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
             s += "> ";
         }
         s += note.debugString();
-        debug("%s", s.c_str());
+        DEBUG("%s", s.c_str());
     }
 }
 
@@ -167,7 +167,7 @@ void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
         if (--line && 0xFF != u) {
             s += ", ";
         } else {
-            debug("%s", s.c_str());
+            DEBUG("%s", s.c_str());
             s = "";
         }
         const char h[] = "0123456789ABCDEF";
@@ -182,7 +182,7 @@ void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
             line = std::min(line, 3u);
         }
     }
-    debug("%s", s.c_str());
+    DEBUG("%s", s.c_str());
 }
 
 void Notes::validate() const {
@@ -197,7 +197,7 @@ void Notes::validate() const {
         switch (note.type) {
             case MIDI_HEADER:
                 if (sawHeader) {
-                    debug("duplicate midi header");
+                    DEBUG("duplicate midi header");
                     malformed = true;
                 }
                 sawHeader = true;
@@ -205,23 +205,23 @@ void Notes::validate() const {
             case NOTE_ON:
             case REST_TYPE:
                 if (!sawHeader) {
-                    debug("missing midi header before note");
+                    DEBUG("missing midi header before note");
                     malformed = true;
                 }
                 if (sawTrailer) {
-                    debug("note after trailer");
+                    DEBUG("note after trailer");
                     malformed = true;
                 }
                 if (time > note.startTime) {
-                    debug("note out of order");
+                    DEBUG("note out of order");
                     malformed = true;
                 }
                 time = note.startTime;
                 if (channelTimes[note.channel] > note.startTime) {
                     if (REST_TYPE == note.type) {
-                        debug("rest channel time error");
+                        DEBUG("rest channel time error");
                     } else {
-                        debug("note channel time error");
+                        DEBUG("note channel time error");
                     }
                     malformed = true;
                 }
@@ -231,22 +231,22 @@ void Notes::validate() const {
             case TIME_SIGNATURE:
             case MIDI_TEMPO:
                 if (!sawHeader) {
-                    debug("missing midi header before time signature");
+                    DEBUG("missing midi header before time signature");
                     malformed = true;
                 }
                 break;
             case TRACK_END:
                 if (!sawHeader) {
-                    debug("missing midi header before trailer");
+                    DEBUG("missing midi header before trailer");
                     malformed = true;
                 }
                 if (sawTrailer) {
-                    debug("duplicate midi trailer");
+                    DEBUG("duplicate midi trailer");
                     malformed = true;
                 }
                 for (int c : channelTimes) {
                     if (c > note.startTime) {
-                        debug("track end time error");
+                        DEBUG("track end time error");
                         malformed = true;
                     }
                 }
@@ -260,7 +260,7 @@ void Notes::validate() const {
         }
     }
     if (!malformed && !sawTrailer) {
-        debug("missing trailer");
+        DEBUG("missing trailer");
         malformed = true;
     }
     if (malformed) {

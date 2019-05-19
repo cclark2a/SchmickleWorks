@@ -26,7 +26,7 @@ private:
     void add_delta(int midiTime, int* lastTime) {
         int delta = midiTime - *lastTime;
         if (delta < 0) {
-            debug("! midiTime:%d *lastTime:%d", midiTime, *lastTime);
+            DEBUG("! midiTime:%d *lastTime:%d", midiTime, *lastTime);
         }
         assert(delta >= 0);
         add_size8(delta);  // time of first note

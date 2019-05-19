@@ -49,7 +49,7 @@ struct NoteTakerWheel : app::SliderKnob {
 
     // to do: not working yet
     void onHoverScroll(const event::HoverScroll &e) override {
-        debug("onScroll %s\n");
+        DEBUG("onScroll %s\n");
 	    Knob::onHoverScroll(e);
     }
 

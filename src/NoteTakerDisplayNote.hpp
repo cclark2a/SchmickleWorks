@@ -168,7 +168,7 @@ struct DisplayNote {
 
     void assertValid(DisplayType t) const {
         if (type != t) {
-            debug("type %d != t %d\n", type, t);
+            DEBUG("type %d != t %d\n", type, t);
             assert(type == t);
         }
         return assert(isValid());

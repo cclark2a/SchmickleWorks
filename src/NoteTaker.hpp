@@ -143,7 +143,7 @@ struct NoteTaker : Module {
             if (chan.noteIndex >= n.notes.size()) {
                 continue;
             }
-            debug("[%d] %s", index, chan.debugString().c_str());
+            DEBUG("[%d] %s", index, chan.debugString().c_str());
         }
     }
 
@@ -210,7 +210,7 @@ struct NoteTaker : Module {
 
     void onReset() override;
     void playSelection();
-
+    void process(const ProcessArgs &args) override;
     void resetRun();
     void resetState();
 
@@ -241,7 +241,7 @@ struct NoteTaker : Module {
                         || debugCount[channel] > 500) {
                     debugLastGateLow[channel] = chan.gateLow;
                     debugLastNoteEnd[channel] = chan.noteEnd;
-                    if (false) debug("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
+                    if (false) DEBUG("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
                             channel, chan.gateLow, chan.noteEnd, chan.noteIndex, midiTime);
                     debugCount[channel] = 0;
                 } else {
@@ -253,7 +253,7 @@ struct NoteTaker : Module {
                 chan.gateLow = 0;
                 if (channel < CV_OUTPUTS) {
                     outputs[GATE1_OUTPUT + channel].value = 0;
-                    debug("set expired low %d", channel);
+                    DEBUG("set expired low %d", channel);
                 }
             }
             if (chan.noteEnd < midiTime) {
@@ -298,12 +298,10 @@ struct NoteTaker : Module {
             Sort(notes);
         }
    }
-  
-	void step() override;
 
     // don't use std::sort function; use insertion sort to minimize reordering
     static void Sort(vector<DisplayNote>& notes, bool debugging = false) {
-        if (debugging) debug("sort notes");
+        if (debugging) DEBUG("sort notes");
         for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
             auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
             std::rotate(insertion_point, it, it + 1);
@@ -313,7 +311,7 @@ struct NoteTaker : Module {
     float wheelToTempo(float value) const;
 
     void zeroGates() {
-        if (debugVerbose) debug("zero gates");
+        if (debugVerbose) DEBUG("zero gates");
         for (auto& channel : channels) {
             channel.noteIndex = INT_MAX;
             channel.gateLow = channel.noteEnd = 0;

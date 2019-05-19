@@ -267,7 +267,7 @@ struct KeyButton : AdderButton {
 // (no select) / part / choose channel / add or cut
 struct PartButton : EditLEDButton {
     PartButton() {
-        debug("PartButton %p", this);
+        DEBUG("PartButton %p", this);
     }
     
     void draw(const DrawArgs& ) override;

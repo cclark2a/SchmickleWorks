@@ -69,7 +69,7 @@ struct BarPosition {
         priorBars += (noteCache.vStartTime - tsStart + duration - 1) / duration;  // rounds up
         pos[priorBars].useMax = true;
         pos[priorBars].xMax = noteCache.vStartTime;
-        debug("setPriorBars %d useMax %d xMax", priorBars, true, noteCache.vStartTime);
+        DEBUG("setPriorBars %d useMax %d xMax", priorBars, true, noteCache.vStartTime);
     }
 
     void setSignature(const DisplayNote& note, int ppq) {

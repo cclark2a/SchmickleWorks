@@ -34,11 +34,11 @@ private:
 
     bool midi_check7bits(vector<uint8_t>::const_iterator& iter) const {
         if (iter == midi.end()) {
-            debug("unexpected end of file 1\n");
+            DEBUG("unexpected end of file 1\n");
             return false;
         }
         if (*iter & 0x80) {
-            debug("unexpected high bit set 1\n");
+            DEBUG("unexpected high bit set 1\n");
             return false;
         }
         return true;

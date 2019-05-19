@@ -79,7 +79,7 @@ struct NoteTakerStorage {
         std::string dest = dir + std::to_string(slot) + ".mid";
         int err = remove(dest.c_str());
         if (err) {
-            debug("remove %s err %d", dest.c_str(), err);
+            DEBUG("remove %s err %d", dest.c_str(), err);
         }
         if (midi.empty()) {
             return;
@@ -93,7 +93,7 @@ struct NoteTakerStorage {
         std::string dest = dir + std::to_string(slot) + ".mid";
         std::ifstream in(dest.c_str(), std::ifstream::binary);
         if (in.fail()) {
-            debug("%s not opened for reading", dest.c_str());
+            DEBUG("%s not opened for reading", dest.c_str());
             return false;
         }
         in.unsetf(std::ios::skipws);    // don't skip whitespace (!)

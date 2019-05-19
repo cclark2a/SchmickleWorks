@@ -189,7 +189,7 @@ void NoteTakerWidget::enableInsertSignature(unsigned loc) {
 }
 
 void NoteTakerWidget::eraseNotes(unsigned start, unsigned end) {
-    if (debugVerbose) debug("eraseNotes start %u end %u", start, end);
+    if (debugVerbose) DEBUG("eraseNotes start %u end %u", start, end);
     auto& n = this->n();
     for (auto iter = n.notes.begin() + end; iter-- != n.notes.begin() + start; ) {
         if (iter->isSelectable(selectChannels)) {
@@ -260,7 +260,7 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
     display->invalidateCache();
     display->displayEnd = 0;  // force recompute of display end
     nt()->setSelect(insertLoc, nt()->nextAfter(insertLoc, insertSize));
-    if (debugVerbose) debug("insert final");
+    if (debugVerbose) DEBUG("insert final");
     this->setWheelRange();  // range is larger
     nt()->playSelection();
     if (debugVerbose) this->debugDump(true);
@@ -371,19 +371,19 @@ void NoteTakerWidget::makeTuplet() {
     int beats = 0;
     auto addBeat = [&](int duration) {
         if (NoteDurations::Closest(duration, n.ppq) != duration) {
-            debug("can't tuple nonstandard duration %d ppq %d", duration, n.ppq);
+            DEBUG("can't tuple nonstandard duration %d ppq %d", duration, n.ppq);
             return false;
         }
         int divisor = (int) gcd(smallest, duration);
         if (NoteDurations::Closest(divisor, n.ppq) != divisor) {
-            debug("can't tuple gcd: smallest %d divisor %d ppq %d", smallest, divisor, n.ppq);
+            DEBUG("can't tuple gcd: smallest %d divisor %d ppq %d", smallest, divisor, n.ppq);
             return false;
         }
         if (divisor < smallest) {
             beats *= smallest / divisor;
             smallest = divisor;
         }
-        debug("divisor %d smallest %d", divisor, smallest);
+        DEBUG("divisor %d smallest %d", divisor, smallest);
         beats += duration / smallest;
         return true;
     };
@@ -396,18 +396,18 @@ void NoteTakerWidget::makeTuplet() {
         }
         int restDuration = last - note.startTime;
         if (restDuration > 0) {    // implied rest
-            debug("add implied rest %d", restDuration);
+            DEBUG("add implied rest %d", restDuration);
             if (!addBeat(restDuration)) {
                 return;
             }
         }
-        debug("add beat %s", note.debugString().c_str());
+        DEBUG("add beat %s", note.debugString().c_str());
         if (!addBeat(note.duration)) {
             return;
         }
         last = note.endTime();
     }
-    debug("beats : %d", beats);
+    DEBUG("beats : %d", beats);
     if (beats % 3) {
         return;   // to do : only support triplets for now
     }
@@ -497,7 +497,7 @@ int NoteTakerWidget::noteToWheel(const DisplayNote& match, bool dbug) const {
         return -1;
     }
     if (dbug) {
-        debug("noteToWheel match %s", match.debugString().c_str());
+        DEBUG("noteToWheel match %s", match.debugString().c_str());
         debugDump(false, true);
         assert(0);
     }
@@ -584,7 +584,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
 
 void NoteTakerWidget::shiftNotes(unsigned start, int diff) {
     auto& n = this->n();
-    if (debugVerbose) debug("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
+    if (debugVerbose) DEBUG("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
     NoteTaker::ShiftNotes(n.notes, start, diff, selectChannels);
     NoteTaker::Sort(n.notes);
 }
@@ -612,7 +612,7 @@ unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
         return 0;  // midi header
     }
     if (!dbug && value < 0) {
-        debug("! didn't expect < 0 : value: %d", value);
+        DEBUG("! didn't expect < 0 : value: %d", value);
         return 0;
     }
     auto& n = this->n();
@@ -631,13 +631,13 @@ unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
         }
         if (TRACK_END == note.type) {
             if (count > 0) {
-                debug("! expected 0 wheelToNote value at track end; value: %d", value);
+                DEBUG("! expected 0 wheelToNote value at track end; value: %d", value);
                 assert(!dbug);                
             }
             return n.notes.size() - 1;
         }
     }
-    debug("! out of range wheelToNote value %d", value);
+    DEBUG("! out of range wheelToNote value %d", value);
     if (dbug) {
         this->debugDump(false, true);
         assert(0);  // probably means wheel range is larger than selectable note count

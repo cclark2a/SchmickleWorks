@@ -62,7 +62,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 while (!lastNotes.empty()) {
                     auto off = lastNotes.begin()->note;
                     if (off->endSlurTime() > n.startTime) {
-                        debug("%u break off %s", lastNotes.size(), off->debugString().c_str());
+                        DEBUG("%u break off %s", lastNotes.size(), off->debugString().c_str());
                         break;
                     }
                     add_delta(off->endSlurTime(), &lastTime);
@@ -70,14 +70,14 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                     add_one(off->pitch());
                     add_one(off->offVelocity());
                     lastNotes.erase(lastNotes.begin());
-                    debug("%u write off %s", lastNotes.size(), off->debugString().c_str());
+                    DEBUG("%u write off %s", lastNotes.size(), off->debugString().c_str());
                 }
                 add_delta(n.startTime, &lastTime);
                 add_one(midiNoteOn + n.channel);
                 add_one(n.pitch());
                 add_one(n.onVelocity());
                 lastNotes.insert(LastNote(&n));
-                debug("%u write on %s", lastNotes.size(), n.debugString().c_str());
+                DEBUG("%u write on %s", lastNotes.size(), n.debugString().c_str());
                 break;
             case REST_TYPE:
                 // assume there's nothing to do here

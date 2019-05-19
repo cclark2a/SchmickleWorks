@@ -14,57 +14,57 @@ bool DisplayNote::isValid() const {
     switch (type) {
         case NOTE_ON:
             if (channel > CHANNEL_COUNT) {
-                debug("invalid note channel %d\n", channel);
+                DEBUG("invalid note channel %d\n", channel);
                 return false;
             }
             if (0 > data[0] || data[0] > 127) {
-                debug("invalid note pitch %d\n", data[0]);
+                DEBUG("invalid note pitch %d\n", data[0]);
                 return false;
             }
             if (data[1] != !!data[1]) {
-                debug("invalid slur %d\n", data[1]);
+                DEBUG("invalid slur %d\n", data[1]);
                 return false;
             }
             if (0 > data[2] || data[2] > 127) {
-                debug("invalid on note pressure %d\n", data[2]);
+                DEBUG("invalid on note pressure %d\n", data[2]);
                 return false;
             }
             if (0 > data[3] || data[3] > 127) {
-                debug("invalid off note pressure %d\n", data[3]);
+                DEBUG("invalid off note pressure %d\n", data[3]);
                 return false;
             }
         break;
         case REST_TYPE:
             if (channel > CHANNEL_COUNT) {
-                debug("invalid note channel %d\n", channel);
+                DEBUG("invalid note channel %d\n", channel);
                 return false;
             }
             if (data[1] != !!data[1]) {
-                debug("invalid slur %d\n", data[1]);
+                DEBUG("invalid slur %d\n", data[1]);
                 return false;
             }
         break;
         case MIDI_HEADER:
             if (0 > data[0] || data[0] > 2) {
-                debug("invalid midi format %d\n", data[0]);
+                DEBUG("invalid midi format %d\n", data[0]);
                 return false;
             }
             if (1 != data[1] && (!data[0] || 0 > data[1])) {
-                debug("invalid midi tracks %d (format=%d)\n", data[1], data[0]);
+                DEBUG("invalid midi tracks %d (format=%d)\n", data[1], data[0]);
                 return false;
             }
             if (1 > data[2]) {
-                debug("invalid beats per quarter note %d\n", data[2]);
+                DEBUG("invalid beats per quarter note %d\n", data[2]);
                 return false;
             }
         break;
         case KEY_SIGNATURE:
             if (-7 > data[0] || data[0] > 7) {
-                debug("invalid key %d\n", data[0]);
+                DEBUG("invalid key %d\n", data[0]);
                 return false;
             }
             if (0 != data[1] && 1 != data[1]) {
-                debug("invalid minor %d\n", data[1]);
+                DEBUG("invalid minor %d\n", data[1]);
                 return false;
             }
         break;
@@ -72,20 +72,20 @@ bool DisplayNote::isValid() const {
             int num = data[0];
             int denom = data[1];
             if ((unsigned) num > 99 || (unsigned) denom > 99) {
-                debug("invalid time signature %d/%d\n", data[0], data[1]);
+                DEBUG("invalid time signature %d/%d\n", data[0], data[1]);
                 return false;
             }
             if (data[2] != 24) {
-                debug("invalid clocks/click %d\n", data[2]);
+                DEBUG("invalid clocks/click %d\n", data[2]);
             }
             if (data[3] != 8) {
-                debug("invalid 32nds/quarter ntoe %d\n", data[3]);
+                DEBUG("invalid 32nds/quarter ntoe %d\n", data[3]);
             }
             } break;
         case MIDI_TEMPO: {
             int ticks = data[0];
             if (ticks <= 0) {
-                debug("invalid ticks per second %d\n", data[0]);
+                DEBUG("invalid ticks per second %d\n", data[0]);
                 return false;
             }
             break;
@@ -93,7 +93,7 @@ bool DisplayNote::isValid() const {
         case TRACK_END:
         break;
         default:
-            debug("to do: validate %d\n", type);
+            DEBUG("to do: validate %d\n", type);
             assert(0);
             return false;
     }

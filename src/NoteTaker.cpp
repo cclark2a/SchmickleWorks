@@ -125,7 +125,7 @@ void NoteTaker::onReset() {
 }
 
 void NoteTaker::resetState() {
-    if (debugVerbose) debug("notetaker reset");
+    if (debugVerbose) DEBUG("notetaker reset");
     n.notes.clear();
     for (auto channel : channels) {
         channel.reset();
@@ -191,7 +191,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         n.selectEnd = 1;
         display->setRange();
         displayBuffer->fb->dirty = true;
-        if (debugVerbose) debug("setSelect set empty");
+        if (debugVerbose) DEBUG("setSelect set empty");
         return;
     }
     assert(start < end);
@@ -201,7 +201,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     if (!this->isRunning()) {
         mainWidget->enableInsertSignature(end);  // disable buttons that already have signatures in score
     }
-    if (debugVerbose) debug("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
+    if (debugVerbose) DEBUG("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
     n.selectStart = start;
     n.selectEnd = end;
     displayBuffer->fb->dirty = true;
@@ -209,21 +209,21 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
     auto selectButton = ntw()->selectButton;
-    debug("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
+    DEBUG("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
             wheelValue, end, selectButton->selStart, n.selectStart, n.selectEnd);
     bool changed = true;
     if (end < selectButton->selStart) {
         this->setSelect(end, selectButton->selStart);
-        debug("setSelectEnd < s:%u e:%u", n.selectStart, n.selectEnd);
+        DEBUG("setSelectEnd < s:%u e:%u", n.selectStart, n.selectEnd);
     } else if (end == selectButton->selStart) {
         unsigned start = selectButton->selStart;
         assert(TRACK_END != n.notes[start].type);
         unsigned end = mainWidget->wheelToNote(wheelValue + 1);
         this->setSelect(start, end);
-        debug("setSelectEnd == s:%u e:%u", n.selectStart, n.selectEnd);
+        DEBUG("setSelectEnd == s:%u e:%u", n.selectStart, n.selectEnd);
     } else if (end != n.selectEnd) {
         this->setSelect(selectButton->selStart, end);
-        debug("setSelectEnd > s:%u e:%u", n.selectStart, n.selectEnd);
+        DEBUG("setSelectEnd > s:%u e:%u", n.selectStart, n.selectEnd);
     } else {
         changed = false;
     }
@@ -242,8 +242,8 @@ bool NoteTaker::setSelectStart(unsigned start) {
 }
 
 // since this runs on a high frequency thread, avoid state except to play notes
-void NoteTaker::step() {
-    realSeconds += APP->engine->getSampleTime();
+void NoteTaker::process(const ProcessArgs &args) {
+    realSeconds += args.sampleTime;
     if (eosTime < realSeconds) {
         outputs[EOS_OUTPUT].value = 0;
         eosTime = FLT_MAX;
@@ -322,9 +322,9 @@ void NoteTaker::step() {
     // note on event duration sets gate low
     int midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
     if (false && running && ++debugMidiCount < 100) {
-        debug("midiTime %d elapsedSeconds %g playStart %u", midiTime, elapsedSeconds, playStart);
+        DEBUG("midiTime %d elapsedSeconds %g playStart %u", midiTime, elapsedSeconds, playStart);
     }
-    elapsedSeconds += APP->engine->getSampleTime() * this->beatsPerHalfSecond(localTempo);
+    elapsedSeconds += args.sampleTime * this->beatsPerHalfSecond(localTempo);
     if (midiTime >= midiClockOut) {
         midiClockOut += n.ppq;
         outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
@@ -373,7 +373,7 @@ void NoteTaker::step() {
             channelInfo.noteEnd = endTime;
             channelInfo.noteIndex = noteIndex;
             if (note.channel < CV_OUTPUTS) {
-                if (true) debug("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d old %g",
+                if (true) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d old %g",
                         note.channel, channelInfo.gateLow, channelInfo.noteEnd, channelInfo.noteIndex,
                         prior, midiTime, outputs[GATE1_OUTPUT + note.channel].value);
                 outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
@@ -390,7 +390,7 @@ void NoteTaker::step() {
                 bias += inputs[V_OCT_INPUT].value;
                 bias += ((int) verticalWheel->getValue() - 60) / 12.f;
             }
-            if (true) debug("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
+            if (true) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
                 note.channel, bias,
                 inputs[V_OCT_INPUT].value, verticalWheel->getValue(),
                 note.pitch() / 12.f, bias + note.pitch() / 12.f,

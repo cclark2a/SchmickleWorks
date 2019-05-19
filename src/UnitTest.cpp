@@ -178,16 +178,16 @@ static void AddTwoNotes(NoteTakerWidget* n) {
 static void Expected(NoteTakerWidget* n) {
     json_t* saveState = n->toJson();
     n->nt()->onReset();
-    debug("delete a note with empty score");
+    DEBUG("delete a note with empty score");
     Press(n, n->cutButton);
 
-    debug("add a note with empty score, delete same");
+    DEBUG("add a note with empty score, delete same");
     Press(n, n->insertButton);
     assert(!n->isEmpty());
     Press(n, n->cutButton);
     assert(n->isEmpty());
 
-    debug("add two notes with empty score, delete same");
+    DEBUG("add two notes with empty score, delete same");
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     Press(n, n->cutButton);
@@ -195,7 +195,7 @@ static void Expected(NoteTakerWidget* n) {
     Press(n, n->cutButton);
     assert(n->isEmpty());
 
-    debug("add two notes with empty score, check order");
+    DEBUG("add two notes with empty score, check order");
     AddTwoNotes(n);
     unsigned note1 = n->wheelToNote(1);
     assert(4 == n->n().notes.size());
@@ -207,7 +207,7 @@ static void Expected(NoteTakerWidget* n) {
     Press(n, n->cutButton);
     assert(n->isEmpty());
 
-    debug("press select button with empty score");
+    DEBUG("press select button with empty score");
     n->resetControls();
     assert(n->selectButton->editStart());
     ExerciseWheels(n);
@@ -222,7 +222,7 @@ static void Expected(NoteTakerWidget* n) {
     ExerciseWheels(n);
     n->n().validate();
 
-    debug("press part button with empty score");
+    DEBUG("press part button with empty score");
     n->resetControls();
     assert(!n->partButton->ledOn);
     ExerciseWheels(n);
@@ -238,7 +238,7 @@ static void Expected(NoteTakerWidget* n) {
     ExerciseWheels(n);
     n->n().validate();
 
-    debug("duplicate");
+    DEBUG("duplicate");
     AddTwoNotes(n);
     Press(n, n->selectButton);
     WheelLeft(n, 0);
@@ -248,26 +248,26 @@ static void Expected(NoteTakerWidget* n) {
     assert(6 == n->n().notes.size());
     assert(4 == n->horizontalCount());
 
-    debug("copy and paste");
+    DEBUG("copy and paste");
     AddTwoNotes(n);
     Press(n, n->selectButton);
     WheelLeft(n, 0);
-    debug("cnp wheel left 0");
+    DEBUG("cnp wheel left 0");
     n->debugDump();
     Press(n, n->selectButton);
     WheelLeft(n, 2);
-    debug("cnp wheel left 2");
+    DEBUG("cnp wheel left 2");
     n->debugDump();
     Press(n, n->selectButton);
     Press(n, n->selectButton);
     WheelLeft(n, 1);
-    debug("cnp wheel left 1");
+    DEBUG("cnp wheel left 1");
     n->debugDump();
     Press(n, n->insertButton);
     assert(6 == n->n().notes.size());
     assert(4 == n->horizontalCount());
 
-    debug("restore defaults");
+    DEBUG("restore defaults");
     n->nt()->resetState();
     n->resetControls();
     n->fromJson(saveState);

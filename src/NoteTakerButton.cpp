@@ -10,7 +10,7 @@ void AdderButton::onDragEndPreamble(const event::DragEnd& e) {
     // insertLoc, shiftTime set by caller
     shiftLoc = insertLoc + 1;
     startTime = nt->n.notes[insertLoc].startTime;
-    if (nt->debugVerbose) debug("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
+    if (nt->debugVerbose) DEBUG("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
 }
 
 void AdderButton::onDragEnd(const event::DragEnd& e) {
@@ -82,7 +82,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     unsigned start = n.selectStart;
     unsigned end = n.selectEnd;
     if (!start || end <= 1) {
-        debug("*** selectButton should have been set to edit start, save zero");
+        DEBUG("*** selectButton should have been set to edit start, save zero");
         assert(0);
         return;
     }
@@ -164,7 +164,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         n.notes.insert(n.notes.begin() + insertLoc, midC);
         insertSize = 1;
         shiftTime = n.ppq;
-        if (nt->debugVerbose) debug("add to empty");
+        if (nt->debugVerbose) DEBUG("add to empty");
     } else {
         vector<DisplayNote> span;
         // Insert loc is where the new note goes, but not when the new note goes; 
@@ -190,7 +190,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
                     insertLoc = index;
                 }
             }
-            if (nt->debugVerbose) debug("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
+            if (nt->debugVerbose) DEBUG("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
         }
         // insertLoc may be different channel, so can't use that start time by itself
         // shift to selectStart time, but not less than previous end (if any) on same channel
@@ -198,11 +198,11 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         while (insertTime < lastEndTime) {
             insertTime = n.notes[++insertLoc].startTime;
         }
-        if (nt->debugVerbose) debug("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
+        if (nt->debugVerbose) DEBUG("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
                 ntw->clipboard.size());
         if (!ntw->selectButton->editStart() || ntw->clipboard.empty() || !ntw->extractClipboard(&span)) {
-            if (nt->debugVerbose) !n.selectStart ? debug("left of first note") : debug("duplicate selection");
-            if (nt->debugVerbose) debug("iStart=%u iEnd=%u", iStart, iEnd);
+            if (nt->debugVerbose) !n.selectStart ? DEBUG("left of first note") : DEBUG("duplicate selection");
+            if (nt->debugVerbose) DEBUG("iStart=%u iEnd=%u", iStart, iEnd);
             for (unsigned index = iStart; index < iEnd; ++index) {
                 const auto& note = n.notes[index];
                 if (ntw->isSelectable(note)) {
@@ -214,7 +214,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
                 (span[0].isSignature() && n.notes[insertLoc].isSignature())) {
             span.clear();
-            if (nt->debugVerbose) { debug("insert button : none selectable"); ntw->debugDump(); }
+            if (nt->debugVerbose) { DEBUG("insert button : none selectable"); ntw->debugDump(); }
             for (unsigned index = iStart; index < n.notes.size(); ++index) {
                 const auto& note = n.notes[index];
                 if (NOTE_ON == note.type && ntw->isSelectable(note)) {
@@ -246,9 +246,9 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         shiftTime = (lastEndTime - insertTime)
                 + (NoteTaker::LastEndTime(span) - span.front().startTime);
         int availableShiftTime = nextStart - insertTime;
-        if (nt->debugVerbose) debug("shift time %d available %d", shiftTime, availableShiftTime);
+        if (nt->debugVerbose) DEBUG("shift time %d available %d", shiftTime, availableShiftTime);
         shiftTime = std::max(0, shiftTime - availableShiftTime);
-        if (nt->debugVerbose) debug("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
+        if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
                 insertLoc, insertSize, shiftTime, n.selectStart, n.selectEnd);
         ntw->display->invalidateCache();
         if (nt->debugVerbose) ntw->debugDump(false);
@@ -309,7 +309,7 @@ void PartButton::onDragEnd(const event::DragEnd& e) {
         ntw->clipboardInvalid = true;
         ntw->copySelectableNotes();
     }
-    if (ntw->debugVerbose) debug("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
+    if (ntw->debugVerbose) DEBUG("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
             ledOn, ntw->horizontalWheel->part(), ntw->selectChannels, ntw->unlockedChannel());
     ntw->turnOffLedButtons(this);
     ntw->setWheelRange();  // range is larger
