@@ -228,6 +228,7 @@ void NoteTakerWidget::fromJson(json_t *root) {
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
     // update display cache
     display->invalidateCache();
+    this->setClipboardLight();
 }
 
 // to do : remove, to run unit tests only

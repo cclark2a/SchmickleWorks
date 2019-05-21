@@ -74,6 +74,7 @@ struct NoteTaker : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
+        CLIPBOARD_ON_LIGHT,
 		NUM_LIGHTS
 	};
 

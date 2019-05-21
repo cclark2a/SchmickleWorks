@@ -314,6 +314,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             this->resetRun();
         }
     }
+//    lights[CLIPBOARD_ON_LIGHT].setBrightness(clipboardLightBrightness);
     if (!playStart) {
         return;
     }

@@ -210,7 +210,8 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
                 }
             }
             ntw->clipboard.clear();
-        }
+            ntw->setClipboardLight();
+       }
         if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
                 (span[0].isSignature() && n.notes[insertLoc].isSignature())) {
             span.clear();
@@ -419,6 +420,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         default:
             assert(0);
     }
+    ntw->setClipboardLight();
     ntw->turnOffLedButtons(this);
     ntw->setWheelRange();  // if state is single, set to horz from -1 to size
 }
@@ -427,6 +429,7 @@ void SelectButton::setExtend() {
     state = State::extend;
     af = 1;
     ledOn = true;
+    ntw()->setClipboardLight();
 }
 
 void SelectButton::setOff() {
@@ -434,6 +437,7 @@ void SelectButton::setOff() {
     state = State::ledOff;
     af = 0;
     ledOn = false;
+    ntw()->setClipboardLight();
 }
 
 void SelectButton::setSingle() {
@@ -444,6 +448,7 @@ void SelectButton::setSingle() {
     state = State::single;
     af = 1;
     ledOn = true;
+    ntw->setClipboardLight();
 }
 
 void SustainButton::onDragEnd(const event::DragEnd& e) {

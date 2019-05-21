@@ -65,7 +65,7 @@ struct NoteTakerWidget : ModuleWidget {
     void debugDump(bool validatable = true, bool inWheel = false) const;
     void enableInsertSignature(unsigned loc);
     void eraseNotes(unsigned start, unsigned end);
-    bool extractClipboard(vector<DisplayNote>* span) const;
+    bool extractClipboard(vector<DisplayNote>* span = nullptr) const;
     void fromJson(json_t* rootJ) override;
     unsigned horizontalCount() const;
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
@@ -100,6 +100,7 @@ struct NoteTakerWidget : ModuleWidget {
     void resetState();
     bool runningWithButtonsOff() const;
     void saveScore();
+    void setClipboardLight();
     void setHorizontalWheelRange();
     void setSelectableScoreEmpty();
     void setVerticalWheelRange();

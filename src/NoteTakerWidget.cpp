@@ -6,6 +6,39 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTakerWidget.hpp"
 
+struct ClipboardLabel : Widget {
+    NoteTakerWidget* mainWidget;
+
+    ClipboardLabel(NoteTakerWidget* _ntw, Vec& displayPos, Vec& displaySize)
+        : mainWidget(_ntw) {
+        this->box.pos = displayPos;
+        this->box.size = displaySize;
+    }
+
+    void draw(const DrawArgs& args) override {
+        NVGcontext* vg = args.vg;
+        nvgFontFaceId(vg, ntw()->musicFont());
+        nvgFillColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
+        nvgFontSize(vg, 32);
+        nvgText(vg, 0, 0, "/", NULL);
+    }
+
+    NoteTakerWidget* ntw() {
+        return mainWidget;
+    }
+};
+
+struct ClipboardLight : GrayModuleLightWidget {
+	ClipboardLight() {
+		addBaseColor(nvgRGB(0xF7, 0x37, 0x17));
+	}
+
+    void draw(const DrawArgs& args) override {
+        DEBUG("clipboard light");
+        GrayModuleLightWidget::draw(args);
+    }
+};
+
 struct DisplayBevel : Widget {
     const float bevel = -2;
 
@@ -79,6 +112,11 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
     display = displayBuffer->getFirstDescendantOfType<NoteTakerDisplay>();
     assert(display);
     panel->addChild(new DisplayBevel(displayPos, displaySize));
+    Vec clipboardPos = Vec(RACK_GRID_WIDTH * 1.25f, RACK_GRID_WIDTH * 12.5f);
+    Vec clipboardSize = Vec(16, 24);
+    panel->addChild(new ClipboardLabel(this, clipboardPos, clipboardSize));
+    this->addChild(createLight<SmallLight<ClipboardLight>>(Vec(RACK_GRID_WIDTH * 1.25f + 16,
+            RACK_GRID_WIDTH * 11.8f), module, NoteTaker::CLIPBOARD_ON_LIGHT));
     Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
     Vec hWheelSize = Vec(100, 23);
     addWheel(hWheelSize, (horizontalWheel = createParam<HorizontalWheel>(
@@ -159,6 +197,7 @@ void NoteTakerWidget::copyNotes() {
         clipboard.assign(n.notes.begin() + start, n.notes.begin() + n.selectEnd);
     }
     clipboardInvalid = false;
+    this->setClipboardLight();
 }
 
 void NoteTakerWidget::copySelectableNotes() {
@@ -174,6 +213,7 @@ void NoteTakerWidget::copySelectableNotes() {
         }
     }
     clipboardInvalid = false;
+    this->setClipboardLight();
 }
 
 void NoteTakerWidget::enableInsertSignature(unsigned loc) {
@@ -226,9 +266,11 @@ bool NoteTakerWidget::extractClipboard(vector<DisplayNote>* span) const {
     if (!mono && locked) {
         return false;
     }
-    *span = clipboard;
-    if (locked) {
-        NoteTaker::MapChannel(*span, this->unlockedChannel()); 
+    if (span) {
+        *span = clipboard;
+        if (locked) {
+            NoteTaker::MapChannel(*span, this->unlockedChannel()); 
+        }
     }
     return true;
 }
@@ -545,6 +587,7 @@ void NoteTakerWidget::resetRun() {
 
 void NoteTakerWidget::resetState() {
     clipboard.clear();
+    this->setClipboardLight();
     display->resetXAxisOffset();
     selectChannels = ALL_CHANNELS;
     this->resetControls();
@@ -564,6 +607,14 @@ void NoteTakerWidget::saveScore() {
     NoteTakerMakeMidi midiMaker;
     midiMaker.createFromNotes(*this->nt(), dest);
     this->writeStorage(index);
+}
+
+void NoteTakerWidget::setClipboardLight() {
+    bool ledOn = !clipboard.empty() && this->extractClipboard();
+    float clipboardLightBrightness =
+            ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
+    nt()->lights[NoteTaker::CLIPBOARD_ON_LIGHT].setBrightness(
+            clipboardLightBrightness);
 }
 
 void NoteTakerWidget::setSelectableScoreEmpty() {
