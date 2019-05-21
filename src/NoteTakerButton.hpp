@@ -42,7 +42,7 @@ struct NoteTakerButton : ParamWidget {
         }
         ledOn = json_boolean_value(json_object_get(root, "ledOn"));
         af = ledOn ? 1 : 0;
-    }
+}
 
     NoteTakerWidget* ntw() {
         return mainWidget;
@@ -82,6 +82,7 @@ struct NoteTakerButton : ParamWidget {
     virtual void onTurnOff() {
         ledOn = false;
         af = 0;
+        fb()->dirty = true;
     }
 
     void reset() override {

@@ -215,7 +215,9 @@ struct NoteTaker : Module {
     void resetRun();
     void resetState();
 
-    void setScoreEmpty();
+    void setClipboardLight(float brightness) {
+        lights[CLIPBOARD_ON_LIGHT].setBrightness(brightness);
+    }
 
     void setGateLow(const DisplayNote& note) {
         auto& chan = channels[note.channel];
@@ -264,6 +266,7 @@ struct NoteTaker : Module {
     }
 
     void setPlayStart();
+    void setScoreEmpty();
     void setSelect(unsigned start, unsigned end);
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);

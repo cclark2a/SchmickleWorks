@@ -34,8 +34,8 @@ struct ClipboardLight : GrayModuleLightWidget {
 	}
 
     void draw(const DrawArgs& args) override {
-        DEBUG("clipboard light");
         GrayModuleLightWidget::draw(args);
+        this->drawHalo(args);   // draw extra halo to make it more pronounced
     }
 };
 
@@ -611,10 +611,8 @@ void NoteTakerWidget::saveScore() {
 
 void NoteTakerWidget::setClipboardLight() {
     bool ledOn = !clipboard.empty() && this->extractClipboard();
-    float clipboardLightBrightness =
-            ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
-    nt()->lights[NoteTaker::CLIPBOARD_ON_LIGHT].setBrightness(
-            clipboardLightBrightness);
+    float brightness = ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
+    nt()->setClipboardLight(brightness);
 }
 
 void NoteTakerWidget::setSelectableScoreEmpty() {

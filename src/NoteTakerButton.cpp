@@ -215,7 +215,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
                 (span[0].isSignature() && n.notes[insertLoc].isSignature())) {
             span.clear();
-            if (nt->debugVerbose) { DEBUG("insert button : none selectable"); ntw->debugDump(); }
+            if (nt->debugVerbose) { DEBUG("insert button : none selectable"); ntw->debugDump(false, true); }
             for (unsigned index = iStart; index < n.notes.size(); ++index) {
                 const auto& note = n.notes[index];
                 if (NOTE_ON == note.type && ntw->isSelectable(note)) {
@@ -252,7 +252,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
                 insertLoc, insertSize, shiftTime, n.selectStart, n.selectEnd);
         ntw->display->invalidateCache();
-        if (nt->debugVerbose) ntw->debugDump(false);
+        if (nt->debugVerbose) ntw->debugDump(false, true);
     }
     ntw->selectButton->setOff();
     ntw->insertFinal(shiftTime, insertLoc, insertSize);
@@ -429,6 +429,7 @@ void SelectButton::setExtend() {
     state = State::extend;
     af = 1;
     ledOn = true;
+    fb()->dirty = true;
     ntw()->setClipboardLight();
 }
 
@@ -437,6 +438,7 @@ void SelectButton::setOff() {
     state = State::ledOff;
     af = 0;
     ledOn = false;
+    fb()->dirty = true;
     ntw()->setClipboardLight();
 }
 
@@ -448,6 +450,7 @@ void SelectButton::setSingle() {
     state = State::single;
     af = 1;
     ledOn = true;
+    fb()->dirty = true;
     ntw->setClipboardLight();
 }
 
