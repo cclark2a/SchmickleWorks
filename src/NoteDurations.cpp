@@ -36,10 +36,9 @@ int NoteDurations::Beams(unsigned index) {
     return beams[index];
 }
 
-// to do : rename
 // this doesn't return the closest, but returns equal or smaller
 // so that parts of tied notes are not larger than the total
-int NoteDurations::Closest(int midi, int ppq) {
+int NoteDurations::LtOrEq(int midi, int ppq) {
     return ToMidi(FromMidi(midi, ppq), ppq);
 }
 
@@ -51,8 +50,12 @@ unsigned NoteDurations::FromMidi(int midi, int ppq) {
     return FromStd(InStd(midi, ppq));
 }
 
-    // to do : make this more efficient
 unsigned NoteDurations::FromStd(int duration) {
+    auto iter = std::lower_bound(noteDurations.begin(), noteDurations.end(), duration);
+    return iter != noteDurations.end() && !(duration < *iter) ? 
+            iter - noteDurations.begin() : noteDurations.size() - 1;
+#if 0
+    // to do : make this more efficient
     for (unsigned i = 0; i < noteDurations.size(); ++i) {
         if (duration == noteDurations[i]) {
             return i;
@@ -62,6 +65,7 @@ unsigned NoteDurations::FromStd(int duration) {
         }
     }
     return noteDurations.size() - 1;
+#endif
 }
 
 int NoteDurations::ToMidi(unsigned index, int ppq) {

@@ -412,12 +412,12 @@ void NoteTakerWidget::makeTuplet() {
     int smallest = NoteDurations::ToMidi(NoteDurations::Count() - 1, n.ppq);
     int beats = 0;
     auto addBeat = [&](int duration) {
-        if (NoteDurations::Closest(duration, n.ppq) != duration) {
+        if (NoteDurations::LtOrEq(duration, n.ppq) != duration) {
             DEBUG("can't tuple nonstandard duration %d ppq %d", duration, n.ppq);
             return false;
         }
         int divisor = (int) gcd(smallest, duration);
-        if (NoteDurations::Closest(divisor, n.ppq) != divisor) {
+        if (NoteDurations::LtOrEq(divisor, n.ppq) != divisor) {
             DEBUG("can't tuple gcd: smallest %d divisor %d ppq %d", smallest, divisor, n.ppq);
             return false;
         }

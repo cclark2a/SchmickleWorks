@@ -483,7 +483,7 @@ int NoteTakerParseMidi::safeMidi_size8(vector<uint8_t>::const_iterator& limit,
     // if value is not well-formed, add a zero byte
     if (!Midi_Size8(limit, iter, &value) && iter[-1] & 0x80) {
         value <<= 7;
-        value = NoteDurations::Closest(value, ppq);
+        value = NoteDurations::LtOrEq(value, ppq);
     }
     return value;
 }

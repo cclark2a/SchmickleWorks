@@ -39,7 +39,7 @@ constexpr unsigned CV_OUTPUTS = 4;
 
 struct NoteDurations {
     static int Beams(unsigned index);
-    static int Closest(int midi, int ppq);
+    static int LtOrEq(int midi, int ppq);
     static unsigned Count();
     static unsigned FromMidi(int midi, int ppq);
     static unsigned FromStd(int duration);

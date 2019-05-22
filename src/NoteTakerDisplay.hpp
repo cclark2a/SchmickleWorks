@@ -265,7 +265,7 @@ struct NoteTakerDisplay : Widget {
    static unsigned TiedCount(int barDuration, int duration, int ppq) {
         unsigned count = 0;
         do {
-            duration -= NoteDurations::Closest(std::min(barDuration, duration), ppq);
+            duration -= NoteDurations::LtOrEq(std::min(barDuration, duration), ppq);
             ++count;
         } while (duration > NoteDurations::ToMidi(0, ppq));
         return count;

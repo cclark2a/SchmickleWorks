@@ -68,7 +68,7 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq) {
     int inTsStartTime = note.startTime - tsStart;
     int startBar = inTsStartTime / duration;
     int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
-    int endBar = (inTsEndTime - 1) / duration;
+    int endBar = inTsEndTime / duration;
     if (startBar == endBar) {
         return 1;
     }
@@ -77,7 +77,7 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq) {
     assert(0 <= trailer);
     if (trailer >= duration) {
         DEBUG("notesTied trailer %d duration %d inTsEndTime %d endBar %d inTsStartTime %d"
-                " startBar %de leader %d",
+                " startBar %d leader %d",
                 trailer, duration, inTsEndTime, endBar, inTsStartTime, startBar, leader);
         DEBUG("note %s", note.debugString().c_str());
     }
@@ -1574,7 +1574,7 @@ void NoteTakerDisplay::setCacheDuration() {
                     tiePart.vStartTime = tieTime;
                     tiePart.channel = note.channel;
                     tiePart.tiePosition = accidentalSpace ? PositionType::left : PositionType::mid;
-                    tiePart.vDuration = NoteDurations::Closest(duration, n.ppq);
+                    tiePart.vDuration = NoteDurations::LtOrEq(duration, n.ppq);
                     tieTime += tiePart.vDuration;
                     tiePart.endsOnBeat = (bool) (tieTime % n.ppq);
                     tiePart.accidentalSpace = accidentalSpace;
