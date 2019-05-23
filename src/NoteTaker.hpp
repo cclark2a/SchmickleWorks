@@ -98,7 +98,6 @@ struct NoteTaker : Module {
     float clockOutTime = FLT_MAX;
     bool sawClockLow = false;
     bool sawResetLow = false;
-    int debugMidiCount = 0;
     bool debugVerbose = true;
 
     NoteTaker();
@@ -141,10 +140,10 @@ struct NoteTaker : Module {
     void debugDumpChannels() const {
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
             auto& chan = channels[index];
-            if (chan.noteIndex >= n.notes.size()) {
+            if (!chan.note) {
                 continue;
             }
-            DEBUG("[%d] %s", index, chan.debugString().c_str());
+            DEBUG("[%d] %s", index, chan.debugString(&n.notes.front()).c_str());
         }
     }
 
@@ -173,8 +172,6 @@ struct NoteTaker : Module {
         }    
     }
 
-    // to do : figure out how to safely delineate start and end for insertion
-    // probably don't need nextAfter and nextStartTime, both
     unsigned nextAfter(unsigned first, unsigned len) const {
         assert(len);
         unsigned start = first + len;
@@ -195,10 +192,6 @@ struct NoteTaker : Module {
         }
         assert(0);
         return INT_MAX;
-    }
-
-    unsigned noteIndex(const DisplayNote& note) const {
-        return (unsigned) (&note - &n.notes.front());
     }
 
     NoteTakerWidget* ntw() {
@@ -226,16 +219,19 @@ struct NoteTaker : Module {
     }
 
     void setExpiredGatesLow(int midiTime) {
-        // to do : remove debugging code
+    #define DEBUG_GATES 0
+    #if DEBUG_GATES
         static array<int, CHANNEL_COUNT> debugLastGateLow {-1, -1, -1, -1};
         static array<int, CHANNEL_COUNT> debugLastNoteEnd {-1, -1, -1, -1};
         static array<int, CHANNEL_COUNT> debugCount {-1, -1, -1, -1};
         static int debugMidiTime = -1;
+    #endif
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto& chan = channels[channel];
             if (!chan.noteEnd) {
                 continue;
             }
+    #if DEBUG_GATES
             if ((chan.gateLow && chan.gateLow < midiTime)
                     || chan.noteEnd < midiTime) {
                 if (debugLastGateLow[channel] != chan.gateLow
@@ -244,14 +240,16 @@ struct NoteTaker : Module {
                         || debugCount[channel] > 500) {
                     debugLastGateLow[channel] = chan.gateLow;
                     debugLastNoteEnd[channel] = chan.noteEnd;
-                    if (false) DEBUG("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
-                            channel, chan.gateLow, chan.noteEnd, chan.noteIndex, midiTime);
+                    DEBUG("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
+                            channel, chan.gateLow, chan.noteEnd, 
+                            chan.noteIndex - &n.notes.front(), midiTime);
                     debugCount[channel] = 0;
                 } else {
                     ++debugCount[channel];
                 }
                 debugMidiTime = midiTime;
             }
+    #endif
             if (chan.gateLow && chan.gateLow < midiTime) {
                 chan.gateLow = 0;
                 if (channel < CV_OUTPUTS) {
@@ -317,7 +315,7 @@ struct NoteTaker : Module {
     void zeroGates() {
         if (debugVerbose) DEBUG("zero gates");
         for (auto& channel : channels) {
-            channel.noteIndex = INT_MAX;
+            channel.note = nullptr;
             channel.gateLow = channel.noteEnd = 0;
         }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {

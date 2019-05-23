@@ -2,6 +2,8 @@
 
 #include "SchmickleWorks.hpp"
 
+struct DisplayNote;
+
 // per cv/gate info
 
 // if note is shorter than sustainMax + releaseMax, releaseMax takes precedence
@@ -21,7 +23,7 @@ struct NoteTakerChannel {
     int sustainMin;  // midi time for smallest interval gate goes high
     int sustainMax;
     // written by step:
-    unsigned noteIndex; // the note currently playing on this channel  // to do : change this to pointer?
+    const DisplayNote* note;  // the note currently playing on this channel
     int gateLow;        // midi time when gate goes low (start + sustain)
     int noteEnd;        // midi time when note expires (start + duration)
 
@@ -29,7 +31,7 @@ struct NoteTakerChannel {
         this->reset();
     }
 
-    std::string debugString() const;
+    std::string debugString(const DisplayNote* base) const;
 
     static int DefaultLimit(Limit limit) {
          switch (limit) {
@@ -73,7 +75,7 @@ struct NoteTakerChannel {
         releaseMin = DefaultLimit(Limit::releaseMin);
         sustainMin = DefaultLimit(Limit::sustainMin);
         sustainMax = DefaultLimit(Limit::sustainMax);
-        noteIndex = INT_MAX;
+        note = nullptr;
         gateLow = noteEnd = 0;
     }
 

@@ -7,9 +7,6 @@ struct NoteTaker;
 struct NoteTakerButton;
 struct NoteTakerWidget;
 
-// to do : turn off led buttons as needed : 
-// e.g., partButton and fileButton are exclusive
-
 struct ButtonBuffer : Widget {
     NoteTakerWidget* mainWidget = nullptr;
 	FramebufferWidget* fb = nullptr;
@@ -21,7 +18,7 @@ struct ButtonBuffer : Widget {
     }
 };
 
-struct NoteTakerButton : ParamWidget {
+struct NoteTakerButton : Switch {
     NoteTakerWidget* mainWidget;
     int af = 0;  // animation frame, 0 to 1
     bool hasLed = false;
@@ -41,7 +38,7 @@ struct NoteTakerButton : ParamWidget {
             return;
         }
         ledOn = json_boolean_value(json_object_get(root, "ledOn"));
-        af = ledOn ? 1 : 0;
+        af = (int) ledOn;
 }
 
     NoteTakerWidget* ntw() {
@@ -52,22 +49,24 @@ struct NoteTakerButton : ParamWidget {
         return mainWidget;
     }
 
+    void onDoubleClick(const event::DoubleClick& ) override {
+    }
+
     void onDragStart(const event::DragStart &e) override {
+        DEBUG("onDragStart af %d ledOn %d", af, ledOn);
         if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
             return;
         }
+        af = hasLed ? (int) !ledOn : 1;
         auto framebuffer = this->fb();
         if (framebuffer) {
             framebuffer->dirty = true;
         }
-        if (hasLed) {
-            af = af ? 0 : 1;
-        } else {
-            af = 1;
-        }
+        DEBUG("onDragStart end af %d ledOn %d", af, ledOn);
     }
 
     void onDragEnd(const event::DragEnd &e) override {
+        DEBUG("onDragEnd af %d ledOn %d", af, ledOn);
         auto framebuffer = this->fb();
         if (framebuffer) {
             framebuffer->dirty = true;
@@ -283,13 +282,11 @@ struct RestButton : AdderButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
-// to do : consider allowing quick on/off to advance to next note in selection
 struct RunButton : NoteTakerButton {
     RunButton() {
         hasLed = true;
     }
 
-    // to do : make a run button that depresses
     void draw(const DrawArgs& args) override {
         auto vg = args.vg;
         // draw shadow

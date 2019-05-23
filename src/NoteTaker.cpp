@@ -28,12 +28,6 @@ int Notes::xPosAtStartStart(const NoteTakerDisplay* display) const {
     return notes[selectStart].cache->xPosition;
 }
 
-// to do:
-	// For more advanced Module features, read Rack's engine.hpp header file
-	// - onSampleRateChange: event triggered by a change of sample rate
-	// - onReset, onRandomize, onCreate, onDelete: implements special behavior
-    //   when user clicks these from the context menu
-
 NoteTaker::NoteTaker() {
     this->config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 }
@@ -119,7 +113,6 @@ void NoteTaker::playSelection() {
 
 void NoteTaker::onReset() {
     this->resetState();
-    // to do : figure out whether these should be in module or main widget
     mainWidget->readStorage();
     Module::onReset();
 }
@@ -154,7 +147,6 @@ void NoteTaker::resetRun() {
     this->setPlayStart();
 }
 
-// to do : could optimize with binary search
 void NoteTaker::setPlayStart() {
     playStart = 0;
     if (!n.notes.size()) {
@@ -314,7 +306,6 @@ void NoteTaker::process(const ProcessArgs &args) {
             this->resetRun();
         }
     }
-//    lights[CLIPBOARD_ON_LIGHT].setBrightness(clipboardLightBrightness);
     if (!playStart) {
         return;
     }
@@ -322,9 +313,6 @@ void NoteTaker::process(const ProcessArgs &args) {
     // note on event start changes cv and sets gate high
     // note on event duration sets gate low
     int midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
-    if (false && running && ++debugMidiCount < 100) {
-        DEBUG("midiTime %d elapsedSeconds %g playStart %u", midiTime, elapsedSeconds, playStart);
-    }
     elapsedSeconds += args.sampleTime * this->beatsPerHalfSecond(localTempo);
     if (midiTime >= midiClockOut) {
         midiClockOut += n.ppq;
@@ -336,7 +324,7 @@ void NoteTaker::process(const ProcessArgs &args) {
     if (this->advancePlayStart(midiTime, lastNote)) {
         playStart = 0;
         if (running) {
-            // to do : add option to stop running
+            // to do : add option to stop running (waiting for feature req. / design inspiration)
             ntw()->display->resetXAxisOffset();
             this->resetRun();
             outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
@@ -362,20 +350,20 @@ void NoteTaker::process(const ProcessArgs &args) {
             continue;
         }
         auto& channelInfo = channels[note.channel];
-        unsigned noteIndex = this->noteIndex(note);
-        if (noteIndex == channelInfo.noteIndex) {
+        if (&note == channelInfo.note) {
             if (midiTime < channelInfo.noteEnd) {
                 continue;
             }
         } else {
-            unsigned prior = channelInfo.noteIndex;
+            auto prior = channelInfo.note;
             channelInfo.gateLow = note.slur() && start < lastNote ? INT_MAX : 
                     note.startTime + channelInfo.sustain(note.duration);
             channelInfo.noteEnd = endTime;
-            channelInfo.noteIndex = noteIndex;
+            channelInfo.note = &note;
             if (note.channel < CV_OUTPUTS) {
-                if (true) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d old %g",
-                        note.channel, channelInfo.gateLow, channelInfo.noteEnd, channelInfo.noteIndex,
+                if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d old %g",
+                        note.channel, channelInfo.gateLow, channelInfo.noteEnd, 
+                        channelInfo.note - &n.notes.front(),
                         prior, midiTime, outputs[GATE1_OUTPUT + note.channel].value);
                 outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
             }
@@ -391,7 +379,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                 bias += inputs[V_OCT_INPUT].value;
                 bias += ((int) verticalWheel->getValue() - 60) / 12.f;
             }
-            if (true) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
+            if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
                 note.channel, bias,
                 inputs[V_OCT_INPUT].value, verticalWheel->getValue(),
                 note.pitch() / 12.f, bias + note.pitch() / 12.f,
@@ -401,6 +389,8 @@ void NoteTaker::process(const ProcessArgs &args) {
     }
     if (running) {
         // to do : don't write to same state in different threads
+        // not sure how to enforce this, but the gist is that here is only written to
+        // while running; everywhere else is only written to while not running
         if (INT_MAX != sStart && n.selectStart != sStart) {
             (void) this->setSelectStart(sStart);
         }

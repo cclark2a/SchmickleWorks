@@ -113,7 +113,6 @@ void EditButton::onDragStart(const event::DragStart& e) {
     if (ntw->runButton->ledOn) {
         return;
     }
-    ntw->runButton->ledOn = false;
     NoteTakerButton::onDragStart(e);
 }
 
@@ -348,14 +347,13 @@ void RestButton::onDragEnd(const event::DragEnd& e) {
 }
 
 void RunButton::onDragEnd(const event::DragEnd& e) {
+    NoteTakerButton::onDragEnd(e);
     auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto& n = nt->n;
-    nt->debugMidiCount = 0;
-    NoteTakerButton::onDragEnd(e);
     if (!ledOn) {
         nt->zeroGates();
     } else {
+        auto& n = nt->n;
         nt->resetRun();
         ntw->display->setRange();
         unsigned next = nt->nextAfter(n.selectStart, 1);
@@ -368,6 +366,7 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     if (!ntw->menuButtonOn()) {
         ntw->setWheelRange();
     }
+    DEBUG("onDragEnd end af %d ledOn %d", af, ledOn);
 }
 
 void SelectButton::draw(const DrawArgs& args) {

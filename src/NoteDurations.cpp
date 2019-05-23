@@ -52,20 +52,7 @@ unsigned NoteDurations::FromMidi(int midi, int ppq) {
 
 unsigned NoteDurations::FromStd(int duration) {
     auto iter = std::lower_bound(noteDurations.begin(), noteDurations.end(), duration);
-    return iter != noteDurations.end() && !(duration < *iter) ? 
-            iter - noteDurations.begin() : noteDurations.size() - 1;
-#if 0
-    // to do : make this more efficient
-    for (unsigned i = 0; i < noteDurations.size(); ++i) {
-        if (duration == noteDurations[i]) {
-            return i;
-        }
-        if (duration < noteDurations[i]) {
-            return i ? i - 1 : 0;   // return next smallest
-        }
-    }
-    return noteDurations.size() - 1;
-#endif
+    return iter == noteDurations.end() ? 0 : iter - noteDurations.begin();
 }
 
 int NoteDurations::ToMidi(unsigned index, int ppq) {

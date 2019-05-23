@@ -672,7 +672,7 @@ unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
     for (auto& note : n.notes) {
         if (this->isSelectable(note) && lastStart != note.startTime) {
             if (--count < 0) {
-                return nt()->noteIndex(note);
+                return &note - &n.notes.front();
             }
             if (note.isNoteOrRest()) {
                 lastStart = note.startTime;

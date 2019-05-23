@@ -21,6 +21,11 @@ enum Accidental : uint8_t {
     NATURAL_ACCIDENTAL,
 };
 
+struct PosAdjust {
+    float x;
+    int time;
+};
+
 // map midi note for C major to drawable position
 struct StaffNote {
     uint8_t position;  // 0 == G9, 38 == middle C (C4), 74 == C-1
@@ -271,6 +276,8 @@ struct NoteTakerDisplay : Widget {
         return count;
     }
 
+    float timeSignatureWidth(const DisplayNote& note) const;
+
     json_t *toJson() const {
         json_t* root = json_object();
         json_object_set_new(root, "displayStart", json_integer(displayStart));
@@ -280,6 +287,7 @@ struct NoteTakerDisplay : Widget {
         return root;
     }
 
+    void trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime);
     void updateRange();
     void updateXPosition();
     void _updateXPosition();  // in progress replacement

@@ -268,13 +268,13 @@ void Notes::validate() const {
     }
 }
 
-std::string NoteTakerChannel::debugString() const {
+std::string NoteTakerChannel::debugString(const DisplayNote* noteBase) const {
     std::string s;    
     s =   "relMax " + std::to_string(releaseMax);
     s += " relMin " + std::to_string(releaseMin);
     s += " susMin " + std::to_string(sustainMin);
     s += " susMax " + std::to_string(sustainMax);
-    s += " noteIdx " + std::to_string(noteIndex);
+    s += " noteIdx " + std::to_string(note - noteBase);
     s += " gateLow " + std::to_string(gateLow);
     s += " noteEnd " + std::to_string(noteEnd);
     return s;
