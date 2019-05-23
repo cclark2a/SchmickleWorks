@@ -35,29 +35,25 @@ struct BeamPositions {
 };
 
 void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
-    if (INT_MAX == duration) {
-        return;
-    }
-    int barCount = (noteCache.vStartTime - tsStart) / duration + priorBars;
-    if (barCount) {
-        pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
-        if (false) DEBUG("addPos [%d] xMin %g xPos %d", barCount, pos[barCount].xMin, noteCache.xPosition);
-    }
+    bool hasDuration = INT_MAX != duration;
+    int barCount = hasDuration ? (noteCache.vStartTime - tsStart) / duration + priorBars : 0;
+    pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
+    if (debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d", barCount, pos[barCount].xMin, noteCache.xPosition);
     // note the adds duration less one to round up
-    barCount = (noteCache.vEndTime() - tsStart + duration - 1) / duration + priorBars;  // rounds up
-    if (barCount) {
-        pos[barCount].xMax = std::max(pos[barCount].xMax, noteCache.xPosition + cacheWidth);
-        if (false) DEBUG("addPos [%d] xMax %g xPos %d width %g", barCount, pos[barCount].xMax,
-                noteCache.xPosition, cacheWidth);
-    }
+    barCount = hasDuration ? 
+            (noteCache.vEndTime() - tsStart + duration - 1) / duration + priorBars : 1;  // rounds up
+    pos[barCount].xMax = std::max(pos[barCount].xMax, noteCache.xPosition + cacheWidth);
+    if (debugVerbose) DEBUG("addPos [%d] xMax %g xPos %d width %g", barCount, pos[barCount].xMax,
+            noteCache.xPosition, cacheWidth);
 }
 
-void BarPosition::init() {
+void BarPosition::init(NoteTakerWidget* ntw) {
     pos.clear();
     priorBars = 0;
     duration = INT_MAX;
     midiEnd = INT_MAX;
     tsStart = INT_MAX;
+    debugVerbose = ntw->debugVerbose;
 }
 
 int BarPosition::notesTied(const DisplayNote& note, int ppq) {
@@ -76,10 +72,10 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq) {
     int trailer = inTsEndTime - endBar * duration;
     assert(0 <= trailer);
     if (trailer >= duration) {
-        DEBUG("notesTied trailer %d duration %d inTsEndTime %d endBar %d inTsStartTime %d"
+        if (debugVerbose) DEBUG("notesTied trailer %d duration %d inTsEndTime %d endBar %d inTsStartTime %d"
                 " startBar %d leader %d",
                 trailer, duration, inTsEndTime, endBar, inTsStartTime, startBar, leader);
-        DEBUG("note %s", note.debugString().c_str());
+        if (debugVerbose) DEBUG("note %s", note.debugString().c_str());
     }
     assert(trailer < duration);
     int result = NoteTakerDisplay::TiedCount(duration, leader, ppq);
@@ -104,8 +100,8 @@ int BarPosition::resetSignatureStart(const DisplayNote& note, float barWidth) {
 }
 
 const int CLEF_WIDTH = 96;
-const int TIME_SIGNATURE_WIDTH = 48;
-const float MIN_KEY_SIGNATURE_WIDTH = 4;
+const int TIME_SIGNATURE_GAP = 12;
+const float MIN_KEY_SIGNATURE_WIDTH = 16;
 const int TEMPO_WIDTH = 4;
 // key signature width is variable, from 0 (C) to ACCIDENTAL_WIDTH*14+18
 // (C# to Cb, 7 naturals, 7 flats, space for 2 bars)
@@ -277,12 +273,13 @@ void NoteTakerDisplay::cacheBeams() {
     for (auto beamStart : beamStarts) {
         if (INT_MAX != beamStart) {
             this->closeBeam(beamStart, cache.size());
-            DEBUG("beam unmatched %s", cache[beamStart].note->debugString().c_str());
+            if (ntw()->debugVerbose) DEBUG("beam unmatched %s", cache[beamStart].note->debugString().c_str());
         }
     }
 }
 
 void NoteTakerDisplay::cacheSlurs() {
+    auto ntw = this->ntw();
     array<unsigned, CHANNEL_COUNT> slurStarts;
     slurStarts.fill(INT_MAX);
     for (unsigned cacheIndex = 0; cacheIndex < cache.size(); ++cacheIndex) {
@@ -296,12 +293,12 @@ void NoteTakerDisplay::cacheSlurs() {
         if (INT_MAX != slurStart) {
             if (!note->slur()) {
                 this->closeSlur(slurStart, cacheIndex);
-                DEBUG("set slur close %s", cache[slurStart].note->debugString().c_str());
+                if (ntw->debugVerbose) DEBUG("set slur close %s", cache[slurStart].note->debugString().c_str());
                 slurStart = INT_MAX;
             } else {
                 noteCache.slurPosition = PositionType::mid;
                 checkForStart = false;
-                DEBUG("set slur mid %s", note->debugString().c_str());
+                if (ntw->debugVerbose) DEBUG("set slur mid %s", note->debugString().c_str());
             }
         }
         if (checkForStart && note->slur()) {
@@ -309,13 +306,13 @@ void NoteTakerDisplay::cacheSlurs() {
             if (PositionType::none == noteCache.slurPosition) {
                 noteCache.slurPosition = PositionType::left;
             }
-            DEBUG("set slur left %s", note->debugString().c_str());
+            if (ntw->debugVerbose) DEBUG("set slur left %s", note->debugString().c_str());
         }
     }
     for (auto slurStart : slurStarts) {
         if (INT_MAX != slurStart) {
             this->closeSlur(slurStart, cache.size());
-            DEBUG("slur unmatched %s", cache[slurStart].note->debugString().c_str());
+            if (ntw->debugVerbose) DEBUG("slur unmatched %s", cache[slurStart].note->debugString().c_str());
         }
     }
 }
@@ -344,6 +341,7 @@ void NoteTakerDisplay::cacheTuplets() {
     for (unsigned index = 0; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
         if (!note.isNoteOrRest()) {
+            tripStarts.fill(INT_MAX);
             continue;
         }
         unsigned& tripStart = tripStarts[note.channel];
@@ -428,7 +426,7 @@ void NoteTakerDisplay::closeBeam(unsigned first, unsigned limit) {
         }
     }
     cache[last].beamPosition = last == first ? PositionType::none : PositionType::right;
-    DEBUG("close beam first %d last %d pos %u", first, last, cache[last].beamPosition);
+    if (ntw()->debugVerbose) DEBUG("close beam first %d last %d pos %u", first, last, cache[last].beamPosition);
 }
 
 void NoteTakerDisplay::closeSlur(unsigned first, unsigned limit) {
@@ -445,7 +443,7 @@ void NoteTakerDisplay::closeSlur(unsigned first, unsigned limit) {
         }
     }
     cache[last].slurPosition = last == first ? PositionType::none : PositionType::right;
-    DEBUG("close slur first %d last %d pos %u", first, last, cache[last].slurPosition);
+    if (ntw()->debugVerbose) DEBUG("close slur first %d last %d pos %u", first, last, cache[last].slurPosition);
 }
 
 void NoteTakerDisplay::drawBarAt(int xPos) {
@@ -489,17 +487,18 @@ void NoteTakerDisplay::drawBarRest(BarPosition& bar, const NoteCache& noteCache,
     nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgText(vg, xPos, yPos, restSymbols[noteCache.symbol], nullptr);
+    bar.addPos(noteCache, this->cacheWidth(noteCache));
 }
 
 // if note crosses bar, should have recorded bar position when drawn as tied notes
 void NoteTakerDisplay::drawBars() {
     for (const auto& p : bar.pos) {
-        if (!p.second.useMax && p.second.xMax > p.second.xMin) {
+        if (-FLT_MAX == p.second.xMax || (!p.second.useMax && FLT_MAX == p.second.xMin)) {
             continue;
         }
         this->drawBarAt(p.second.useMax ? p.second.xMax : (p.second.xMin + p.second.xMax) / 2);
-        if (false) DEBUG("[%d] drawBars min %g max %g useMax %d", p.first, p.second.xMin, p.second.xMax,
-                p.second.useMax);
+        if (ntw()->debugVerbose) DEBUG("[%d] drawBars min %g max %g useMax %d",
+                p.first, p.second.xMin, p.second.xMax, p.second.useMax);
     }
 }
 
@@ -535,7 +534,7 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
         while (++index < cache.size() && chan != cache[index].channel)
             ;
         if (index == cache.size()) {
-            DEBUG("drawBeam found unbalanced beam");
+            if (ntw()->debugVerbose) DEBUG("drawBeam found unbalanced beam");
             assert(0);
             return;
         }
@@ -733,7 +732,8 @@ void NoteTakerDisplay::drawNotes() {
                 nvgFillColor(vg, nvgRGBA(0, 0, 0, 0xFF));
                 std::string numerator = std::to_string(note.numerator());
                 nvgTextAlign(vg, NVG_ALIGN_CENTER);
-                int xPos = noteCache.xPosition + width / 2;
+                int xPos = noteCache.xPosition + width / 2
+                        + TIME_SIGNATURE_GAP * xAxisScale / 2;
                 nvgText(vg, xPos, 32 * 3 - 49, numerator.c_str(), NULL);
                 nvgText(vg, xPos, 44 * 3 - 49, numerator.c_str(), NULL);
                 std::string denominator = std::to_string(1 << note.denominator());
@@ -748,7 +748,7 @@ void NoteTakerDisplay::drawNotes() {
             case TRACK_END:
             break;
             default:
-                DEBUG("to do: add type %d\n", note.type);
+                if (ntw->debugVerbose) DEBUG("to do: add type %d\n", note.type);
                 assert(0); // incomplete
         }
     }
@@ -760,7 +760,8 @@ void NoteTakerDisplay::drawSelectionRect() {
     const auto& n = *this->notes();
     unsigned start = n.selectEndPos(n.selectStart);
     auto& startNote = n.notes[start];
-    int xStart = startNote.cache->xPosition - 10;
+    auto noteCache = startNote.cache;
+    int xStart = noteCache->xPosition - (noteCache->accidentalSpace ? 10 : 2);
     int width = 4;
     int yTop = 0;
     int yHeight = box.size.y;
@@ -789,11 +790,11 @@ void NoteTakerDisplay::drawSelectionRect() {
             yHeight = 13;
         }
         if (n.selectEnd > 0) {
-            auto& selStartNote = n.notes[n.selectStart];
-            xStart = selStartNote.cache->xPosition - 8;
+            auto startCache = n.notes[n.selectStart].cache;
+            xStart = startCache->xPosition - (startCache->accidentalSpace ? 8 : 0);
             unsigned selEndPos = n.selectEndPos(n.selectEnd - 1);
-            auto& selEndNote = n.notes[selEndPos];
-            width = selEndNote.cache->xPosition - xStart;
+            auto endCache = n.notes[selEndPos].cache;
+            width = endCache->xPosition - (endCache->accidentalSpace ? 8 : 0) - xStart;
         }
     }
     nvgBeginPath(vg);
@@ -864,7 +865,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     this->scroll();
     this->drawClefs();
     this->drawSelectionRect();
-    bar.init();
+    bar.init(ntw);
     this->setUpAccidentals();
     this->drawNotes();
     this->drawBars();
@@ -1146,7 +1147,7 @@ void NoteTakerDisplay::drawTie(unsigned start, unsigned char alpha) const {
     this->setBeamPos(start, index, &bp);
     if (PositionType::right != cache[index].tiePosition
             && PositionType::mid != cache[index].tiePosition) {
-                DEBUG("** missing tie end %s", cache[start].note->debugString().c_str());
+                if (ntw()->debugVerbose) DEBUG("** missing tie end %s", cache[start].note->debugString().c_str());
             }
     SetNoteColor(vg, chan, alpha);
     this->drawArc(bp, start, index);
@@ -1561,17 +1562,17 @@ void NoteTakerDisplay::setCacheDuration() {
         if (1 == notesTied) {
             cacheEntry.vDuration = note.duration;
             cacheEntry.endsOnBeat = (bool) (note.endTime() % n.ppq);
-            cacheEntry.accidentalSpace = true;
+            cacheEntry.accidentalSpace = NOTE_ON == note.type;
         } else {
             sort = true;
             int duration = bar.leader;
             int remaining = note.duration - bar.leader;
             int tieTime = note.startTime;
-            bool accidentalSpace = true;
+            bool accidentalSpace = NOTE_ON == note.type;
             cache.pop_back();
             do {
                 do {
-                    DEBUG("add tie to %s", note.debugString().c_str());
+                    if (ntw()->debugVerbose) DEBUG("add tie to %s", note.debugString().c_str());
                     cache.emplace_back();
                     NoteCache& tiePart = cache.back();
                     tiePart.note = &note;
@@ -1580,7 +1581,7 @@ void NoteTakerDisplay::setCacheDuration() {
                     tiePart.tiePosition = accidentalSpace ? PositionType::left : PositionType::mid;
                     tiePart.vDuration = NoteDurations::LtOrEq(duration, n.ppq);
                     auto inStd = NoteDurations::InStd(duration, n.ppq);
-                    DEBUG("InStd %u FromMidi %u FromStd %u LtOrEq %d", inStd,
+                    if (ntw()->debugVerbose) DEBUG("InStd %u FromMidi %u FromStd %u LtOrEq %d", inStd,
                             NoteDurations::FromMidi(duration, n.ppq),
                             NoteDurations::FromStd(duration),
                             tiePart.vDuration);
@@ -1619,7 +1620,7 @@ void NoteTakerDisplay::setCacheDuration() {
     // check to see if things moved
     assert(n.notes.front().cache == &cache.front());
     assert(cache.front().note == &n.notes.front());
-    DEBUG("finished setCacheDuration");
+    if (ntw()->debugVerbose) DEBUG("finished setCacheDuration");
 }
 
 void NoteTakerDisplay::setKeySignature(int key) {
@@ -1646,9 +1647,9 @@ void NoteTakerDisplay::updateRange() {
     int selectWidth = selectEndXPos - selectStartXPos;
     const int boxWidth = box.size.x;
     int displayEndXPos = xAxisOffset + boxWidth;
-    DEBUG("selectStartXPos %d selectEndXPos %d xAxisOffset %d displayEndXPos %d",
+    if (ntw->debugVerbose) DEBUG("selectStartXPos %d selectEndXPos %d xAxisOffset %d displayEndXPos %d",
             selectStartXPos, selectEndXPos, xAxisOffset, displayEndXPos);
-    DEBUG("old displayStart %u displayEnd %u", displayStart, displayEnd);
+    if (ntw->debugVerbose) DEBUG("old displayStart %u displayEnd %u", displayStart, displayEnd);
     // note condition to require the first quarter note of a very long note to be visible
     const int displayQuarterNoteWidth = stdTimePerQuarterNote * xAxisScale;
     const int displayStartMargin = selectButton->editStart() ? 0 : displayQuarterNoteWidth;
@@ -1671,14 +1672,14 @@ void NoteTakerDisplay::updateRange() {
             xAxisOffset = (this->cacheWidth(*last) > boxWidth ?
                 n.xPosAtEndStart(this) :  // show beginning of end
                 selectEndXPos - boxWidth) + displayEndMargin;  // show all of end
-            DEBUG("1 xAxisOffset %g", xAxisOffset);
+            if (ntw->debugVerbose) DEBUG("1 xAxisOffset %g", xAxisOffset);
         } else if (xAxisOffset > selectStartXPos - displayStartMargin) { // left to start
             xAxisOffset = selectStartXPos - displayStartMargin;
-            DEBUG("2 xAxisOffset %g", xAxisOffset);
+            if (ntw->debugVerbose) DEBUG("2 xAxisOffset %g", xAxisOffset);
         } else {    // scroll enough to show start on right
             int selectBoxX = n.xPosAtStartEnd(this);
             xAxisOffset = selectBoxX - boxWidth + displayEndMargin;
-            DEBUG("3 xAxisOffset %g selectBoxX %d", xAxisOffset, selectBoxX);
+            if (ntw->debugVerbose) DEBUG("3 xAxisOffset %g selectBoxX %d", xAxisOffset, selectBoxX);
         }
         xAxisOffset = std::max(0.f,
                 std::min((float) lastXPostion - boxWidth, xAxisOffset));
@@ -1717,8 +1718,8 @@ void NoteTakerDisplay::updateRange() {
             }
             displayEnd = displayPrevious;
         } while (displayEnd);
-        DEBUG("displayStartXPos %d displayEndXPos %d", displayStartXPos, displayEndXPos);
-        DEBUG("displayStart %u displayEnd %u", displayStart, displayEnd);
+        if (ntw->debugVerbose) DEBUG("displayStartXPos %d displayEndXPos %d", displayStartXPos, displayEndXPos);
+        if (ntw->debugVerbose) DEBUG("displayStart %u displayEnd %u", displayStart, displayEnd);
     }
 }
 
@@ -1769,12 +1770,13 @@ void NoteTakerDisplay::trackPos(std::list<PosAdjust>& posAdjust, float xOff, int
 }
 
 void NoteTakerDisplay::updateXPosition() {
+    const auto ntw = this->ntw();
     const auto& n = *this->notes();
     assert(vg);
-    nvgFontFaceId(vg, ntw()->musicFont());
+    nvgFontFaceId(vg, ntw->musicFont());
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
-    bar.init();
+    bar.init(ntw);
     cache.clear();
     cache.reserve(n.notes.size());
     this->setCacheDuration();  // adds cache per tied note part, sets its duration and note index
@@ -1805,7 +1807,7 @@ void NoteTakerDisplay::updateXPosition() {
     float pos = 0;
     std::list<PosAdjust> posAdjust;
     leadingTempo = false;
-    bar.init();
+    bar.init(ntw);
     for (auto& noteCache : cache) {
         PosAdjust nextAdjust = { 0, 0 };
         for (auto& adjust : posAdjust) {
@@ -1814,7 +1816,7 @@ void NoteTakerDisplay::updateXPosition() {
             }
         }
         if (nextAdjust.x) {
-            if (ntw()->debugVerbose) DEBUG("posAdjust x %g time %d", nextAdjust.x, nextAdjust.time);
+            if (ntw->debugVerbose) DEBUG("posAdjust x %g time %d", nextAdjust.x, nextAdjust.time);
             pos += nextAdjust.x;
             auto iter = posAdjust.begin();
             while (iter != posAdjust.end()) {
@@ -1826,9 +1828,13 @@ void NoteTakerDisplay::updateXPosition() {
                 }
             }
         }
-        int bars = INT_MAX == bar.duration ? 0 : (noteCache.vStartTime - bar.tsStart) / bar.duration;
+        if (noteCache.note->isSignature()) {
+            bar.setPriorBars(noteCache);
+        }
+        int bars = bar.priorBars + (INT_MAX == bar.duration ? 0 :
+                (noteCache.vStartTime - bar.tsStart) / bar.duration);
         int stdStart = NoteDurations::InStd(noteCache.vStartTime, n.ppq);
-        noteCache.xPosition = (int) ((stdStart + bars * BAR_WIDTH) * xAxisScale + pos);
+        noteCache.xPosition = (int) std::ceil((stdStart + bars * BAR_WIDTH) * xAxisScale + pos);
         if (noteCache.accidentalSpace) {
             noteCache.xPosition += 8;  // space for possible accidental
         } else if (NOTE_ON == noteCache.note->type) {  // if another note at same time allows for
@@ -1845,7 +1851,7 @@ void NoteTakerDisplay::updateXPosition() {
                 }
             }
         }
-        if (ntw()->debugVerbose) DEBUG("%d [%d] stdStart %d bars %d pos %g accidental %d", &noteCache - &cache.front(),
+        if (ntw->debugVerbose) DEBUG("%d [%d] stdStart %d bars %d pos %g accidental %d", &noteCache - &cache.front(),
                 noteCache.xPosition, stdStart, bars, pos, noteCache.accidentalSpace ? 8 : 0);
         const DisplayNote& note = *noteCache.note;
         switch (note.type) {
@@ -1863,19 +1869,21 @@ void NoteTakerDisplay::updateXPosition() {
                     float xOff = drawWidth - NoteDurations::InStd(noteCache.vDuration, n.ppq)
                             * xAxisScale;
                     this->trackPos(posAdjust, xOff, noteCache.vEndTime());
-                    if (ntw()->debugVerbose) DEBUG("%d track_pos xOff %g cache start %d dur %d", &noteCache - &cache.front(),
+                    if (ntw->debugVerbose) DEBUG("%d track_pos xOff %g cache start %d dur %d",
+                            &noteCache - &cache.front(),
                             xOff, noteCache.vStartTime, noteCache.vDuration);
                 } break;
             case KEY_SIGNATURE:
                 pos += bar.resetSignatureStart(note, BAR_WIDTH * xAxisScale);
                 // to do : measure key sig chars instead
-                pos += std::max(MIN_KEY_SIGNATURE_WIDTH, 
+                pos += std::max(MIN_KEY_SIGNATURE_WIDTH * xAxisScale, 
                         abs(note.key()) * ACCIDENTAL_WIDTH * xAxisScale + 2);
                 this->setKeySignature(note.key());
                 break;
             case TIME_SIGNATURE:
                 pos += bar.resetSignatureStart(note, BAR_WIDTH * xAxisScale);
                 pos += this->timeSignatureWidth(note);
+                pos += TIME_SIGNATURE_GAP * xAxisScale;
                 bar.setSignature(note, n.ppq);
                 break;
             case MIDI_TEMPO:
@@ -1884,7 +1892,7 @@ void NoteTakerDisplay::updateXPosition() {
                 pos += TEMPO_WIDTH * xAxisScale;
                 break;
             case TRACK_END:
-                if (ntw()->debugVerbose) DEBUG("[%u] xPos %d start %d", noteCache.note - &n.notes.front(),
+                if (ntw->debugVerbose) DEBUG("[%u] xPos %d start %d", noteCache.note - &n.notes.front(),
                         noteCache.xPosition, note.stdStart(n.ppq));
                 break;
             default:

@@ -36,7 +36,7 @@ struct StaffNote {
 struct BarPosition {
     struct MinMax {
         float xMin = FLT_MAX;
-        float xMax = FLT_MIN;
+        float xMax = -FLT_MAX;
         bool useMax = false;   // set true if signature introduces bar
     };
     std::unordered_map<int, MinMax> pos;
@@ -47,6 +47,7 @@ struct BarPosition {
     int midiEnd;        // used to restart accidentals at start of bar
     // set by notes tied
     int leader;         // duration of note part before first bar
+    bool debugVerbose;  // enable this in note taker widget include
 
     void addPos(const NoteCache& , float cacheWidth);
 
@@ -57,7 +58,7 @@ struct BarPosition {
         }
     }
 
-    void init();
+    void init(NoteTakerWidget* );
     int notesTied(const DisplayNote& note, int ppq);
     int resetSignatureStart(const DisplayNote& note, float barWidth);
 
@@ -71,10 +72,14 @@ struct BarPosition {
         if (!noteCache.vStartTime) {
             return;
         }
-        priorBars += (noteCache.vStartTime - tsStart + duration - 1) / duration;  // rounds up
+        if (INT_MAX == duration) {
+            priorBars = 1;
+        } else {
+            priorBars += (noteCache.vStartTime - tsStart + duration - 1) / duration;  // rounds up
+        }
         pos[priorBars].useMax = true;
-        pos[priorBars].xMax = noteCache.vStartTime;
-        DEBUG("setPriorBars %d useMax %d xMax", priorBars, true, noteCache.vStartTime);
+        pos[priorBars].xMax = noteCache.xPosition;
+        if (debugVerbose) DEBUG("setPriorBars %d useMax %d xMax %d", priorBars, true, noteCache.vStartTime);
     }
 
     void setSignature(const DisplayNote& note, int ppq) {

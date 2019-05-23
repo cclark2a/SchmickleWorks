@@ -98,7 +98,7 @@ struct NoteTaker : Module {
     float clockOutTime = FLT_MAX;
     bool sawClockLow = false;
     bool sawResetLow = false;
-    bool debugVerbose = true;
+    bool debugVerbose;          // enable this in note taker widget include
 
     NoteTaker();
 

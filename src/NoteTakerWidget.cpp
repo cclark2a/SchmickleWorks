@@ -174,6 +174,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
 
     if (module) {
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
+        module->debugVerbose = debugVerbose;
         module->onReset();
     }
 }
