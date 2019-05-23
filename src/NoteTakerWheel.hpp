@@ -32,7 +32,7 @@ struct NoteTakerWheel : app::SliderKnob {
     virtual std::string debugString() const {
         auto pq = paramQuantity;
         return std::to_string(pq->getValue()) + " (" + std::to_string(pq->minValue) + ", "
-                + std::to_string(pq->maxValue) + ")";
+                + std::to_string(pq->maxValue) + ") speed=" + std::to_string(speed);
     }
 
     void drawGear(NVGcontext *vg, float frame) const;
@@ -126,6 +126,7 @@ struct NoteTakerWheel : app::SliderKnob {
 
 struct HorizontalWheel : NoteTakerWheel {
     HorizontalWheel() {
+        DEBUG("HorizontalWheel init");
         speed = 1;
         shadow = 3;
         horizontal = true;

@@ -86,6 +86,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         float wheelMax = this->horizontalCount() + .999f;
         if (debugVerbose) DEBUG("horizontalWheel->setLimits wheelMin %d wheelMax %g", wheelMin, wheelMax);
         horizontalWheel->setLimits(wheelMin, wheelMax);
+        horzSpeed = 50.f / horizontalWheel->paramQuantity->getRange();
         if (this->isEmpty()) {
             value = 0;
         } else {
@@ -237,6 +238,7 @@ void NoteTakerWidget::updateHorizontal() {
         return;
     }
     bool noteChanged = false;
+    bool displayChanged = false;
     if (!selectButton->ledOn) {
         // for now, if selection includes signature, do nothing
         for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
@@ -291,7 +293,7 @@ void NoteTakerWidget::updateHorizontal() {
         if (start != n.selectStart || end != n.selectEnd) {
             nt()->setSelect(start, end);
             this->setVerticalWheelRange();
-            noteChanged = true;
+            displayChanged = true;
             if (start + 1 == end) {
                 const auto& note = n.notes[start];
                 if (KEY_SIGNATURE == note.type && !note.key()) {
@@ -304,6 +306,9 @@ void NoteTakerWidget::updateHorizontal() {
     }
     if (noteChanged) {
         display->invalidateCache();
+    }
+    if (noteChanged || displayChanged) {
+        display->invalidateRange();
         nt()->playSelection();
     }
 }

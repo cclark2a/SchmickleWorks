@@ -408,7 +408,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             assert(MIDI_HEADER != n.notes[selStart].type);
             assert(TRACK_END != n.notes[selStart].type);
             const auto& note = n.notes[selStart];
-            unsigned end = note.isSignature() ? selStart + 1 : nt->atMidiTime(note.endTime());
+            unsigned end = note.isSignature() ? selStart + 1 : nt->nextAfter(selStart, 1);
             nt->setSelect(selStart, end);
         } break;
         case State::extend:

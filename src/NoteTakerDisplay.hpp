@@ -189,6 +189,12 @@ struct NoteTakerDisplay : Widget {
 
     void invalidateCache() {
         cacheInvalid = true;
+        rangeInvalid = true;
+        this->fb()->dirty = true;
+    }
+
+    void invalidateRange() {
+        rangeInvalid = true;
         this->fb()->dirty = true;
     }
 

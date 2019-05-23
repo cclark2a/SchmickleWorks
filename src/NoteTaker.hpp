@@ -186,7 +186,7 @@ struct NoteTaker : Module {
         }
         for (unsigned index = start; index < n.notes.size(); ++index) {
             const DisplayNote& note = n.notes[index];
-            if (note.startTime > startTime) {
+            if (note.isSignature() || note.startTime > startTime) {
                 return index;
             }
         }

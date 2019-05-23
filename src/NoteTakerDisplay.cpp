@@ -68,7 +68,9 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq) {
     if (startBar == endBar) {
         return 1;
     }
-    leader = (startBar + 1) * duration - note.startTime;
+    // note.startTime needs be relative to last bar start, not zero
+    leader = (startBar + 1) * duration - inTsStartTime;
+    assert(leader >= 0);
     int trailer = inTsEndTime - endBar * duration;
     assert(0 <= trailer);
     if (trailer >= duration) {
@@ -1581,10 +1583,12 @@ void NoteTakerDisplay::setCacheDuration() {
                     tiePart.tiePosition = accidentalSpace ? PositionType::left : PositionType::mid;
                     tiePart.vDuration = NoteDurations::LtOrEq(duration, n.ppq);
                     auto inStd = NoteDurations::InStd(duration, n.ppq);
-                    if (ntw()->debugVerbose) DEBUG("InStd %u FromMidi %u FromStd %u LtOrEq %d", inStd,
+                    if (ntw()->debugVerbose) 
+                            DEBUG("InStd %u FromMidi %u FromStd %u LtOrEq %d duration %d",
+                            inStd,
                             NoteDurations::FromMidi(duration, n.ppq),
                             NoteDurations::FromStd(duration),
-                            tiePart.vDuration);
+                            tiePart.vDuration, duration);
                     tieTime += tiePart.vDuration;
                     tiePart.endsOnBeat = (bool) (tieTime % n.ppq);
                     tiePart.accidentalSpace = accidentalSpace;
@@ -1892,7 +1896,8 @@ void NoteTakerDisplay::updateXPosition() {
                 pos += TEMPO_WIDTH * xAxisScale;
                 break;
             case TRACK_END:
-                if (ntw->debugVerbose) DEBUG("[%u] xPos %d start %d", noteCache.note - &n.notes.front(),
+                if (ntw->debugVerbose) DEBUG("[%u] xPos %d start %d",
+                        noteCache.note - &n.notes.front(),
                         noteCache.xPosition, note.stdStart(n.ppq));
                 break;
             default:
