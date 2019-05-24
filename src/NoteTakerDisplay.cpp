@@ -4,6 +4,8 @@
 #include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
 
+// to do: bug: eighth notes are beamed across bar in 2/4 time
+
 static void draw_stem(NVGcontext*vg, float x, int ys, int ye) {
     nvgBeginPath(vg);
     nvgMoveTo(vg, x + .4, ys);

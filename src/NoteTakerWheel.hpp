@@ -2,6 +2,7 @@
 
 #include "SchmickleWorks.hpp"
 
+struct DisplayNote;
 struct NoteTaker;
 struct NoteTakerWidget;
 struct NoteTakerWheel;
@@ -42,9 +43,9 @@ struct NoteTakerWheel : app::SliderKnob {
     }
 
     void fromJson(json_t* root) {
-        speed = json_real_value(json_object_get(root, "speed"));
-        paramQuantity->minValue = json_real_value(json_object_get(root, "minValue"));
-        paramQuantity->maxValue = json_real_value(json_object_get(root, "maxValue"));
+        float minValue = json_real_value(json_object_get(root, "minValue"));
+        float maxValue = json_real_value(json_object_get(root, "maxValue"));
+        this->setLimits(minValue, maxValue); 
     }
 
     // to do: not working yet
@@ -71,7 +72,6 @@ struct NoteTakerWheel : app::SliderKnob {
 
     json_t* toJson() const {
         json_t* root = json_object();
-        json_object_set_new(root, "speed", json_real(speed));
         json_object_set_new(root, "minValue", json_real(paramQuantity->minValue));
         json_object_set_new(root, "maxValue", json_real(paramQuantity->maxValue));
         return root;
@@ -110,6 +110,7 @@ struct NoteTakerWheel : app::SliderKnob {
         if (paramQuantity) {
             paramQuantity->minValue = lo;
             paramQuantity->maxValue = hi;
+            speed = 50.f / paramQuantity->getRange();
         }
     }
 
@@ -127,7 +128,6 @@ struct NoteTakerWheel : app::SliderKnob {
 struct HorizontalWheel : NoteTakerWheel {
     HorizontalWheel() {
         DEBUG("HorizontalWheel init");
-        speed = 1;
         shadow = 3;
         horizontal = true;
         this->setValue(0);
@@ -150,11 +150,12 @@ struct HorizontalWheel : NoteTakerWheel {
     }
 
     void onDragMove(const event::DragMove& e) override;
+
+    void setDenominator(const DisplayNote& );
 };
 
 struct VerticalWheel : NoteTakerWheel {
     VerticalWheel() {
-        speed = .1;
         shadow = 1;
         this->setValue(60);
         this->setLimits(0, 127);

@@ -200,6 +200,11 @@ void HorizontalWheel::onDragMove(const event::DragMove& e) {
     nt->updateHorizontal();
 }
 
+void HorizontalWheel::setDenominator(const DisplayNote& note) {
+    this->setLimits(0, 6.99f);   // denom limit 0 to 6 (2^N, 1 to 64)
+    this->setValue(note.denominator());
+}
+
 void VerticalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
     auto nt = this->getAncestorOfType<NoteTakerWidget>();

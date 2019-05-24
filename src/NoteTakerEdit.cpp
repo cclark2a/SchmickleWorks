@@ -8,14 +8,12 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     if (runButton->ledOn) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - .001f); // tempo relative to quarter note
         horizontalWheel->setValue(NoteDurations::FromStd(stdTimePerQuarterNote));
-        horizontalWheel->speed = 1;
         return;
     }
     if (fileButton->ledOn) {
         // to do : here, and in other places: set speed proportional to limits
         horizontalWheel->setLimits(0, storage.size());
         horizontalWheel->setValue(0);
-        horizontalWheel->speed = 1;
         return;
     }
     PartButton* pb = partButton;
@@ -23,14 +21,12 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     if (partButton->ledOn) {
         horizontalWheel->setLimits(-1, CV_OUTPUTS);
         horizontalWheel->setValue(this->unlockedChannel());
-        horizontalWheel->speed = 1;
         return;
     }
     if (sustainButton->ledOn) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - 1);
         int sustainMinDuration = nt()->channels[this->unlockedChannel()].sustainMin;
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, n().ppq));
-        horizontalWheel->speed = 1;
         return;
     }
     if (tieButton->ledOn) {
@@ -40,11 +36,9 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         // to do : create circle : 
         //         trip-slur slur norm trip trip-slur ...
         horizontalWheel->setValue(1);
-        horizontalWheel->speed = 1;
         return;
     }
     // horizontal wheel range and value
-    float horzSpeed = 1;
     int value = INT_MAX;
     auto& n = this->n();
     if (!selectButton->ledOn) {
@@ -52,18 +46,15 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
             switch (note->type) {
                 case TIME_SIGNATURE:
-                    horizontalWheel->setLimits(1, 6.99f);   // denom limit 0 to 6 (2^N, 1 to 64)
-                    horzSpeed = 1;
-                    value = note->denominator();
-                    break;
+                    horizontalWheel->setDenominator(*note);
+                    return;
                 case KEY_SIGNATURE:
                     // nothing to do : horizontal wheel doesn't affect key signature
-                    break;
+                    return;
                 case MIDI_TEMPO: {
                     horizontalWheel->setLimits(0, NoteDurations::Count() - 0.001f);
                     float fValue = NoteDurations::FromStd(note->tempo() * stdTimePerQuarterNote / 500000);
                     horizontalWheel->setValue(fValue);
-                    horizontalWheel->speed = horzSpeed;
                     return;
                 }
                 default:
@@ -86,7 +77,6 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         float wheelMax = this->horizontalCount() + .999f;
         if (debugVerbose) DEBUG("horizontalWheel->setLimits wheelMin %d wheelMax %g", wheelMin, wheelMax);
         horizontalWheel->setLimits(wheelMin, wheelMax);
-        horzSpeed = 50.f / horizontalWheel->paramQuantity->getRange();
         if (this->isEmpty()) {
             value = 0;
         } else {
@@ -102,7 +92,6 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     }
     if (INT_MAX != value) {
         horizontalWheel->setValue(value);
-        horizontalWheel->speed = horzSpeed;
     }
     return;
 }
@@ -111,19 +100,16 @@ void NoteTakerWidget::setVerticalWheelRange() {
     if (runButton->ledOn) {
         verticalWheel->setLimits(0, 127);    // v/oct transpose (5 octaves up, down)
         verticalWheel->setValue(60);
-        verticalWheel->speed = .1;
         return;
     }
     if (fileButton->ledOn || partButton->ledOn) {
         verticalWheel->setLimits(0, 10);
         verticalWheel->setValue(5);
-        verticalWheel->speed = 2;
         return;
     }
     if (sustainButton->ledOn) {
         verticalWheel->setLimits(0, 3.999f);
         verticalWheel->setValue(2.5f); // sustain min
-        verticalWheel->speed = 1;
         return;
     }
     if (this->isEmpty()) {
@@ -136,12 +122,10 @@ void NoteTakerWidget::setVerticalWheelRange() {
             case KEY_SIGNATURE:
                 verticalWheel->setLimits(-7, 7);
                 verticalWheel->setValue(note->key());
-                verticalWheel->speed = 1;
                 break;
             case TIME_SIGNATURE:
                 verticalWheel->setLimits(0, 1.999f);
                 verticalWheel->setValue(0);
-                verticalWheel->speed = 5;
                 break;
             case MIDI_TEMPO:
                 // nothing to do : tempo is note affected by vertical wheel
@@ -158,7 +142,6 @@ void NoteTakerWidget::setVerticalWheelRange() {
     bool validNote = start < n.selectEnd && NOTE_ON == note->type;
     verticalWheel->setLimits(0, 127);  // range for midi pitch
     verticalWheel->setValue(validNote ? note->pitch() : 60);
-    verticalWheel->speed = .1;
 }
 
 void NoteTakerWidget::setWheelRange() {
@@ -389,14 +372,10 @@ void NoteTakerWidget::updateVertical() {
             case TIME_SIGNATURE:
                 if (n.selectStart + 1 == n.selectEnd && !selectButton->ledOn) {
                     if (!wheelValue) {
-                        horizontalWheel->setLimits(0, 6.99f);   // denom limit 0 to 6 (2^N, 1 to 64)
-                        horizontalWheel->setValue(note.denominator());
-                        // to do : override setLimits to set speed based on limit range
-                        horizontalWheel->speed = 1;
+                        horizontalWheel->setDenominator(note);
                     } else {
                         horizontalWheel->setLimits(1, 99.99f);   // numer limit 0 to 99
                         horizontalWheel->setValue(note.numerator());
-                        horizontalWheel->speed = .1;
                     }
                 }
                 break;
