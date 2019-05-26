@@ -21,6 +21,22 @@ private:
     int& ntPpq;
     bool debugVerbose = true;
 
+    void debug_out(vector<uint8_t>::const_iterator& iter) const {
+        std::string s;
+        auto start = std::max(&midi.front(), &*iter - 5);
+        auto end = std::min(&midi.back(), &*iter + 5);
+        const char hex[] = "0123456789ABCDEF";
+        for (auto i = start; i <= end; ++i) {
+            if (i == &*iter) s += "[";
+            s += "0x";
+            s += hex[*i >> 4];
+            s += hex[*i & 0xf];
+            if (i == &*iter) s += "]";
+            s += ", ";
+        }
+        DEBUG("%s", s.c_str());
+    }
+
     template<std::size_t size>
     bool match_midi(vector<uint8_t>::const_iterator& iter, const std::array<uint8_t, size>& data) {
         for (auto dataIter = data.begin(); dataIter != data.end(); ++dataIter) {
@@ -32,16 +48,23 @@ private:
         return true;
     }
 
-    bool midi_check7bits(vector<uint8_t>::const_iterator& iter) const {
-        if (iter == midi.end()) {
-            DEBUG("unexpected end of file 1\n");
-            return false;
-        }
-        if (*iter & 0x80) {
-            DEBUG("unexpected high bit set 1\n");
+    bool midi_check7bits(uint8_t byte, const char* label, int time) const {
+        if (byte & 0x80) {
+            DEBUG("%d expected %s hi bit clear", time, label);
             return false;
         }
         return true;
+    }
+
+    bool midi_check7bits(vector<uint8_t>::const_iterator& iter, const char* label, int time) const {
+        if (iter == midi.end()) {
+            DEBUG("%d looking for %s: unexpected end of file", time, label);
+            return false;
+        }
+        if (*iter & 0x80) {
+            debug_out(iter);
+        }
+        return midi_check7bits(*iter, label, time);
     }
 
     bool midi_delta(vector<uint8_t>::const_iterator& iter, int* result) const {
@@ -105,7 +128,9 @@ private:
         return true;
     }
 
+#if 0
     int safeMidi_size8(vector<uint8_t>::const_iterator& limit,
             vector<uint8_t>::const_iterator& iter, int ppq);
+#endif
 
 };

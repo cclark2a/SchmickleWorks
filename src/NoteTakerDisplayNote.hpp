@@ -6,14 +6,15 @@ struct NoteCache;
 
 enum DisplayType : uint8_t {
 // enums below match MIDI channel voice message high nybble order
-    UNUSED,            // midi note off slot
+    UNUSED,
+    NOTE_OFF = UNUSED,
     NOTE_ON,
     KEY_PRESSURE,
     CONTROL_CHANGE,
     PROGRAM_CHANGE,
     CHANNEL_PRESSURE,
     PITCH_WHEEL,
-    MIDI_SYSTEM,       // data that doesn't fit in DisplayNote pointed to be index into midi file
+    MIDI_SYSTEM,       // data that doesn't fit in DisplayNote found through index into midi file
 // any order OK
     MIDI_HEADER,
     KEY_SIGNATURE,
@@ -54,14 +55,18 @@ struct DisplayNote {
     }
 
     int pitch() const {
-        assertValid(NOTE_ON);
+        if (NOTE_OFF != type) {
+            assertValid(NOTE_ON);
+        }
         return data[0];             // using MIDI note assignment
     }
 
     void setPitch(int pitch) {
         assert(pitch >= 0 && pitch <= 127);
         data[0] = pitch;
-        assertValid(NOTE_ON);
+        if (NOTE_OFF != type) {
+            assertValid(NOTE_ON);
+        }
     }
 
     int format() const {
@@ -131,13 +136,17 @@ struct DisplayNote {
     }
 
     int onVelocity() const {
-        assertValid(NOTE_ON);
+        if (NOTE_OFF != type) {
+            assertValid(NOTE_ON);
+        }
         return data[2];
     }
 
     void setOnVelocity(int velocity) {
         data[2] = velocity;
-        assertValid(NOTE_ON);
+        if (NOTE_OFF != type) {
+            assertValid(NOTE_ON);
+        }
     }
 
     int ppq() const {
