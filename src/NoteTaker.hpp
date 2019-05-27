@@ -313,6 +313,10 @@ struct NoteTaker : Module {
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
 
+#if POLY_EXPERIMENT
+    void setVoiceCount();
+#endif
+
     // shift track end only if another shifted note bumps it out
     // If all notes are selected, shift signatures. Otherwise, leave them be.
     static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff,

@@ -106,133 +106,14 @@ bool NoteTaker::isRunning() const {
 
 void NoteTaker::playSelection() {
     this->zeroGates();
+#if POLY_EXPERIMENT
+    this->setVoiceCount();
+#endif
     elapsedSeconds = MidiToSeconds(n.notes[n.selectStart].startTime, n.ppq);
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     this->setPlayStart();
     int midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
     this->advancePlayStart(midiTime, n.notes.size() - 1);
-}
-
-void NoteTaker::onReset() {
-    this->resetState();
-    mainWidget->readStorage();
-    Module::onReset();
-}
-
-void NoteTaker::resetState() {
-    if (debugVerbose) DEBUG("notetaker reset");
-    n.notes.clear();
-    for (auto channel : channels) {
-        channel.reset();
-    }
-    this->resetRun();
-    this->setScoreEmpty();
-    n.selectStart = 0;
-    n.selectEnd = 1;
-    mainWidget->resetState();
-    mainWidget->resetControls();
-}
-
-void NoteTaker::resetRun() {
-    outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
-    elapsedSeconds = 0;
-    clockHighTime = FLT_MAX;
-    lastClock = 0;
-    externalClockTempo = stdMSecsPerQuarterNote;
-    resetHighTime = FLT_MAX;
-    eosTime = FLT_MAX;
-    midiClockOut = n.ppq;
-    clockOutTime = realSeconds + 0.001f;
-    sawClockLow = false;
-    sawResetLow = false;
-    mainWidget->resetRun();
-    this->setPlayStart();
-}
-
-void NoteTaker::setPlayStart() {
-    playStart = 0;
-    if (!n.notes.size()) {
-        return;
-    }
-    tempo = stdMSecsPerQuarterNote;
-    this->zeroGates();
-}
-
-void NoteTaker::setScoreEmpty() {
-    vector<uint8_t> emptyMidi;
-    NoteTakerMakeMidi makeMidi;
-    makeMidi.createEmpty(emptyMidi);
-    if (debugVerbose) DebugDumpRawMidi(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, n.notes, channels, n.ppq);
-    bool success = emptyParser.parseMidi();
-    assert(success);
-    ntw()->display->invalidateCache();
-}
-
- //   to do
-    // think about whether : the whole selection fits on the screen
-    // the last note fits on the screen if increasing the end
-    // the first note fits on the screen if decreasing start
-        // scroll small selections to center?
-        // move larger selections the smallest amount?
-        // prefer to show start? end?
-        // while playing, scroll a 'page' at a time?
-void NoteTaker::setSelect(unsigned start, unsigned end) {
-    auto displayBuffer = ntw()->displayBuffer;
-    auto display = ntw()->display;
-    if (mainWidget->isEmpty()) {
-        n.selectStart = 0;
-        n.selectEnd = 1;
-        display->setRange();
-        displayBuffer->fb->dirty = true;
-        if (debugVerbose) DEBUG("setSelect set empty");
-        return;
-    }
-    assert(start < end);
-    assert(n.notes.size() >= 2);
-    assert(end <= n.notes.size() - 1);
-    display->setRange();
-    if (!this->isRunning()) {
-        mainWidget->enableInsertSignature(end);  // disable buttons that already have signatures in score
-    }
-    if (debugVerbose) DEBUG("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
-    n.selectStart = start;
-    n.selectEnd = end;
-    displayBuffer->fb->dirty = true;
-}
-
-bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
-    auto selectButton = ntw()->selectButton;
-    DEBUG("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
-            wheelValue, end, selectButton->selStart, n.selectStart, n.selectEnd);
-    bool changed = true;
-    if (end < selectButton->selStart) {
-        this->setSelect(end, selectButton->selStart);
-        DEBUG("setSelectEnd < s:%u e:%u", n.selectStart, n.selectEnd);
-    } else if (end == selectButton->selStart) {
-        unsigned start = selectButton->selStart;
-        assert(TRACK_END != n.notes[start].type);
-        unsigned end = mainWidget->wheelToNote(wheelValue + 1);
-        this->setSelect(start, end);
-        DEBUG("setSelectEnd == s:%u e:%u", n.selectStart, n.selectEnd);
-    } else if (end != n.selectEnd) {
-        this->setSelect(selectButton->selStart, end);
-        DEBUG("setSelectEnd > s:%u e:%u", n.selectStart, n.selectEnd);
-    } else {
-        changed = false;
-    }
-    assert(n.selectEnd != n.selectStart);
-    return changed;
-}
-
-bool NoteTaker::setSelectStart(unsigned start) {
-    unsigned end = start;
-    do {
-        ++end;
-    } while (n.notes[start].startTime == n.notes[end].startTime && n.notes[start].isNoteOrRest()
-            && n.notes[end].isNoteOrRest());
-    this->setSelect(start, end);
-    return true;
 }
 
 // since this runs on a high frequency thread, avoid state except to play notes
@@ -448,6 +329,187 @@ void NoteTaker::process(const ProcessArgs &args) {
         }
     }
 }
+
+void NoteTaker::onReset() {
+    this->resetState();
+    mainWidget->readStorage();
+    Module::onReset();
+}
+
+void NoteTaker::resetState() {
+    if (debugVerbose) DEBUG("notetaker reset");
+    n.notes.clear();
+    for (auto channel : channels) {
+        channel.reset();
+    }
+    this->resetRun();
+    this->setScoreEmpty();
+    n.selectStart = 0;
+    n.selectEnd = 1;
+    mainWidget->resetState();
+    mainWidget->resetControls();
+}
+
+void NoteTaker::resetRun() {
+    outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+    elapsedSeconds = 0;
+    clockHighTime = FLT_MAX;
+    lastClock = 0;
+    externalClockTempo = stdMSecsPerQuarterNote;
+    resetHighTime = FLT_MAX;
+    eosTime = FLT_MAX;
+    midiClockOut = n.ppq;
+    clockOutTime = realSeconds + 0.001f;
+    sawClockLow = false;
+    sawResetLow = false;
+    mainWidget->resetRun();
+    this->setPlayStart();
+}
+
+void NoteTaker::setPlayStart() {
+    playStart = 0;
+    if (!n.notes.size()) {
+        return;
+    }
+    tempo = stdMSecsPerQuarterNote;
+    this->zeroGates();
+}
+
+void NoteTaker::setScoreEmpty() {
+    vector<uint8_t> emptyMidi;
+    NoteTakerMakeMidi makeMidi;
+    makeMidi.createEmpty(emptyMidi);
+    if (debugVerbose) DebugDumpRawMidi(emptyMidi);
+    NoteTakerParseMidi emptyParser(emptyMidi, n.notes, channels, n.ppq);
+    bool success = emptyParser.parseMidi();
+    assert(success);
+    ntw()->display->invalidateCache();
+}
+
+ //   to do
+    // think about whether : the whole selection fits on the screen
+    // the last note fits on the screen if increasing the end
+    // the first note fits on the screen if decreasing start
+        // scroll small selections to center?
+        // move larger selections the smallest amount?
+        // prefer to show start? end?
+        // while playing, scroll a 'page' at a time?
+void NoteTaker::setSelect(unsigned start, unsigned end) {
+    auto displayBuffer = ntw()->displayBuffer;
+    auto display = ntw()->display;
+    if (mainWidget->isEmpty()) {
+        n.selectStart = 0;
+        n.selectEnd = 1;
+        display->setRange();
+        displayBuffer->fb->dirty = true;
+        if (debugVerbose) DEBUG("setSelect set empty");
+        return;
+    }
+    assert(start < end);
+    assert(n.notes.size() >= 2);
+    assert(end <= n.notes.size() - 1);
+    display->setRange();
+    if (!this->isRunning()) {
+        mainWidget->enableInsertSignature(end);  // disable buttons that already have signatures in score
+    }
+    if (debugVerbose) DEBUG("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
+    n.selectStart = start;
+    n.selectEnd = end;
+    displayBuffer->fb->dirty = true;
+}
+
+bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
+    auto selectButton = ntw()->selectButton;
+    DEBUG("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
+            wheelValue, end, selectButton->selStart, n.selectStart, n.selectEnd);
+    bool changed = true;
+    if (end < selectButton->selStart) {
+        this->setSelect(end, selectButton->selStart);
+        DEBUG("setSelectEnd < s:%u e:%u", n.selectStart, n.selectEnd);
+    } else if (end == selectButton->selStart) {
+        unsigned start = selectButton->selStart;
+        assert(TRACK_END != n.notes[start].type);
+        unsigned end = mainWidget->wheelToNote(wheelValue + 1);
+        this->setSelect(start, end);
+        DEBUG("setSelectEnd == s:%u e:%u", n.selectStart, n.selectEnd);
+    } else if (end != n.selectEnd) {
+        this->setSelect(selectButton->selStart, end);
+        DEBUG("setSelectEnd > s:%u e:%u", n.selectStart, n.selectEnd);
+    } else {
+        changed = false;
+    }
+    assert(n.selectEnd != n.selectStart);
+    return changed;
+}
+
+bool NoteTaker::setSelectStart(unsigned start) {
+    unsigned end = start;
+    do {
+        ++end;
+    } while (n.notes[start].startTime == n.notes[end].startTime && n.notes[start].isNoteOrRest()
+            && n.notes[end].isNoteOrRest());
+    this->setSelect(start, end);
+    return true;
+}
+
+#if POLY_EXPERIMENT
+void NoteTaker::setVoiceCount() {
+    size_t count = n.notes.size();
+    noteVoice.resize(count);
+    vector<const DisplayNote* > overlaps;
+    overlaps.resize(CHANNEL_COUNT * MAX_VOICES);
+    overlaps.clear();
+    for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+        channels[index].voiceCount = 0;
+    }
+    --count;
+    assert(TRACK_END == n.notes[count].type);
+    for (unsigned index = 0; index < count; ++index) {
+        const auto& note = n.notes[index];
+        if (NOTE_ON != note.type) {
+            continue;
+        }
+        auto chan = note.channel;
+        auto overStart = &overlaps[chan * MAX_VOICES];
+        const auto overEnd = overStart + MAX_VOICES;
+        unsigned vCount = 0;
+        unsigned vMax = 0;
+        auto over = overStart - 1;
+        while (++over < overEnd) {
+            if (!*over) {
+                continue;
+            }
+            if ((*over)->endTime() <= note.startTime) {
+                *over = nullptr;
+                continue;
+            }
+            ++vCount;
+            vMax = over - overStart;
+        }
+        if (MAX_VOICES == vCount) {
+            over = overStart - 1;
+            const DisplayNote** oldestOverlap = nullptr;
+            int oldestTime = INT_MAX;
+            while (++over < overEnd) {
+                if (oldestTime > (*over)->startTime) {
+                    oldestTime = (*over)->startTime;
+                    oldestOverlap = over;
+                }
+            }
+            *oldestOverlap = nullptr;
+        }
+        over = overStart - 1;
+        while (++over < overEnd) {
+            if (!*over) {
+                *over = &note;
+                break;
+            }
+        }
+        channels[chan].voiceCount = std::max(channels[chan].voiceCount, vMax);
+        noteVoice[index] = over - overStart;
+    }
+}
+#endif
 
 float NoteTaker::wheelToTempo(float value) const {
     int horzIndex = (int) value;

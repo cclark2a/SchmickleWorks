@@ -11,6 +11,9 @@
 #include <map>
 #include <stdint.h>
 #include <unordered_map>
+
+#define POLY_EXPERIMENT 0
+
 #include "NoteTakerConstants.hpp"
 
 using namespace rack;
@@ -29,8 +32,6 @@ extern Plugin *pluginInstance;
 extern Model *modelNoteTaker;
 
 #define RUN_UNIT_TEST 1 // to do : set to zero for shipping code
-
-#define POLY_EXPERIMENT 0
 
 #if RUN_UNIT_TEST
     enum class TestType {

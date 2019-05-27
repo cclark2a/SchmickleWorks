@@ -90,12 +90,7 @@ struct NoteTakerChannel {
         sustainMin = DefaultLimit(Limit::sustainMin);
         sustainMax = DefaultLimit(Limit::sustainMax);
 #if POLY_EXPERIMENT
-        for (unsigned index = 0; index < voiceCount; ++index) {
-            auto& voice = voices[index];
-            voice.note = nullptr;
-            voice.realStart = 0;
-            voice.gateLow = voice.noteEnd = 0;
-        }
+        voiceCount = 0;
 #else
         note = nullptr;
         gateLow = noteEnd = 0;
