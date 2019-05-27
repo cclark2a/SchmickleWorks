@@ -274,8 +274,23 @@ std::string NoteTakerChannel::debugString(const DisplayNote* noteBase) const {
     s += " relMin " + std::to_string(releaseMin);
     s += " susMin " + std::to_string(sustainMin);
     s += " susMax " + std::to_string(sustainMax);
-    s += " noteIdx " + std::to_string(note - noteBase);
-    s += " gateLow " + std::to_string(gateLow);
-    s += " noteEnd " + std::to_string(noteEnd);
+#if POLY_EXPERIMENT
+    for (unsigned index = 0; index < voiceCount; ++index) {
+        auto& voice = voices[index];
+        if (voice.note) {
+            s += " [" + std::to_string(index) + "] ";
+            s += " noteIdx " + std::to_string(voice.note - noteBase);
+            s += " realStart " + std::to_string(voice.realStart);
+            s += " gateLow " + std::to_string(voice.gateLow);
+            s += " noteEnd " + std::to_string(voice.noteEnd);
+        }
+    }
+#else
+    if (note) {
+        s += " noteIdx " + std::to_string(note - noteBase);
+        s += " gateLow " + std::to_string(gateLow);
+        s += " noteEnd " + std::to_string(noteEnd);
+    }
+#endif
     return s;
 }

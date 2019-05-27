@@ -33,7 +33,6 @@ struct LastNote {
 };
 
 void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi) {
-    // to do : allow custom ticks / quarter note (hardcoded to 96)
     this->standardHeader(midi, nt.n.ppq);
     // after header, write channel dur/sus as control change 0xBx
                 // 0x57 release max mapped to duration index

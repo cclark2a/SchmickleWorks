@@ -30,7 +30,7 @@ extern Model *modelNoteTaker;
 
 #define RUN_UNIT_TEST 1 // to do : set to zero for shipping code
 
-#define POLY_EXPERIMENT 1
+#define POLY_EXPERIMENT 0
 
 #if RUN_UNIT_TEST
     enum class TestType {

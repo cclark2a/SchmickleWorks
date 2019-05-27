@@ -78,10 +78,15 @@ struct NoteTaker : Module {
 		NUM_LIGHTS
 	};
 
+    const unsigned UNASSIGNED_VOICE_INDEX = (unsigned) -1;
+
     NoteTakerWidget* mainWidget;
     // state saved into json
     Notes n;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
+#if POLY_EXPERIMENT
+    vector<unsigned> noteVoice;             // one entry per note; poly voice assigned to note
+#endif
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
@@ -140,10 +145,19 @@ struct NoteTaker : Module {
     void debugDumpChannels() const {
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
             auto& chan = channels[index];
+#if POLY_EXPERIMENT
+            for (unsigned inner = 0; inner < chan.voiceCount; ++inner) {
+                if (!chan.voices[inner].note) {
+                    continue;
+                }
+                DEBUG("[%u / %u] %s", index, inner, chan.debugString(&n.notes.front()).c_str());
+            }
+#else
             if (!chan.note) {
                 continue;
             }
             DEBUG("[%d] %s", index, chan.debugString(&n.notes.front()).c_str());
+#endif
         }
     }
 
@@ -214,8 +228,19 @@ struct NoteTaker : Module {
 
     void setGateLow(const DisplayNote& note) {
         auto& chan = channels[note.channel];
+#if POLY_EXPERIMENT
+        unsigned noteIndex = &note - &n.notes.front();
+        unsigned voiceIndex = noteVoice[noteIndex];
+        if (UNASSIGNED_VOICE_INDEX != voiceIndex) {
+            auto& voice = chan.voices[voiceIndex];
+            voice.note = nullptr;
+            voice.gateLow = 0;
+            voice.noteEnd = 0;
+        }
+#else
         chan.gateLow = 0;
         chan.noteEnd = 0;
+#endif
     }
 
     void setExpiredGatesLow(int midiTime) {
@@ -228,6 +253,24 @@ struct NoteTaker : Module {
     #endif
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto& chan = channels[channel];
+    #if POLY_EXPERIMENT
+            for (unsigned index = 0; index < chan.voiceCount; ++index) {
+                auto& voice = chan.voices[index];
+                if (!voice.note) {
+                    continue;
+                }
+                if (voice.gateLow && voice.gateLow < midiTime) {
+                    voice.gateLow = 0;
+                    if (channel < CV_OUTPUTS) {
+                        outputs[GATE1_OUTPUT + channel].setVoltage(0, index);
+                        DEBUG("set expired low [%u / %u]", channel, index);
+                    }
+                }
+                if (voice.noteEnd < midiTime) {
+                    voice.noteEnd = 0;
+                }
+            }
+    #else
             if (!chan.noteEnd) {
                 continue;
             }
@@ -260,6 +303,7 @@ struct NoteTaker : Module {
             if (chan.noteEnd < midiTime) {
                 chan.noteEnd = 0;
             }
+    #endif
         }
     }
 
@@ -315,11 +359,27 @@ struct NoteTaker : Module {
     void zeroGates() {
         if (debugVerbose) DEBUG("zero gates");
         for (auto& channel : channels) {
+    #if POLY_EXPERIMENT
+            for (unsigned index = 0; index < channel.voiceCount; ++index) {
+                auto& voice = channel.voices[index];
+                voice.note = nullptr;
+                voice.realStart = 0;
+                voice.gateLow = voice.noteEnd = 0;
+            }
+            noteVoice = vector<unsigned>(n.notes.size(), UNASSIGNED_VOICE_INDEX);
+    #else
             channel.note = nullptr;
             channel.gateLow = channel.noteEnd = 0;
+    #endif
         }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
+    #if POLY_EXPERIMENT
+            for (unsigned inner = 0; inner < channels[index].voiceCount; ++inner) {
+                outputs[GATE1_OUTPUT + index].setVoltage(0, inner);
+            }
+    #else
             outputs[GATE1_OUTPUT + index].value = 0;
+    #endif
         }
     }
 };

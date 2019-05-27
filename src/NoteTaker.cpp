@@ -6,6 +6,8 @@
 #include "NoteTakerWheel.hpp"
 #include "NoteTakerWidget.hpp"
 
+// to do : to run headless, allow mainWidget and ntw() to be nullptr
+
 int Notes::xPosAtEndStart(const NoteTakerDisplay* display) const {
     assert(!display->cacheInvalid);
     return notes[selectEnd - 1].cache->xPosition;
@@ -269,8 +271,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             resetHighTime = realSeconds;
         }
     }
-    auto selectButton = ntw()->selectButton;
-    if (clockCycle && !running && selectButton->editStart() && inputs[CLOCK_INPUT].active
+    if (clockCycle && !running && ntw()->selectButton->editStart() && inputs[CLOCK_INPUT].active
             && inputs[V_OCT_INPUT].active) {
         int duration = 0;
         if (inputs[RESET_INPUT].active) {
@@ -350,6 +351,56 @@ void NoteTaker::process(const ProcessArgs &args) {
             continue;
         }
         auto& channelInfo = channels[note.channel];
+#if POLY_EXPERIMENT
+        unsigned& voiceIndex = noteVoice[&note - &n.notes.front()];
+        if (voiceIndex == UNASSIGNED_VOICE_INDEX) {
+            // re-assign oldest voice
+            voiceIndex = 0;
+            double lowestStart = channelInfo.voices[0].realStart;
+            for (unsigned index = 1; index < channelInfo.voiceCount; ++index) {
+                double test = channelInfo.voices[index].realStart;
+                if (test < lowestStart) {
+                    voiceIndex = index;
+                    lowestStart = test;
+                }
+            }
+            auto& setUp = channelInfo.voices[voiceIndex];
+            setUp.note = &note;
+            setUp.realStart = realSeconds;
+            setUp.gateLow = note.slur() && start < lastNote ? INT_MAX : 
+                    note.startTime + channelInfo.sustain(note.duration);
+            setUp.noteEnd = endTime;
+            if (note.channel < CV_OUTPUTS) {
+                const auto& voice = channelInfo.voices[voiceIndex];
+                if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
+                        note.channel, voice.gateLow, voice.noteEnd, voice.note - &n.notes.front(),
+                        midiTime, outputs[GATE1_OUTPUT + note.channel].getVoltage(voiceIndex));
+                outputs[GATE1_OUTPUT + note.channel].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE, voiceIndex);
+            }
+        }
+        auto& voice = channelInfo.voices[voiceIndex];
+        if (midiTime < voice.noteEnd) {
+            continue;
+        }
+        if (running) {
+            sStart = std::min(sStart, start);
+        }
+        // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
+        if (note.channel < CV_OUTPUTS) {
+            float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
+            auto verticalWheel = ntw()->verticalWheel;
+            if (mainWidget->runningWithButtonsOff()) {
+                bias += inputs[V_OCT_INPUT].value;
+                bias += ((int) verticalWheel->getValue() - 60) / 12.f;
+            }
+            if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
+                note.channel, bias,
+                inputs[V_OCT_INPUT].value, verticalWheel->getValue(),
+                note.pitch() / 12.f, bias + note.pitch() / 12.f,
+                outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
+            outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
+        }
+#else
         if (&note == channelInfo.note) {
             if (midiTime < channelInfo.noteEnd) {
                 continue;
@@ -386,6 +437,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                 outputs[CV1_OUTPUT + note.channel].value);
             outputs[CV1_OUTPUT + note.channel].value = bias + note.pitch() / 12.f;
         }
+#endif
     }
     if (running) {
         // to do : don't write to same state in different threads
