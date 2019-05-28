@@ -22,7 +22,7 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker::Sort(nt->n.notes);
     ntw->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
-    ntw->display->invalidateCache();
+    ntw->invalidateCaches();
     nt->setSelect(insertLoc, insertLoc + 1);
     ntw->turnOffLedButtons();
     ntw->setWheelRange();  // range is larger
@@ -60,7 +60,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         n.selectEnd = n.notes.size() - 1;
         ntw->copyNotes();  // allows add to undo accidental cut / clear all
         nt->setScoreEmpty();
-        ntw->display->invalidateCache();
+        ntw->invalidateCaches();
         nt->setSelectStart(nt->atMidiTime(0));
         selectButton->setSingle();
         ntw->setWheelRange();
@@ -71,7 +71,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         n.selectEnd = n.notes.size() - 1;
         ntw->copySelectableNotes();
         ntw->setSelectableScoreEmpty();
-        ntw->display->invalidateCache();
+        ntw->invalidateCaches();
         nt->setSelectStart(nt->atMidiTime(0));
         ntw->setWheelRange();
         return;
@@ -92,7 +92,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
     ntw->eraseNotes(start, end);
     ntw->shiftNotes(start, shiftTime);
-    ntw->display->invalidateCache();
+    ntw->invalidateCaches();
     ntw->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
     int wheel = ntw->noteToWheel(start);
@@ -250,7 +250,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         shiftTime = std::max(0, shiftTime - availableShiftTime);
         if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
                 insertLoc, insertSize, shiftTime, n.selectStart, n.selectEnd);
-        ntw->display->invalidateCache();
+        ntw->invalidateCaches();
         if (nt->debugVerbose) ntw->debugDump(false, true);
     }
     ntw->selectButton->setOff();

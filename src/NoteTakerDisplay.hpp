@@ -79,7 +79,8 @@ struct BarPosition {
         }
         pos[priorBars].useMax = true;
         pos[priorBars].xMax = noteCache.xPosition;
-        if (debugVerbose) DEBUG("setPriorBars %d useMax %d xMax %d", priorBars, true, noteCache.vStartTime);
+        if (false && debugVerbose) DEBUG("setPriorBars %d useMax %d xMax %d",
+                priorBars, true, noteCache.vStartTime);
     }
 
     void setSignature(const DisplayNote& note, int ppq) {
@@ -235,6 +236,7 @@ struct NoteTakerDisplay : Widget {
         upSelected = false;
         downSelected = false;
         cacheInvalid = true;
+        rangeInvalid = true;
         this->resetXAxisOffset();
     }
 

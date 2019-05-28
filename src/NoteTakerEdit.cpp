@@ -193,7 +193,7 @@ void NoteTakerWidget::updateHorizontal() {
             }
         }
         if (prev != tieButton->state) {
-            display->invalidateCache();
+            invalidateCaches();
         }
         return;
     }
@@ -217,7 +217,7 @@ void NoteTakerWidget::updateHorizontal() {
         } else {
             oneNote.setDenominator(wheelValue);
         }
-        display->invalidateCache();
+        invalidateCaches();
         return;
     }
     bool noteChanged = false;
@@ -252,8 +252,7 @@ void NoteTakerWidget::updateHorizontal() {
         }
         if (noteChanged) {
             NoteTaker::Sort(n.notes);
-            display->invalidateCache();
-            display->rangeInvalid = true;
+            invalidateCaches();
         }
     } else {
         unsigned start, end;
@@ -288,7 +287,7 @@ void NoteTakerWidget::updateHorizontal() {
         }
     }
     if (noteChanged) {
-        display->invalidateCache();
+        invalidateCaches();
     }
     if (noteChanged || displayChanged) {
         display->invalidateRange();
@@ -366,7 +365,7 @@ void NoteTakerWidget::updateVertical() {
             case KEY_SIGNATURE:
                 if (n.selectStart + 1 == n.selectEnd) {
                     note.setKey(wheelValue);
-                    display->invalidateCache();
+                    invalidateCaches();
                 }
                 break;
             case TIME_SIGNATURE:
@@ -397,7 +396,7 @@ void NoteTakerWidget::updateVertical() {
                     value = std::max(0, std::min(127, note.pitch() + diff));
                 }
                 note.setPitch(value);
-                display->invalidateCache();
+                invalidateCaches();
                 break;
             }
             default:

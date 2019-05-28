@@ -40,13 +40,14 @@ void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
     bool hasDuration = INT_MAX != duration;
     int barCount = hasDuration ? (noteCache.vStartTime - tsStart) / duration + priorBars : 0;
     pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
-    if (debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d", barCount, pos[barCount].xMin, noteCache.xPosition);
+    if (false && debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d",
+            barCount, pos[barCount].xMin, noteCache.xPosition);
     // note the adds duration less one to round up
     barCount = hasDuration ? 
             (noteCache.vEndTime() - tsStart + duration - 1) / duration + priorBars : 1;  // rounds up
     pos[barCount].xMax = std::max(pos[barCount].xMax, noteCache.xPosition + cacheWidth);
-    if (debugVerbose) DEBUG("addPos [%d] xMax %g xPos %d width %g", barCount, pos[barCount].xMax,
-            noteCache.xPosition, cacheWidth);
+    if (false && debugVerbose) DEBUG("addPos [%d] xMax %g xPos %d width %g",
+            barCount, pos[barCount].xMax, noteCache.xPosition, cacheWidth);
 }
 
 void BarPosition::init(NoteTakerWidget* ntw) {
@@ -501,7 +502,7 @@ void NoteTakerDisplay::drawBars() {
             continue;
         }
         this->drawBarAt(p.second.useMax ? p.second.xMax : (p.second.xMin + p.second.xMax) / 2);
-        if (ntw()->debugVerbose) DEBUG("[%d] drawBars min %g max %g useMax %d",
+        if (false && ntw()->debugVerbose) DEBUG("[%d] drawBars min %g max %g useMax %d",
                 p.first, p.second.xMin, p.second.xMax, p.second.useMax);
     }
 }

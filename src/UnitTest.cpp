@@ -272,8 +272,7 @@ static void Expected(NoteTakerWidget* n) {
     n->resetControls();
     n->fromJson(saveState);
     json_decref(saveState);
-    n->display->invalidateCache();
-    n->display->rangeInvalid = true;
+    n->invalidateCaches();
 }
 
 void UnitTest(NoteTakerWidget* n, TestType test) {

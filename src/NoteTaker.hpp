@@ -103,6 +103,7 @@ struct NoteTaker : Module {
     float clockOutTime = FLT_MAX;
     bool sawClockLow = false;
     bool sawResetLow = false;
+    bool invalidVoiceCount = false;
     bool debugVerbose;          // enable this in note taker widget include
 
     NoteTaker();
@@ -370,7 +371,6 @@ struct NoteTaker : Module {
                 voice.realStart = 0;
                 voice.gateLow = voice.noteEnd = 0;
             }
-            noteVoice = vector<unsigned>(n.notes.size(), UNASSIGNED_VOICE_INDEX);
     #else
             channel.note = nullptr;
             channel.gateLow = channel.noteEnd = 0;

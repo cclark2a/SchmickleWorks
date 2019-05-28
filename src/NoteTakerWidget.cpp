@@ -300,7 +300,7 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
         auto& n = this->n();
         NoteTaker::Sort(n.notes);
     }
-    display->invalidateCache();
+    invalidateCaches();
     display->displayEnd = 0;  // force recompute of display end
     nt()->setSelect(insertLoc, nt()->nextAfter(insertLoc, insertSize));
     if (debugVerbose) DEBUG("insert final");
@@ -323,6 +323,13 @@ bool NoteTakerWidget::isSelectable(const DisplayNote& note) const {
     return note.isSelectable(selectChannels);
 }
 
+void NoteTakerWidget::invalidateCaches() {
+    if (nt()) {
+        nt()->invalidVoiceCount = true;
+    }
+    display->invalidateCache();
+}
+
 void NoteTakerWidget::loadScore() {
     auto& n = this->n();
     unsigned index = (unsigned) horizontalWheel->getValue();
@@ -334,7 +341,7 @@ void NoteTakerWidget::loadScore() {
     }
     display->resetXAxisOffset();
     nt()->resetRun();
-    display->invalidateCache();
+    invalidateCaches();
     unsigned atZero = nt()->atMidiTime(0);
     atZero -= TRACK_END == n.notes[atZero].type;
     nt()->setSelectStart(atZero);
@@ -484,7 +491,7 @@ void NoteTakerWidget::makeTuplet() {
         break;
     }
     this->shiftNotes(n.selectEnd, adjustment);
-    display->invalidateCache();
+    invalidateCaches();
 }
 
 // true if a button that brings up a secondary menu on display is active
@@ -626,7 +633,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
             ++iter;
         }
     }
-    display->invalidateCache();
+    invalidateCaches();
     display->displayEnd = 0;  // force recompute of display end
     nt()->setSelect(0, 1);
     this->setWheelRange();

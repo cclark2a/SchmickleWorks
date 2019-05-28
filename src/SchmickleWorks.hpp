@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include <unordered_map>
 
-#define POLY_EXPERIMENT 0
+#define POLY_EXPERIMENT 01
 
 #include "NoteTakerConstants.hpp"
 

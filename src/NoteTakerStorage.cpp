@@ -227,7 +227,7 @@ void NoteTakerWidget::fromJson(json_t *root) {
     // end of controls' state
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
     // update display cache
-    display->invalidateCache();
+    invalidateCaches();
     this->setClipboardLight();
 }
 

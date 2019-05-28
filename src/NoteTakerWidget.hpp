@@ -71,6 +71,7 @@ struct NoteTakerWidget : ModuleWidget {
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
     bool isEmpty() const;
     bool isSelectable(const DisplayNote& note) const;
+    void invalidateCaches();
     void loadScore();
     void makeNormal();
     void makeSlur();
