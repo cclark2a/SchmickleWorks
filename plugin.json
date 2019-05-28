@@ -1,7 +1,7 @@
 {
 	"slug": "SchmickleWorks",
 	"name": "SchmickleWorks",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"license": "Unlicense",
 	"author": "Cary Clark",
 	"authorEmail": "cclark2@gmail.com",
@@ -14,7 +14,7 @@
 		{
 			"slug": "NoteTaker",
 			"name": "NoteTaker",
-			"tags": ["Sequencer"]
+			"tags": ["Sequencer","Polyphonic","MIDI","Quad"]
 		}
 	]
 }

@@ -130,7 +130,8 @@ bool NoteTakerParseMidi::parseMidi() {
             }
             midiTime += delta;
             if (0 == (*iter & 0x80)) {
-                if (!midi_check7bits(runningStatus, "running status", midiTime)) {
+                if (0 == (runningStatus & 0x80)) {
+                    DEBUG("%d expected running status 0x%02x hi bit set", midiTime, runningStatus);
                     debug_out(iter);
                     return false;
                 }
@@ -423,6 +424,10 @@ bool NoteTakerParseMidi::parseMidi() {
                         NoteDurations::ToMidi(displayNote.data[1], ppq));
                 continue;
             }
+            // to do : support tracking midi system, control change, etc. in display notes
+            if (KEY_PRESSURE <= displayNote.type && displayNote.type <= MIDI_SYSTEM) {
+                continue;
+            }
             if ((!midiFormat || !trackCount || NOTE_ON == displayNote.type)
                     && TRACK_END != displayNote.type) {
                 DEBUG("push %s", displayNote.debugString().c_str());
@@ -437,6 +442,9 @@ bool NoteTakerParseMidi::parseMidi() {
             }
             lastTime = ri->startTime;
             if (ri->type != NOTE_ON) {
+                if (0 > ri->duration) {
+                    ri->duration = 0;
+                }
                 continue;
             }
             if (0 > ri->duration) {
@@ -483,7 +491,8 @@ bool NoteTakerParseMidi::parseMidi() {
             return false;
         }
         if (note.startTime < lastTime) {
-            DEBUG("notes out of time order");
+            DEBUG("notes out of time order %d lastTime %d note %s",
+                    note.startTime, lastTime, note.debugString().c_str());
             NoteTaker::DebugDump(withRests);
             return false;
         }
