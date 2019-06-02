@@ -142,6 +142,11 @@ void NoteTakerWidget::writeStorage(unsigned slot) const {
 
 json_t *NoteTaker::dataToJson() {
     json_t *root = json_object();
+    json_t* voices = json_array();
+    for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
+        json_array_append_new(voices, json_integer(outputs[CV1_OUTPUT + chan].getChannels()));
+    }
+    json_object_set_new(root, "voices", voices);
     json_t* _notes = json_array();
     for (const auto& note : n.notes) {
         json_array_append_new(_notes, note.dataToJson());
@@ -185,9 +190,13 @@ json_t *NoteTakerWidget::toJson() {
 }
 
 void NoteTaker::dataFromJson(json_t *root) {
-    json_t* _notes = json_object_get(root, "notes");
+    json_t* voices = json_object_get(root, "voices");
     size_t index;
     json_t* value;
+    json_array_foreach(voices, index, value) {
+        outputs[CV1_OUTPUT + index].setChannels(json_integer_value(value));
+    }
+    json_t* _notes = json_object_get(root, "notes");
     n.notes.resize(json_array_size(_notes));
     json_array_foreach(_notes, index, value) {
         n.notes[index].dataFromJson(value);
@@ -227,7 +236,8 @@ void NoteTakerWidget::fromJson(json_t *root) {
     // end of controls' state
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
     // update display cache
-    invalidateCaches();
+    this->setWheelRange();
+    this->invalidateCaches();
     this->setClipboardLight();
 }
 

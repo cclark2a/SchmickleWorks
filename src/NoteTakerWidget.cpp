@@ -209,7 +209,7 @@ void NoteTakerWidget::copySelectableNotes() {
     auto& n = this->n();
     for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
         auto& note = n.notes[index];
-        if (this->isSelectable(note)) {
+        if (note.isSelectable(selectChannels)) {
             clipboard.push_back(note);
         }
     }
@@ -227,17 +227,6 @@ void NoteTakerWidget::enableInsertSignature(unsigned loc) {
     for (auto& pair : pairs) {
         pair.first->af = this->nt()->insertContains(insertLoc, pair.second);
     }
-}
-
-void NoteTakerWidget::eraseNotes(unsigned start, unsigned end) {
-    if (debugVerbose) DEBUG("eraseNotes start %u end %u", start, end);
-    auto& n = this->n();
-    for (auto iter = n.notes.begin() + end; iter-- != n.notes.begin() + start; ) {
-        if (iter->isSelectable(selectChannels)) {
-            n.notes.erase(iter);
-        }
-    }
-    if (debugVerbose) this->debugDump(true, true);  // wheel range is inconsistent here
 }
 
 // for clipboard to be usable, either: all notes in clipboard are active, 
@@ -276,23 +265,6 @@ bool NoteTakerWidget::extractClipboard(vector<DisplayNote>* span) const {
     return true;
 }
 
-// to compute range for horizontal wheel when selecting notes
-// to do : horizontalCount, noteToWheel, wheelToNote share loop logic. Consolidate?
-unsigned NoteTakerWidget::horizontalCount() const {
-    auto& n = this->n();
-    unsigned count = 0;
-    int lastStart = -1;
-    for (auto& note : n.notes) {
-        if (this->isSelectable(note) && lastStart != note.startTime) {
-            ++count;
-            if (note.isNoteOrRest()) {
-                lastStart = note.startTime;
-            }
-        }
-    }
-    return count;
-}
-
 void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSize) {
     if (shiftTime) {
         this->shiftNotes(insertLoc + insertSize, shiftTime);
@@ -307,20 +279,6 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
     this->setWheelRange();  // range is larger
     nt()->playSelection();
     if (debugVerbose) this->debugDump(true);
-}
-
-bool NoteTakerWidget::isEmpty() const {
-    auto& n = this->n();
-    for (auto& note : n.notes) {
-        if (this->isSelectable(note)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool NoteTakerWidget::isSelectable(const DisplayNote& note) const {
-    return note.isSelectable(selectChannels);
 }
 
 void NoteTakerWidget::invalidateCaches() {
@@ -503,23 +461,11 @@ int NoteTakerWidget::nextStartTime(unsigned start) const {
     auto& n = this->n();
     for (unsigned index = start; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
-        if (this->isSelectable(note)) {
+        if (note.isSelectable(selectChannels)) {
             return note.startTime;
         }
     }
     return n.notes.back().startTime;
-}
-
-// to do : need only early exit if result > 0 ?
-int NoteTakerWidget::noteCount() const {
-    auto& n = this->n();
-    int result = 0;
-    for (auto& note : n.notes) {
-        if (NOTE_ON == note.type && note.isSelectable(selectChannels)) {
-            ++result;
-        }
-    }
-    return result;
 }
 
 int NoteTakerWidget::noteToWheel(unsigned index, bool dbug) const {
@@ -533,7 +479,7 @@ int NoteTakerWidget::noteToWheel(const DisplayNote& match, bool dbug) const {
     int count = 0;
     int lastStart = -1;
     for (auto& note : n.notes) {
-        if (this->isSelectable(note) && lastStart != note.startTime) {
+        if (note.isSelectable(selectChannels) && lastStart != note.startTime) {
             ++count;
             if (note.isNoteOrRest()) {
                 lastStart = note.startTime;
@@ -627,7 +573,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
     auto& n = this->n();
     auto iter = n.notes.begin();
     while (iter != n.notes.end()) {
-        if (this->isSelectable(*iter)) {
+        if (iter->isSelectable(selectChannels)) {
             iter = n.notes.erase(iter);
         } else {
             ++iter;
@@ -678,7 +624,7 @@ unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
     int count = value - 1;
     int lastStart = -1;
     for (auto& note : n.notes) {
-        if (this->isSelectable(note) && lastStart != note.startTime) {
+        if (note.isSelectable(selectChannels) && lastStart != note.startTime) {
             if (--count < 0) {
                 return &note - &n.notes.front();
             }

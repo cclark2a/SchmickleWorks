@@ -5,11 +5,8 @@
 	"license": "Unlicense",
 	"author": "Cary Clark",
 	"authorEmail": "cclark2@gmail.com",
-	"authorUrl": "https://github.com/cclark2a/SchmickleWorks",
-	"pluginUrl": "https://github.com/cclark2a/SchmickleWorks",
-	"manualUrl": "https://github.com/cclark2a/SchmickleWorks",
-	"sourceUrl": "https://github.com/cclark2a/SchmickleWorks",
-	"donateUrl": "",
+	"manualUrl": "https://github.com/cclark2a/SchmickleWorks/blob/v1/README.md",
+	"sourceUrl": "https://github.com/cclark2a/SchmickleWorks/tree/v1",
 	"modules": [
 		{
 			"slug": "NoteTaker",

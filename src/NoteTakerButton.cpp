@@ -77,6 +77,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         return;
     }
     if (selectButton->editStart() && selectButton->saveZero) {
+        ntw->clipboard.clear();
         return;
     }
     unsigned start = n.selectStart;
@@ -90,8 +91,17 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         ntw->copyNotes();
     }
     int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
-    ntw->eraseNotes(start, end);
-    ntw->shiftNotes(start, shiftTime);
+#if POLY_EXPERIMENT
+    if (selectButton->editEnd()) {
+        shiftTime = 0;
+    }
+#endif
+    n.eraseNotes(start, end, ntw->selectChannels);
+    if (shiftTime) {
+        ntw->shiftNotes(start, shiftTime);
+    } else {
+        NoteTaker::Sort(n.notes);
+    }
     ntw->invalidateCaches();
     ntw->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
@@ -157,7 +167,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
-    if (!ntw->noteCount() && ntw->clipboard.empty()) {
+    if (!n.noteCount(ntw->selectChannels) && ntw->clipboard.empty()) {
         insertLoc = nt->atMidiTime(0);
         DisplayNote midC = { nullptr, 0, n.ppq, { 60, 0, stdKeyPressure, stdKeyPressure},
                 (uint8_t) ntw->unlockedChannel(), NOTE_ON, false };
@@ -167,22 +177,32 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (nt->debugVerbose) DEBUG("add to empty");
     } else {
         vector<DisplayNote> span;
-        // Insert loc is where the new note goes, but not when the new note goes; 
+        // select set to insert (start) or off:
+        //   Insert loc is where the new note goes, but not when the new note goes; 
         //   the new start time is 'last end time(insert loc)'
-        unsigned iStart;
+        // select set to extend (end):
+        //   Insert loc is select start; existing notes are not shifted, insert is transposed
+        unsigned iStart = n.selectStart;
         unsigned iEnd = n.selectEnd;
         int lastEndTime = 0;
+    #if POLY_EXPERIMENT
+        bool insertInPlace = ntw->selectButton->editEnd();
+    #else
+        bool insertInPlace = false;
+    #endif
         if (!n.selectStart) {
             iStart = insertLoc = ntw->wheelToNote(1);
+        } else if (insertInPlace) {
+            insertLoc = iStart;
+            shiftTime = 0;
         } else {
-            insertLoc = n.selectEnd;
-            iStart = n.selectStart;
+            insertLoc = iEnd;
         // A prior edit (e.g., changing a note duration) may invalidate using select end as the
         //   insert location. Use select end to determine the last active note to insert after,
         //   but not the location to insert after.
             for (unsigned index = 0; index < iEnd; ++index) {
                 const auto& note = n.notes[index];
-                if (ntw->isSelectable(note)) {
+                if (note.isSelectable(ntw->selectChannels)) {
                     lastEndTime = std::max(lastEndTime, note.endTime());
                     insertLoc = n.selectEnd;
                 }
@@ -192,33 +212,40 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             }
             if (nt->debugVerbose) DEBUG("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
         }
-        // insertLoc may be different channel, so can't use that start time by itself
-        // shift to selectStart time, but not less than previous end (if any) on same channel
         int insertTime = n.notes[insertLoc].startTime;
-        while (insertTime < lastEndTime) {
-            insertTime = n.notes[++insertLoc].startTime;
+        if (!insertInPlace) {
+            // insertLoc may be different channel, so can't use that start time by itself
+            // shift to selectStart time, but not less than previous end (if any) on same channel
+            while (insertTime < lastEndTime) {
+                insertTime = n.notes[++insertLoc].startTime;
+            }
         }
         if (nt->debugVerbose) DEBUG("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
                 ntw->clipboard.size());
-        if (!ntw->selectButton->editStart() || ntw->clipboard.empty() || !ntw->extractClipboard(&span)) {
-            if (nt->debugVerbose) !n.selectStart ? DEBUG("left of first note") : DEBUG("duplicate selection");
+    #if POLY_EXPERIMENT
+        bool useClipboard = ntw->selectButton->ledOn;
+    #else
+        bool useClipboard = ntw->selectButton->editStart();
+    #endif
+        if (!useClipboard || ntw->clipboard.empty() || !ntw->extractClipboard(&span)) {
+            if (nt->debugVerbose) DEBUG(!n.selectStart ? "left of first note" : "duplicate selection");
             if (nt->debugVerbose) DEBUG("iStart=%u iEnd=%u", iStart, iEnd);
             for (unsigned index = iStart; index < iEnd; ++index) {
                 const auto& note = n.notes[index];
-                if (ntw->isSelectable(note)) {
+                if (note.isSelectable(ntw->selectChannels)) {
                     span.push_back(note);
                 }
             }
             ntw->clipboard.clear();
             ntw->setClipboardLight();
-       }
+        }
         if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
                 (span[0].isSignature() && n.notes[insertLoc].isSignature())) {
             span.clear();
             if (nt->debugVerbose) { DEBUG("insert button : none selectable"); ntw->debugDump(false, true); }
             for (unsigned index = iStart; index < n.notes.size(); ++index) {
                 const auto& note = n.notes[index];
-                if (NOTE_ON == note.type && ntw->isSelectable(note)) {
+                if (NOTE_ON == note.type && note.isSelectable(ntw->selectChannels)) {
                     span.push_back(note);
                     break;
                 }
@@ -227,7 +254,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (span.empty()) {
             for (unsigned index = iStart; --index > 0; ) {
                 const auto& note = n.notes[index];
-                if (NOTE_ON == note.type && ntw->isSelectable(note)) {
+                if (NOTE_ON == note.type && note.isSelectable(ntw->selectChannels)) {
                     span.push_back(note);
                     break;
                 }
@@ -238,21 +265,33 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
                     (uint8_t) ntw->unlockedChannel(), NOTE_ON, false };
             span.push_back(midC);
         }
-        int nextStart = ntw->nextStartTime(insertLoc);
-        NoteTaker::ShiftNotes(span, 0, lastEndTime - span.front().startTime);
-        n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
-        insertSize = span.size();
-        // include notes on other channels that fit within the start/end window
-        // shift by span duration less next start (if any) on same channel minus selectStart time
-        shiftTime = (lastEndTime - insertTime)
-                + (NoteTaker::LastEndTime(span) - span.front().startTime);
-        int availableShiftTime = nextStart - insertTime;
-        if (nt->debugVerbose) DEBUG("shift time %d available %d", shiftTime, availableShiftTime);
-        shiftTime = std::max(0, shiftTime - availableShiftTime);
-        if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
-                insertLoc, insertSize, shiftTime, n.selectStart, n.selectEnd);
-        ntw->invalidateCaches();
-        if (nt->debugVerbose) ntw->debugDump(false, true);
+    #if POLY_EXPERIMENT
+        if (insertInPlace) {
+            Notes::HighestOnly(span);  // if edit end, remove all but highest note of chord            
+            if (!n.transposeSpan(span)) {
+                DEBUG("** failed to transpose span");
+                return;
+            }
+            n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
+            insertSize = span.size();
+        } else       
+    #endif
+        {
+            int nextStart = ntw->nextStartTime(insertLoc);
+            NoteTaker::ShiftNotes(span, 0, lastEndTime - span.front().startTime);
+            n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
+            insertSize = span.size();
+            // include notes on other channels that fit within the start/end window
+            // shift by span duration less next start (if any) on same channel minus selectStart time
+            shiftTime = (lastEndTime - insertTime)
+                    + (NoteTaker::LastEndTime(span) - span.front().startTime);
+            int availableShiftTime = nextStart - insertTime;
+            if (nt->debugVerbose) DEBUG("shift time %d available %d", shiftTime, availableShiftTime);
+            shiftTime = std::max(0, shiftTime - availableShiftTime);
+            if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
+                    insertLoc, insertSize, shiftTime, n.selectStart, n.selectEnd);
+            if (nt->debugVerbose) ntw->debugDump(false, true);
+        }
     }
     ntw->selectButton->setOff();
     ntw->insertFinal(shiftTime, insertLoc, insertSize);
@@ -398,7 +437,8 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             assert(!ledOn);
             af = 1;
             ledOn = true;
-            if (!ntw->horizontalCount()) {
+            if (!n.horizontalCount(ntw->selectChannels)) {
+                ntw->clipboard.clear();
                 break;  // can't start selection if there's nothing to select
             }
             int wheelStart = ntw->noteToWheel(n.selectStart);

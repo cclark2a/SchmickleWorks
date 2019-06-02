@@ -248,10 +248,15 @@ void NoteTakerDisplay::cacheBeams() {
             }
             continue;
         }
+        if (!noteCache.staff) {
+            continue;
+        }
         unsigned& beamStart = beamStarts[noteCache.channel];
         bool checkForStart = true;
         if (INT_MAX != beamStart) {
-            bool stemsMatch = cache[beamStart].stemUp == noteCache.stemUp;
+            bool stemsMatch = cache[beamStart].stemUp == noteCache.stemUp &&
+                    (cache[beamStart].pitchPosition <= MIDDLE_C)
+                    == (noteCache.pitchPosition <= MIDDLE_C);
             if (!stemsMatch || noteCache.vDuration >= n.ppq) {
                 this->closeBeam(beamStart, cacheIndex);
                 beamStart = INT_MAX;
@@ -291,6 +296,9 @@ void NoteTakerDisplay::cacheSlurs() {
         NoteCache& noteCache = cache[cacheIndex];
         const DisplayNote* note = noteCache.note;
         if (NOTE_ON != note->type) {
+            continue;
+        }
+        if (!noteCache.staff) {
             continue;
         }
         unsigned& slurStart = slurStarts[noteCache.channel];
@@ -338,6 +346,64 @@ unsigned NoteTakerDisplay::cachePrevious(unsigned index) {
     return index;
 }
 
+// to do : add new code to horizontally shift notes with different durations?
+
+// collect the notes with the same start time and duration
+// mark only one as the staff owner
+void NoteTakerDisplay::cacheStaff() {
+    NoteCache* next = nullptr;
+    for (NoteCache* last = &cache.front(); last <= &cache.back(); last = next) {
+        auto first = last;
+        next = last;
+        while (++next <= &cache.back()) {
+            if (NOTE_ON != first->note->type || NOTE_ON != next->note->type) {
+                break;
+            }
+            if (next->vStartTime != last->vStartTime) {
+                break;
+            }
+            if (next->vDuration != last->vDuration) {
+                break;
+            }
+            assert(last->pitchPosition < next->pitchPosition);
+            // how far apart are the notes? if close, use one staff, align stem up
+            if (last->pitchPosition + 6 <= next->pitchPosition) {
+                break;
+            }
+            // but don't tie from below middle C to above middle C (60)
+            if (MIDDLE_C > last->pitchPosition && MIDDLE_C < next->pitchPosition) {
+                break;
+            }
+            last = next;
+        }
+        if (first + 1 == next) {
+            first->staff = true;
+            continue;
+        } 
+        last = first;
+        if (MIDDLE_C <= last->pitchPosition) {
+            if (MIDDLE_C == last->pitchPosition) {
+                last->stemUp = false;
+            }
+            bool stemUp = last->stemUp;
+            last->staff = stemUp;
+            next[-1].staff = !stemUp;
+            while (++last < next) {
+                last->stemUp = stemUp;
+            }
+            continue;
+        }
+        last = next - 1;
+        assert(MIDDLE_C >= last->pitchPosition);
+        bool stemUp = last->stemUp;
+        last->staff = !stemUp;
+        first->staff = stemUp;
+        while (--last >= first) {
+            last->stemUp = stemUp;
+        }
+    }
+}
+
 // only mark triplets if notes are the right duration and collectively a multiple of three
 void NoteTakerDisplay::cacheTuplets() {
     const auto& n = *this->notes();
@@ -347,6 +413,9 @@ void NoteTakerDisplay::cacheTuplets() {
         const DisplayNote& note = n.notes[index];
         if (!note.isNoteOrRest()) {
             tripStarts.fill(INT_MAX);
+            continue;
+        }
+        if (!note.cache->staff) {
             continue;
         }
         unsigned& tripStart = tripStarts[note.channel];
@@ -369,6 +438,9 @@ void NoteTakerDisplay::cacheTuplets() {
                     NoteCache* last = note.cache;
                     NoteCache* next = last;
                     while (++next < &cache.back()) {
+                        if (!next->staff) {
+                            continue;
+                        }
                         if (chan != next->channel) {
                             continue;
                         }
@@ -378,6 +450,9 @@ void NoteTakerDisplay::cacheTuplets() {
                         last = next;
                     }
                     while (++noteCache < last) {
+                        if (!noteCache->staff) {
+                            continue;
+                        }
                         if (chan == noteCache->channel) {
                             noteCache->tupletPosition = PositionType::mid;
                         }
@@ -397,7 +472,7 @@ void NoteTakerDisplay::cacheTuplets() {
 float NoteTakerDisplay::cacheWidth(const NoteCache& noteCache) const {
     float bounds[4];
     auto& symbols = REST_TYPE == noteCache.note->type ? restSymbols :
-            PositionType::none != noteCache.beamPosition ?
+            PositionType::none != noteCache.beamPosition || !noteCache.staff ?
             noteCache.stemUp ? upBeamNoteSymbols : downBeamNoteSymbols :
             noteCache.stemUp ? upFlagNoteSymbols : downFlagNoteSymbols;
     nvgTextBounds(vg, 0, 0, symbols[noteCache.symbol], nullptr, bounds);
@@ -410,6 +485,9 @@ void NoteTakerDisplay::clearTuplet(unsigned index, unsigned limit) {
     int chan = n.notes[index].channel;
     cache[index].tupletPosition = PositionType::none;
     while (++index < limit) {
+        if (!n.notes[index].cache->staff) {
+            continue;
+        }
         if (chan == n.notes[index].channel) {
             assert(PositionType::mid == cache[index].tupletPosition);
             cache[index].tupletPosition = PositionType::none;
@@ -423,6 +501,9 @@ void NoteTakerDisplay::closeBeam(unsigned first, unsigned limit) {
     unsigned last = first;
     unsigned index = first;
     while (++index < limit) {
+        if (!cache[index].staff) {
+            continue;
+        }
         if (chan == cache[index].channel) {
             if (PositionType::mid != cache[index].beamPosition) {
                 break;
@@ -440,6 +521,9 @@ void NoteTakerDisplay::closeSlur(unsigned first, unsigned limit) {
     unsigned last = first;
     unsigned index = first;
     while (++index < limit) {
+        if (!cache[index].staff) {
+            continue;
+        }
         if (chan == cache[index].channel) {
             if (PositionType::mid != cache[index].slurPosition) {
                 break;
@@ -513,14 +597,18 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
     unsigned index = start;
     int chan = cache[start].channel;
     while (++index < cache.size()) {
-        if (chan != cache[index].channel) {
+        auto& noteCache = cache[index];
+        if (!noteCache.staff) {
             continue;
         }
-        if (PositionType::right == cache[index].beamPosition) {
+        if (chan != noteCache.channel) {
+            continue;
+        }
+        if (PositionType::right == noteCache.beamPosition) {
             this->setBeamPos(start, index, &bp);
             break;
         }
-        assert(PositionType::mid == cache[index].beamPosition);
+        assert(PositionType::mid == noteCache.beamPosition);
     }
     assert(PositionType::right == cache[index].beamPosition);
     SetNoteColor(vg, chan, alpha);
@@ -534,10 +622,13 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
     const NoteCache* noteCache = nullptr;
     do {
         assert(chan == cache[index].channel);
+        assert(cache[index].staff);
         prev = noteCache;
         noteCache = &cache[index];
-        while (++index < cache.size() && chan != cache[index].channel)
+        while (++index < cache.size()
+                && (chan != cache[index].channel || !cache[index].staff)) {
             ;
+        }
         if (index == cache.size()) {
             if (ntw()->debugVerbose) DEBUG("drawBeam found unbalanced beam");
             assert(0);
@@ -588,11 +679,11 @@ void NoteTakerDisplay::drawFreeNote(const DisplayNote& note, NoteCache* noteCach
     const auto& n = *this->notes();
     const StaffNote& pitch = pitchMap[note.pitch()];
     noteCache->note = &note;
-    noteCache->resetTupleBeam();
     noteCache->xPosition = xPos;
     noteCache->yPosition = this->yPos(pitch.position);
     noteCache->setDuration(n.ppq);
     noteCache->stemUp = true;
+    noteCache->staff = true;
     drawNote((Accidental) pitchMap[note.pitch()].accidental, *noteCache, alpha, 24);
 }
             
@@ -676,7 +767,7 @@ void NoteTakerDisplay::drawNote(Accidental accidental,
         nvgText(vg, xPos - 6 - (SHARP_ACCIDENTAL == accidental), yPos + 1,
                 &accidents[accidental], &accidents[accidental + 1]);
     }
-    auto& symbols = PositionType::none != noteCache.beamPosition ?
+    auto& symbols = PositionType::none != noteCache.beamPosition || !noteCache.staff ?
             noteCache.stemUp ? upBeamNoteSymbols : downBeamNoteSymbols :
             noteCache.stemUp ? upFlagNoteSymbols : downFlagNoteSymbols; 
     const char* noteStr = symbols[noteCache.symbol];
@@ -690,7 +781,7 @@ void NoteTakerDisplay::drawNotes() {
         const NoteCache& noteCache = cache[index];
         const DisplayNote& note = *noteCache.note;
         this->advanceBar(index);
-        unsigned char alpha = ntw->isSelectable(note) ? 0xff : 0x7f;
+        unsigned char alpha = note.isSelectable(ntw->selectChannels) ? 0xff : 0x7f;
         switch (note.type) {
             case NOTE_ON: {
                 this->drawBarNote(bar, note, noteCache, alpha);
@@ -912,8 +1003,9 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
     }
     if (dynamicPitchAlpha > 0) {
         const auto& n = *this->notes();
-        NoteCache noteCache;
-        DisplayNote note = {&noteCache, 0, n.ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
+        DisplayNote note = {nullptr, 0, n.ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
+        NoteCache noteCache(&note);
+        note.cache = &noteCache;
         note.setPitch((int) ntw->verticalWheel->getValue());
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 10, 2, 10, box.size.y - 4);
@@ -1542,20 +1634,12 @@ void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* 
 
 // compute ties first, so we know how many notes to draw
 void NoteTakerDisplay::setCacheDuration() {
-    bool sort = false;
     const auto& n = *this->notes();
     for (unsigned index = 0; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
-        cache.emplace_back();
+        cache.emplace_back(&note);
         NoteCache& cacheEntry = cache.back();
-        cacheEntry.note = &note;
-        cacheEntry.vStartTime = note.startTime;
-        cacheEntry.channel = note.channel;
-        cacheEntry.tiePosition = PositionType::none;
         if (!note.isNoteOrRest()) {
-            cacheEntry.vDuration = 0;
-            cacheEntry.endsOnBeat = false;
-            cacheEntry.accidentalSpace = false;
             if (TIME_SIGNATURE == note.type) {
                 bar.setSignature(note, n.ppq);
             } else if (note.isSignature()) {
@@ -1563,13 +1647,18 @@ void NoteTakerDisplay::setCacheDuration() {
             }
             continue;
         }
+        uint8_t pitchPosition = NOTE_ON == note.type ? pitchMap[note.pitch()].position : 0;
         int notesTied = bar.notesTied(note, n.ppq);
         if (1 == notesTied) {
             cacheEntry.vDuration = note.duration;
             cacheEntry.endsOnBeat = (bool) (note.endTime() % n.ppq);
-            cacheEntry.accidentalSpace = NOTE_ON == note.type;
+            if (NOTE_ON == note.type) {
+                cacheEntry.accidentalSpace = true;
+                cacheEntry.pitchPosition = pitchPosition;
+                cacheEntry.yPosition = this->yPos(pitchPosition);
+                cacheEntry.stemUp = this->stemUp(pitchPosition);
+            }
         } else {
-            sort = true;
             int duration = bar.leader;
             int remaining = note.duration - bar.leader;
             int tieTime = note.startTime;
@@ -1578,11 +1667,9 @@ void NoteTakerDisplay::setCacheDuration() {
             do {
                 do {
                     if (ntw()->debugVerbose) DEBUG("add tie to %s", note.debugString().c_str());
-                    cache.emplace_back();
+                    cache.emplace_back(&note);
                     NoteCache& tiePart = cache.back();
-                    tiePart.note = &note;
                     tiePart.vStartTime = tieTime;
-                    tiePart.channel = note.channel;
                     tiePart.tiePosition = accidentalSpace ? PositionType::left : PositionType::mid;
                     tiePart.vDuration = NoteDurations::LtOrEq(duration, n.ppq);
                     auto inStd = NoteDurations::InStd(duration, n.ppq);
@@ -1597,6 +1684,11 @@ void NoteTakerDisplay::setCacheDuration() {
                     tiePart.accidentalSpace = accidentalSpace;
                     accidentalSpace = false;
                     duration -= tiePart.vDuration;
+                    if (NOTE_ON == note.type) {
+                        tiePart.pitchPosition = pitchPosition;
+                        tiePart.yPosition = this->yPos(pitchPosition);
+                        tiePart.stemUp = this->stemUp(pitchPosition);
+                    }
                 } while (duration >= NoteDurations::ToMidi(0, n.ppq));
                 duration = std::min(bar.duration, remaining);
                 if (!duration) {
@@ -1608,11 +1700,9 @@ void NoteTakerDisplay::setCacheDuration() {
         }
     }
     // don't use std::sort function; use insertion sort to minimize reordering
-    if (sort) {
-        for (auto it = cache.begin(), end = cache.end(); it != end; ++it) {
-            auto const insertion_point = std::upper_bound(cache.begin(), it, *it);
-            std::rotate(insertion_point, it, it + 1);
-        }
+    for (auto it = cache.begin(), end = cache.end(); it != end; ++it) {
+        auto const insertion_point = std::upper_bound(cache.begin(), it, *it);
+        std::rotate(insertion_point, it, it + 1);
     }
     cache.shrink_to_fit();
     // sort, shrink, vector push back may move cache locations, so set them up last
@@ -1787,28 +1877,14 @@ void NoteTakerDisplay::updateXPosition() {
     cache.clear();
     cache.reserve(n.notes.size());
     this->setCacheDuration();  // adds cache per tied note part, sets its duration and note index
+    this->cacheStaff();  // set staff flag if note owns shared staff
     assert(n.notes.front().cache == &cache.front());
     assert(cache.front().note == &n.notes.front());
-    for (auto& noteCache : cache) {
-        noteCache.beamPosition = PositionType::none;
-        noteCache.beamCount = 0;
-        noteCache.slurPosition = PositionType::none;
-        noteCache.tupletPosition = PositionType::none;
-    }
     if (!(n.ppq % 3)) {  // to do : only triplets for now
         this->cacheTuplets();
     }
     for (auto& noteCache : cache) {
-        const DisplayNote& note = *noteCache.note;
         noteCache.setDurationSymbol(n.ppq);
-        if (NOTE_ON != note.type) {
-            noteCache.yPosition = 0;
-            noteCache.stemUp = false;
-        } else {
-            const StaffNote& pitch = pitchMap[note.pitch()];
-            noteCache.yPosition = this->yPos(pitch.position);
-            noteCache.stemUp = this->stemUp(pitch.position);             
-        }
     }
     this->cacheBeams();
     float pos = 0;

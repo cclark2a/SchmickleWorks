@@ -175,6 +175,10 @@ static void AddTwoNotes(NoteTakerWidget* n) {
     WheelUp(n, n->n().notes[note1].pitch() + 1);
 }
 
+static bool IsEmpty(NoteTakerWidget* n) {
+    return n->n().isEmpty(n->selectChannels);
+}
+
 static void Expected(NoteTakerWidget* n) {
     json_t* saveState = n->toJson();
     n->nt()->onReset();
@@ -183,29 +187,29 @@ static void Expected(NoteTakerWidget* n) {
 
     DEBUG("add a note with empty score, delete same");
     Press(n, n->insertButton);
-    assert(!n->isEmpty());
+    assert(!IsEmpty(n));
     Press(n, n->cutButton);
-    assert(n->isEmpty());
+    assert(IsEmpty(n));
 
     DEBUG("add two notes with empty score, delete same");
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     Press(n, n->cutButton);
-    assert(!n->isEmpty());
+    assert(!IsEmpty(n));
     Press(n, n->cutButton);
-    assert(n->isEmpty());
+    assert(IsEmpty(n));
 
     DEBUG("add two notes with empty score, check order");
     AddTwoNotes(n);
     unsigned note1 = n->wheelToNote(1);
     assert(4 == n->n().notes.size());
-    assert(2 == n->horizontalCount());
+    assert(2 == n->n().horizontalCount(n->selectChannels));
     unsigned note2 = n->wheelToNote(2);
     assert(n->n().notes[note1].pitch() < n->n().notes[note2].pitch());
     Press(n, n->cutButton);
-    assert(!n->isEmpty());
+    assert(!IsEmpty(n));
     Press(n, n->cutButton);
-    assert(n->isEmpty());
+    assert(IsEmpty(n));
 
     DEBUG("press select button with empty score");
     n->resetControls();
@@ -246,7 +250,7 @@ static void Expected(NoteTakerWidget* n) {
     WheelLeft(n, 2);
     Press(n, n->insertButton);
     assert(6 == n->n().notes.size());
-    assert(4 == n->horizontalCount());
+    assert(4 == n->n().horizontalCount(n->selectChannels));
 
     DEBUG("copy and paste");
     AddTwoNotes(n);
@@ -265,7 +269,7 @@ static void Expected(NoteTakerWidget* n) {
     n->debugDump();
     Press(n, n->insertButton);
     assert(6 == n->n().notes.size());
-    assert(4 == n->horizontalCount());
+    assert(4 == n->n().horizontalCount(n->selectChannels));
 
     DEBUG("restore defaults");
     n->nt()->resetState();

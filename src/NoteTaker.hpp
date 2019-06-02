@@ -1,38 +1,18 @@
 #pragma once
 
+#include "Notes.hpp"
 #include "NoteTakerChannel.hpp"
-#include "NoteTakerDisplayNote.hpp"
+
+/* poly bugs
+    - changing pitch of note needs to avoid other overlaps on same channel
+    - add note while select end is on two voices adds two more
+      but should add only one
+    - transpose should add each note in case one interferes with the other 
+    - what to do about rests when adding more voices?
+*/
 
 struct NoteTakerDisplay;
 struct NoteTakerWidget;
-
-// break out notes and range so that preview can draw notes without instantiated module
-struct Notes {
-    vector<DisplayNote> notes;
-    unsigned selectStart = 0;               // index into notes of first selected (any channel)
-    unsigned selectEnd = 1;                 // one past last selected
-    int ppq = stdTimePerQuarterNote;        // default to 96 pulses/ticks per quarter note
-
-    Notes() {}
-    Notes( const Notes& ) = delete; // non construction-copyable
-    Notes& operator=( const Notes& ) = delete; // non copyable
-
-    unsigned selectEndPos(unsigned select) const {
-        const DisplayNote& first = notes[select];
-        const DisplayNote* test;
-        do {
-            test = &notes[++select];
-        } while (first.isNoteOrRest() && test->isNoteOrRest()
-                && first.startTime == test->startTime);
-        return select;
-    }
-
-    int xPosAtEndEnd(const NoteTakerDisplay* ) const;
-    int xPosAtEndStart(const NoteTakerDisplay* ) const;
-    int xPosAtStartEnd(const NoteTakerDisplay* ) const;
-    int xPosAtStartStart(const NoteTakerDisplay* ) const;
-    void validate() const;
-};
 
 struct NoteTaker : Module {
 	enum ParamIds {       // numbers used by unit test
@@ -163,6 +143,7 @@ struct NoteTaker : Module {
     }
 
     static void DebugDump(const vector<DisplayNote>& , const vector<NoteCache>* xPos = nullptr,
+            const vector<unsigned>* voice = nullptr, 
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static void DebugDumpRawMidi(vector<uint8_t>& v);
 

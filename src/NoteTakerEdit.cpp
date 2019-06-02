@@ -5,6 +5,7 @@
 #include "NoteTakerWidget.hpp"
 
 void NoteTakerWidget::setHorizontalWheelRange() {
+    edit.clear();
     if (runButton->ledOn) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - .001f); // tempo relative to quarter note
         horizontalWheel->setValue(NoteDurations::FromStd(stdTimePerQuarterNote));
@@ -16,8 +17,6 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         horizontalWheel->setValue(0);
         return;
     }
-    PartButton* pb = partButton;
-    DEBUG("pb %p", pb);
     if (partButton->ledOn) {
         horizontalWheel->setLimits(-1, CV_OUTPUTS);
         horizontalWheel->setValue(this->unlockedChannel());
@@ -38,9 +37,10 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         horizontalWheel->setValue(1);
         return;
     }
+    auto& n = this->n();
+    edit.init(n, selectChannels);  // set up for horz and vert
     // horizontal wheel range and value
     int value = INT_MAX;
-    auto& n = this->n();
     if (!selectButton->ledOn) {
         const DisplayNote* note = &n.notes[n.selectStart];
         if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
@@ -61,23 +61,18 @@ void NoteTakerWidget::setHorizontalWheelRange() {
                     assert(0); // incomplete
             }
         } else {
-            unsigned start = n.selectStart;
-            while (note->isSignature() && start < n.selectEnd) {
-                note = &n.notes[++start];
-            }
-            if (note->isNoteOrRest()) {
-                value = NoteDurations::FromMidi(note->duration, n.ppq);
-            }
-            if (INT_MAX != value) {
+            if (edit.horizontalNote) {
+                // to do : choose shortest note at starting time
+                value = edit.horizontalValue;
                 horizontalWheel->setLimits(0, NoteDurations::Count() - 0.001f);
             }
         }
     } else {
         int wheelMin = selectButton->editStart() ? 0 : 1;
-        float wheelMax = this->horizontalCount() + .999f;
+        float wheelMax = n.horizontalCount(selectChannels) + .999f;
         if (debugVerbose) DEBUG("horizontalWheel->setLimits wheelMin %d wheelMax %g", wheelMin, wheelMax);
         horizontalWheel->setLimits(wheelMin, wheelMax);
-        if (this->isEmpty()) {
+        if (n.isEmpty(selectChannels)) {
             value = 0;
         } else {
             const DisplayNote* note = &n.notes[n.selectStart];
@@ -112,39 +107,42 @@ void NoteTakerWidget::setVerticalWheelRange() {
         verticalWheel->setValue(2.5f); // sustain min
         return;
     }
-    if (this->isEmpty()) {
+    if (tieButton->ledOn) {
+        verticalWheel->setLimits(0, 0);
+        verticalWheel->setValue(0);
         return;
     }
     auto& n = this->n();
+    if (n.isEmpty(selectChannels)) {
+        return;
+    }
     const DisplayNote* note = &n.notes[n.selectStart];
     if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
         switch (note->type) {
             case KEY_SIGNATURE:
                 verticalWheel->setLimits(-7, 7);
                 verticalWheel->setValue(note->key());
-                break;
+                return;
             case TIME_SIGNATURE:
                 verticalWheel->setLimits(0, 1.999f);
                 verticalWheel->setValue(0);
-                break;
+                return;
             case MIDI_TEMPO:
                 // nothing to do : tempo is note affected by vertical wheel
-                break;
+                return;
             default:
                 assert(0); // incomplete
         }
-        return;
     }
-    unsigned start = n.selectStart;
-    while (start < n.selectEnd && !note->isSelectable(selectChannels)) {
-        note = &n.notes[++start];
+    assert(edit.base.size());
+    if (edit.verticalNote) {
+        verticalWheel->setLimits(0, 127);  // range for midi pitch
+        verticalWheel->setValue(edit.verticalValue);
     }
-    bool validNote = start < n.selectEnd && NOTE_ON == note->type;
-    verticalWheel->setLimits(0, 127);  // range for midi pitch
-    verticalWheel->setValue(validNote ? note->pitch() : 60);
 }
 
 void NoteTakerWidget::setWheelRange() {
+    edit.clear();
     this->setHorizontalWheelRange();
     this->setVerticalWheelRange();
     if (debugVerbose) DEBUG("setWheelRange %s %s", 
@@ -197,7 +195,7 @@ void NoteTakerWidget::updateHorizontal() {
         }
         return;
     }
-    if (this->isEmpty()) {
+    if (n.isEmpty(selectChannels)) {
         return;
     }
     bool selectOne = !selectButton->ledOn && n.selectStart + 1 == n.selectEnd;
@@ -223,37 +221,39 @@ void NoteTakerWidget::updateHorizontal() {
     bool noteChanged = false;
     bool displayChanged = false;
     if (!selectButton->ledOn) {
-        // for now, if selection includes signature, do nothing
-        for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-            DisplayNote& note = n.notes[index];
-            if (note.isSignature()) {
-                return;
+        assert((unsigned) wheelValue < NoteDurations::Count());
+        int wheelChange = wheelValue - edit.horizontalValue;
+        int startTime = edit.base[0].startTime;
+        int insertedTime = 0;
+        // proportionately adjust start times and durations of all in selection
+        for (unsigned index = 0; index < edit.base.size(); ++index) {
+            const DisplayNote& base = edit.base[index];
+            DisplayNote* note = &n.notes[n.selectStart + index];
+            int startDiff = base.startTime - startTime;
+            int oldStart = note->startTime;
+            if (startDiff) {
+                int index = NoteDurations::FromMidi(startDiff, n.ppq);
+                note->startTime = startTime + NoteDurations::ToMidi(index + wheelChange, n.ppq);
+            }
+            if (base.isNoteOrRest() && base.isSelectable(selectChannels)) {
+                int oldDurationIndex = NoteDurations::FromMidi(base.duration, n.ppq);
+                int oldDuration = note->duration;
+                note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
+                int change = (note->startTime - oldStart) + (note->duration - oldDuration);
+                if (change > 0) {
+                    assert(insertedTime >= 0);
+                    insertedTime = std::max(insertedTime, change);
+                } else if (change < 0) {
+                    assert(insertedTime <= 0);
+                    insertedTime = std::min(insertedTime, change);
+                }
             }
         }
-        array<int, CHANNEL_COUNT> diff;
-        diff.fill(0);
-        for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-            DisplayNote& note = n.notes[index];
-            note.startTime += diff[note.channel];
-            if (!this->isSelectable(note)) {
-                continue;
-            }
-            assert(note.isNoteOrRest());
-            assert((unsigned) wheelValue < NoteDurations::Count());
-            int duration = NoteDurations::ToMidi(wheelValue, n.ppq);
-            diff[note.channel] += duration - note.duration;
-            note.duration = duration;
+        for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
+            n.notes[index].startTime += insertedTime;
         }
-        for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
-            if (diff[chan]) {
-                NoteTaker::ShiftNotes(n.notes, n.selectEnd, diff[chan], 1 << chan);
-                noteChanged = true;
-            }
-        }
-        if (noteChanged) {
-            NoteTaker::Sort(n.notes);
-            invalidateCaches();
-        }
+        noteChanged = true;
+        NoteTaker::Sort(n.notes);
     } else {
         unsigned start, end;
         if (selectButton->editEnd()) {
@@ -265,7 +265,7 @@ void NoteTakerWidget::updateHorizontal() {
             if (debugVerbose) DEBUG("start %u end %u wheelValue %d wheelStart %d",
                     start, end, wheelValue, wheelStart);
         } else {
-            start =  this->wheelToNote(wheelValue);
+            start = this->wheelToNote(wheelValue);
             selectButton->saveZero = SelectButton::State::single == selectButton->state
                     && !start;
             end = nt()->nextAfter(start, 1);
@@ -358,7 +358,6 @@ void NoteTakerWidget::updateVertical() {
     }
     // transpose selection
     // loop below computes diff of first note, and adds diff to subsequent notes in select
-    int diff = 0;
     for (unsigned index = n.selectStart ; index < n.selectEnd; ++index) {
         DisplayNote& note = n.notes[index];
         switch (note.type) {
@@ -385,17 +384,12 @@ void NoteTakerWidget::updateVertical() {
                 if (!note.isSelectable(selectChannels)) {
                     continue;
                 }
-                int value;
-                if (!diff) {
-                    value = wheelValue;
-                    diff = value - note.pitch();
-                    if (!diff) {
-                        return;
-                    }
-                } else {
-                    value = std::max(0, std::min(127, note.pitch() + diff));
+                int value = edit.base[index - n.selectStart].pitch()
+                        + wheelValue - edit.verticalValue;
+                value = std::max(0, std::min(127, value));
+                if (!n.uniquePitch(note, value)) {
+                    note.setPitch(value);
                 }
-                note.setPitch(value);
                 invalidateCaches();
                 break;
             }

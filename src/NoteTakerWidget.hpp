@@ -1,6 +1,6 @@
 #pragma once
 
-#include "NoteTakerDisplayNote.hpp"
+#include "NoteTakerEdit.hpp"
 
 struct CutButton;
 struct DisplayBuffer;
@@ -30,6 +30,7 @@ struct NoteTakerWidget : ModuleWidget {
     std::shared_ptr<Font> _textFont = nullptr;
     vector<DisplayNote> clipboard;
     vector<vector<uint8_t>> storage;
+    NoteTakerEdit edit;
     CutButton* cutButton = nullptr;
     DisplayBuffer* displayBuffer = nullptr;
     DumpButton* dumpButton = nullptr;
@@ -64,13 +65,9 @@ struct NoteTakerWidget : ModuleWidget {
     void copySelectableNotes();
     void debugDump(bool validatable = true, bool inWheel = false) const;
     void enableInsertSignature(unsigned loc);
-    void eraseNotes(unsigned start, unsigned end);
     bool extractClipboard(vector<DisplayNote>* span = nullptr) const;
     void fromJson(json_t* rootJ) override;
-    unsigned horizontalCount() const;
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
-    bool isEmpty() const;
-    bool isSelectable(const DisplayNote& note) const;
     void invalidateCaches();
     void loadScore();
     void makeNormal();
@@ -88,7 +85,6 @@ struct NoteTakerWidget : ModuleWidget {
     }
 
     int nextStartTime(unsigned start) const;
-    int noteCount() const;
     int noteToWheel(unsigned index, bool dbug = true) const;
     int noteToWheel(const DisplayNote& , bool dbug = true) const;
     Notes& n();

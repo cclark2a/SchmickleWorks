@@ -142,6 +142,7 @@ struct NoteTakerDisplay : Widget {
     unsigned cacheNext(unsigned );
     unsigned cachePrevious(unsigned );
     void cacheSlurs();
+    void cacheStaff();
     void cacheTuplets();
     float cacheWidth(const NoteCache& ) const;
     void clearTuplet(unsigned index, unsigned limit);

@@ -34,8 +34,10 @@ std::string DisplayNote::debugString() const {
             if (slur()) {
                 s += " slur";
             }
+#if 0   // to do : once we're using these, show them in dump
             s += " onVel=" + std::to_string(onVelocity());
             s += " offVel=" + std::to_string(offVelocity());
+#endif
             break;
         case REST_TYPE:
             break;
@@ -67,15 +69,15 @@ std::string DisplayNote::debugString() const {
 }
 
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
-    DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, this->horizontalCount());
+    auto& n = this->n();
+    DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, n.horizontalCount(selectChannels));
     DEBUG("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
-    auto& n = this->n();
     DEBUG("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
             n.selectStart, n.selectEnd, display->displayStart, display->displayEnd, selectChannels, 
             this->unlockedChannel(), nt()->tempo, n.ppq);
     NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &display->cache,
-            n.selectStart, n.selectEnd);
+            nt()->invalidVoiceCount ? nullptr : &nt()->noteVoice, n.selectStart, n.selectEnd);
     DEBUG("clipboard");
     NoteTaker::DebugDump(clipboard);
     this->nt()->debugDumpChannels();
@@ -112,7 +114,7 @@ std::string TrimmedFloat(float f) {
 }
 
 void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCache>* cache,
-        unsigned selectStart, unsigned selectEnd) {
+        const vector<unsigned>* voice, unsigned selectStart, unsigned selectEnd) {
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         assert(i == typeNames[i].type);
     }
@@ -155,6 +157,9 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
             s += "> ";
         }
         s += note.debugString();
+        if (voice && note.isNoteOrRest()) {
+            s += " voice=" + std::to_string((*voice)[&note - &notes.front()]);
+        }
         DEBUG("%s", s.c_str());
     }
 }
@@ -187,8 +192,7 @@ void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
 
 void Notes::validate() const {
     int time = 0;
-    array<int, CHANNEL_COUNT> channelTimes;
-    channelTimes.fill(0);
+    array<vector<const DisplayNote*>, CHANNEL_COUNT> channelTimes;
     bool sawHeader = false;
     bool sawTrailer = false;
     bool malformed = false;
@@ -203,7 +207,7 @@ void Notes::validate() const {
                 sawHeader = true;
                 break;
             case NOTE_ON:
-            case REST_TYPE:
+            case REST_TYPE: {
                 if (!sawHeader) {
                     DEBUG("missing midi header before note");
                     malformed = true;
@@ -217,16 +221,28 @@ void Notes::validate() const {
                     malformed = true;
                 }
                 time = note.startTime;
-                if (channelTimes[note.channel] > note.startTime) {
-                    if (REST_TYPE == note.type) {
-                        DEBUG("rest channel time error");
+                auto& times = channelTimes[note.channel];
+                auto iter = times.begin();
+                while (iter != times.end()) {
+                    if ((*iter)->endTime() <= time) {
+                        iter = times.erase(iter);
                     } else {
-                        DEBUG("note channel time error");
+                        if (REST_TYPE == note.type || REST_TYPE == (*iter)->type) {
+                            DEBUG("rest time error %s / %s", note.debugString().c_str(),
+                                    (*iter)->debugString().c_str());
+                            malformed = true;
+                            break;
+                        } else if (note.pitch() == (*iter)->pitch()) {
+                            DEBUG("note pitch error %s / %s", note.debugString().c_str(),
+                                    (*iter)->debugString().c_str());
+                            malformed = true;
+                            break;
+                        }
+                        ++iter;
                     }
-                    malformed = true;
                 }
-                channelTimes[note.channel] = note.endTime();
-                break;
+                channelTimes[note.channel].push_back(&note);
+                } break;
             case KEY_SIGNATURE:
             case TIME_SIGNATURE:
             case MIDI_TEMPO:
@@ -244,10 +260,17 @@ void Notes::validate() const {
                     DEBUG("duplicate midi trailer");
                     malformed = true;
                 }
-                for (int c : channelTimes) {
-                    if (c > note.startTime) {
-                        DEBUG("track end time error");
-                        malformed = true;
+                for (auto& c : channelTimes) {
+                    for (auto& entry : c) {
+                        if (entry->endTime() > note.startTime) {
+                            DEBUG("track end time error %s / %s", note.debugString().c_str(),
+                                    entry->debugString().c_str());
+                            malformed = true;
+                            break;
+                        }
+                    }
+                    if (malformed) {
+                        break;
                     }
                 }
                 sawTrailer = true;

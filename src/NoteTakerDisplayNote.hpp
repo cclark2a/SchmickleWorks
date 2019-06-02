@@ -233,30 +233,32 @@ enum class PositionType : uint8_t {
 struct NoteCache {
     const DisplayNote* note;  // needed because with tied notes, cache entries are > than notes
     int xPosition;
-    float yPosition;
+    float yPosition = 0;
     int vStartTime;  // visible start time, for multi part note alignment
-    int vDuration;  // visible duration, for symbol selection and triplet beams
-    PositionType beamPosition;
-    uint8_t beamCount;
+    int vDuration = 0;  // visible duration, for symbol selection and triplet beams
+    PositionType beamPosition = PositionType::none;
+    uint8_t beamCount = 0;
     uint8_t channel;
-    PositionType slurPosition;
-    PositionType tiePosition;
-    PositionType tupletPosition;
+    PositionType slurPosition = PositionType::none;
+    PositionType tiePosition = PositionType::none;
+    PositionType tupletPosition = PositionType::none;
     uint8_t symbol;
-    bool accidentalSpace;
-    bool endsOnBeat; // for beams
-    bool stemUp;
+    uint8_t pitchPosition = 0;
+    bool accidentalSpace = false;
+    bool endsOnBeat = false; // for beams
+    bool stemUp = false;
+    bool staff = false;  // set if note owns staff; for flags, tuplets, beaming, slurs, ties
 
-    bool operator<(const NoteCache& rhs) const {
-        return vStartTime < rhs.vStartTime;
+    NoteCache(const DisplayNote* n)
+         : note(n)
+         , vStartTime(n->startTime)
+         , channel(n->channel) {
     }
 
-    void resetTupleBeam() {
-        beamPosition = PositionType::none;
-        beamCount = 0;
-        slurPosition = PositionType::none;
-        tiePosition = PositionType::none;
-        tupletPosition = PositionType::none;
+    bool operator<(const NoteCache& rhs) const {
+        return vStartTime < rhs.vStartTime
+                || (vStartTime == rhs.vStartTime && (vDuration < rhs.vDuration
+                || (vDuration == rhs.vDuration && yPosition < rhs.yPosition)));
     }
 
     void setDuration(int ppq)  {

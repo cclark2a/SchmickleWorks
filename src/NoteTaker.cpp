@@ -8,28 +8,6 @@
 
 // to do : to run headless, allow mainWidget and ntw() to be nullptr
 
-int Notes::xPosAtEndStart(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
-    return notes[selectEnd - 1].cache->xPosition;
-}
-
-int Notes::xPosAtEndEnd(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
-    const NoteCache* noteCache = notes[selectEnd - 1].cache;
-    return display->xEndPos(*noteCache);
-}
-
-int Notes::xPosAtStartEnd(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
-    unsigned startEnd = this->selectEndPos(selectStart);
-    return notes[startEnd].cache->xPosition;
-}
-
-int Notes::xPosAtStartStart(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
-    return notes[selectStart].cache->xPosition;
-}
-
 NoteTaker::NoteTaker() {
     this->config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 }
@@ -167,8 +145,8 @@ void NoteTaker::process(const ProcessArgs &args) {
         if (duration) { // to do : make bias common const (if it really is one)
             const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             int midiNote = (int) ((inputs[V_OCT_INPUT].value - bias) * 12);
-            unsigned insertLoc = !mainWidget->noteCount() ? this->atMidiTime(0) : !n.selectStart ?
-                    mainWidget->wheelToNote(1) : n.selectEnd;
+            unsigned insertLoc = !n.noteCount(ntw()->selectChannels) ? this->atMidiTime(0) :
+                    !n.selectStart ? mainWidget->wheelToNote(1) : n.selectEnd;
             int startTime = n.notes[insertLoc].startTime;
             DisplayNote note = { nullptr, startTime, duration,
                     { midiNote, 0, stdKeyPressure, stdKeyPressure},
@@ -383,7 +361,7 @@ void NoteTaker::setScoreEmpty() {
 void NoteTaker::setSelect(unsigned start, unsigned end) {
     auto displayBuffer = ntw()->displayBuffer;
     auto display = ntw()->display;
-    if (mainWidget->isEmpty()) {
+    if (n.isEmpty(ntw()->selectChannels)) {
         n.selectStart = 0;
         n.selectEnd = 1;
         display->setRange();
@@ -505,7 +483,8 @@ void NoteTaker::setVoiceCount() {
                 break;
             }
         }
-        channels[chan].voiceCount = std::max(channels[chan].voiceCount, vMax);
+        channels[chan].voiceCount =
+                std::max(channels[chan].voiceCount, vMax + 1);
         noteVoice[index] = over - overStart;
     }
     for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
