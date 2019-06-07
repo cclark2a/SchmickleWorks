@@ -18,17 +18,17 @@ struct NoteTakerStorage {
         Encode(midi, &encoded);
         vector<uint8_t> copy;
         Decode(encoded, &copy);
-        assert(!memcmp(&midi.front(), &copy.front(), midi.size()));
+        SCHMICKLE(!memcmp(&midi.front(), &copy.front(), midi.size()));
         vector<int8_t> encodeJunk = { '0', 'A', '/', 'b', 'o', '/', '7', '='};
         Decode(encodeJunk, &copy);
         Encode(copy, &encoded);
-        assert(!memcmp(&encodeJunk.front(), &encoded.front(), encodeJunk.size()));
+        SCHMICKLE(!memcmp(&encodeJunk.front(), &encoded.front(), encodeJunk.size()));
     }
 
     static void Decode(const vector<int8_t>& encoded, vector<uint8_t>* midi) {
         midi->clear();
         midi->reserve(encoded.size() * 3 / 4);
-        assert(encoded.size() / 4 * 4 == encoded.size());
+        SCHMICKLE(encoded.size() / 4 * 4 == encoded.size());
         for (unsigned index = 0; index < encoded.size(); index += 4) {
             uint8_t stripped[4];
             for (unsigned inner = 0; inner < 4; ++inner) {

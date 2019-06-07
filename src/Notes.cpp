@@ -9,6 +9,23 @@ void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
     }
 }
 
+vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
+    vector<unsigned> result;
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        auto& note = notes[index];
+        if (note.isSelectable(selectChannels)) {
+            if (atStart && result.size() && notes[result[0]].startTime != note.startTime) {
+                break;
+            }
+            result.push_back(index);
+        }
+    }
+    std::sort(result.begin(), result.end(), [this](const unsigned& lhs, const unsigned& rhs) {
+        return notes[lhs].pitch() < notes[rhs].pitch();
+    });
+    return result;
+}
+
 void Notes::HighestOnly(vector<DisplayNote>& span) {
     vector<DisplayNote> highest;
     for (auto& note : span) {
@@ -93,7 +110,7 @@ int Notes::noteTimes(unsigned selectChannels) const {
             continue;
         }
         ++result;
-        assert(lastStart < note.startTime);
+        SCHMICKLE(lastStart < note.startTime);
         lastStart = note.startTime;
     }
     return result;
@@ -174,24 +191,24 @@ bool Notes::uniquePitch(const DisplayNote& note, int newPitch) const {
 }
 
 int Notes::xPosAtEndStart(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
+    SCHMICKLE(!display->cacheInvalid);
     return notes[selectEnd - 1].cache->xPosition;
 }
 
 int Notes::xPosAtEndEnd(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
+    SCHMICKLE(!display->cacheInvalid);
     const NoteCache* noteCache = notes[selectEnd - 1].cache;
     return display->xEndPos(*noteCache);
 }
 
 int Notes::xPosAtStartEnd(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
+    SCHMICKLE(!display->cacheInvalid);
     unsigned startEnd = this->selectEndPos(selectStart);
     return notes[startEnd].cache->xPosition;
 }
 
 int Notes::xPosAtStartStart(const NoteTakerDisplay* display) const {
-    assert(!display->cacheInvalid);
+    SCHMICKLE(!display->cacheInvalid);
     return notes[selectStart].cache->xPosition;
 }
 

@@ -19,7 +19,7 @@ static void Press(NoteTakerWidget* n, ParamWidget* ms) {
 static void WheelUp(NoteTakerWidget* n, float value) {
     n->verticalWheel->lastValue = INT_MAX;
     auto vpm = n->verticalWheel->paramQuantity;
-    assert(vpm->minValue <= vpm->maxValue);
+    SCHMICKLE(vpm->minValue <= vpm->maxValue);
     n->verticalWheel->setValue(std::max(vpm->minValue, std::min(vpm->maxValue, value)));
     n->updateVertical();
 }
@@ -27,7 +27,7 @@ static void WheelUp(NoteTakerWidget* n, float value) {
 static void WheelLeft(NoteTakerWidget* n, float value) {
     n->horizontalWheel->lastValue = INT_MAX;
     auto hpm = n->horizontalWheel->paramQuantity;
-    assert(hpm->minValue <= hpm->maxValue);
+    SCHMICKLE(hpm->minValue <= hpm->maxValue);
     n->horizontalWheel->setValue(std::max(hpm->minValue, std::min(hpm->maxValue, value)));
     n->updateHorizontal();
 }
@@ -118,7 +118,7 @@ static void LowLevelAction(NoteTakerWidget* n, int control) {
             n->nt()->inputs[control - NoteTaker::NUM_PARAMS].value = value;
         } break;
         default:
-            assert(0);  // shouldn't land here
+            _schmickled();  // shouldn't land here
     }
 }
 
@@ -187,54 +187,54 @@ static void Expected(NoteTakerWidget* n) {
 
     DEBUG("add a note with empty score, delete same");
     Press(n, n->insertButton);
-    assert(!IsEmpty(n));
+    SCHMICKLE(!IsEmpty(n));
     Press(n, n->cutButton);
-    assert(IsEmpty(n));
+    SCHMICKLE(IsEmpty(n));
 
     DEBUG("add two notes with empty score, delete same");
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     Press(n, n->cutButton);
-    assert(!IsEmpty(n));
+    SCHMICKLE(!IsEmpty(n));
     Press(n, n->cutButton);
-    assert(IsEmpty(n));
+    SCHMICKLE(IsEmpty(n));
 
     DEBUG("add two notes with empty score, check order");
     AddTwoNotes(n);
     unsigned note1 = n->wheelToNote(1);
-    assert(4 == n->n().notes.size());
-    assert(2 == n->n().horizontalCount(n->selectChannels));
+    SCHMICKLE(4 == n->n().notes.size());
+    SCHMICKLE(2 == n->n().horizontalCount(n->selectChannels));
     unsigned note2 = n->wheelToNote(2);
-    assert(n->n().notes[note1].pitch() < n->n().notes[note2].pitch());
+    SCHMICKLE(n->n().notes[note1].pitch() < n->n().notes[note2].pitch());
     Press(n, n->cutButton);
-    assert(!IsEmpty(n));
+    SCHMICKLE(!IsEmpty(n));
     Press(n, n->cutButton);
-    assert(IsEmpty(n));
+    SCHMICKLE(IsEmpty(n));
 
     DEBUG("press select button with empty score");
     n->resetControls();
-    assert(n->selectButton->editStart());
+    SCHMICKLE(n->selectButton->editStart());
     ExerciseWheels(n);
     Press(n, n->selectButton);
-    assert(n->selectButton->editStart());
+    SCHMICKLE(n->selectButton->editStart());
     ExerciseWheels(n);
     Press(n, n->selectButton);
-    assert(n->selectButton->editStart());
+    SCHMICKLE(n->selectButton->editStart());
     ExerciseWheels(n);
     Press(n, n->selectButton);
-    assert(n->selectButton->editStart());
+    SCHMICKLE(n->selectButton->editStart());
     ExerciseWheels(n);
     n->n().validate();
 
     DEBUG("press part button with empty score");
     n->resetControls();
-    assert(!n->partButton->ledOn);
+    SCHMICKLE(!n->partButton->ledOn);
     ExerciseWheels(n);
     Press(n, n->partButton);
-    assert(n->partButton->ledOn);
+    SCHMICKLE(n->partButton->ledOn);
     ExerciseWheels(n);
     Press(n, n->partButton);
-    assert(!n->partButton->ledOn);
+    SCHMICKLE(!n->partButton->ledOn);
     Press(n, n->partButton);
     Press(n, n->selectButton);
     ExerciseWheels(n);
@@ -249,8 +249,8 @@ static void Expected(NoteTakerWidget* n) {
     Press(n, n->selectButton);
     WheelLeft(n, 2);
     Press(n, n->insertButton);
-    assert(6 == n->n().notes.size());
-    assert(4 == n->n().horizontalCount(n->selectChannels));
+    SCHMICKLE(6 == n->n().notes.size());
+    SCHMICKLE(4 == n->n().horizontalCount(n->selectChannels));
 
     DEBUG("copy and paste");
     AddTwoNotes(n);
@@ -268,8 +268,8 @@ static void Expected(NoteTakerWidget* n) {
     DEBUG("cnp wheel left 1");
     n->debugDump();
     Press(n, n->insertButton);
-    assert(6 == n->n().notes.size());
-    assert(4 == n->n().horizontalCount(n->selectChannels));
+    SCHMICKLE(6 == n->n().notes.size());
+    SCHMICKLE(4 == n->n().horizontalCount(n->selectChannels));
 
     DEBUG("restore defaults");
     n->nt()->resetState();
@@ -293,7 +293,7 @@ void UnitTest(NoteTakerWidget* n, TestType test) {
             Expected(n);
             break;
         default:
-            assert(0);
+            _schmickled();
     }
     n->unitTestRunning = false;
 }

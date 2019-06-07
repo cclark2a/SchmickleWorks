@@ -43,3 +43,19 @@ extern Model *modelNoteTaker;
     void UnitTest(struct NoteTakerWidget* , TestType );
 #endif
 
+// to do : create a compile time option to omit debugging code?
+#define SCHMICKLE(x) _schmickle(x, #x)
+
+inline bool _schmickled() {
+    std::string st = system::getStackTrace();
+    DEBUG("%s", st.c_str());
+    return false;
+}
+
+inline bool _schmickle(bool cond, const char* condStr) {
+    if (cond) {
+        return true;
+    }
+    DEBUG("%s", condStr);
+    return _schmickled();
+}

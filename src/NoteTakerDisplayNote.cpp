@@ -94,8 +94,7 @@ bool DisplayNote::isValid() const {
         break;
         default:
             DEBUG("to do: validate %d\n", type);
-            assert(0);
-            return false;
+            return _schmickled();
     }
     return true;
 }

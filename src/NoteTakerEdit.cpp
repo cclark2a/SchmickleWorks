@@ -58,7 +58,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
                     return;
                 }
                 default:
-                    assert(0); // incomplete
+                    _schmickled(); // incomplete
             }
         } else {
             if (edit.horizontalNote) {
@@ -81,7 +81,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
                 DEBUG("! note type %d value %d wheelMin %d wheelMax %g",
                         note->type, value, wheelMin, wheelMax);
                 this->debugDump();
-                assert(0);
+                _schmickled();
             }
         }
     }
@@ -131,13 +131,33 @@ void NoteTakerWidget::setVerticalWheelRange() {
                 // nothing to do : tempo is note affected by vertical wheel
                 return;
             default:
-                assert(0); // incomplete
+                _schmickled(); // incomplete
         }
     }
-    assert(edit.base.size());
-    if (edit.verticalNote) {
-        verticalWheel->setLimits(0, 127);  // range for midi pitch
-        verticalWheel->setValue(edit.verticalValue);
+    SCHMICKLE(edit.base.size());
+    if (!selectButton->ledOn) {
+        if (edit.verticalNote) {
+            verticalWheel->setLimits(0, 127);  // range for midi pitch
+            verticalWheel->setValue(edit.verticalValue);
+        }
+    } else {
+        bool atStart = selectButton->editStart();
+        edit.voices = n.getVoices(selectChannels, atStart);
+        int vCount = edit.voices.size();
+        edit.originalStart = n.selectStart;
+        edit.originalEnd = n.selectEnd;
+        if (!atStart) {
+            SCHMICKLE(selectButton->editEnd());
+            verticalWheel->setLimits(0, vCount + .999f); // 0 : select all ; > 0 : select one
+            verticalWheel->setValue(0);
+        } else {
+            verticalWheel->setLimits(0, 127.999f - vCount);  // allow inserting at any unoccupied pitch
+            if (!vCount) {
+                verticalWheel->setValue(60); // to do : add const for c4 (middle c)
+            } else {
+                verticalWheel->setValue(n.notes[edit.voices[0]].pitch());
+            }
+        }
     }
 }
 
@@ -220,8 +240,8 @@ void NoteTakerWidget::updateHorizontal() {
     }
     bool noteChanged = false;
     bool displayChanged = false;
-    if (!selectButton->ledOn) {
-        assert((unsigned) wheelValue < NoteDurations::Count());
+    if (!selectButton->ledOn || n.voice) {
+        SCHMICKLE((unsigned) wheelValue < NoteDurations::Count());
         int wheelChange = wheelValue - edit.horizontalValue;
         int startTime = edit.base[0].startTime;
         int insertedTime = 0;
@@ -241,21 +261,24 @@ void NoteTakerWidget::updateHorizontal() {
                 note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
                 int change = (note->startTime - oldStart) + (note->duration - oldDuration);
                 if (change > 0) {
-                    assert(insertedTime >= 0);
+                    SCHMICKLE(insertedTime >= 0);
                     insertedTime = std::max(insertedTime, change);
                 } else if (change < 0) {
-                    assert(insertedTime <= 0);
+                    SCHMICKLE(insertedTime <= 0);
                     insertedTime = std::min(insertedTime, change);
                 }
             }
         }
-        for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
-            n.notes[index].startTime += insertedTime;
+        if (!n.voice) {
+            for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
+                n.notes[index].startTime += insertedTime;
+            }
         }
         noteChanged = true;
         NoteTaker::Sort(n.notes);
     } else {
         unsigned start, end;
+        n.voice = false;
         if (selectButton->editEnd()) {
             clipboardInvalid = true;
             int wheelStart = this->noteToWheel(
@@ -271,7 +294,7 @@ void NoteTakerWidget::updateHorizontal() {
             end = nt()->nextAfter(start, 1);
             if (debugVerbose) DEBUG("start %u end %u wheelValue %d", start, end, wheelValue);
         }
-        assert(start < end);
+        SCHMICKLE(start < end);
         if (start != n.selectStart || end != n.selectEnd) {
             nt()->setSelect(start, end);
             this->setVerticalWheelRange();
@@ -351,51 +374,95 @@ void NoteTakerWidget::updateVertical() {
                 sustainDuration = channel.releaseMax;
                 break;
             default:
-                assert(0);
+                _schmickled();
         }
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainDuration, n.ppq));
         return;
     }
-    // transpose selection
-    // loop below computes diff of first note, and adds diff to subsequent notes in select
-    for (unsigned index = n.selectStart ; index < n.selectEnd; ++index) {
-        DisplayNote& note = n.notes[index];
-        switch (note.type) {
-            case KEY_SIGNATURE:
-                if (n.selectStart + 1 == n.selectEnd) {
-                    note.setKey(wheelValue);
-                    invalidateCaches();
-                }
-                break;
-            case TIME_SIGNATURE:
-                if (n.selectStart + 1 == n.selectEnd && !selectButton->ledOn) {
-                    if (!wheelValue) {
-                        horizontalWheel->setDenominator(note);
-                    } else {
-                        horizontalWheel->setLimits(1, 99.99f);   // numer limit 0 to 99
-                        horizontalWheel->setValue(note.numerator());
+    if (!selectButton->ledOn) {
+        // transpose selection
+        // loop below computes diff of first note, and adds diff to subsequent notes in select
+        for (unsigned index = n.selectStart ; index < n.selectEnd; ++index) {
+            DisplayNote& note = n.notes[index];
+            switch (note.type) {
+                case KEY_SIGNATURE:
+                    if (n.selectStart + 1 == n.selectEnd) {
+                        note.setKey(wheelValue);
+                        invalidateCaches();
                     }
+                    break;
+                case TIME_SIGNATURE:
+                    if (n.selectStart + 1 == n.selectEnd && !selectButton->ledOn) {
+                        if (!wheelValue) {
+                            horizontalWheel->setDenominator(note);
+                        } else {
+                            horizontalWheel->setLimits(1, 99.99f);   // numer limit 0 to 99
+                            horizontalWheel->setValue(note.numerator());
+                        }
+                    }
+                    break;
+                case MIDI_TEMPO:
+                    // tempo unaffected by vertical wheel
+                    break;
+                case NOTE_ON: {
+                    if (!note.isSelectable(selectChannels)) {
+                        continue;
+                    }
+                    int value = edit.base[index - n.selectStart].pitch()
+                            + wheelValue - edit.verticalValue;
+                    value = std::max(0, std::min(127, value));
+                    if (!n.uniquePitch(note, value)) {
+                        note.setPitch(value);
+                    }
+                    invalidateCaches();
+                    break;
                 }
-                break;
-            case MIDI_TEMPO:
-                // tempo unaffected by vertical wheel
-                break;
-            case NOTE_ON: {
-                if (!note.isSelectable(selectChannels)) {
-                    continue;
-                }
-                int value = edit.base[index - n.selectStart].pitch()
-                        + wheelValue - edit.verticalValue;
-                value = std::max(0, std::min(127, value));
-                if (!n.uniquePitch(note, value)) {
-                    note.setPitch(value);
-                }
-                invalidateCaches();
+                default:
+                    ;
+            }
+        }
+    } else if (selectButton->editEnd()) {
+        if (!wheelValue) {
+            n.voice = false;
+            n.selectStart = edit.originalStart;
+            n.selectEnd = edit.originalEnd;
+            DEBUG("selStart %u / selEnd %u", n.selectStart, n.selectEnd);
+        } else {
+            n.voice = true;
+            n.selectStart = edit.voices[wheelValue - 1];
+            n.selectEnd = n.selectStart + 1;
+            DEBUG("selStart %u / selEnd %u wheel %d", n.selectStart, n.selectEnd, wheelValue);
+        }
+    } else {
+        SCHMICKLE(selectButton->editStart());
+        int pitch = wheelValue;
+        const DisplayNote* base = nullptr;
+        for (unsigned i : edit.voices) {  // skipping existing notes
+            const auto& test = n.notes[i];
+            if (!base) {
+                base = &n.notes[i];
+            } else if (test.startTime > base->startTime) {
                 break;
             }
-            default:
-                ;
+            if (test.pitch() <= pitch) {
+                ++pitch;
+            }
         }
+        if (!n.voice) {
+            int duration = base ? base->duration : n.ppq;
+            int startTime = base ? base->startTime : n.notes[n.selectStart].startTime;
+            DisplayNote iNote = { nullptr, startTime, duration,
+                    { pitch, 0, stdKeyPressure, stdKeyPressure},
+                    (uint8_t) this->unlockedChannel(), NOTE_ON, false };
+            n.selectStart += 1;
+            n.selectEnd = n.selectStart + 1;
+            n.notes.insert(n.notes.begin() + n.selectStart, iNote);
+            n.voice = true;
+        } else {
+            n.notes[n.selectStart].setPitch(pitch);
+        }
+        
+        invalidateCaches();
     }
     displayBuffer->fb->dirty = true;
     nt()->playSelection();

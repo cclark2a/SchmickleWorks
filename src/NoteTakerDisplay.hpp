@@ -52,7 +52,7 @@ struct BarPosition {
     void addPos(const NoteCache& , float cacheWidth);
 
     void advance(const NoteCache& noteCache) {
-        assert(INT_MAX != duration);
+        SCHMICKLE(INT_MAX != duration);
         while (noteCache.vStartTime >= midiEnd) {
             midiEnd += duration;
         }
@@ -201,7 +201,7 @@ struct NoteTakerDisplay : Widget {
     }
 
     unsigned lastAt(unsigned start, int ppq) const {
-        assert(start < cache.size());
+        SCHMICKLE(start < cache.size());
         int endTime = this->startXPos(start) + NoteDurations::InMidi(box.size.x, ppq);
         unsigned index;
         for (index = start; index < cache.size(); ++index) {

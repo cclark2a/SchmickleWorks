@@ -325,13 +325,15 @@ void NoteTaker::resetRun() {
     clockOutTime = realSeconds + 0.001f;
     sawClockLow = false;
     sawResetLow = false;
+    invalidVoiceCount |= n.voice;
+    n.voice = false;
     mainWidget->resetRun();
     this->setPlayStart();
 }
 
 void NoteTaker::setPlayStart() {
     this->zeroGates();
-    playStart = 0;
+    playStart = n.voice ? n.selectStart : 0;
     tempo = stdMSecsPerQuarterNote;
 #if POLY_EXPERIMENT
     this->setVoiceCount();
@@ -345,7 +347,7 @@ void NoteTaker::setScoreEmpty() {
     if (debugVerbose) DebugDumpRawMidi(emptyMidi);
     NoteTakerParseMidi emptyParser(emptyMidi, n.notes, channels, n.ppq);
     bool success = emptyParser.parseMidi();
-    assert(success);
+    SCHMICKLE(success);
     invalidVoiceCount = true;
     ntw()->invalidateCaches();
 }
@@ -369,9 +371,9 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         if (debugVerbose) DEBUG("setSelect set empty");
         return;
     }
-    assert(start < end);
-    assert(n.notes.size() >= 2);
-    assert(end <= n.notes.size() - 1);
+    SCHMICKLE(start < end);
+    SCHMICKLE(n.notes.size() >= 2);
+    SCHMICKLE(end <= n.notes.size() - 1);
     display->setRange();
     if (!this->isRunning()) {
         mainWidget->enableInsertSignature(end);  // disable buttons that already have signatures in score
@@ -392,7 +394,7 @@ bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
         DEBUG("setSelectEnd < s:%u e:%u", n.selectStart, n.selectEnd);
     } else if (end == selectButton->selStart) {
         unsigned start = selectButton->selStart;
-        assert(TRACK_END != n.notes[start].type);
+        SCHMICKLE(TRACK_END != n.notes[start].type);
         unsigned end = mainWidget->wheelToNote(wheelValue + 1);
         this->setSelect(start, end);
         DEBUG("setSelectEnd == s:%u e:%u", n.selectStart, n.selectEnd);
@@ -402,7 +404,7 @@ bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
     } else {
         changed = false;
     }
-    assert(n.selectEnd != n.selectStart);
+    SCHMICKLE(n.selectEnd != n.selectStart);
     return changed;
 }
 
@@ -433,59 +435,66 @@ void NoteTaker::setVoiceCount() {
     if (!count) {
         return;
     }
-    vector<const DisplayNote* > overlaps;
-    overlaps.resize(CHANNEL_COUNT * MAX_VOICES);
-    overlaps.clear();
-    --count;
-    assert(TRACK_END == n.notes[count].type);
-    for (unsigned index = 0; index < count; ++index) {
-        const auto& note = n.notes[index];
-        if (NOTE_ON != note.type) {
-            continue;
+    if (n.voice) {
+        for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
+            auto& base = n.notes[index];
+            channels[base.channel].voiceCount = 1;
         }
-        auto chan = note.channel;
-        auto overStart = &overlaps[chan * MAX_VOICES];
-        const auto overEnd = overStart + MAX_VOICES;
-        unsigned vCount = 0;
-        unsigned vMax = 0;
-        auto over = overStart - 1;
-        while (++over < overEnd) {
-            if (!*over) {
+    } else {
+        vector<const DisplayNote* > overlaps;
+        overlaps.resize(CHANNEL_COUNT * MAX_VOICES);
+        overlaps.clear();
+        --count;
+        SCHMICKLE(TRACK_END == n.notes[count].type);
+        for (unsigned index = 0; index < count; ++index) {
+            const auto& note = n.notes[index];
+            if (NOTE_ON != note.type) {
                 continue;
             }
-            // to do : if note is slurred, allow one midi time unit of overlap
-            // -- or -- keep notes un-overlapped, overlap only when reading/writing midi...
-            if ((*over)->endTime() <= note.startTime) {
-                *over = nullptr;
-                continue;
-            }
-            ++vCount;
-            vMax = over - overStart;
-        }
-        if (MAX_VOICES == vCount) {
-            over = overStart - 1;
-            const DisplayNote** oldestOverlap = nullptr;
-            int oldestTime = INT_MAX;
+            auto chan = note.channel;
+            auto overStart = &overlaps[chan * MAX_VOICES];
+            const auto overEnd = overStart + MAX_VOICES;
+            unsigned vCount = 0;
+            unsigned vMax = 0;
+            auto over = overStart - 1;
             while (++over < overEnd) {
-                if (oldestTime > (*over)->startTime) {
-                    oldestTime = (*over)->startTime;
-                    oldestOverlap = over;
+                if (!*over) {
+                    continue;
+                }
+                // to do : if note is slurred, allow one midi time unit of overlap
+                // -- or -- keep notes un-overlapped, overlap only when reading/writing midi...
+                if ((*over)->endTime() <= note.startTime) {
+                    *over = nullptr;
+                    continue;
+                }
+                ++vCount;
+                vMax = over - overStart;
+            }
+            if (MAX_VOICES == vCount) {
+                over = overStart - 1;
+                const DisplayNote** oldestOverlap = nullptr;
+                int oldestTime = INT_MAX;
+                while (++over < overEnd) {
+                    if (oldestTime > (*over)->startTime) {
+                        oldestTime = (*over)->startTime;
+                        oldestOverlap = over;
+                    }
+                }
+                *oldestOverlap = nullptr;
+            } else {
+                ++vMax;
+            }
+            over = overStart - 1;
+            while (++over < overEnd) {
+                if (!*over) {
+                    *over = &note;
+                    break;
                 }
             }
-            *oldestOverlap = nullptr;
-        } else {
-            ++vMax;
+            channels[chan].voiceCount =
+                    std::max(channels[chan].voiceCount, vMax + 1);
+            noteVoice[index] = over - overStart;
         }
-        over = overStart - 1;
-        while (++over < overEnd) {
-            if (!*over) {
-                *over = &note;
-                break;
-            }
-        }
-        channels[chan].voiceCount =
-                std::max(channels[chan].voiceCount, vMax + 1);
-        noteVoice[index] = over - overStart;
     }
     for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
         outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);

@@ -115,8 +115,7 @@ struct NoteTaker : Module {
                 return index;
             }
         }
-        assert(0);  // should have hit track end
-        return 0;
+        return _schmickled();  // should have hit track end
     }
 
     float beatsPerHalfSecond(int tempo) const;
@@ -169,7 +168,7 @@ struct NoteTaker : Module {
     }
 
     unsigned nextAfter(unsigned first, unsigned len) const {
-        assert(len);
+        SCHMICKLE(len);
         unsigned start = first + len;
         const auto& priorNote = n.notes[start - 1];
         if (!priorNote.duration) {
@@ -186,7 +185,7 @@ struct NoteTaker : Module {
                 return index;
             }
         }
-        assert(0);
+        _schmickled();
         return INT_MAX;
     }
 

@@ -118,7 +118,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 break;
             default:
                 // to do : incomplete
-                assert(0);
+                _schmickled();
         }
     }
     this->standardTrailer(midi);

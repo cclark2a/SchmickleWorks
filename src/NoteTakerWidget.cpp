@@ -110,7 +110,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
     Vec displaySize = Vec(RACK_GRID_WIDTH * 12, RACK_GRID_WIDTH * 9);
     this->addChild(displayBuffer = new DisplayBuffer(displayPos, displaySize, this));
     display = displayBuffer->getFirstDescendantOfType<NoteTakerDisplay>();
-    assert(display);
+    SCHMICKLE(display);
     panel->addChild(new DisplayBevel(displayPos, displaySize));
     Vec clipboardPos = Vec(RACK_GRID_WIDTH * 1.25f, RACK_GRID_WIDTH * 12.5f);
     Vec clipboardSize = Vec(16, 24);
@@ -194,7 +194,7 @@ void NoteTakerWidget::copyNotes() {
         ++start;
     }
     if (start < n.selectEnd) {
-        assert(TRACK_END != n.notes[n.selectEnd - 1].type);
+        SCHMICKLE(TRACK_END != n.notes[n.selectEnd - 1].type);
         clipboard.assign(n.notes.begin() + start, n.notes.begin() + n.selectEnd);
     }
     clipboardInvalid = false;
@@ -215,6 +215,10 @@ void NoteTakerWidget::copySelectableNotes() {
     }
     clipboardInvalid = false;
     this->setClipboardLight();
+}
+
+bool NoteTakerWidget::displayUI_on() const {
+    return partButton->ledOn || fileButton->ledOn || sustainButton->ledOn || tieButton->ledOn;
 }
 
 void NoteTakerWidget::enableInsertSignature(unsigned loc) {
@@ -291,7 +295,7 @@ void NoteTakerWidget::invalidateCaches() {
 void NoteTakerWidget::loadScore() {
     auto& n = this->n();
     unsigned index = (unsigned) horizontalWheel->getValue();
-    assert(index < storage.size());
+    SCHMICKLE(index < storage.size());
     NoteTakerParseMidi parser(storage[index], n.notes, nt()->channels, n.ppq);
     if (debugVerbose) NoteTaker::DebugDumpRawMidi(storage[index]);
     if (!parser.parseMidi()) {
@@ -470,7 +474,7 @@ int NoteTakerWidget::nextStartTime(unsigned start) const {
 
 int NoteTakerWidget::noteToWheel(unsigned index, bool dbug) const {
     auto& n = this->n();
-    assert(index < n.notes.size());
+    SCHMICKLE(index < n.notes.size());
     return this->noteToWheel(n.notes[index], dbug);
 }
 
@@ -495,7 +499,7 @@ int NoteTakerWidget::noteToWheel(const DisplayNote& match, bool dbug) const {
     if (dbug) {
         DEBUG("noteToWheel match %s", match.debugString().c_str());
         debugDump(false, true);
-        assert(0);
+        _schmickled();
     }
     return -1;
 }
@@ -553,7 +557,7 @@ bool NoteTakerWidget::runningWithButtonsOff() const {
 
 void NoteTakerWidget::saveScore() {
     unsigned index = (unsigned) horizontalWheel->getValue();
-    assert(index <= storage.size());
+    SCHMICKLE(index <= storage.size());
     if (storage.size() == index) {
         storage.push_back(vector<uint8_t>());
     }
@@ -619,8 +623,8 @@ unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
         return 0;
     }
     auto& n = this->n();
-    assert(value > 0);
-    assert(value < (int) n.notes.size());
+    SCHMICKLE(value > 0);
+    SCHMICKLE(value < (int) n.notes.size());
     int count = value - 1;
     int lastStart = -1;
     for (auto& note : n.notes) {
@@ -635,7 +639,7 @@ unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
         if (TRACK_END == note.type) {
             if (count > 0) {
                 DEBUG("! expected 0 wheelToNote value at track end; value: %d", value);
-                assert(!dbug);                
+                SCHMICKLE(!dbug);                
             }
             return n.notes.size() - 1;
         }
@@ -643,7 +647,7 @@ unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {
     DEBUG("! out of range wheelToNote value %d", value);
     if (dbug) {
         this->debugDump(false, true);
-        assert(0);  // probably means wheel range is larger than selectable note count
+        _schmickled();  // probably means wheel range is larger than selectable note count
     }
     return (unsigned) -1;
 }

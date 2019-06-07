@@ -58,7 +58,7 @@ struct NoteTakerChannel {
             case Limit::sustainMax:
                 return 24;
             default:
-                assert(0);
+                _schmickled();
         }
         return 0;
     }
@@ -74,7 +74,7 @@ struct NoteTakerChannel {
             case Limit::sustainMax:
                 return sustainMax;
             default:
-                assert(0);
+                _schmickled();
         }
         return 0;
     }
@@ -124,7 +124,7 @@ struct NoteTakerChannel {
                 }
                 break;
             default:
-                assert(0);
+                _schmickled();
         }
     }
 

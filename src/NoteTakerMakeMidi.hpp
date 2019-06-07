@@ -28,7 +28,7 @@ private:
         if (delta < 0) {
             DEBUG("! midiTime:%d *lastTime:%d", midiTime, *lastTime);
         }
-        assert(delta >= 0);
+        SCHMICKLE(delta >= 0);
         add_size8(delta);  // time of first note
         *lastTime = midiTime;
     }
@@ -38,8 +38,8 @@ private:
     }
 
     void add_bits(unsigned size, int bits) {
-        assert(16 == size || 24 == size || 32 == size);
-        assert(bits >= 0);
+        SCHMICKLE(16 == size || 24 == size || 32 == size);
+        SCHMICKLE(bits >= 0);
         int shift = size - 8;
         do {
             target->push_back((bits >> shift) & 0xFF);
@@ -47,12 +47,12 @@ private:
     }
 
     void add_size16(int size) {
-        assert(size <= 0xffff);
+        SCHMICKLE(size <= 0xffff);
         add_bits(16, size);
     }
 
     void add_size24(int size) {
-        assert(size <= 0xffffff);
+        SCHMICKLE(size <= 0xffffff);
         add_bits(24, size);
     }
 
@@ -61,7 +61,7 @@ private:
     }
 
     void add_size8(int size) {
-        assert(size >= 0);
+        SCHMICKLE(size >= 0);
         int64_t buffer = size & 0x7F;
         while ((size >>= 7)) {
             buffer <<= 8;

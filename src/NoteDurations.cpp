@@ -65,6 +65,6 @@ int NoteDurations::ToStd(unsigned index) {
 
 bool NoteDurations::TripletPart(int midi, int ppq) {
     int inStd = InStd(midi, ppq);
-    assert(inStd);
+    SCHMICKLE(inStd);
     return !(inStd & (inStd - 1));  // true if only top bit is set
 }

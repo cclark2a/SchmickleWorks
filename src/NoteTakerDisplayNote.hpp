@@ -62,7 +62,7 @@ struct DisplayNote {
     }
 
     void setPitch(int pitch) {
-        assert(pitch >= 0 && pitch <= 127);
+        SCHMICKLE(pitch >= 0 && pitch <= 127);
         data[0] = pitch;
         if (NOTE_OFF != type) {
             assertValid(NOTE_ON);
@@ -151,7 +151,7 @@ struct DisplayNote {
 
     int ppq() const {
         assertValid(MIDI_HEADER);
-        assert(!(data[1] & 0x8000));
+        SCHMICKLE(!(data[1] & 0x8000));
         return data[2];
     }
 
@@ -178,9 +178,9 @@ struct DisplayNote {
     void assertValid(DisplayType t) const {
         if (type != t) {
             DEBUG("type %d != t %d\n", type, t);
-            assert(type == t);
+            SCHMICKLE(type == t);
         }
-        return assert(isValid());
+        SCHMICKLE(isValid());
     }
 
     int endSlurTime() const {

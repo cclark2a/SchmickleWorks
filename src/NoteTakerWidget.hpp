@@ -64,6 +64,7 @@ struct NoteTakerWidget : ModuleWidget {
     void copyNotes();
     void copySelectableNotes();
     void debugDump(bool validatable = true, bool inWheel = false) const;
+    bool displayUI_on() const;
     void enableInsertSignature(unsigned loc);
     bool extractClipboard(vector<DisplayNote>* span = nullptr) const;
     void fromJson(json_t* rootJ) override;

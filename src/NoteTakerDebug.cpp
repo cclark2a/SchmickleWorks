@@ -116,7 +116,7 @@ std::string TrimmedFloat(float f) {
 void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCache>* cache,
         const vector<unsigned>* voice, unsigned selectStart, unsigned selectEnd) {
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
-        assert(i == typeNames[i].type);
+        SCHMICKLE(i == typeNames[i].type);
     }
     DEBUG("notes: %d", notes.size());
     unsigned cIndex = 0;
@@ -276,7 +276,7 @@ void Notes::validate() const {
                 sawTrailer = true;
                 break;
             default:
-                assert(0); // incomplete
+                _schmickled(); // incomplete
         }
         if (malformed) {
             break;
@@ -287,7 +287,7 @@ void Notes::validate() const {
         malformed = true;
     }
     if (malformed) {
-        assert(0);
+        _schmickled();
     }
 }
 

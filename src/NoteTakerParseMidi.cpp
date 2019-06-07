@@ -35,7 +35,7 @@ static vector<uint8_t>::const_iterator find_next_note(const vector<uint8_t>& mid
             }
         }
     } else { // if note off, look for note on in previous 16 bytes
-        assert((*noteIter & midiCVMask) == midiNoteOff);
+        SCHMICKLE((*noteIter & midiCVMask) == midiNoteOff);
         limit = midi.begin() + std::max(0, (int) (noteIter - midi.begin() - 16));
         for (auto onIter = noteIter - 3; onIter >= limit; --onIter) {
             if (onIter[0] == (noteIter[0] | 0x10) && onIter[1] == noteIter[1]

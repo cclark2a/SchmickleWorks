@@ -84,7 +84,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     unsigned end = n.selectEnd;
     if (!start || end <= 1) {
         DEBUG("*** selectButton should have been set to edit start, save zero");
-        assert(0);
+        _schmickled();
         return;
     }
     if (selectButton->editEnd()) {
@@ -428,15 +428,19 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     switch (state) {
         case State::ledOff: {
-            assert(ledOn);
+            SCHMICKLE(ledOn);
+            nt->invalidVoiceCount |= n.voice;
+            n.voice = false;
             state = State::single; // does not call setSingle because saveZero should not change
             unsigned start = saveZero ? ntw->wheelToNote(0) : n.selectStart;
             nt->setSelect(start, nt->nextAfter(start, 1));
         } break;
         case State::single: {
-            assert(!ledOn);
+            SCHMICKLE(!ledOn);
             af = 1;
             ledOn = true;
+            nt->invalidVoiceCount |= n.voice;
+            n.voice = false;
             if (!n.horizontalCount(ntw->selectChannels)) {
                 ntw->clipboard.clear();
                 break;  // can't start selection if there's nothing to select
@@ -446,19 +450,19 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             state = State::extend;
             int wheelIndex = std::max(1, wheelStart);
             selStart = ntw->wheelToNote(wheelIndex);
-            assert(MIDI_HEADER != n.notes[selStart].type);
-            assert(TRACK_END != n.notes[selStart].type);
+            SCHMICKLE(MIDI_HEADER != n.notes[selStart].type);
+            SCHMICKLE(TRACK_END != n.notes[selStart].type);
             const auto& note = n.notes[selStart];
             unsigned end = note.isSignature() ? selStart + 1 : nt->nextAfter(selStart, 1);
             nt->setSelect(selStart, end);
         } break;
         case State::extend:
-            assert(!ledOn);
+            SCHMICKLE(!ledOn);
             ntw->copySelectableNotes();
             state = State::ledOff; // does not call setOff because saveZero should not change
         break;
         default:
-            assert(0);
+            _schmickled();
     }
     ntw->setClipboardLight();
     ntw->turnOffLedButtons(this);
