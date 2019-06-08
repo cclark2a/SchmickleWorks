@@ -323,6 +323,20 @@ bool NoteTakerParseMidi::parseMidi() {
                                     }
                                     displayNote.data[2] = *iter++;
                                 break;
+                            #if 01  // not in the formal midi spec?
+                                case 0x21: // port prefix
+                                    if (1 != displayNote.data[1]) {
+                                        DEBUG("expected port prefix length == 1 %d",
+                                                displayNote.data[1]);
+                                        debug_out(iter);
+                                        return false;
+                                    }
+                                    if (!midi_check7bits(iter, "port prefix", midiTime)) {
+                                        return false;
+                                    }
+                                    displayNote.data[2] = *iter++;
+                                break;
+                            #endif
                                 case midiEndOfTrack: // (required)
                                 // keep track of the last track end, and write that one
                                 // note that track end sets duration of all active notes later
@@ -399,6 +413,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                 break;
                                 default:
                                     DEBUG("unexpected meta: 0x%02x", displayNote.data[0]);
+                                    std::advance(iter, displayNote.data[1]);
                             }
 
                         break;

@@ -175,6 +175,10 @@ void NoteTaker::process(const ProcessArgs &args) {
         outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
         clockOutTime = 0.001f + realSeconds;
     }
+    for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
+        outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
+        outputs[GATE1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
+    }
     this->setExpiredGatesLow(midiTime);
     unsigned lastNote = running ? n.notes.size() - 1 : n.selectEnd - 1;
     if (this->advancePlayStart(midiTime, lastNote)) {
@@ -495,10 +499,6 @@ void NoteTaker::setVoiceCount() {
                     std::max(channels[chan].voiceCount, vMax + 1);
             noteVoice[index] = over - overStart;
         }
-    }
-    for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
-        outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
-        outputs[GATE1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
     }
 }
 #endif

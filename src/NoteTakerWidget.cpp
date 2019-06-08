@@ -296,8 +296,8 @@ void NoteTakerWidget::loadScore() {
     auto& n = this->n();
     unsigned index = (unsigned) horizontalWheel->getValue();
     SCHMICKLE(index < storage.size());
-    NoteTakerParseMidi parser(storage[index], n.notes, nt()->channels, n.ppq);
-    if (debugVerbose) NoteTaker::DebugDumpRawMidi(storage[index]);
+    NoteTakerParseMidi parser(storage[index].midi, n.notes, nt()->channels, n.ppq);
+    if (debugVerbose) NoteTaker::DebugDumpRawMidi(storage[index].midi);
     if (!parser.parseMidi()) {
         nt()->setScoreEmpty();
     }
@@ -559,9 +559,11 @@ void NoteTakerWidget::saveScore() {
     unsigned index = (unsigned) horizontalWheel->getValue();
     SCHMICKLE(index <= storage.size());
     if (storage.size() == index) {
-        storage.push_back(vector<uint8_t>());
+        NoteTakerStorage noteStorage;
+        noteStorage.slot = storage.size();
+        storage.push_back(noteStorage);
     }
-    auto& dest = storage[index];
+    auto& dest = storage[index].midi;
     NoteTakerMakeMidi midiMaker;
     midiMaker.createFromNotes(*this->nt(), dest);
     this->writeStorage(index);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "NoteTakerEdit.hpp"
+#include "NoteTakerStorage.hpp"
 
 struct CutButton;
 struct DisplayBuffer;
@@ -29,7 +30,7 @@ struct NoteTakerWidget : ModuleWidget {
     std::shared_ptr<Font> _musicFont = nullptr;
     std::shared_ptr<Font> _textFont = nullptr;
     vector<DisplayNote> clipboard;
-    vector<vector<uint8_t>> storage;
+    vector<NoteTakerStorage> storage;
     NoteTakerEdit edit;
     CutButton* cutButton = nullptr;
     DisplayBuffer* displayBuffer = nullptr;
@@ -74,7 +75,6 @@ struct NoteTakerWidget : ModuleWidget {
     void makeNormal();
     void makeSlur();
     void makeTuplet();
-    std::string midiDir() const;
     bool menuButtonOn() const;
         
     int musicFont() const {

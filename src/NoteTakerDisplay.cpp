@@ -1091,7 +1091,7 @@ void NoteTakerDisplay::drawFileControl() {
         nvgFontSize(vg, 16);
         nvgTextAlign(vg, NVG_ALIGN_CENTER);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-        nvgText(vg, boxWidth / 2, boxWidth - 3, "H", NULL);
+        nvgText(vg, boxWidth / 2, boxWidth - 7, "H", NULL);
     };
     // horizontalWheel->value auto-drifts towards integer, range of 0 to storage size
     if (!ntw->horizontalWheel->inUse) {
@@ -1118,14 +1118,14 @@ void NoteTakerDisplay::drawFileControl() {
         }
         this->fb()->dirty = true;
     }
-    const int first = std::max(0, (int) (xControlOffset - 1));
-    const int last = std::min((int) ntw->storage.size(), (int) (xControlOffset + 5));
+    const unsigned first = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
+    const unsigned last = std::min((unsigned) ntw->storage.size(), (unsigned) (xControlOffset + 5));
     nvgSave(vg);
     nvgScissor(vg, 40 - boxWidth / 2, box.size.y - boxWidth - 5, boxWidth * 5, boxWidth);
-    for (int index = first; index < last; ++index) {
+    for (unsigned index = first; index <= last; ++index) {
         nvgSave(vg);
         nvgTranslate(vg, 40 + (index - xControlOffset) * boxWidth, box.size.y - boxWidth - 5);
-        if (ntw->storage[index].empty()) {
+        if (index >= ntw->storage.size() || ntw->storage[index].midi.empty()) {
             drawEmpty(index);
         } else {
             drawNote(index);
@@ -1149,10 +1149,6 @@ void NoteTakerDisplay::drawFileControl() {
         nvgRestore(vg);
     }
     nvgRestore(vg);
-    unsigned index = ntw->storage.size();
-    if (index * boxWidth <= box.size.x) {
-        drawEmpty(index);
-    }
     float wheel = horizontalWheel->getValue();
     nvgBeginPath(vg);
     nvgRect(vg, 40 + (wheel - xControlOffset) * boxWidth, box.size.y - boxWidth - 5,
@@ -1160,6 +1156,23 @@ void NoteTakerDisplay::drawFileControl() {
     nvgStrokeWidth(vg, 2);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
+    unsigned index = (unsigned) wheel;
+    std::string name = index < ntw->storage.size() ? ntw->storage[index].filename : "";
+    if (name.size() > 1) {
+        name = name.substr(1);
+        const char* cName = name.c_str();
+        float bounds[4];
+        nvgFontFaceId(vg, ntw->textFont());
+        nvgFontSize(vg, 10);
+        nvgTextAlign(vg, NVG_ALIGN_CENTER);
+        nvgTextBounds(vg, box.size.x / 2, box.size.y - 2, cName, nullptr, bounds);
+        nvgBeginPath(vg);
+        nvgRect(vg, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1]);
+        nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, 0x7F));
+        nvgFill(vg);
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+        nvgText(vg, box.size.x / 2, box.size.y - 2, cName, NULL);
+    }
 }
 
 void NoteTakerDisplay::drawPartControl() const {

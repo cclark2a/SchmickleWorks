@@ -1,5 +1,6 @@
 #include "NoteTakerButton.hpp"
 #include "NoteTakerDisplay.hpp"
+#include "NoteTakerStorage.hpp"
 #include "NoteTakerWheel.hpp"
 #include "NoteTakerWidget.hpp"
 #include "NoteTaker.hpp"
@@ -10,106 +11,106 @@
 // depends on whether user is allowed to choose to store sequences in patches ...
 // the advantage : .vcv files can be distributed including additional sequences
 // the disadvantage : auto save time could become onerous
-struct NoteTakerStorage {
-    NoteTakerStorage() {
-        // unit test
-        vector<uint8_t> midi = { 0x80, 0x90, 0xFF, 0x3F, 0x5F, 0x7F, 0x00, 0x20, 0xAA, 0xCC};
-        vector<int8_t> encoded;
-        Encode(midi, &encoded);
-        vector<uint8_t> copy;
-        Decode(encoded, &copy);
-        SCHMICKLE(!memcmp(&midi.front(), &copy.front(), midi.size()));
-        vector<int8_t> encodeJunk = { '0', 'A', '/', 'b', 'o', '/', '7', '='};
-        Decode(encodeJunk, &copy);
-        Encode(copy, &encoded);
-        SCHMICKLE(!memcmp(&encodeJunk.front(), &encoded.front(), encodeJunk.size()));
-    }
+void NoteTakerStorage::UnitTest() {
+    // unit test
+    NoteTakerStorage test;
+    test.midi = { 0x80, 0x90, 0xFF, 0x3F, 0x5F, 0x7F, 0x00, 0x20, 0xAA, 0xCC};
+    vector<int8_t> encoded;
+    test.encode(&encoded);
+    NoteTakerStorage copy;
+    copy.decode(encoded);
+    SCHMICKLE(!memcmp(&test.midi.front(), &copy.midi.front(), test.midi.size()));
+    vector<int8_t> encodeJunk = { '0', 'A', '/', 'b', 'o', '/', '7', '='};
+    copy.decode(encodeJunk);
+    copy.encode(&encoded);
+    SCHMICKLE(!memcmp(&encodeJunk.front(), &encoded.front(), encodeJunk.size()));
+}
 
-    static void Decode(const vector<int8_t>& encoded, vector<uint8_t>* midi) {
-        midi->clear();
-        midi->reserve(encoded.size() * 3 / 4);
-        SCHMICKLE(encoded.size() / 4 * 4 == encoded.size());
-        for (unsigned index = 0; index < encoded.size(); index += 4) {
-            uint8_t stripped[4];
-            for (unsigned inner = 0; inner < 4; ++inner) {
-                int8_t ch = encoded[index + inner];
-                stripped[inner] = ('/' == ch ? '\\' : ch) - '0';
-            }
-            stripped[0] |= stripped[3] << 6;
-            stripped[1] |= (stripped[3] << 4) & 0xC0;
-            stripped[2] |= (stripped[3] << 2) & 0xC0;
-            midi->insert(midi->end(), stripped, &stripped[3]);
-        }
-    }
-
-    static void Encode(const vector<uint8_t>& midi, vector<int8_t>* encoded) {
-        encoded->clear();
-        encoded->reserve(midi.size() * 4 / 3);
-        unsigned triplets = midi.size() / 3 * 3;
-        for (unsigned index = 0; index < triplets; index += 3) {
-            EncodeTriplet(&midi[index], encoded);
-        }
-        unsigned remainder = midi.size() - triplets;
-        if (!remainder) {
-            return;
-        }
-        uint8_t trips[3] = {0, 0, 0};
-        for (unsigned index = 0; index < remainder; ++index) {
-            trips[index] = midi[triplets + index];
-        }
-        EncodeTriplet(trips, encoded);
-    }
-
-    static void EncodeTriplet(const uint8_t trips[3], vector<int8_t>* encoded) {
-        int8_t out[4];
-        out[0] = trips[0];
-        out[3] = trips[0] >> 6;
-        out[1] = trips[1];
-        out[3] |= (trips[1] >> 4) & 0x0C;
-        out[2] = trips[2];
-        out[3] |= (trips[2] >> 2) & 0x30;
+void NoteTakerStorage::decode(const vector<int8_t>& encoded) {
+    midi.clear();
+    midi.reserve(encoded.size() * 3 / 4);
+    SCHMICKLE(encoded.size() / 4 * 4 == encoded.size());
+    for (unsigned index = 0; index < encoded.size(); index += 4) {
+        uint8_t stripped[4];
         for (unsigned inner = 0; inner < 4; ++inner) {
-            int8_t ch = '0' + (out[inner] & 0x3F);
-            out[inner] = '\\' == ch ? '/' : ch;
+            int8_t ch = encoded[index + inner];
+            stripped[inner] = ('/' == ch ? '\\' : ch) - '0';
         }
-        encoded->insert(encoded->end(), out, &out[4]);
+        stripped[0] |= stripped[3] << 6;
+        stripped[1] |= (stripped[3] << 4) & 0xC0;
+        stripped[2] |= (stripped[3] << 2) & 0xC0;
+        midi.insert(midi.end(), stripped, &stripped[3]);
     }
+}
 
-    static void WriteMidi(const vector<uint8_t>& midi, unsigned slot, std::string dir) {
-        std::string dest = dir + std::to_string(slot) + ".mid";
-        int err = remove(dest.c_str());
-        if (err) {
-            DEBUG("remove %s err %d", dest.c_str(), err);
-        }
-        if (midi.empty()) {
-            return;
-        }
-        std::ofstream fout(dest.c_str(), std::ios::out | std::ios::binary);
-        fout.write((const char*) &midi.front(), midi.size());
-        fout.close();
+void NoteTakerStorage::encode(vector<int8_t>* encoded) const {
+    encoded->clear();
+    encoded->reserve(midi.size() * 4 / 3);
+    unsigned triplets = midi.size() / 3 * 3;
+    for (unsigned index = 0; index < triplets; index += 3) {
+        EncodeTriplet(&midi[index], encoded);
     }
-
-    static bool ReadMidi(vector<uint8_t>* midi, unsigned slot, std::string dir) {
-        std::string dest = dir + std::to_string(slot) + ".mid";
-        std::ifstream in(dest.c_str(), std::ifstream::binary);
-        if (in.fail()) {
-            DEBUG("%s not opened for reading", dest.c_str());
-            return false;
-        }
-        in.unsetf(std::ios::skipws);    // don't skip whitespace (!)
-        std::streampos fileSize;        // get the file size to reserve space
-        in.seekg(0, std::ios::end);
-        fileSize = in.tellg();
-        in.seekg(0, std::ios::beg);
-        midi->reserve(fileSize);        
-        std::istream_iterator<uint8_t> start(in), end;
-        midi->insert(midi->begin(), start, end);
-        return true;
+    unsigned remainder = midi.size() - triplets;
+    if (!remainder) {
+        return;
     }
+    uint8_t trips[3] = {0, 0, 0};
+    for (unsigned index = 0; index < remainder; ++index) {
+        trips[index] = midi[triplets + index];
+    }
+    EncodeTriplet(trips, encoded);
+}
 
-};
+void NoteTakerStorage::EncodeTriplet(const uint8_t trips[3], vector<int8_t>* encoded) {
+    int8_t out[4];
+    out[0] = trips[0];
+    out[3] = trips[0] >> 6;
+    out[1] = trips[1];
+    out[3] |= (trips[1] >> 4) & 0x0C;
+    out[2] = trips[2];
+    out[3] |= (trips[2] >> 2) & 0x30;
+    for (unsigned inner = 0; inner < 4; ++inner) {
+        int8_t ch = '0' + (out[inner] & 0x3F);
+        out[inner] = '\\' == ch ? '/' : ch;
+    }
+    encoded->insert(encoded->end(), out, &out[4]);
+}
 
-std::string NoteTakerWidget::midiDir() const {
+void NoteTakerStorage::writeMidi() const {
+    std::string dir = this->MidiDir();
+    std::string dest = dir + std::to_string(slot) + ".mid";
+    int err = remove(dest.c_str());
+    if (err) {
+        DEBUG("remove %s err %d", dest.c_str(), err);
+    }
+    if (midi.empty()) {
+        return;
+    }
+    std::ofstream fout(dest.c_str(), std::ios::out | std::ios::binary);
+    fout.write((const char*) &midi.front(), midi.size());
+    fout.close();
+}
+
+bool NoteTakerStorage::readMidi() {
+    std::string dir = this->MidiDir();
+    std::string dest = dir + filename;
+    std::ifstream in(dest.c_str(), std::ifstream::binary);
+    if (in.fail()) {
+        DEBUG("%s not opened for reading", dest.c_str());
+        return false;
+    }
+    in.unsetf(std::ios::skipws);    // don't skip whitespace (!)
+    std::streampos fileSize;        // get the file size to reserve space
+    in.seekg(0, std::ios::end);
+    fileSize = in.tellg();
+    in.seekg(0, std::ios::beg);
+    midi.reserve(fileSize);        
+    std::istream_iterator<uint8_t> start(in), end;
+    midi.insert(midi.begin(), start, end);
+    return true;
+}
+
+std::string NoteTakerStorage::MidiDir(bool unitTestRunning) {
     std::string dir = asset::user("plugins/Schmickleworks/midi/");
 #if RUN_UNIT_TEST
     if (unitTestRunning) {
@@ -119,25 +120,49 @@ std::string NoteTakerWidget::midiDir() const {
     return dir;
 }
 
-// sets up 10 empty slots in addition to any read slots
-void NoteTakerWidget::readStorage() {
-    unsigned limit = 10;
-    storage.clear();
-    std::string dir = this->midiDir();
-    for (unsigned index = 0; index < limit; ++index) {
-        vector<uint8_t> midi;
-        if (NoteTakerStorage::ReadMidi(&midi, index, dir)) {
-            storage.push_back(midi);
-            ++limit;
-        } else {
-            storage.push_back(vector<uint8_t>());
+// matches dot mid and dot midi, case insensitive
+static bool endsWithMid(const std::string& str) {
+    if (str.size() < 5) {
+        return false;
+    }
+    const char* last = &str.back();
+    if ('i' == tolower(*last)) {
+        --last;
+    }
+    const char dotMid[] = ".mid";
+    const char* test = last - 3;
+    for (int index = 0; index < 3; ++index) {
+        if (dotMid[index] != tolower(test[index])) {
+            return false;
         }
     }
+    return true;
+}
+
+// sets up an empty slot in addition to any read slots
+void NoteTakerWidget::readStorage() {
+    storage.clear();
+    std::string dir = NoteTakerStorage::MidiDir();
+    std::list<std::string> entries(system::getEntries(dir));
+    for (auto& entry : entries) {
+        std::string suffix(".mid");
+        if (!endsWithMid(entry)) {
+            continue;
+        }
+        NoteTakerStorage midiStorage;
+        midiStorage.filename = entry.substr(dir.size());
+        midiStorage.slot = storage.size();
+        if (midiStorage.readMidi()) {
+            storage.push_back(std::move(midiStorage));
+        }
+    }
+    NoteTakerStorage empty;
+    empty.slot = storage.size();
+    storage.push_back(std::move(empty));
 }
 
 void NoteTakerWidget::writeStorage(unsigned slot) const {
-    std::string dir = this->midiDir();
-    NoteTakerStorage::WriteMidi(storage[slot], slot, dir);
+    storage[slot].writeMidi();
 }
 
 json_t *NoteTaker::dataToJson() {
@@ -240,6 +265,3 @@ void NoteTakerWidget::fromJson(json_t *root) {
     this->invalidateCaches();
     this->setClipboardLight();
 }
-
-// to do : remove, to run unit tests only
-NoteTakerStorage storage;
