@@ -30,7 +30,7 @@ struct NoteTakerWidget : ModuleWidget {
     std::shared_ptr<Font> _musicFont = nullptr;
     std::shared_ptr<Font> _textFont = nullptr;
     vector<DisplayNote> clipboard;
-    vector<NoteTakerStorage> storage;
+    StorageArray storage;
     NoteTakerEdit edit;
     CutButton* cutButton = nullptr;
     DisplayBuffer* displayBuffer = nullptr;
@@ -76,6 +76,7 @@ struct NoteTakerWidget : ModuleWidget {
     void makeSlur();
     void makeTuplet();
     bool menuButtonOn() const;
+    DisplayNote middleC() const;
         
     int musicFont() const {
         return _musicFont->handle;
@@ -92,12 +93,10 @@ struct NoteTakerWidget : ModuleWidget {
     const Notes& n() const;
     NoteTaker* nt();
     const NoteTaker* nt() const;
-    void readStorage();
     bool resetControls();
     void resetRun();
     void resetState();
     bool runningWithButtonsOff() const;
-    void saveScore();
     void setClipboardLight();
     void setHorizontalWheelRange();
     void setSelectableScoreEmpty();

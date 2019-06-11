@@ -16,6 +16,7 @@ struct Notes {
     Notes( const Notes& ) = delete; // non construction-copyable
     Notes& operator=( const Notes& ) = delete; // non copyable
 
+    void deserialize(const vector<uint8_t>& );
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     static void HighestOnly(vector<DisplayNote>& );
@@ -36,6 +37,7 @@ struct Notes {
 
     // to do : move notetaker sort here?
 
+    void serialize(vector<uint8_t>& ) const;
     bool transposeSpan(vector<DisplayNote>& span) const;
     static bool UniquePitch(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,
             vector<const DisplayNote*>* overlaps);

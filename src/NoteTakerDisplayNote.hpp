@@ -37,19 +37,44 @@ enum DisplayType : uint8_t {
 // starts, given just the note, is onerous. For now, have validation ensure that
 // there are no gaps and call it often enough to keep the note array sane.
 struct DisplayNote {
-    NoteCache* cache;
-    int startTime;      // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
-    int duration;       // MIDI time
-    int data[4];        // type-specific values
-    uint8_t channel;    // set to 0xFF if type doesn't have channel
+    NoteCache* cache = nullptr;
+    int startTime;          // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
+    int duration;           // MIDI time
+    int data[4] = { 0, 0, 0, 0}; // type-specific values
+    uint8_t channel;        // set to 0 if type doesn't have channel
     DisplayType type;
-    bool selected;      // set if channel intersects selectChannels prior to channel edit
+    bool selected = false;      // set if channel intersects selectChannels prior to channel edit
+
+    DisplayNote(DisplayType t, int start = 0, int dur = 0, uint8_t chan = 0)
+        : startTime(start)
+        , duration(dur)
+        , channel(chan)
+        , type(t) {
+        switch (type) {
+            case NOTE_ON:
+                this->setOnVelocity(stdKeyPressure);
+                this->setOffVelocity(stdKeyPressure);
+                break;
+            case TIME_SIGNATURE:
+                this->setNumerator(4);
+                this->setDenominator(2);
+                data[2] = 24;   // clocks per click
+                data[3] = 8;    // notated 32 notes per quarter note
+                break;
+            case MIDI_TEMPO:
+                this->setTempo(500000);
+                break;
+            default:
+                ;
+        }
+    }
 
     bool operator<(const DisplayNote& rhs) const {
         return startTime < rhs.startTime;
     }
 
     void setChannel(uint8_t c) {
+        SCHMICKLE(c <= 0x0F);
         channel = c;
         assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);
     }
@@ -120,6 +145,11 @@ struct DisplayNote {
         return data[1];
     }
 
+    void setTracks(int tracks) {
+        data[1] = tracks;
+        assertValid(MIDI_HEADER);
+    }
+
     int denominator() const {
         assertValid(TIME_SIGNATURE);
         return data[1];
@@ -153,6 +183,11 @@ struct DisplayNote {
         assertValid(MIDI_HEADER);
         SCHMICKLE(!(data[1] & 0x8000));
         return data[2];
+    }
+
+    void setPpq(int ppq) {
+        data[2] = ppq;
+        assertValid(MIDI_HEADER);
     }
 
     int clocksPerClick() const {
@@ -242,6 +277,7 @@ struct NoteCache {
     PositionType slurPosition = PositionType::none;
     PositionType tiePosition = PositionType::none;
     PositionType tupletPosition = PositionType::none;
+    uint8_t tupletId = 0;  // distinguish between multiple simultaneous triplets
     uint8_t symbol;
     uint8_t pitchPosition = 0;
     bool accidentalSpace = false;

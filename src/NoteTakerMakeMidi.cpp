@@ -13,7 +13,7 @@ const NoteTakerChannel::Limit NoteTakerChannelLimits[] = {
 
 void NoteTakerMakeMidi::createEmpty(vector<uint8_t>& midi) {
     this->standardHeader(midi, stdTimePerQuarterNote);
-    DisplayNote dummy = { nullptr, 0, 0, { 0, 0, 0, 0}, 0, UNUSED, false }; // to do : empty constructor?
+    DisplayNote dummy(UNUSED);
     int last = 0;
     add_track_end(dummy, last);
     this->standardTrailer(midi);

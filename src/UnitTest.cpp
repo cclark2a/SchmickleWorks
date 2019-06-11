@@ -279,9 +279,38 @@ static void Expected(NoteTakerWidget* n) {
     n->invalidateCaches();
 }
 
+static void TestEncode() {
+    DisplayNote tempo(MIDI_TEMPO);
+    DEBUG("tempo %s", tempo.debugString().c_str());
+    NoteTakerStorage storage;
+    Notes n;
+    n.notes.push_back(tempo);
+    DEBUG("n.notes %s", n.notes[0].debugString().c_str());
+    n.serialize(storage.midi);
+    DEBUG("raw midi");
+    NoteTaker::DebugDumpRawMidi(storage.midi);
+    vector<char> encoded;
+    storage.encode(&encoded);
+    encoded.push_back('\0'); // treat as string
+    const char* encodedString = &encoded.front();
+    DEBUG("encoded midi %s", encodedString);
+    vector<char> encoded2(encodedString, encodedString + strlen(encodedString));
+    DEBUG("encoded2 %.*s", encoded2.size(), &encoded2.front());
+    NoteTakerStorage storage2;
+    storage2.decode(encoded2);
+    DEBUG("raw midi2");
+    NoteTaker::DebugDumpRawMidi(storage2.midi);
+    Notes n2;
+    n2.deserialize(storage2.midi);    
+    DEBUG("%s", n2.notes[0].debugString().c_str());
+}
+
 void UnitTest(NoteTakerWidget* n, TestType test) {
     n->unitTestRunning = true;
     switch (test) {
+        case TestType::encode:
+            TestEncode();
+            break;
         case TestType::digit:
             LowLevelTestDigitsSolo(n);
             LowLevelTestDigits(n);

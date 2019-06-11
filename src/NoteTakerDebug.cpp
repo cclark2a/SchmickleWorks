@@ -70,6 +70,16 @@ std::string DisplayNote::debugString() const {
 
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto& n = this->n();
+    DEBUG("storage slots %u midi %u", storage.slotMap.size(), storage.storage.size());
+    for (auto& entry : storage.slotMap) {
+        DEBUG("entry[%s]:%u", entry.first.c_str(), entry.second);
+    }
+     
+    for (unsigned index = 0; index < storage.storage.size(); ++index) {
+        auto& e = storage.storage[index];
+        DEBUG("[%u] filename:%s midi:%u preset:%d", index, e.filename.c_str(), e.midi.size(),
+                e.preset);
+    }
     DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, n.horizontalCount(selectChannels));
     DEBUG("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
@@ -164,7 +174,7 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
     }
 }
 
-void NoteTaker::DebugDumpRawMidi(vector<uint8_t>& v) {
+void NoteTaker::DebugDumpRawMidi(const vector<uint8_t>& v) {
     std::string s;
     unsigned line = v.size();
     for (unsigned i = 0; i < v.size(); ++i) {

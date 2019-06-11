@@ -144,7 +144,7 @@ struct NoteTaker : Module {
     static void DebugDump(const vector<DisplayNote>& , const vector<NoteCache>* xPos = nullptr,
             const vector<unsigned>* voice = nullptr, 
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
-    static void DebugDumpRawMidi(vector<uint8_t>& v);
+    static void DebugDumpRawMidi(const vector<uint8_t>& v);
 
     int externalTempo(bool clockEdge);
     bool extractClipboard(vector<DisplayNote>* ) const;

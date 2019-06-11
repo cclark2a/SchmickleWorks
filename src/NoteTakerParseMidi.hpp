@@ -1,25 +1,31 @@
 #pragma once
 
-#include "NoteTakerChannel.hpp"
-#include "NoteTakerDisplayNote.hpp"
+#include "NoteTaker.hpp"
 
-class NoteTakerParseMidi {
-public:
-    NoteTakerParseMidi(const vector<uint8_t>& m, vector<DisplayNote>& d,
-            array<NoteTakerChannel, CHANNEL_COUNT>& c, int& p)
-        : midi(m)
-        , displayNotes(d)
-        , channels(c)
-        , ntPpq(p) {       
-    }
-
-    bool parseMidi();
-private:
+struct NoteTakerParseMidi {
     const vector<uint8_t>& midi;
     vector<DisplayNote>& displayNotes;
     array<NoteTakerChannel, CHANNEL_COUNT>& channels;
     int& ntPpq;
     bool debugVerbose = true;
+
+    NoteTakerParseMidi(const vector<uint8_t>& m, Notes& notes, 
+            array<NoteTakerChannel, CHANNEL_COUNT>& chans)
+        : midi(m)
+        , displayNotes(notes.notes)
+        , channels(chans)
+        , ntPpq(notes.ppq) {
+    }
+
+    NoteTakerParseMidi(const vector<uint8_t>& m, NoteTaker& nt)
+        : midi(m)
+        , displayNotes(nt.n.notes)
+        , channels(nt.channels)
+        , ntPpq(nt.n.ppq) {       
+        if (nt.debugVerbose) NoteTaker::DebugDumpRawMidi(m);
+    }
+
+    bool parseMidi();
 
     void debug_out(vector<uint8_t>::const_iterator& iter) const {
         std::string s;

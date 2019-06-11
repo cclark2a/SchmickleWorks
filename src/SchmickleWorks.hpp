@@ -38,6 +38,7 @@ extern Model *modelNoteTaker;
         digit,
         random,
         expected,
+        encode,
     };
 
     void UnitTest(struct NoteTakerWidget* , TestType );
@@ -49,6 +50,7 @@ extern Model *modelNoteTaker;
 inline bool _schmickled() {
     std::string st = system::getStackTrace();
     DEBUG("%s", st.c_str());
+    assert(0);  // to do : remove from production, so that innoculous asserts don't cause a crash?
     return false;
 }
 

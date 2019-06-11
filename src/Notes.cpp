@@ -1,5 +1,77 @@
 #include "Notes.hpp"
+#include "NoteTakerChannel.hpp"
 #include "NoteTakerDisplay.hpp"
+#include "NoteTakerMakeMidi.hpp"
+#include "NoteTakerParseMidi.hpp"
+
+void Notes::deserialize(const vector<uint8_t>& storage) {
+    array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;
+    NoteTakerParseMidi midiParser(storage, *this, dummyChannels);
+    vector<uint8_t>::const_iterator iter = midiParser.midi.begin();
+    DisplayNote note(UNUSED);
+    do {
+        int delta;
+        if (!midiParser.midi_size8(iter, &delta) || delta < 0) {
+            DEBUG("invalid midi time");
+            midiParser.debug_out(iter);
+            return;
+        }
+        note.startTime += delta;
+        if (!midiParser.midi_size8(iter, &note.duration) || note.duration < 0) {
+            DEBUG("invalid duration");
+            midiParser.debug_out(iter);
+            return;
+        }
+        for (unsigned index = 0; index < 4; ++index) {
+            if (!midiParser.midi_size8(iter, &note.data[index])) {
+                DEBUG("invalid data %u", index);
+                midiParser.debug_out(iter);
+                return;
+            }
+        }
+        if (iter + 1 >= midiParser.midi.end()) {
+            DEBUG("unexpected eof");
+            return;
+        }
+        uint8_t byte = *iter++;
+        note.type = (DisplayType) (byte >> 4);
+        note.channel = byte & 0x0F;
+        if (iter >= midiParser.midi.end()) {
+            DEBUG("unexpected eof 2");
+            return;
+        }
+        if (*iter != !!*iter) {
+            DEBUG("invalid selected");
+            midiParser.debug_out(iter);
+            return;
+        }
+        note.selected = *iter++;
+        notes.push_back(note);
+    } while (iter != midiParser.midi.end());
+}
+
+// unlike saving as MIDI, this preserves rests and other specialized information
+void Notes::serialize(vector<uint8_t>& storage) const {
+    NoteTakerMakeMidi midiMaker;
+    midiMaker.target = &storage;
+    int lastStart = 0;
+    for (auto& note : notes) {
+        if (note.duration < 0) {
+            DEBUG("[%d / %u] dur < 0", &note - &notes.front(), notes.size());
+            DEBUG(" %s", note.debugString().c_str());
+        }
+        midiMaker.add_delta(note.startTime, &lastStart);
+        midiMaker.add_size8(note.duration);
+        for (unsigned index = 0; index < 4; ++index) {
+            midiMaker.add_size8(note.data[index]);
+        }
+        // MIDI-like: pack type and channel into first byte
+        uint8_t chan = note.isNoteOrRest() ? note.channel : 0;
+        uint8_t byte = (note.type << 4) + chan;
+        midiMaker.add_one(byte);
+        midiMaker.add_one(note.selected);
+    }
+}
 
 void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
     for (auto iter = notes.begin() + end; iter-- != notes.begin() + start; ) {

@@ -359,10 +359,10 @@ void NoteTakerDisplay::cacheStaff() {
             if (NOTE_ON != first->note->type || NOTE_ON != next->note->type) {
                 break;
             }
-            if (next->vStartTime != last->vStartTime) {
+            if (next->vStartTime != first->vStartTime) {
                 break;
             }
-            if (next->vDuration != last->vDuration) {
+            if (next->vDuration != first->vDuration) {
                 break;
             }
             // to do : if notes are on the same or adjacent lines, slide one over
@@ -371,8 +371,8 @@ void NoteTakerDisplay::cacheStaff() {
             if (last->pitchPosition + 6 <= next->pitchPosition) {
                 break;
             }
-            // but don't tie from below middle C to above middle C (60)
-            if (MIDDLE_C > last->pitchPosition && MIDDLE_C < next->pitchPosition) {
+            // but don't tie from below middle C to above middle C (score line 39)
+            if (MIDDLE_C > first->pitchPosition && MIDDLE_C < next->pitchPosition) {
                 break;
             }
             last = next;
@@ -395,6 +395,13 @@ void NoteTakerDisplay::cacheStaff() {
             continue;
         }
         last = next - 1;
+    // to do : remove or mark as debugging only
+        if (MIDDLE_C < last->pitchPosition) {
+            for (NoteCache* test = first; test < next; ++test) {
+                DEBUG("[%d] %d pitchPos %d stemUp %d staff %d", test->channel, test->vStartTime, 
+                        test->pitchPosition, test->stemUp, test->staff);
+            }
+        }
         SCHMICKLE(MIDDLE_C >= last->pitchPosition);
         bool stemUp = last->stemUp;
         last->staff = !stemUp;
@@ -410,6 +417,7 @@ void NoteTakerDisplay::cacheTuplets() {
     const auto& n = *this->notes();
     array<unsigned, CHANNEL_COUNT> tripStarts;
     tripStarts.fill(INT_MAX);
+    int tupletId = 1;
     for (unsigned index = 0; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
         if (!note.isNoteOrRest()) {
@@ -435,6 +443,7 @@ void NoteTakerDisplay::cacheTuplets() {
                 if (totalDuration * 2 == tripDur || factor * tripDur == totalDuration) {
                     NoteCache* noteCache = start.cache;
                     noteCache->tupletPosition = PositionType::left;
+                    noteCache->tupletId = tupletId;
                     int chan = start.channel;
                     NoteCache* last = note.cache;
                     NoteCache* next = last;
@@ -456,13 +465,22 @@ void NoteTakerDisplay::cacheTuplets() {
                         }
                         if (chan == noteCache->channel) {
                             noteCache->tupletPosition = PositionType::mid;
+                            noteCache->tupletId = tupletId;
                         }
                     }
                     last->tupletPosition = PositionType::right;
+                    last->tupletId = tupletId;
+                    if (!++tupletId) {
+                        tupletId = 1;  // reserve zero to mean 'not part of a tuplet'
+                    }
                     tripStart = INT_MAX;
                 }
                 continue;
             }
+        }
+        // to do : remove or mark as debugging only
+        if (!NoteDurations::InStd(note.duration, n.ppq)) {
+            DEBUG("note !InStd %s ppq %d", note.debugString().c_str(), n.ppq);
         }
         if (NoteDurations::TripletPart(note.duration, n.ppq)) {
             tripStart = index;
@@ -481,18 +499,16 @@ float NoteTakerDisplay::cacheWidth(const NoteCache& noteCache) const {
 }
 
 void NoteTakerDisplay::clearTuplet(unsigned index, unsigned limit) {
-    const auto& n = *this->notes();
     SCHMICKLE(PositionType::left == cache[index].tupletPosition);
-    int chan = n.notes[index].channel;
+    const int tupletId = cache[index].tupletId;
+    SCHMICKLE(tupletId);
     cache[index].tupletPosition = PositionType::none;
     while (++index < limit) {
-        if (!n.notes[index].cache->staff) {
+        if (tupletId != cache[index].tupletId) {
             continue;
         }
-        if (chan == n.notes[index].channel) {
-            SCHMICKLE(PositionType::mid == cache[index].tupletPosition);
-            cache[index].tupletPosition = PositionType::none;
-        }
+        SCHMICKLE(PositionType::mid == cache[index].tupletPosition);
+        cache[index].tupletPosition = PositionType::none;
     }
 }
 
@@ -951,7 +967,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     }
 #if RUN_UNIT_TEST
     if (ntw->runUnitTest) { // to do : remove this from shipping code
-        UnitTest(ntw, TestType::digit);
+        UnitTest(ntw, TestType::encode);
         ntw->runUnitTest = false;
         return;
     }
@@ -1016,7 +1032,8 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
     }
     if (dynamicPitchAlpha > 0) {
         const auto& n = *this->notes();
-        DisplayNote note = {nullptr, 0, n.ppq, { 0, 0, 0, 0}, 0, NOTE_ON, false };
+        DisplayNote note(NOTE_ON);
+        note.duration = n.ppq;
         NoteCache noteCache(&note);
         note.cache = &noteCache;
         note.setPitch((int) ntw->verticalWheel->getValue());
@@ -1125,7 +1142,7 @@ void NoteTakerDisplay::drawFileControl() {
     for (unsigned index = first; index <= last; ++index) {
         nvgSave(vg);
         nvgTranslate(vg, 40 + (index - xControlOffset) * boxWidth, box.size.y - boxWidth - 5);
-        if (index >= ntw->storage.size() || ntw->storage[index].midi.empty()) {
+        if (index >= ntw->storage.size() || ntw->storage.isEmpty(index)) {
             drawEmpty(index);
         } else {
             drawNote(index);
@@ -1156,22 +1173,19 @@ void NoteTakerDisplay::drawFileControl() {
     nvgStrokeWidth(vg, 2);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
-    unsigned index = (unsigned) wheel;
-    std::string name = index < ntw->storage.size() ? ntw->storage[index].filename : "";
-    if (name.size() > 1) {
-        name = name.substr(1);
-        const char* cName = name.c_str();
+    if ((unsigned) slot < ntw->storage.size()) {
+        const std::string& name = ntw->storage.name(slot);
         float bounds[4];
         nvgFontFaceId(vg, ntw->textFont());
         nvgFontSize(vg, 10);
         nvgTextAlign(vg, NVG_ALIGN_CENTER);
-        nvgTextBounds(vg, box.size.x / 2, box.size.y - 2, cName, nullptr, bounds);
+        nvgTextBounds(vg, box.size.x / 2, box.size.y - 2, name.c_str(), nullptr, bounds);
         nvgBeginPath(vg);
         nvgRect(vg, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1]);
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, 0x7F));
         nvgFill(vg);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-        nvgText(vg, box.size.x / 2, box.size.y - 2, cName, NULL);
+        nvgText(vg, box.size.x / 2, box.size.y - 2, name.c_str(), NULL);
     }
 }
 
@@ -1471,21 +1485,22 @@ void NoteTakerDisplay::drawTieControl() {
 // to do : share code with draw slur, draw beam ?
 void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewBeam) const {
     SCHMICKLE(PositionType::left == cache[start].tupletPosition);
+    int tupletId = cache[start].tupletId;
     BeamPositions bp;
     unsigned index = start;
-    int chan = cache[start].channel;
     while (++index < cache.size()) {
-        if (chan != cache[index].channel) {
+        auto& noteCache = cache[index];
+        if (tupletId != noteCache.tupletId) {
             continue;
         }
-        if (PositionType::right == cache[index].tupletPosition) {
+        if (PositionType::right == noteCache.tupletPosition) {
             this->setBeamPos(start, index, &bp);
             break;
         }
-        SCHMICKLE(PositionType::mid == cache[index].tupletPosition);
+        SCHMICKLE(PositionType::mid == noteCache.tupletPosition);
     }
     SCHMICKLE(PositionType::right == cache[index].tupletPosition);
-    SetNoteColor(vg, chan, alpha);
+    SetNoteColor(vg, cache[index].channel, alpha);
     // draw '3' at center of notes above or below staff
     nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, 16);
@@ -1567,12 +1582,17 @@ const Notes* NoteTakerDisplay::notes() {
         previewNotes->selectEnd = 2;
         previewNotes->ppq = 96;
         const int ppq = previewNotes->ppq;
-        DisplayNote header = { nullptr, 0, 0, { 0, 1, ppq, 0}, 0xFF, MIDI_HEADER, false };
-        DisplayNote key = { nullptr, 0, 0, { 1, 0, 0, 0}, 0xFF, KEY_SIGNATURE, false };
-        DisplayNote time = { nullptr, 0, 0, { 4, 2, 24, 8}, 0xFF, TIME_SIGNATURE, false };
-        DisplayNote midC = { nullptr, 0, ppq / 2, { 60, 0, stdKeyPressure, stdKeyPressure}, 1, NOTE_ON, false };
-        DisplayNote midE = { nullptr, ppq / 2, ppq / 2, { 64, 0, stdKeyPressure, stdKeyPressure}, 1, NOTE_ON, false };
-        DisplayNote trailer = { nullptr, ppq, 0, { 0, 0, 0, 0}, 0xFF, TRACK_END, false };
+        DisplayNote header(MIDI_HEADER);
+        header.setTracks(1);
+        header.setPpq(ppq);
+        DisplayNote key(KEY_SIGNATURE);
+        key.setKey(1);
+        DisplayNote time(TIME_SIGNATURE);
+        DisplayNote midC(NOTE_ON, 0, ppq / 2, 1);
+        midC.setPitch(60);
+        DisplayNote midE(NOTE_ON, ppq / 2, ppq / 2, 1);
+        midE.setPitch(64);
+        DisplayNote trailer(TRACK_END, ppq);
         auto& notes = previewNotes->notes;
         notes.push_back(header);
         notes.push_back(key);

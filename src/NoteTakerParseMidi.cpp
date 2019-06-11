@@ -72,12 +72,7 @@ bool NoteTakerParseMidi::parseMidi() {
                 midi[4], midi[5], midi[6], midi[7]);
         return false;
     }
-    DisplayNote displayNote;
-    displayNote.cache = nullptr;
-    displayNote.startTime = 0;
-    displayNote.duration = 0;
-    displayNote.type = MIDI_HEADER;
-    displayNote.channel = 0xFF;
+    DisplayNote displayNote(MIDI_HEADER);
     for (int i = 0; i < 3; ++i) {
         read_midi16(iter, &displayNote.data[i]);
     }
@@ -91,7 +86,7 @@ bool NoteTakerParseMidi::parseMidi() {
     int trackCount = -1;
     int midiTime;
     parsedNotes.push_back(displayNote);
-    DisplayNote trackEnd = {nullptr, 0, 0, {0, 0, 0, 0}, 0xFF, TRACK_END, false};  // for missing end
+    DisplayNote trackEnd(TRACK_END);  // for missing end
     do {
         bool trackEnded = false;
         vector<uint8_t>::const_iterator trk = iter;
@@ -235,7 +230,7 @@ bool NoteTakerParseMidi::parseMidi() {
                     displayNote.data[0] = *iter++;
                 break;
                 case MIDI_SYSTEM:
-                    displayNote.channel = 0xFF;
+                    displayNote.channel = 0;
                     if (debugVerbose) DEBUG("system message 0x%02x", lowNibble);
                     switch (lowNibble) {
                         case 0x0:  // system exclusive
@@ -472,27 +467,20 @@ bool NoteTakerParseMidi::parseMidi() {
     if (trackEnd.startTime < 0) {
         trackEnd.startTime = midiTime;
     }
+    if (trackEnd.duration < 0) {
+        trackEnd.duration = 0;
+    }
     parsedNotes.push_back(trackEnd);
     // insert rests
     int lastNoteEnd = 0;
     vector<DisplayNote> withRests;
     withRests.reserve(parsedNotes.size());
     for (const auto& note : parsedNotes) {
-        if ((NOTE_ON == note.type || TRACK_END == note.type) && lastNoteEnd < note.startTime) {
-            // to do : create constructor so this can call emplace_back ?
-            DisplayNote rest;
-            rest.startTime = lastNoteEnd;
-            rest.duration = note.startTime - lastNoteEnd;
-            memset(rest.data, 0, sizeof(rest.data));
-            rest.channel = note.channel;
-            if (0xFF == rest.channel) {
-                // to do : document if rest in channel 2 is saved, it is loaded in chan
-                // zero because midi does not contain rests, and cannot assign a channel
-                rest.channel = 0;
+        if (NOTE_ON == note.type || TRACK_END == note.type) {
+            int duration = note.startTime - lastNoteEnd;
+            if (duration > 0 && NoteDurations::InStd(duration, ppq)) {
+                withRests.emplace_back(REST_TYPE, lastNoteEnd, duration, note.channel);
             }
-            rest.type = REST_TYPE;
-            rest.selected = false;
-            withRests.push_back(rest);
         }
         withRests.push_back(note);
         lastNoteEnd = std::max(lastNoteEnd, note.endTime());

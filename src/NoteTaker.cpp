@@ -148,9 +148,8 @@ void NoteTaker::process(const ProcessArgs &args) {
             unsigned insertLoc = !n.noteCount(ntw()->selectChannels) ? this->atMidiTime(0) :
                     !n.selectStart ? mainWidget->wheelToNote(1) : n.selectEnd;
             int startTime = n.notes[insertLoc].startTime;
-            DisplayNote note = { nullptr, startTime, duration,
-                    { midiNote, 0, stdKeyPressure, stdKeyPressure},
-                     (uint8_t) mainWidget->unlockedChannel(), NOTE_ON, false };
+            DisplayNote note(NOTE_ON, startTime, duration, (uint8_t) mainWidget->unlockedChannel());
+            note.setPitch(midiNote);
             n.notes.insert(n.notes.begin() + insertLoc, note);
             mainWidget->insertFinal(duration, insertLoc, 1);
         }
@@ -299,7 +298,7 @@ void NoteTaker::process(const ProcessArgs &args) {
 
 void NoteTaker::onReset() {
     this->resetState();
-    mainWidget->readStorage();
+    mainWidget->storage.init();
     Module::onReset();
 }
 
@@ -349,7 +348,7 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
     if (debugVerbose) DebugDumpRawMidi(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, n.notes, channels, n.ppq);
+    NoteTakerParseMidi emptyParser(emptyMidi, *this);
     bool success = emptyParser.parseMidi();
     SCHMICKLE(success);
     invalidVoiceCount = true;

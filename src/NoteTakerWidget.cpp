@@ -293,19 +293,14 @@ void NoteTakerWidget::invalidateCaches() {
 }
 
 void NoteTakerWidget::loadScore() {
-    auto& n = this->n();
-    unsigned index = (unsigned) horizontalWheel->getValue();
-    SCHMICKLE(index < storage.size());
-    NoteTakerParseMidi parser(storage[index].midi, n.notes, nt()->channels, n.ppq);
-    if (debugVerbose) NoteTaker::DebugDumpRawMidi(storage[index].midi);
-    if (!parser.parseMidi()) {
+    if (!storage.loadScore(*nt(), (unsigned) horizontalWheel->getValue())) {
         nt()->setScoreEmpty();
     }
     display->resetXAxisOffset();
     nt()->resetRun();
     invalidateCaches();
     unsigned atZero = nt()->atMidiTime(0);
-    atZero -= TRACK_END == n.notes[atZero].type;
+    atZero -= TRACK_END == nt()->n.notes[atZero].type;
     nt()->setSelectStart(atZero);
 }
 
@@ -461,6 +456,13 @@ bool NoteTakerWidget::menuButtonOn() const {
     return fileButton->ledOn || partButton->ledOn || sustainButton->ledOn || tieButton->ledOn;
 }
 
+DisplayNote NoteTakerWidget::middleC() const {
+    auto& n = this->n();
+    DisplayNote midC(NOTE_ON, 0, n.ppq, (uint8_t) this->unlockedChannel());
+    midC.setPitch(60);  // to do : const for middle C
+    return midC;
+}
+
 int NoteTakerWidget::nextStartTime(unsigned start) const {
     auto& n = this->n();
     for (unsigned index = start; index < n.notes.size(); ++index) {
@@ -555,20 +557,6 @@ bool NoteTakerWidget::runningWithButtonsOff() const {
     return runButton->ledOn && !this->menuButtonOn();
 }
 
-void NoteTakerWidget::saveScore() {
-    unsigned index = (unsigned) horizontalWheel->getValue();
-    SCHMICKLE(index <= storage.size());
-    if (storage.size() == index) {
-        NoteTakerStorage noteStorage;
-        noteStorage.slot = storage.size();
-        storage.push_back(noteStorage);
-    }
-    auto& dest = storage[index].midi;
-    NoteTakerMakeMidi midiMaker;
-    midiMaker.createFromNotes(*this->nt(), dest);
-    this->writeStorage(index);
-}
-
 void NoteTakerWidget::setClipboardLight() {
     bool ledOn = !clipboard.empty() && this->extractClipboard();
     float brightness = ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
@@ -613,7 +601,6 @@ void NoteTakerWidget::turnOffLedButtons(const NoteTakerButton* exceptFor) {
         }
     }
 }
-
 
 // counts to nth selectable note; returns index into notes array
 unsigned NoteTakerWidget::wheelToNote(int value, bool dbug) const {

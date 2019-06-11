@@ -332,7 +332,7 @@ void NoteTakerWidget::updateVertical() {
         if (verticalWheel->getValue() <= 2) {
             display->downSelected = true;
             if (fileButton->ledOn) {
-                this->saveScore();
+                storage.saveScore(*nt(), (unsigned) horizontalWheel->getValue());
             } else {
                 int part = horizontalWheel->part();
                 if (part < 0) {
@@ -451,9 +451,8 @@ void NoteTakerWidget::updateVertical() {
         if (!n.voice) {
             int duration = base ? base->duration : n.ppq;
             int startTime = base ? base->startTime : n.notes[n.selectStart].startTime;
-            DisplayNote iNote = { nullptr, startTime, duration,
-                    { pitch, 0, stdKeyPressure, stdKeyPressure},
-                    (uint8_t) this->unlockedChannel(), NOTE_ON, false };
+            DisplayNote iNote(NOTE_ON, startTime, duration, (uint8_t) this->unlockedChannel());
+            iNote.setPitch(pitch);
             n.selectStart += 1;
             n.selectEnd = n.selectStart + 1;
             n.notes.insert(n.notes.begin() + n.selectStart, iNote);

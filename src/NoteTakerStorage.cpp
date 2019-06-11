@@ -1,11 +1,8 @@
-#include "NoteTakerButton.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerStorage.hpp"
-#include "NoteTakerWheel.hpp"
-#include "NoteTakerWidget.hpp"
-#include "NoteTaker.hpp"
 #include <fstream>
 #include <iterator>
+#include "NoteTakerMakeMidi.hpp"
+#include "NoteTakerParseMidi.hpp"
+#include "NoteTakerStorage.hpp"
 
 // to do : not sure if we need radix 64 encoded midi or not ... 
 // depends on whether user is allowed to choose to store sequences in patches ...
@@ -15,18 +12,18 @@ void NoteTakerStorage::UnitTest() {
     // unit test
     NoteTakerStorage test;
     test.midi = { 0x80, 0x90, 0xFF, 0x3F, 0x5F, 0x7F, 0x00, 0x20, 0xAA, 0xCC};
-    vector<int8_t> encoded;
+    vector<char> encoded;
     test.encode(&encoded);
     NoteTakerStorage copy;
     copy.decode(encoded);
     SCHMICKLE(!memcmp(&test.midi.front(), &copy.midi.front(), test.midi.size()));
-    vector<int8_t> encodeJunk = { '0', 'A', '/', 'b', 'o', '/', '7', '='};
+    vector<char> encodeJunk = { '0', 'A', '/', 'b', 'o', '/', '7', '='};
     copy.decode(encodeJunk);
     copy.encode(&encoded);
     SCHMICKLE(!memcmp(&encodeJunk.front(), &encoded.front(), encodeJunk.size()));
 }
 
-void NoteTakerStorage::decode(const vector<int8_t>& encoded) {
+void NoteTakerStorage::decode(const vector<char>& encoded) {
     midi.clear();
     midi.reserve(encoded.size() * 3 / 4);
     SCHMICKLE(encoded.size() / 4 * 4 == encoded.size());
@@ -41,27 +38,39 @@ void NoteTakerStorage::decode(const vector<int8_t>& encoded) {
         stripped[2] |= (stripped[3] << 2) & 0xC0;
         midi.insert(midi.end(), stripped, &stripped[3]);
     }
+    size_t index = midi.size();
+    size_t wall = index >= 4 ? index - 4 : 0;
+    DEBUG("midi.size %u", index);
+    uint8_t test;
+    while (index > wall) {
+        test = midi[--index];
+        DEBUG("test %u", test);
+        if (0xFF == test) {   // to do : use sentinel constant
+            midi.resize(index);
+            break;
+        }
+    }
 }
 
-void NoteTakerStorage::encode(vector<int8_t>* encoded) const {
+void NoteTakerStorage::encode(vector<char>* encoded) const {
     encoded->clear();
     encoded->reserve(midi.size() * 4 / 3);
     unsigned triplets = midi.size() / 3 * 3;
     for (unsigned index = 0; index < triplets; index += 3) {
         EncodeTriplet(&midi[index], encoded);
     }
-    unsigned remainder = midi.size() - triplets;
-    if (!remainder) {
-        return;
-    }
+    unsigned remainder = midi.size() - triplets;  // including one for end sentinel
+    DEBUG("remainder %u", remainder);
     uint8_t trips[3] = {0, 0, 0};
     for (unsigned index = 0; index < remainder; ++index) {
         trips[index] = midi[triplets + index];
     }
+    trips[remainder] = 0xFF;    // to do : use sentinel constant
     EncodeTriplet(trips, encoded);
 }
 
-void NoteTakerStorage::EncodeTriplet(const uint8_t trips[3], vector<int8_t>* encoded) {
+// only used by unit test
+void NoteTakerStorage::EncodeTriplet(const uint8_t trips[3], vector<char>* encoded) {
     int8_t out[4];
     out[0] = trips[0];
     out[3] = trips[0] >> 6;
@@ -77,8 +86,17 @@ void NoteTakerStorage::EncodeTriplet(const uint8_t trips[3], vector<int8_t>* enc
 }
 
 void NoteTakerStorage::writeMidi() const {
-    std::string dir = this->MidiDir();
-    std::string dest = dir + std::to_string(slot) + ".mid";
+    std::string root = StorageArray::UserDir();
+    if (!system::isDirectory(root)) {
+        system::createDirectory(root);
+        SCHMICKLE(system::isDirectory(root));
+    }
+    std::string midi = StorageArray::UserMidi();
+    if (!system::isDirectory(midi)) {
+        system::createDirectory(midi);
+        SCHMICKLE(system::isDirectory(midi));
+    }
+    std::string dest = midi + filename;
     int err = remove(dest.c_str());
     if (err) {
         DEBUG("remove %s err %d", dest.c_str(), err);
@@ -91,8 +109,7 @@ void NoteTakerStorage::writeMidi() const {
     fout.close();
 }
 
-bool NoteTakerStorage::readMidi() {
-    std::string dir = this->MidiDir();
+bool NoteTakerStorage::readMidi(const std::string& dir) {
     std::string dest = dir + filename;
     std::ifstream in(dest.c_str(), std::ifstream::binary);
     if (in.fail()) {
@@ -108,16 +125,6 @@ bool NoteTakerStorage::readMidi() {
     std::istream_iterator<uint8_t> start(in), end;
     midi.insert(midi.begin(), start, end);
     return true;
-}
-
-std::string NoteTakerStorage::MidiDir(bool unitTestRunning) {
-    std::string dir = asset::user("plugins/Schmickleworks/midi/");
-#if RUN_UNIT_TEST
-    if (unitTestRunning) {
-        dir = asset::user("plugins/Schmickleworks/test/");
-    }
-#endif
-    return dir;
 }
 
 // matches dot mid and dot midi, case insensitive
@@ -139,129 +146,95 @@ static bool endsWithMid(const std::string& str) {
     return true;
 }
 
-// sets up an empty slot in addition to any read slots
-void NoteTakerWidget::readStorage() {
-    storage.clear();
-    std::string dir = NoteTakerStorage::MidiDir();
+void StorageArray::setMidiMap(const std::string& dir, bool preset) {
     std::list<std::string> entries(system::getEntries(dir));
-    for (auto& entry : entries) {
-        std::string suffix(".mid");
+    for (const auto& entry : entries) {
         if (!endsWithMid(entry)) {
             continue;
         }
-        NoteTakerStorage midiStorage;
-        midiStorage.filename = entry.substr(dir.size());
-        midiStorage.slot = storage.size();
-        if (midiStorage.readMidi()) {
-            storage.push_back(std::move(midiStorage));
+        size_t lastSlash = entry.rfind('/');
+        std::string filename = std::string::npos == lastSlash ? entry : entry.substr(lastSlash + 1);
+        if (slotMap.end() != slotMap.find(filename)) {
+            continue;
+        }
+        size_t count = slotMap.size();
+        slotMap[filename] = count;
+        if (count >= storage.size()) {
+            storage.resize(count + 1);
+        }
+        auto& store = storage[count];
+        store.filename = filename;
+        store.preset = preset;      
+    }
+}
+
+// sets up an empty slot in addition to any read slots
+void StorageArray::init() {
+    storage.clear();
+    slotMap.clear();
+    this->loadJson();
+    this->setMidiMap(StorageArray::UserDir(), false);
+    this->setMidiMap(StorageArray::PresetDir(), true);
+    for (auto& entry : storage) {
+        const std::string& dir = entry.preset ? StorageArray::PresetDir() : StorageArray::UserDir();
+        if (!entry.readMidi(dir)) {
+            entry.midi.clear();
         }
     }
-    NoteTakerStorage empty;
-    empty.slot = storage.size();
-    storage.push_back(std::move(empty));
 }
 
-void NoteTakerWidget::writeStorage(unsigned slot) const {
-    storage[slot].writeMidi();
+void StorageArray::loadJson() {
+    json_t* userJson = nullptr;
+	FILE *file = std::fopen(UserJson().c_str(), "r");
+	if (!file) {
+        return;
+    }
+	DEFER({
+		std::fclose(file);
+	});
+	json_error_t error;
+	userJson = json_loadf(file, 0, &error);
+	if (!userJson) {
+		DEBUG("SchmickleWorks JSON parsing error at %s %d:%d %s",
+                error.source, error.line, error.column, error.text);
+		return;
+	}
+	DEFER({
+		json_decref(userJson);
+	});
+    this->fromJson(userJson);
 }
 
-json_t *NoteTaker::dataToJson() {
-    json_t *root = json_object();
-    json_t* voices = json_array();
-    for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
-        json_array_append_new(voices, json_integer(outputs[CV1_OUTPUT + chan].getChannels()));
-    }
-    json_object_set_new(root, "voices", voices);
-    json_t* _notes = json_array();
-    for (const auto& note : n.notes) {
-        json_array_append_new(_notes, note.dataToJson());
-    }
-    json_object_set_new(root, "notes", _notes);
-    json_t* chans = json_array();
-    for (const auto& channel : channels) {
-        json_array_append_new(chans, channel.dataToJson());
-    }
-    json_object_set_new(root, "channels", chans);
-    json_object_set_new(root, "selectStart", json_integer(n.selectStart));
-    json_object_set_new(root, "selectEnd", json_integer(n.selectEnd));
-    json_object_set_new(root, "tempo", json_integer(tempo));
-    json_object_set_new(root, "ppq", json_integer(n.ppq));
-    return root;
+bool StorageArray::loadScore(NoteTaker& nt, unsigned index) {
+    SCHMICKLE(index < storage.size());
+    NoteTakerParseMidi parser(storage[index].midi, nt);
+    return parser.parseMidi();
 }
 
-json_t *NoteTakerWidget::toJson() {
-    json_t *root = ModuleWidget::toJson();
-    json_t* clip = json_array();
-    for (const auto& note : clipboard) {
-        json_array_append_new(clip, note.dataToJson());
-    }
-    json_object_set_new(root, "clipboard", clip);
-    // many of these are no-ops, but permits statefulness to change without recoding this block
-    json_object_set_new(root, "display", this->display->toJson());
-    json_object_set_new(root, "cutButton", this->cutButton->toJson());
-    json_object_set_new(root, "fileButton", this->fileButton->toJson());
-    json_object_set_new(root, "insertButton", this->insertButton->toJson());
-    json_object_set_new(root, "partButton", this->partButton->toJson());
-    json_object_set_new(root, "restButton", this->restButton->toJson());
-    json_object_set_new(root, "runButton", this->runButton->toJson());
-    json_object_set_new(root, "selectButton", this->selectButton->toJson());
-    json_object_set_new(root, "sustainButton", this->sustainButton->toJson());
-    json_object_set_new(root, "timeButton", this->timeButton->toJson());
-    json_object_set_new(root, "horizontalWheel", this->horizontalWheel->toJson());
-    json_object_set_new(root, "verticalWheel", this->verticalWheel->toJson());
-    // end of mostly no-op section
-    json_object_set_new(root, "selectChannels", json_integer(selectChannels));
-    return root;
+void StorageArray::saveJson() {
+	json_t *rootJ = this->toJson();
+	SCHMICKLE(rootJ);
+	std::string tmpPath = UserJson() + ".tmp";
+	FILE *file = std::fopen(tmpPath.c_str(), "w");
+	SCHMICKLE(file);
+	json_dumpf(rootJ, file, JSON_INDENT(2) | JSON_REAL_PRECISION(9));
+    std::fclose(file);
+	system::moveFile(tmpPath, UserJson());
+    json_decref(rootJ);
 }
 
-void NoteTaker::dataFromJson(json_t *root) {
-    json_t* voices = json_object_get(root, "voices");
-    size_t index;
-    json_t* value;
-    json_array_foreach(voices, index, value) {
-        outputs[CV1_OUTPUT + index].setChannels(json_integer_value(value));
-    }
-    json_t* _notes = json_object_get(root, "notes");
-    n.notes.resize(json_array_size(_notes));
-    json_array_foreach(_notes, index, value) {
-        n.notes[index].dataFromJson(value);
-    }
-    json_t* chans = json_object_get(root, "channels");
-    json_array_foreach(chans, index, value) {
-        channels[index].dataFromJson(value);
-    }
-    n.selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    n.selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
-    tempo = json_integer_value(json_object_get(root, "tempo"));
-    n.ppq = json_integer_value(json_object_get(root, "ppq"));
-}
+void StorageArray::saveScore(const NoteTaker& nt, unsigned index) {
+    SCHMICKLE(index <= storage.size());
+    if (storage.size() == index) {
+        NoteTakerStorage noteStorage;
+        noteStorage.filename = std::to_string(storage.size()) + ".mid";
+        slotMap[noteStorage.filename] = storage.size();
+        storage.push_back(noteStorage);
 
-void NoteTakerWidget::fromJson(json_t *root) {
-    ModuleWidget::fromJson(root);
-    json_t* clip = json_object_get(root, "clipboard");
-    size_t index;
-    json_t* value;
-    clipboard.resize(json_array_size(clip));
-    json_array_foreach(clip, index, value) {
-        clipboard[index].dataFromJson(value);
     }
-    // read back controls' state
-    display->fromJson(json_object_get(root, "display"));
-    cutButton->fromJson(json_object_get(root, "cutButton"));
-    fileButton->fromJson(json_object_get(root, "fileButton"));
-    insertButton->fromJson(json_object_get(root, "insertButton"));
-    partButton->fromJson(json_object_get(root, "partButton"));
-    restButton->fromJson(json_object_get(root, "restButton"));
-    runButton->fromJson(json_object_get(root, "runButton"));
-    selectButton->fromJson(json_object_get(root, "selectButton"));
-    sustainButton->fromJson(json_object_get(root, "sustainButton"));
-    timeButton->fromJson(json_object_get(root, "timeButton"));
-    horizontalWheel->fromJson(json_object_get(root, "horizontalWheel"));
-    verticalWheel->fromJson(json_object_get(root, "verticalWheel"));
-    // end of controls' state
-    selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
-    // update display cache
-    this->setWheelRange();
-    this->invalidateCaches();
-    this->setClipboardLight();
+    auto& dest = storage[index].midi;
+    NoteTakerMakeMidi midiMaker;
+    midiMaker.createFromNotes(nt, dest);
+    storage[index].writeMidi();
+    this->saveJson();
 }

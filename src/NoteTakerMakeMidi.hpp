@@ -15,11 +15,7 @@ inline float MidiToSeconds(int midiTime, int ppq) {
 static constexpr array<uint8_t, 4> MThd = {'M', 'T', 'h', 'd'}; // MIDI file header
 static constexpr array<uint8_t, 4> MTrk = {'M', 'T', 'r', 'k'}; // MIDI track header
 
-class NoteTakerMakeMidi {
-public:
-    void createEmpty(vector<uint8_t>& midi);
-    void createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi);
-private:
+struct NoteTakerMakeMidi {
     vector<uint8_t>* target = nullptr;  // used only during constructing midi, to compute track length
     vector<uint8_t> temp;
 
@@ -78,6 +74,9 @@ private:
         add_one(midiEndOfTrack);
         add_one(0);  // number of bytes of data to follow
     }
+
+    void createEmpty(vector<uint8_t>& midi);
+    void createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi);
 
     void standardHeader(vector<uint8_t>& midi, int ppq) {
         target = &midi;
