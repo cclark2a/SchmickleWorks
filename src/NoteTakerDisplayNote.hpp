@@ -7,21 +7,21 @@ struct NoteCache;
 enum DisplayType : uint8_t {
 // enums below match MIDI channel voice message high nybble order
     UNUSED,
-    NOTE_OFF = UNUSED,
-    NOTE_ON,
-    KEY_PRESSURE,
-    CONTROL_CHANGE,
-    PROGRAM_CHANGE,
-    CHANNEL_PRESSURE,
-    PITCH_WHEEL,
-    MIDI_SYSTEM,       // data that doesn't fit in DisplayNote found through index into midi file
+    NOTE_OFF = UNUSED,  // 0
+    NOTE_ON,            // 1
+    KEY_PRESSURE,       // 2
+    CONTROL_CHANGE,     // 3
+    PROGRAM_CHANGE,     // 4
+    CHANNEL_PRESSURE,   // 5
+    PITCH_WHEEL,        // 6
+    MIDI_SYSTEM,        // 7 data that doesn't fit in DisplayNote found through index into midi file
 // any order OK
-    MIDI_HEADER,
-    KEY_SIGNATURE,
-    TIME_SIGNATURE,
-    MIDI_TEMPO,
-    REST_TYPE,
-    TRACK_END,
+    MIDI_HEADER,        // 8
+    KEY_SIGNATURE,      // 9
+    TIME_SIGNATURE,     // A
+    MIDI_TEMPO,         // B
+    REST_TYPE,          // C
+    TRACK_END,          // D
     NUM_TYPES
 };
 
@@ -42,8 +42,9 @@ struct DisplayNote {
     int duration;           // MIDI time
     int data[4] = { 0, 0, 0, 0}; // type-specific values
     uint8_t channel;        // set to 0 if type doesn't have channel
+    uint8_t voice = -1;    // poly voice assigned to note
     DisplayType type;
-    bool selected = false;      // set if channel intersects selectChannels prior to channel edit
+    bool selected = false;  // set if channel intersects selectChannels prior to channel edit
 
     DisplayNote(DisplayType t, int start = 0, int dur = 0, uint8_t chan = 0)
         : startTime(start)
@@ -56,10 +57,14 @@ struct DisplayNote {
                 this->setOffVelocity(stdKeyPressure);
                 break;
             case TIME_SIGNATURE:
-                this->setNumerator(4);
-                this->setDenominator(2);
                 data[2] = 24;   // clocks per click
                 data[3] = 8;    // notated 32 notes per quarter note
+                this->setNumerator(4);
+                this->setDenominator(2);
+                break;
+            case MIDI_HEADER:
+                data[1] = 1;
+                this->setPpq(96);
                 break;
             case MIDI_TEMPO:
                 this->setTempo(500000);

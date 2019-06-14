@@ -10,9 +10,9 @@ struct Notes {
     unsigned selectStart = 0;           // index into notes of first selected (any channel)
     unsigned selectEnd = 1;             // one past last selected
     int ppq = stdTimePerQuarterNote;    // default to 96 pulses/ticks per quarter note
-    bool voice = false;                 // true if single voice is selected
 
     Notes() {}
+
     Notes( const Notes& ) = delete; // non construction-copyable
     Notes& operator=( const Notes& ) = delete; // non copyable
 
@@ -38,6 +38,8 @@ struct Notes {
     // to do : move notetaker sort here?
 
     void serialize(vector<uint8_t>& ) const;
+    // truncates / expands duration preventing note from colliding with same pitch later on 
+    void setDuration(DisplayNote* );
     bool transposeSpan(vector<DisplayNote>& span) const;
     static bool UniquePitch(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,
             vector<const DisplayNote*>* overlaps);

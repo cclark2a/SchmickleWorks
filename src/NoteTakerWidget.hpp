@@ -55,7 +55,7 @@ struct NoteTakerWidget : ModuleWidget {
     bool clipboardInvalid = true;
     bool debugVerbose = true;
 #if RUN_UNIT_TEST
-    bool runUnitTest = false;  // to do : ship with this disabled
+    bool runUnitTest = true;  // to do : ship with this disabled
     bool unitTestRunning = false;
 #endif
 
@@ -70,7 +70,7 @@ struct NoteTakerWidget : ModuleWidget {
     bool extractClipboard(vector<DisplayNote>* span = nullptr) const;
     void fromJson(json_t* rootJ) override;
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
-    void invalidateCaches();
+    void invalidateAndPlay(Inval inval);
     void loadScore();
     void makeNormal();
     void makeSlur();

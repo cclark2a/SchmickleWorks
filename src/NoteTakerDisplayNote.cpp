@@ -79,7 +79,7 @@ bool DisplayNote::isValid() const {
                 DEBUG("invalid clocks/click %d\n", data[2]);
             }
             if (data[3] != 8) {
-                DEBUG("invalid 32nds/quarter ntoe %d\n", data[3]);
+                DEBUG("invalid 32nds/quarter note %d\n", data[3]);
             }
             } break;
         case MIDI_TEMPO: {

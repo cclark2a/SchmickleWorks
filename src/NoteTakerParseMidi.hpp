@@ -27,9 +27,9 @@ struct NoteTakerParseMidi {
 
     bool parseMidi();
 
-    void debug_out(vector<uint8_t>::const_iterator& iter) const {
+    void debug_out(vector<uint8_t>::const_iterator& iter, int lastSuccess = 0) const {
         std::string s;
-        auto start = std::max(&midi.front(), &*iter - 5);
+        auto start = std::max(&midi.front() + lastSuccess, &*iter - 25);
         auto end = std::min(&midi.back(), &*iter + 5);
         const char hex[] = "0123456789ABCDEF";
         for (auto i = start; i <= end; ++i) {

@@ -347,7 +347,7 @@ unsigned NoteTakerDisplay::cachePrevious(unsigned index) {
 }
 
 // to do : add new code to horizontally shift notes with different durations?
-
+// to do : if quarter and eighth share staff, set stem up in different directions?
 // collect the notes with the same start time and duration
 // mark only one as the staff owner
 void NoteTakerDisplay::cacheStaff() {
@@ -905,7 +905,7 @@ void NoteTakerDisplay::drawSelectionRect() {
             default:
                 ;
         }
-    } else if (n.voice) {
+    } else if (ntw->edit.voice) {
         auto& startCache = n.notes[n.selectStart].cache;
         yTop = startCache->yPosition - 6;
         yHeight = 6;
@@ -969,6 +969,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     if (ntw->runUnitTest) { // to do : remove this from shipping code
         UnitTest(ntw, TestType::encode);
         ntw->runUnitTest = false;
+        this->fb()->dirty = true;
         return;
     }
 #endif

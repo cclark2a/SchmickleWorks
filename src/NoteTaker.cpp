@@ -174,10 +174,7 @@ void NoteTaker::process(const ProcessArgs &args) {
         outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
         clockOutTime = 0.001f + realSeconds;
     }
-    for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
-        outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
-        outputs[GATE1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
-    }
+    this->setOutputsVoiceCount();
     this->setExpiredGatesLow(midiTime);
     unsigned lastNote = running ? n.notes.size() - 1 : n.selectEnd - 1;
     if (this->advancePlayStart(midiTime, lastNote)) {
@@ -210,7 +207,8 @@ void NoteTaker::process(const ProcessArgs &args) {
         }
         auto& channelInfo = channels[note.channel];
 #if POLY_EXPERIMENT
-        unsigned& voiceIndex = noteVoice[&note - &n.notes.front()];
+        SCHMICKLE((uint8_t) -1 != note.voice);
+        unsigned voiceIndex = note.voice;
         auto& voice = channelInfo.voices[voiceIndex];
         if (&note == voice.note) {
             if (midiTime < voice.noteEnd) {
@@ -328,19 +326,22 @@ void NoteTaker::resetRun() {
     clockOutTime = realSeconds + 0.001f;
     sawClockLow = false;
     sawResetLow = false;
-    invalidVoiceCount |= n.voice;
-    n.voice = false;
     mainWidget->resetRun();
     this->setPlayStart();
 }
 
+void NoteTaker::setOutputsVoiceCount() {
+    for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
+        outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
+        outputs[GATE1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
+    }
+}
+
 void NoteTaker::setPlayStart() {
     this->zeroGates();
-    playStart = n.voice ? n.selectStart : 0;
     tempo = stdMSecsPerQuarterNote;
-#if POLY_EXPERIMENT
     this->setVoiceCount();
-#endif
+    playStart = ntw()->edit.voice ? n.selectStart : 0;
 }
 
 void NoteTaker::setScoreEmpty() {
@@ -351,8 +352,7 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerParseMidi emptyParser(emptyMidi, *this);
     bool success = emptyParser.parseMidi();
     SCHMICKLE(success);
-    invalidVoiceCount = true;
-    ntw()->invalidateCaches();
+    ntw()->invalidateAndPlay(Inval::cut);
 }
 
  //   to do
@@ -425,79 +425,69 @@ bool NoteTaker::setSelectStart(unsigned start) {
 // to do : output debug data to show what set voice count did
 
 void NoteTaker::setVoiceCount() {
+    DEBUG("setVoiceCount invalidVoiceCount %d", invalidVoiceCount);
     if (!invalidVoiceCount) {
         return;
     }
     invalidVoiceCount = false;
     size_t count = n.notes.size();
-    noteVoice.resize(count);
-    noteVoice.clear();
     for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
         channels[chan].voiceCount = 0;
     }
     if (!count) {
         return;
     }
-    if (n.voice) {
-        for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-            auto& base = n.notes[index];
-            channels[base.channel].voiceCount = 1;
+    vector<const DisplayNote* > overlaps;
+    overlaps.resize(CHANNEL_COUNT * MAX_VOICES);
+    overlaps.clear();
+    --count;
+    SCHMICKLE(TRACK_END == n.notes[count].type);
+    for (unsigned index = 0; index < count; ++index) {
+        auto& note = n.notes[index];
+        if (NOTE_ON != note.type) {
+            continue;
         }
-    } else {
-        vector<const DisplayNote* > overlaps;
-        overlaps.resize(CHANNEL_COUNT * MAX_VOICES);
-        overlaps.clear();
-        --count;
-        SCHMICKLE(TRACK_END == n.notes[count].type);
-        for (unsigned index = 0; index < count; ++index) {
-            const auto& note = n.notes[index];
-            if (NOTE_ON != note.type) {
+        auto chan = note.channel;
+        auto overStart = &overlaps[chan * MAX_VOICES];
+        const auto overEnd = overStart + MAX_VOICES;
+        unsigned vCount = 1;
+        auto over = overStart - 1;
+        while (++over < overEnd) {
+            if (!*over) {
                 continue;
             }
-            auto chan = note.channel;
-            auto overStart = &overlaps[chan * MAX_VOICES];
-            const auto overEnd = overStart + MAX_VOICES;
-            unsigned vCount = 0;
-            unsigned vMax = 0;
-            auto over = overStart - 1;
+            // to do : if note is slurred, allow one midi time unit of overlap
+            // -- or -- keep notes un-overlapped, overlap only when reading/writing midi...
+            if ((*over)->endTime() <= note.startTime) {
+                *over = nullptr;
+                continue;
+            }
+            ++vCount;
+            DEBUG("%d over note %s", vCount, note.debugString().c_str());
+        }
+        over = overStart - 1;
+        if (MAX_VOICES < vCount) {
+            const DisplayNote** oldestOverlap = nullptr;
+            int oldestTime = INT_MAX;
             while (++over < overEnd) {
-                if (!*over) {
-                    continue;
+                if (oldestTime > (*over)->startTime) {
+                    oldestTime = (*over)->startTime;
+                    oldestOverlap = over;
                 }
-                // to do : if note is slurred, allow one midi time unit of overlap
-                // -- or -- keep notes un-overlapped, overlap only when reading/writing midi...
-                if ((*over)->endTime() <= note.startTime) {
-                    *over = nullptr;
-                    continue;
-                }
-                ++vCount;
-                vMax = over - overStart;
             }
-            if (MAX_VOICES == vCount) {
-                over = overStart - 1;
-                const DisplayNote** oldestOverlap = nullptr;
-                int oldestTime = INT_MAX;
-                while (++over < overEnd) {
-                    if (oldestTime > (*over)->startTime) {
-                        oldestTime = (*over)->startTime;
-                        oldestOverlap = over;
-                    }
-                }
-                *oldestOverlap = nullptr;
-            } else {
-                ++vMax;
-            }
-            over = overStart - 1;
+            *oldestOverlap = &note;
+        } else {
             while (++over < overEnd) {
                 if (!*over) {
                     *over = &note;
                     break;
                 }
             }
-            channels[chan].voiceCount =
-                    std::max(channels[chan].voiceCount, vMax + 1);
-            noteVoice[index] = over - overStart;
         }
+        channels[chan].voiceCount =
+                std::max(channels[chan].voiceCount, vCount);
+        note.voice = over - overStart;
+        DEBUG("%u vCount %d chan %d %s", index, vCount, chan, note.debugString().c_str());
     }
 }
 #endif

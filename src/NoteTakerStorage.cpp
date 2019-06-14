@@ -60,7 +60,7 @@ void NoteTakerStorage::encode(vector<char>* encoded) const {
         EncodeTriplet(&midi[index], encoded);
     }
     unsigned remainder = midi.size() - triplets;  // including one for end sentinel
-    DEBUG("remainder %u", remainder);
+    if (false) DEBUG("remainder %u", remainder);
     uint8_t trips[3] = {0, 0, 0};
     for (unsigned index = 0; index < remainder; ++index) {
         trips[index] = midi[triplets + index];

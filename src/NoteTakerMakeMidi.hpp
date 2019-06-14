@@ -63,9 +63,13 @@ struct NoteTakerMakeMidi {
             buffer <<= 8;
             buffer |= 0x80 | (size & 0xFF);
         }
-        do {
+        while (true) {
            target->push_back(buffer & 0xFF);
-        } while ((buffer >>= 8));
+           if (!(buffer & 0x80)) {
+               break;
+           }
+           buffer >>= 8;
+        }
     }
 
     void add_track_end(const DisplayNote& n, int& lastTime) {

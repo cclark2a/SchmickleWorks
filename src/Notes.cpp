@@ -9,23 +9,25 @@ void Notes::deserialize(const vector<uint8_t>& storage) {
     NoteTakerParseMidi midiParser(storage, *this, dummyChannels);
     vector<uint8_t>::const_iterator iter = midiParser.midi.begin();
     DisplayNote note(UNUSED);
+    int lastSuccess = 0;
     do {
         int delta;
+        int attempt = iter - midiParser.midi.begin();
         if (!midiParser.midi_size8(iter, &delta) || delta < 0) {
             DEBUG("invalid midi time");
-            midiParser.debug_out(iter);
+            midiParser.debug_out(iter, lastSuccess);
             return;
         }
         note.startTime += delta;
         if (!midiParser.midi_size8(iter, &note.duration) || note.duration < 0) {
             DEBUG("invalid duration");
-            midiParser.debug_out(iter);
+            midiParser.debug_out(iter, lastSuccess);
             return;
         }
         for (unsigned index = 0; index < 4; ++index) {
             if (!midiParser.midi_size8(iter, &note.data[index])) {
                 DEBUG("invalid data %u", index);
-                midiParser.debug_out(iter);
+                midiParser.debug_out(iter, lastSuccess);
                 return;
             }
         }
@@ -42,11 +44,12 @@ void Notes::deserialize(const vector<uint8_t>& storage) {
         }
         if (*iter != !!*iter) {
             DEBUG("invalid selected");
-            midiParser.debug_out(iter);
+            midiParser.debug_out(iter, lastSuccess);
             return;
         }
         note.selected = *iter++;
         notes.push_back(note);
+        lastSuccess = attempt;
     } while (iter != midiParser.midi.end());
 }
 
@@ -186,6 +189,20 @@ int Notes::noteTimes(unsigned selectChannels) const {
         lastStart = note.startTime;
     }
     return result;
+}
+
+void Notes::setDuration(DisplayNote* note) {
+    vector<const DisplayNote*> overlaps;
+    if (!Notes::UniquePitch(notes, *note, note->pitch(), &overlaps)) {
+        return;
+    }
+    for (auto test : overlaps) {
+        if (note->endTime() > test->startTime) {
+            if (test->pitch() == note->pitch()) {
+                note->duration = test->startTime - note->startTime;
+            }
+        }
+    }
 }
 
 // transpose the span up by approx. one score line (major/aug third) avoiding existing notes

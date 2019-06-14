@@ -276,16 +276,30 @@ static void Expected(NoteTakerWidget* n) {
     n->resetControls();
     n->fromJson(saveState);
     json_decref(saveState);
-    n->invalidateCaches();
+    n->invalidateAndPlay(Inval::load);
 }
 
 static void TestEncode() {
-    DisplayNote tempo(MIDI_TEMPO);
-    DEBUG("tempo %s", tempo.debugString().c_str());
     NoteTakerStorage storage;
     Notes n;
-    n.notes.push_back(tempo);
-    DEBUG("n.notes %s", n.notes[0].debugString().c_str());
+    int start = 0;
+    for (auto type : { MIDI_HEADER, KEY_SIGNATURE, TIME_SIGNATURE, MIDI_TEMPO, NOTE_ON,
+            REST_TYPE, TRACK_END }) {
+        DisplayNote note(type, start);
+        if (note.isNoteOrRest()) {
+            note.duration = n.ppq;
+            if (NOTE_ON == note.type) {
+                note.setPitch(60);
+            }
+        }
+        start += note.duration;
+        n.notes.push_back(note);
+    }
+    vector<std::string> results;
+    for (const auto& note : n.notes) {
+        results.push_back(note.debugString());
+        DEBUG("n.notes %s", results.back().c_str());
+    }
     n.serialize(storage.midi);
     DEBUG("raw midi");
     NoteTaker::DebugDumpRawMidi(storage.midi);
@@ -295,14 +309,19 @@ static void TestEncode() {
     const char* encodedString = &encoded.front();
     DEBUG("encoded midi %s", encodedString);
     vector<char> encoded2(encodedString, encodedString + strlen(encodedString));
-    DEBUG("encoded2 %.*s", encoded2.size(), &encoded2.front());
+    DEBUG("encoded2     %.*s", encoded2.size(), &encoded2.front());
     NoteTakerStorage storage2;
     storage2.decode(encoded2);
     DEBUG("raw midi2");
     NoteTaker::DebugDumpRawMidi(storage2.midi);
     Notes n2;
-    n2.deserialize(storage2.midi);    
-    DEBUG("%s", n2.notes[0].debugString().c_str());
+    n2.deserialize(storage2.midi);   
+    vector<std::string> results2;
+    for (const auto& note : n2.notes) {
+        results2.push_back(note.debugString());
+        DEBUG("n2.notes %s", results2.back().c_str());
+    }
+    SCHMICKLE(results == results2);
 }
 
 void UnitTest(NoteTakerWidget* n, TestType test) {

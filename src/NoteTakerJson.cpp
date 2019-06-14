@@ -48,6 +48,7 @@ json_t* NoteTaker::dataToJson() {
 }
 
 json_t* NoteTakerWidget::toJson() {
+    if (debugVerbose) n().validate();  // don't write invalid notes for the next reload
     json_t* root = ModuleWidget::toJson();
     json_t* clip = json_array();
     for (const auto& note : clipboard) {
@@ -55,18 +56,19 @@ json_t* NoteTakerWidget::toJson() {
     }
     json_object_set_new(root, "clipboard", clip);
     // many of these are no-ops, but permits statefulness to change without recoding this block
-    json_object_set_new(root, "display", this->display->toJson());
-    json_object_set_new(root, "cutButton", this->cutButton->toJson());
-    json_object_set_new(root, "fileButton", this->fileButton->toJson());
-    json_object_set_new(root, "insertButton", this->insertButton->toJson());
-    json_object_set_new(root, "partButton", this->partButton->toJson());
-    json_object_set_new(root, "restButton", this->restButton->toJson());
-    json_object_set_new(root, "runButton", this->runButton->toJson());
-    json_object_set_new(root, "selectButton", this->selectButton->toJson());
-    json_object_set_new(root, "sustainButton", this->sustainButton->toJson());
-    json_object_set_new(root, "timeButton", this->timeButton->toJson());
-    json_object_set_new(root, "horizontalWheel", this->horizontalWheel->toJson());
-    json_object_set_new(root, "verticalWheel", this->verticalWheel->toJson());
+    json_object_set_new(root, "display", display->toJson());
+    json_object_set_new(root, "edit", edit.toJson());
+    json_object_set_new(root, "cutButton", cutButton->toJson());
+    json_object_set_new(root, "fileButton", fileButton->toJson());
+    json_object_set_new(root, "insertButton", insertButton->toJson());
+    json_object_set_new(root, "partButton", partButton->toJson());
+    json_object_set_new(root, "restButton", restButton->toJson());
+    json_object_set_new(root, "runButton", runButton->toJson());
+    json_object_set_new(root, "selectButton", selectButton->toJson());
+    json_object_set_new(root, "sustainButton", sustainButton->toJson());
+    json_object_set_new(root, "timeButton", timeButton->toJson());
+    json_object_set_new(root, "horizontalWheel", horizontalWheel->toJson());
+    json_object_set_new(root, "verticalWheel", verticalWheel->toJson());
     // end of mostly no-op section
     json_object_set_new(root, "selectChannels", json_integer(selectChannels));
     return root;
@@ -126,6 +128,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     }
     // read back controls' state
     display->fromJson(json_object_get(root, "display"));
+    edit.fromJson(json_object_get(root, "edit"));
     cutButton->fromJson(json_object_get(root, "cutButton"));
     fileButton->fromJson(json_object_get(root, "fileButton"));
     insertButton->fromJson(json_object_get(root, "insertButton"));
@@ -146,7 +149,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
 
     // update display cache
     this->setWheelRange();
-    this->invalidateCaches();
+    this->invalidateAndPlay(Inval::load);
     this->setClipboardLight();
 }
 

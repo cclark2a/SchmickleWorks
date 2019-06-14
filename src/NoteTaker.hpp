@@ -64,9 +64,6 @@ struct NoteTaker : Module {
     // state saved into json
     Notes n;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
-#if POLY_EXPERIMENT
-    vector<unsigned> noteVoice;             // one entry per note; poly voice assigned to note
-#endif
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
@@ -142,7 +139,6 @@ struct NoteTaker : Module {
     }
 
     static void DebugDump(const vector<DisplayNote>& , const vector<NoteCache>* xPos = nullptr,
-            const vector<unsigned>* voice = nullptr, 
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static void DebugDumpRawMidi(const vector<uint8_t>& v);
 
@@ -210,8 +206,7 @@ struct NoteTaker : Module {
     void setGateLow(const DisplayNote& note) {
         auto& chan = channels[note.channel];
 #if POLY_EXPERIMENT
-        unsigned noteIndex = &note - &n.notes.front();
-        unsigned voiceIndex = noteVoice[noteIndex];
+        unsigned voiceIndex = note.voice;
         if (UNASSIGNED_VOICE_INDEX != voiceIndex) {
             auto& voice = chan.voices[voiceIndex];
             voice.note = nullptr;
@@ -288,6 +283,7 @@ struct NoteTaker : Module {
         }
     }
 
+    void setOutputsVoiceCount();
     void setPlayStart();
     void setScoreEmpty();
     void setSelect(unsigned start, unsigned end);

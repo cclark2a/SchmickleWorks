@@ -5,7 +5,6 @@
 #include "NoteTakerWidget.hpp"
 
 void NoteTakerWidget::setHorizontalWheelRange() {
-    edit.clear();
     if (runButton->ledOn) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - .001f); // tempo relative to quarter note
         horizontalWheel->setValue(NoteDurations::FromStd(stdTimePerQuarterNote));
@@ -211,7 +210,7 @@ void NoteTakerWidget::updateHorizontal() {
             }
         }
         if (prev != tieButton->state) {
-            invalidateCaches();
+            this->invalidateAndPlay(Inval::change);
         }
         return;
     }
@@ -235,16 +234,16 @@ void NoteTakerWidget::updateHorizontal() {
         } else {
             oneNote.setDenominator(wheelValue);
         }
-        invalidateCaches();
+        this->invalidateAndPlay(Inval::change);
         return;
     }
-    bool noteChanged = false;
-    bool displayChanged = false;
-    if (!selectButton->ledOn || n.voice) {
+    Inval inval = Inval::none;
+    if (!selectButton->ledOn) {
         SCHMICKLE((unsigned) wheelValue < NoteDurations::Count());
         int wheelChange = wheelValue - edit.horizontalValue;
         int startTime = edit.base[0].startTime;
         int insertedTime = 0;
+        int newEnd = 0;
         // proportionately adjust start times and durations of all in selection
         for (unsigned index = 0; index < edit.base.size(); ++index) {
             const DisplayNote& base = edit.base[index];
@@ -259,26 +258,37 @@ void NoteTakerWidget::updateHorizontal() {
                 int oldDurationIndex = NoteDurations::FromMidi(base.duration, n.ppq);
                 int oldDuration = note->duration;
                 note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
-                int change = (note->startTime - oldStart) + (note->duration - oldDuration);
-                if (change > 0) {
-                    SCHMICKLE(insertedTime >= 0);
-                    insertedTime = std::max(insertedTime, change);
-                } else if (change < 0) {
-                    SCHMICKLE(insertedTime <= 0);
-                    insertedTime = std::min(insertedTime, change);
+                if (edit.voice) {
+                    n.setDuration(note);
+                } else {
+                    int change = (note->startTime - oldStart) + (note->duration - oldDuration);
+                    if (change > 0) {
+                        SCHMICKLE(insertedTime >= 0);
+                        insertedTime = std::max(insertedTime, change);
+                    } else if (change < 0) {
+                        SCHMICKLE(insertedTime <= 0);
+                        insertedTime = std::min(insertedTime, change);
+                    }
                 }
             }
+            newEnd = std::max(newEnd, note->endTime());
         }
-        if (!n.voice) {
+        if (!edit.voice) {
             for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
-                n.notes[index].startTime += insertedTime;
+                auto& note = n.notes[index];
+                if (note.isSelectable(selectChannels)) {
+                    note.startTime += insertedTime;
+                }
             }
+        } else {    // make sure track end is adjusted as necessary
+            SCHMICKLE(TRACK_END == n.notes.back().type);
+            n.notes.back().startTime = std::max(edit.trackEndTime, newEnd);
         }
-        noteChanged = true;
+        inval = Inval::note;
         NoteTaker::Sort(n.notes);
     } else {
         unsigned start, end;
-        n.voice = false;
+        edit.voice = false;
         if (selectButton->editEnd()) {
             clipboardInvalid = true;
             int wheelStart = this->noteToWheel(
@@ -298,7 +308,7 @@ void NoteTakerWidget::updateHorizontal() {
         if (start != n.selectStart || end != n.selectEnd) {
             nt()->setSelect(start, end);
             this->setVerticalWheelRange();
-            displayChanged = true;
+            inval = Inval::display;
             if (start + 1 == end) {
                 const auto& note = n.notes[start];
                 if (KEY_SIGNATURE == note.type && !note.key()) {
@@ -309,13 +319,8 @@ void NoteTakerWidget::updateHorizontal() {
             }
         }
     }
-    if (noteChanged) {
-        invalidateCaches();
-    }
-    if (noteChanged || displayChanged) {
-        display->invalidateRange();
-        nt()->playSelection();
-    }
+    if (debugVerbose) n.validate(); // find buggy shifts sooner?
+    this->invalidateAndPlay(inval);
 }
     
 void NoteTakerWidget::updateVertical() {
@@ -388,7 +393,8 @@ void NoteTakerWidget::updateVertical() {
                 case KEY_SIGNATURE:
                     if (n.selectStart + 1 == n.selectEnd) {
                         note.setKey(wheelValue);
-                        invalidateCaches();
+                        this->invalidateAndPlay(Inval::cut);
+                        return;
                     }
                     break;
                 case TIME_SIGNATURE:
@@ -399,6 +405,8 @@ void NoteTakerWidget::updateVertical() {
                             horizontalWheel->setLimits(1, 99.99f);   // numer limit 0 to 99
                             horizontalWheel->setValue(note.numerator());
                         }
+                        this->invalidateAndPlay(Inval::cut);
+                        return;
                     }
                     break;
                 case MIDI_TEMPO:
@@ -413,9 +421,15 @@ void NoteTakerWidget::updateVertical() {
                     value = std::max(0, std::min(127, value));
                     if (!n.uniquePitch(note, value)) {
                         note.setPitch(value);
+                        // if changing the pitch causes the this pitch to run into the same
+                        // pitch on the same channel later, shorten its duration. But, restore the
+                        // duration if there is no longer a pitch collision
+                        const DisplayNote& base = edit.base[index - n.selectStart];
+                        note.duration = base.duration;
+                        n.setDuration(&note);
                     }
-                    invalidateCaches();
-                    break;
+                    this->invalidateAndPlay(Inval::change);
+                    return;
                 }
                 default:
                     ;
@@ -423,16 +437,17 @@ void NoteTakerWidget::updateVertical() {
         }
     } else if (selectButton->editEnd()) {
         if (!wheelValue) {
-            n.voice = false;
+            edit.voice = false;
             n.selectStart = edit.originalStart;
             n.selectEnd = edit.originalEnd;
             DEBUG("selStart %u / selEnd %u", n.selectStart, n.selectEnd);
         } else {
-            n.voice = true;
+            edit.voice = true;
             n.selectStart = edit.voices[wheelValue - 1];
             n.selectEnd = n.selectStart + 1;
             DEBUG("selStart %u / selEnd %u wheel %d", n.selectStart, n.selectEnd, wheelValue);
         }
+        this->invalidateAndPlay(Inval::display);
     } else {
         SCHMICKLE(selectButton->editStart());
         int pitch = wheelValue;
@@ -448,7 +463,7 @@ void NoteTakerWidget::updateVertical() {
                 ++pitch;
             }
         }
-        if (!n.voice) {
+        if (!edit.voice) {
             int duration = base ? base->duration : n.ppq;
             int startTime = base ? base->startTime : n.notes[n.selectStart].startTime;
             DisplayNote iNote(NOTE_ON, startTime, duration, (uint8_t) this->unlockedChannel());
@@ -456,13 +471,12 @@ void NoteTakerWidget::updateVertical() {
             n.selectStart += 1;
             n.selectEnd = n.selectStart + 1;
             n.notes.insert(n.notes.begin() + n.selectStart, iNote);
-            n.voice = true;
+            edit.voice = true;
+            this->invalidateAndPlay(Inval::note);
         } else {
             n.notes[n.selectStart].setPitch(pitch);
+            this->invalidateAndPlay(Inval::change);
         }
-        
-        invalidateCaches();
     }
-    displayBuffer->fb->dirty = true;
-    nt()->playSelection();
+    if (debugVerbose) n.validate(); // find buggy shifts sooner?
 }

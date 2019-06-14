@@ -22,7 +22,7 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     NoteTaker::Sort(nt->n.notes);
     ntw->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
-    ntw->invalidateCaches();
+    ntw->invalidateAndPlay(Inval::cut);
     nt->setSelect(insertLoc, insertLoc + 1);
     ntw->turnOffLedButtons();
     ntw->setWheelRange();  // range is larger
@@ -60,7 +60,6 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         n.selectEnd = n.notes.size() - 1;
         ntw->copyNotes();  // allows add to undo accidental cut / clear all
         nt->setScoreEmpty();
-        ntw->invalidateCaches();
         nt->setSelectStart(nt->atMidiTime(0));
         selectButton->setSingle();
         ntw->setWheelRange();
@@ -71,7 +70,6 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         n.selectEnd = n.notes.size() - 1;
         ntw->copySelectableNotes();
         ntw->setSelectableScoreEmpty();
-        ntw->invalidateCaches();
         nt->setSelectStart(nt->atMidiTime(0));
         ntw->setWheelRange();
         return;
@@ -102,7 +100,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     } else {
         NoteTaker::Sort(n.notes);
     }
-    ntw->invalidateCaches();
+    ntw->invalidateAndPlay(Inval::cut);
     ntw->turnOffLedButtons();
     // set selection to previous selectable note, or zero if none
     int wheel = ntw->noteToWheel(start);
@@ -216,7 +214,11 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             // insertLoc may be different channel, so can't use that start time by itself
             // shift to selectStart time, but not less than previous end (if any) on same channel
             while (insertTime < lastEndTime) {
-                insertTime = n.notes[++insertLoc].startTime;
+                SCHMICKLE(TRACK_END != n.notes[insertLoc].type);
+                ++insertLoc;
+                SCHMICKLE(insertLoc < n.notes.size());
+                insertTime = n.notes[insertLoc].startTime;
+
             }
         }
         if (nt->debugVerbose) DEBUG("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
@@ -426,8 +428,8 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
     switch (state) {
         case State::ledOff: {
             SCHMICKLE(ledOn);
-            nt->invalidVoiceCount |= n.voice;
-            n.voice = false;
+            nt->invalidVoiceCount |= ntw->edit.voice;
+            ntw->edit.voice = false;
             state = State::single; // does not call setSingle because saveZero should not change
             unsigned start = saveZero ? ntw->wheelToNote(0) : n.selectStart;
             nt->setSelect(start, nt->nextAfter(start, 1));
@@ -436,8 +438,8 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             SCHMICKLE(!ledOn);
             af = 1;
             ledOn = true;
-            nt->invalidVoiceCount |= n.voice;
-            n.voice = false;
+            nt->invalidVoiceCount |= ntw->edit.voice;
+            ntw->edit.voice = false;
             if (!n.horizontalCount(ntw->selectChannels)) {
                 ntw->clipboard.clear();
                 break;  // can't start selection if there's nothing to select

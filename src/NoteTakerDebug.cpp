@@ -24,10 +24,20 @@ struct DisplayTypeNames {
     { TRACK_END, "track end"},
 };
 
+std::string InvalDebugStr(Inval inval) {
+    SCHMICKLE((int) inval >= (int) Inval::none);
+    SCHMICKLE((int) inval <= (int) Inval::load);
+    const char* debugStrs[] = { "none", "display", "cut", "change", "note", "load" };
+    return debugStrs[(int) inval];
+}
+
 std::string DisplayNote::debugString() const {
-    std::string s;    
-    s += std::to_string(startTime) + " " + typeNames[type].name
-            + " [" +  std::to_string(channel) + "] " + std::to_string(duration);
+    std::string s = std::to_string(startTime) + " " + typeNames[type].name
+            + " [" +  std::to_string(channel);
+    if ((uint8_t) -1 != voice) {
+        s += "/" + std::to_string(voice);
+    }
+    s += "] " + std::to_string(duration);
     switch (type) {
         case NOTE_ON:
             s += " pitch=" + std::to_string(pitch());
@@ -74,7 +84,6 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     for (auto& entry : storage.slotMap) {
         DEBUG("entry[%s]:%u", entry.first.c_str(), entry.second);
     }
-     
     for (unsigned index = 0; index < storage.storage.size(); ++index) {
         auto& e = storage.storage[index];
         DEBUG("[%u] filename:%s midi:%u preset:%d", index, e.filename.c_str(), e.midi.size(),
@@ -83,11 +92,11 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, n.horizontalCount(selectChannels));
     DEBUG("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
-    DEBUG("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d",
+    DEBUG("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d voice %d",
             n.selectStart, n.selectEnd, display->displayStart, display->displayEnd, selectChannels, 
-            this->unlockedChannel(), nt()->tempo, n.ppq);
+            this->unlockedChannel(), nt()->tempo, n.ppq, edit.voice);
     NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &display->cache,
-            nt()->invalidVoiceCount ? nullptr : &nt()->noteVoice, n.selectStart, n.selectEnd);
+            n.selectStart, n.selectEnd);
     DEBUG("clipboard");
     NoteTaker::DebugDump(clipboard);
     this->nt()->debugDumpChannels();
@@ -124,22 +133,26 @@ std::string TrimmedFloat(float f) {
 }
 
 void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCache>* cache,
-        const vector<unsigned>* voice, unsigned selectStart, unsigned selectEnd) {
+        unsigned selectStart, unsigned selectEnd) {
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         SCHMICKLE(i == typeNames[i].type);
     }
     DEBUG("notes: %d", notes.size());
-    unsigned cIndex = 0;
     for (unsigned index = 0; index < notes.size(); ++index) {
         const DisplayNote& note = notes[index];
         std::string s;
+        if (INT_MAX != selectStart && &note == &notes[selectStart]) {
+            s += "< ";
+        }
         if (cache) {
+            unsigned cIndex = note.cache - &cache->front();
             do {
                 const NoteCache& c = (*cache)[cIndex];
-                if ("" != s) {
+                if ("" != s && "< " != s) {
                     DEBUG("%s", s.c_str());
+                    s = "";
                 }
-                s = std::to_string(index);
+                s += std::to_string(index);
                 s += " [" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
                 s += "vS:" + std::to_string(c.vStartTime) + " vD:" + std::to_string(c.vDuration);
                 s += " ";
@@ -158,17 +171,11 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
                 s += std::to_string(c.symbol) +  (c.accidentalSpace ? "#" : "")
                         + (c.endsOnBeat ? "b" : "") + (c.stemUp ? "u " : "d ");
                 ++cIndex;
-            } while (cIndex < cache->size() && (*cache)[cIndex].note <= &note);
-        }
-        if (INT_MAX != selectStart && &note == &notes[selectStart]) {
-            s += "< ";
-        }
-        if (INT_MAX != selectEnd && &note == &notes[selectEnd]) {
-            s += "> ";
+            } while (cIndex < cache->size() && (*cache)[cIndex].note == &note);
         }
         s += note.debugString();
-        if (voice && note.isNoteOrRest()) {
-            s += " voice=" + std::to_string((*voice)[&note - &notes.front()]);
+        if (INT_MAX != selectEnd && &note == &notes[selectEnd - 1]) {
+            s += "> ";
         }
         DEBUG("%s", s.c_str());
     }

@@ -276,20 +276,38 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
         auto& n = this->n();
         NoteTaker::Sort(n.notes);
     }
-    invalidateCaches();
     display->displayEnd = 0;  // force recompute of display end
     nt()->setSelect(insertLoc, nt()->nextAfter(insertLoc, insertSize));
     if (debugVerbose) DEBUG("insert final");
     this->setWheelRange();  // range is larger
-    nt()->playSelection();
+    this->invalidateAndPlay(Inval::note);
     if (debugVerbose) this->debugDump(true);
 }
 
-void NoteTakerWidget::invalidateCaches() {
-    if (nt()) {
-        nt()->invalidVoiceCount = true;
+void NoteTakerWidget::invalidateAndPlay(Inval inval) {
+    DEBUG("invalidateAndPlay %s", InvalDebugStr(inval).c_str());
+    if (Inval::none == inval) {
+        return;
     }
-    display->invalidateCache();
+    auto nt = this->nt();
+    display->invalidateRange();
+    if (Inval::display != inval) {
+        display->invalidateCache();
+        if (nt && (Inval::note == inval || Inval::load == inval)) {
+            nt->invalidVoiceCount = true;
+            DEBUG("invalidVoiceCount true");
+        }
+    }
+    if (!nt) {
+        return;
+    }
+    if (Inval::load == inval) {
+        nt->setVoiceCount();
+        nt->setOutputsVoiceCount();
+
+    } else if (Inval::cut != inval) {
+        nt->playSelection();
+    }
 }
 
 void NoteTakerWidget::loadScore() {
@@ -298,7 +316,7 @@ void NoteTakerWidget::loadScore() {
     }
     display->resetXAxisOffset();
     nt()->resetRun();
-    invalidateCaches();
+    this->invalidateAndPlay(Inval::load);
     unsigned atZero = nt()->atMidiTime(0);
     atZero -= TRACK_END == nt()->n.notes[atZero].type;
     nt()->setSelectStart(atZero);
@@ -448,7 +466,7 @@ void NoteTakerWidget::makeTuplet() {
         break;
     }
     this->shiftNotes(n.selectEnd, adjustment);
-    invalidateCaches();
+    this->invalidateAndPlay(Inval::change);
 }
 
 // true if a button that brings up a secondary menu on display is active
@@ -573,7 +591,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
             ++iter;
         }
     }
-    invalidateCaches();
+    this->invalidateAndPlay(Inval::cut);
     display->displayEnd = 0;  // force recompute of display end
     nt()->setSelect(0, 1);
     this->setWheelRange();
