@@ -195,7 +195,7 @@ void NoteTakerWidget::copyNotes() {
     }
     if (start < n.selectEnd) {
         SCHMICKLE(TRACK_END != n.notes[n.selectEnd - 1].type);
-        clipboard.assign(n.notes.begin() + start, n.notes.begin() + n.selectEnd);
+        clipboard.notes.assign(n.notes.begin() + start, n.notes.begin() + n.selectEnd);
     }
     clipboardInvalid = false;
     this->setClipboardLight();
@@ -205,12 +205,12 @@ void NoteTakerWidget::copySelectableNotes() {
     if (!clipboardInvalid) {
         return;
     }
-    clipboard.clear();
+    clipboard.notes.clear();
     auto& n = this->n();
     for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
         auto& note = n.notes[index];
         if (note.isSelectable(selectChannels)) {
-            clipboard.push_back(note);
+            clipboard.notes.push_back(note);
         }
     }
     clipboardInvalid = false;
@@ -244,7 +244,7 @@ bool NoteTakerWidget::extractClipboard(vector<DisplayNote>* span) const {
     bool mono = true;
     bool locked = false;
     int channel = -1;
-    for (auto& note : clipboard) {
+    for (auto& note : clipboard.notes) {
         if (!note.isNoteOrRest()) {
             mono = false;
             locked |= selectChannels != ALL_CHANNELS;
@@ -261,7 +261,7 @@ bool NoteTakerWidget::extractClipboard(vector<DisplayNote>* span) const {
         return false;
     }
     if (span) {
-        *span = clipboard;
+        *span = clipboard.notes;
         if (locked) {
             NoteTaker::MapChannel(*span, this->unlockedChannel()); 
         }
@@ -561,10 +561,11 @@ bool NoteTakerWidget::resetControls() {
 void NoteTakerWidget::resetRun() {
     display->displayStart = display->displayEnd = 0;
     display->rangeInvalid = true;
+    edit.voice = false;
 }
 
 void NoteTakerWidget::resetState() {
-    clipboard.clear();
+    clipboard.notes.clear();
     this->setClipboardLight();
     display->resetXAxisOffset();
     selectChannels = ALL_CHANNELS;
@@ -576,7 +577,7 @@ bool NoteTakerWidget::runningWithButtonsOff() const {
 }
 
 void NoteTakerWidget::setClipboardLight() {
-    bool ledOn = !clipboard.empty() && this->extractClipboard();
+    bool ledOn = !clipboard.notes.empty() && this->extractClipboard();
     float brightness = ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
     nt()->setClipboardLight(brightness);
 }

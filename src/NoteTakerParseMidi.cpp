@@ -3,52 +3,6 @@
 #include "NoteTakerMakeMidi.hpp"
 #include "NoteTaker.hpp"
 
-// work around was because c++ std library was eliding whitespace
-#if 0
-// At least in the case of Google's Bach Doodle, Midi may be missing some or all
-// of the delta time. To work around this, scan forward after the delta time to 
-// see if the next part is a note on or note off. Use the location of this to
-// limit the number of bytes delta time can consume.
-static vector<uint8_t>::const_iterator find_next_note(const vector<uint8_t>& midi,
-        vector<uint8_t>::const_iterator& iter) {
-    // look for note on or note off within 4 bytes
-    vector<uint8_t>::const_iterator noteIter = midi.end();
-    vector<uint8_t>::const_iterator limit = midi.begin()
-            + std::min((int) midi.size() - 3, (int) (iter - midi.begin() + 4));
-    for (auto testIter = iter; testIter < limit; ++testIter) {
-        if ((testIter[0] & 0xE0) == 0x80  // tests for note on and note off
-                && !(testIter[1] & 0x80) && !(testIter[2] & 0x80)) {
-            noteIter = testIter;
-            break;
-        }
-    }
-    // there is not necessarily any note on / off info in the midi file
-    if (noteIter + 2 >= midi.end()) {
-        return midi.end();
-    }
-    if ((*noteIter & midiCVMask) == midiNoteOn) { // if note on, look for note off within 16 bytes
-        limit = midi.begin() + std::min((int) midi.size() - 3, (int) (noteIter - midi.begin() + 16));
-        for (auto offIter = noteIter + 3; offIter < limit; ++offIter) {
-            if (offIter[0] == (noteIter[0] & 0xEF) && offIter[1] == noteIter[1]
-                    && !(offIter[2] & 0x80)) {
-                return noteIter;
-            }
-        }
-    } else { // if note off, look for note on in previous 16 bytes
-        SCHMICKLE((*noteIter & midiCVMask) == midiNoteOff);
-        limit = midi.begin() + std::max(0, (int) (noteIter - midi.begin() - 16));
-        for (auto onIter = noteIter - 3; onIter >= limit; --onIter) {
-            if (onIter[0] == (noteIter[0] | 0x10) && onIter[1] == noteIter[1]
-                    && !(onIter[2] & 0x80)) {
-                return noteIter;
-            }
-        }
-    }
-    DEBUG("no note after delta 3");
-    return midi.end();
-}
-#endif
-
 bool NoteTakerParseMidi::parseMidi() {
     if (debugVerbose) DEBUG("parseMidi start");
     vector<DisplayNote> parsedNotes;
@@ -86,6 +40,8 @@ bool NoteTakerParseMidi::parseMidi() {
     int trackCount = -1;
     int midiTime;
     parsedNotes.push_back(displayNote);
+    bool channelUsed[CHANNEL_COUNT];
+    memset(channelUsed, 0, sizeof(channelUsed));
     DisplayNote trackEnd(TRACK_END);  // for missing end
     do {
         bool trackEnded = false;
@@ -109,14 +65,16 @@ bool NoteTakerParseMidi::parseMidi() {
         if (debugVerbose) DEBUG("trackLength %d", trackLength);
         unsigned lowNibble;
         unsigned runningStatus = -1;
+        // don't allow notes with the same pitch and channel to overlap
+        // to detect this economically, store last pitch/channel combo in table
+        unsigned pitched[CHANNEL_COUNT][128];
+        memset(pitched, 0, sizeof(pitched));
+        unsigned last[CHANNEL_COUNT];
+        memset(last, 0, sizeof(last));
         // find next note; note on followed by note off, within a short distance
         // don't allow delta time to include next note
         while (!trackEnded && trackLength) {
             const auto messageStart = iter;
-#if 0
-            vector<uint8_t>::const_iterator limit = trackLength > 4 ?
-                find_next_note(midi, iter) : midi.end();
-#endif
             int delta;
             if (!midi_size8(iter, &delta) || delta < 0) {
                 DEBUG("invalid midi time");
@@ -159,53 +117,52 @@ bool NoteTakerParseMidi::parseMidi() {
             }
             switch(displayNote.type) {
                 case NOTE_OFF: {
-                    bool setSlur = false;
-                    int maxMidiTime = midiTime;
-                    for (auto ri = parsedNotes.rbegin(); ri != parsedNotes.rend(); ++ri) {
-                        if (ri->type != NOTE_ON) {
-                            continue;
+                    auto noteOnIndex = pitched[displayNote.channel][displayNote.pitch()];
+                    DisplayNote* noteOn = nullptr;
+                    if (noteOnIndex) {
+                        noteOn = &(&parsedNotes.front())[noteOnIndex];
+                        if (noteOn->duration < 0) {
+                            noteOn->duration =
+                                    std::max(NoteDurations::ToStd(0), midiTime - noteOn->startTime);
+                            noteOn->setOffVelocity(displayNote.onVelocity());
+                            DEBUG("assign vel %s", noteOn->debugString().c_str());
+                        } else {
+                            DEBUG("unexpected note off old %s new %s",
+                                 noteOn->debugString().c_str(), displayNote.debugString().c_str());
                         }
-                        if (displayNote.channel != ri->channel) {
-                            continue;
+                    } else {
+                        DEBUG("missing note on: off %s", displayNote.debugString().c_str());
+                    }
+                    auto lastOnChannelIndex = last[displayNote.channel];
+                    if (lastOnChannelIndex) {
+                        SCHMICKLE(noteOn);
+                        DisplayNote* lastOnChannel = &(&parsedNotes.front())[lastOnChannelIndex];
+                        if (lastOnChannel->endTime() == noteOn->startTime + 1) {
+                            lastOnChannel->setSlur(true);
+                            noteOn->setSlur(true);
                         }
-                        int duration = maxMidiTime - ri->startTime;
-                        if (displayNote.pitch() != ri->pitch()) {
-#if !POLY_EXPERIMENT
-                            setSlur |= duration > 0;
-                            maxMidiTime = ri->startTime;
-#else
-                            setSlur |= duration == 1;
-#endif
-                            continue;
-                        }
-                        // to do : if duration is less than minimum, either drop the note or round up?
-                        if (duration <= 0) {
-                            continue;
-                        }
-                        // to do : if a note on is followed by two note offs, just ingore the second?
-                        if (ri->duration > 0) {
-                            DEBUG("unexpected note on %s", ri->debugString().c_str());
-                            continue;
-#if !POLY_EXPERIMENT
-                            debug_out(iter);
-                            return false;
-#endif
-                        }
-                        DEBUG("%u note off %s", &*ri - &parsedNotes.front(), 
-                                ri->debugString().c_str());
-#if POLY_EXPERIMENT
-                        ri->duration = std::max(NoteDurations::ToStd(0), duration);
-#else
-                        ri->duration = duration;
-#endif
-                        ri->setSlur(setSlur);
-                        ri->setOffVelocity(displayNote.onVelocity());
-                        break;
                     }
                     trackLength -= iter - messageStart;
                     continue;  // do not store note off
-                } break;
-                case NOTE_ON: 
+                };
+                case NOTE_ON: {
+                    auto noteOnIndex = pitched[displayNote.channel][displayNote.pitch()];
+                    if (noteOnIndex) {
+                        DisplayNote* noteOn = &(&parsedNotes.front())[noteOnIndex];
+                        if (midiTime == noteOn->startTime) {
+                            DEBUG("duplicate note on: old %s new %s",
+                                  noteOn->debugString().c_str(), displayNote.debugString().c_str());
+                            continue;  // don't add the same note on twice
+                        }
+                        if (noteOn->duration < 0) {
+                            DEBUG("missing note off old %s new %s",
+                                  noteOn->debugString().c_str(), displayNote.debugString().c_str());
+                            noteOn->duration = midiTime - noteOn->startTime;
+                        }
+                    }
+                    pitched[displayNote.channel][displayNote.pitch()] = parsedNotes.size();
+                    last[displayNote.channel] = parsedNotes.size();
+                }
                 break;
                 case KEY_PRESSURE:
                 case CONTROL_CHANGE:
@@ -298,7 +255,16 @@ bool NoteTakerParseMidi::parseMidi() {
                                 case 0x04: // instument name
                                 case 0x05: // lyric
                                 case 0x06: // marker
-                                case 0x07: { // cue point
+                                case 0x07: // cue point
+                                case 0x08: // reserved for text event
+                                case 0x09: // reserved for text event
+                                case 0x0A: // reserved for text event
+                                case 0x0B: // reserved for text event
+                                case 0x0C: // reserved for text event
+                                case 0x0D: // reserved for text event
+                                case 0x0E: // reserved for text event
+                                case 0x0F: // reserved for text event
+                                 { 
                                     displayNote.data[2] = iter - midi.begin();
                                     if (midi.end() - iter < displayNote.data[1]) {
                                         DEBUG("meta text length %d exceeds file:", 
@@ -451,16 +417,22 @@ bool NoteTakerParseMidi::parseMidi() {
                 break;
             }
             lastTime = ri->startTime;
-            if (ri->type != NOTE_ON) {
-                if (0 > ri->duration) {
-                    ri->duration = 0;
-                }
+            if (0 <= ri->duration) {
                 continue;
             }
-            if (0 > ri->duration) {
-                ri->duration = midiTime - ri->startTime;
-                DEBUG("missing note off for %d", ri->debugString().c_str());
+            if (ri->type != NOTE_ON) {
+                ri->duration = 0;
+                continue;
             }
+            ri->duration = midiTime - ri->startTime;
+            DEBUG("missing note off for %s", ri->debugString().c_str());
+        }
+        // track channels used
+        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+            if (!last[index]) {
+                continue;
+            }
+            channelUsed[index] = true;
         }
     } while (iter != midi.end());
     NoteTaker::Sort(parsedNotes);
@@ -475,7 +447,31 @@ bool NoteTakerParseMidi::parseMidi() {
     int lastNoteEnd = 0;
     vector<DisplayNote> withRests;
     withRests.reserve(parsedNotes.size());
-    for (const auto& note : parsedNotes) {
+    /* track to channel assignment strategy
+       see if track has any notes
+       if so, and if channel 10 or 11, assume it is percussion and leave there
+       otherwise, assign to the next unused channel, and reuse channels without notes
+     */
+    uint8_t reassign[CHANNEL_COUNT];
+    memset(reassign, 0xFF, sizeof(reassign));
+    for (auto& note : parsedNotes) {
+        unsigned chan = note.channel;
+        if (NOTE_ON == note.type && chan >= CV_OUTPUTS && 10 != chan && 11 != chan) {
+            // map to unused channel, if any
+            if (0xFF == reassign[chan]) {
+                reassign[chan] = 0xFE;      // assume we won't find a free channel
+                for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
+                    if (!channelUsed[index]) {
+                        channelUsed[index] = true;
+                        reassign[chan] = index;
+                        break;
+                    }
+                }
+            }
+            if (reassign[chan] < CV_OUTPUTS) {
+                note.channel = reassign[chan];
+            }
+        }
         if (NOTE_ON == note.type || TRACK_END == note.type) {
             int duration = note.startTime - lastNoteEnd;
             if (duration > 0 && NoteDurations::InStd(duration, ppq)) {
@@ -489,14 +485,14 @@ bool NoteTakerParseMidi::parseMidi() {
     for (const auto& note : withRests) {
         // to do : shouldn't allow zero either, let it slide for now to debug 9.mid
         if (NOTE_ON == note.type && 0 >= note.duration) {
-            DEBUG("non-positive note on duration");
-            NoteTaker::DebugDump(withRests);
+            DEBUG("non-positive note on duration %s", note.debugString().c_str());
+            if (0) NoteTaker::DebugDump(withRests);  // to do : abbreviate output?
             return false;
         }
         if (note.startTime < lastTime) {
             DEBUG("notes out of time order %d lastTime %d note %s",
                     note.startTime, lastTime, note.debugString().c_str());
-            NoteTaker::DebugDump(withRests);
+            if (0) NoteTaker::DebugDump(withRests); // to do : abbreviate output?
             return false;
         }
         lastTime = note.startTime;

@@ -22,6 +22,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         return;
     }
     if (sustainButton->ledOn) {
+        // use first unlocked channel as guide
         horizontalWheel->setLimits(0, NoteDurations::Count() - 1);
         int sustainMinDuration = nt()->channels[this->unlockedChannel()].sustainMin;
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, n().ppq));
@@ -181,9 +182,15 @@ void NoteTakerWidget::updateHorizontal() {
         return;
     }
     if (sustainButton->ledOn) {
-        NoteTakerChannel& channel = nt()->channels[this->unlockedChannel()];
-        channel.setLimit((NoteTakerChannel::Limit) verticalWheel->getValue(),
-                NoteDurations::ToMidi(horizontalWheel->getValue(), n.ppq));
+        // to do : worth having some lambda-thing to abstract and reuse this loop?
+        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+            if (!(selectChannels & (1 << index))) {
+                continue;
+            }
+            NoteTakerChannel& channel = nt()->channels[index];
+            channel.setLimit((NoteTakerChannel::Limit) verticalWheel->getValue(),
+                    NoteDurations::ToMidi(horizontalWheel->getValue(), n.ppq));
+        }
         return;
     }
     if (runButton->ledOn) {
@@ -274,16 +281,36 @@ void NoteTakerWidget::updateHorizontal() {
             newEnd = std::max(newEnd, note->endTime());
         }
         if (!edit.voice) {
+            if (debugVerbose) DEBUG("insertedTime %d", insertedTime);
+            // to do : if select end start time is less than new end, do not start notes earlier
+            // need the existing overlap
+            // if insert time < 0, 
+            bool first = true;
             for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
                 auto& note = n.notes[index];
                 if (note.isSelectable(selectChannels)) {
+                    if (first) {
+                        if (insertedTime < 0) {
+                            if (debugVerbose) DEBUG("note.startTime %d newEnd %d",
+                                    note.startTime, newEnd);
+                            if (note.startTime + insertedTime < newEnd) {
+                                if (note.startTime <= newEnd) {
+                                    break;
+                                }
+                                insertedTime = std::max(insertedTime, note.startTime - newEnd);
+                            }
+                        }
+                        first = false;
+                    }
+
                     note.startTime += insertedTime;
+                    newEnd = std::max(newEnd, note.endTime());
                 }
             }
-        } else {    // make sure track end is adjusted as necessary
-            SCHMICKLE(TRACK_END == n.notes.back().type);
-            n.notes.back().startTime = std::max(edit.trackEndTime, newEnd);
         }
+        // make sure track end is adjusted as necessary
+        SCHMICKLE(TRACK_END == n.notes.back().type);
+        n.notes.back().startTime = std::max(edit.trackEndTime, newEnd);
         inval = Inval::note;
         NoteTaker::Sort(n.notes);
     } else {
@@ -363,6 +390,7 @@ void NoteTakerWidget::updateVertical() {
         return;
     }
     if (sustainButton->ledOn) {
+        // use first unlocked channel as guide
         NoteTakerChannel& channel = nt()->channels[this->unlockedChannel()];
         int sustainDuration = INT_MAX;
         switch(wheelValue) {
@@ -387,6 +415,7 @@ void NoteTakerWidget::updateVertical() {
     if (!selectButton->ledOn) {
         // transpose selection
         // loop below computes diff of first note, and adds diff to subsequent notes in select
+        bool playNotes = false;
         for (unsigned index = n.selectStart ; index < n.selectEnd; ++index) {
             DisplayNote& note = n.notes[index];
             switch (note.type) {
@@ -419,7 +448,7 @@ void NoteTakerWidget::updateVertical() {
                     int value = edit.base[index - n.selectStart].pitch()
                             + wheelValue - edit.verticalValue;
                     value = std::max(0, std::min(127, value));
-                    if (!n.uniquePitch(note, value)) {
+                    if (!n.pitchCollision(note, value)) {
                         note.setPitch(value);
                         // if changing the pitch causes the this pitch to run into the same
                         // pitch on the same channel later, shorten its duration. But, restore the
@@ -427,14 +456,17 @@ void NoteTakerWidget::updateVertical() {
                         const DisplayNote& base = edit.base[index - n.selectStart];
                         note.duration = base.duration;
                         n.setDuration(&note);
+                        playNotes = true;
                     }
-                    this->invalidateAndPlay(Inval::change);
-                    return;
                 }
                 default:
                     ;
             }
         }
+        if (playNotes) {
+            this->invalidateAndPlay(Inval::change);
+        }
+        return;
     } else if (selectButton->editEnd()) {
         if (!wheelValue) {
             edit.voice = false;

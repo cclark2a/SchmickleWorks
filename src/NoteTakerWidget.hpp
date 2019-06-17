@@ -29,7 +29,7 @@ struct VerticalWheel;
 struct NoteTakerWidget : ModuleWidget {
     std::shared_ptr<Font> _musicFont = nullptr;
     std::shared_ptr<Font> _textFont = nullptr;
-    vector<DisplayNote> clipboard;
+    Notes clipboard;
     StorageArray storage;
     NoteTakerEdit edit;
     CutButton* cutButton = nullptr;

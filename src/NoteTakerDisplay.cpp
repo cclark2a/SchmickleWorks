@@ -1825,8 +1825,7 @@ void NoteTakerDisplay::updateRange() {
             xAxisOffset = selectBoxX - boxWidth + displayEndMargin;
             if (ntw->debugVerbose) DEBUG("3 xAxisOffset %g selectBoxX %d", xAxisOffset, selectBoxX);
         }
-        xAxisOffset = std::max(0.f,
-                std::min((float) lastXPostion - boxWidth, xAxisOffset));
+        xAxisOffset = std::max(0.f, std::min((float) lastXPostion - boxWidth, xAxisOffset));
         dynamicXOffsetTimer = oldX - xAxisOffset;
         if (fabsf(dynamicXOffsetTimer) <= 5) {
             dynamicXOffsetTimer = 0;

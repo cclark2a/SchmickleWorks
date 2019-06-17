@@ -18,12 +18,17 @@ struct Notes {
 
     void deserialize(const vector<uint8_t>& );
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
+    void fromJson(json_t* );
+    void fromJsonCompressed(json_t* );
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     static void HighestOnly(vector<DisplayNote>& );
     unsigned horizontalCount(unsigned selectChannels) const;
     bool isEmpty(unsigned selectChannels) const;
     int noteCount(unsigned selectChannels) const;
     int noteTimes(unsigned selectChannels) const;
+    static bool PitchCollision(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,
+            vector<const DisplayNote*>* overlaps);
+    bool pitchCollision(const DisplayNote& , int newPitch) const;
 
     unsigned selectEndPos(unsigned select) const {
         const DisplayNote& first = notes[select];
@@ -41,9 +46,7 @@ struct Notes {
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
     bool transposeSpan(vector<DisplayNote>& span) const;
-    static bool UniquePitch(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,
-            vector<const DisplayNote*>* overlaps);
-    bool uniquePitch(const DisplayNote& , int newPitch) const;
+    void toJson(json_t* ) const;
     void validate() const;
     int xPosAtEndEnd(const NoteTakerDisplay* ) const;
     int xPosAtEndStart(const NoteTakerDisplay* ) const;

@@ -80,6 +80,7 @@ std::string DisplayNote::debugString() const {
 
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto& n = this->n();
+#ifdef DEBUGGING_STORAGE // not normally defined
     DEBUG("storage slots %u midi %u", storage.slotMap.size(), storage.storage.size());
     for (auto& entry : storage.slotMap) {
         DEBUG("entry[%s]:%u", entry.first.c_str(), entry.second);
@@ -89,6 +90,7 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
         DEBUG("[%u] filename:%s midi:%u preset:%d", index, e.filename.c_str(), e.midi.size(),
                 e.preset);
     }
+#endif
     DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, n.horizontalCount(selectChannels));
     DEBUG("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
@@ -98,7 +100,7 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &display->cache,
             n.selectStart, n.selectEnd);
     DEBUG("clipboard");
-    NoteTaker::DebugDump(clipboard);
+    NoteTaker::DebugDump(clipboard.notes);
     this->nt()->debugDumpChannels();
     if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !runButton->ledOn) {
         std::string w2n;
@@ -250,9 +252,11 @@ void Notes::validate() const {
                             malformed = true;
                             break;
                         } else if (note.pitch() == (*iter)->pitch()) {
+#if 0 // disable while debugging midi from the wild
                             DEBUG("note pitch error %s / %s", note.debugString().c_str(),
                                     (*iter)->debugString().c_str());
                             malformed = true;
+#endif
                             break;
                         }
                         ++iter;

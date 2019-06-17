@@ -75,7 +75,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         return;
     }
     if (selectButton->editStart() && selectButton->saveZero) {
-        ntw->clipboard.clear();
+        ntw->clipboard.notes.clear();
         return;
     }
     unsigned start = n.selectStart;
@@ -165,7 +165,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     unsigned insertLoc;
     unsigned insertSize;
     int shiftTime;
-    if (!n.noteCount(ntw->selectChannels) && ntw->clipboard.empty()) {
+    if (!n.noteCount(ntw->selectChannels) && ntw->clipboard.notes.empty()) {
         insertLoc = nt->atMidiTime(0);
         const DisplayNote& midC = ntw->middleC();
         n.notes.insert(n.notes.begin() + insertLoc, midC);
@@ -222,13 +222,13 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             }
         }
         if (nt->debugVerbose) DEBUG("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
-                ntw->clipboard.size());
+                ntw->clipboard.notes.size());
     #if POLY_EXPERIMENT
         bool useClipboard = ntw->selectButton->ledOn;
     #else
         bool useClipboard = ntw->selectButton->editStart();
     #endif
-        if (!useClipboard || ntw->clipboard.empty() || !ntw->extractClipboard(&span)) {
+        if (!useClipboard || ntw->clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
             if (nt->debugVerbose) DEBUG(!n.selectStart ? "left of first note" : "duplicate selection");
             if (nt->debugVerbose) DEBUG("iStart=%u iEnd=%u", iStart, iEnd);
             for (unsigned index = iStart; index < iEnd; ++index) {
@@ -237,7 +237,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
                     span.push_back(note);
                 }
             }
-            ntw->clipboard.clear();
+            ntw->clipboard.notes.clear();
             ntw->setClipboardLight();
         }
         if (span.empty() || (1 == span.size() && NOTE_ON != span[0].type) ||
@@ -441,7 +441,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             nt->invalidVoiceCount |= ntw->edit.voice;
             ntw->edit.voice = false;
             if (!n.horizontalCount(ntw->selectChannels)) {
-                ntw->clipboard.clear();
+                ntw->clipboard.notes.clear();
                 break;  // can't start selection if there's nothing to select
             }
             int wheelStart = ntw->noteToWheel(n.selectStart);

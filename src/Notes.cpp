@@ -3,6 +3,7 @@
 #include "NoteTakerDisplay.hpp"
 #include "NoteTakerMakeMidi.hpp"
 #include "NoteTakerParseMidi.hpp"
+#include "NoteTakerStorage.hpp"
 
 void Notes::deserialize(const vector<uint8_t>& storage) {
     array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;
@@ -53,35 +54,32 @@ void Notes::deserialize(const vector<uint8_t>& storage) {
     } while (iter != midiParser.midi.end());
 }
 
-// unlike saving as MIDI, this preserves rests and other specialized information
-void Notes::serialize(vector<uint8_t>& storage) const {
-    NoteTakerMakeMidi midiMaker;
-    midiMaker.target = &storage;
-    int lastStart = 0;
-    for (auto& note : notes) {
-        if (note.duration < 0) {
-            DEBUG("[%d / %u] dur < 0", &note - &notes.front(), notes.size());
-            DEBUG(" %s", note.debugString().c_str());
-        }
-        midiMaker.add_delta(note.startTime, &lastStart);
-        midiMaker.add_size8(note.duration);
-        for (unsigned index = 0; index < 4; ++index) {
-            midiMaker.add_size8(note.data[index]);
-        }
-        // MIDI-like: pack type and channel into first byte
-        uint8_t chan = note.isNoteOrRest() ? note.channel : 0;
-        uint8_t byte = (note.type << 4) + chan;
-        midiMaker.add_one(byte);
-        midiMaker.add_one(note.selected);
-    }
-}
-
 void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
     for (auto iter = notes.begin() + end; iter-- != notes.begin() + start; ) {
         if (iter->isSelectable(selectChannels)) {
             notes.erase(iter);
         }
     }
+}
+
+void Notes::fromJson(json_t* jNotes) {
+    size_t index;
+    json_t* value;
+    notes.resize(json_array_size(jNotes), DisplayNote(UNUSED));
+    json_array_foreach(jNotes, index, value) {
+        notes[index].dataFromJson(value);
+    }
+}
+
+void Notes::fromJsonCompressed(json_t* jNotes) {
+    if (!jNotes) {
+        return;
+    }
+    const char* encodedString = json_string_value(jNotes);
+    vector<char> encoded(encodedString, encodedString + strlen(encodedString));
+    NoteTakerStorage storage;
+    storage.decode(encoded);
+    this->deserialize(storage.midi);    
 }
 
 vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
@@ -191,9 +189,40 @@ int Notes::noteTimes(unsigned selectChannels) const {
     return result;
 }
 
+bool Notes::PitchCollision(const vector<DisplayNote>& notes, const DisplayNote& note,
+        int pitch, vector<const DisplayNote*>* overlaps) {
+    bool collision = false;
+    for (auto& test : notes) {
+        if (NOTE_ON != test.type) {
+            continue;
+        }
+        if (test.channel != note.channel) {
+            continue;
+        }
+        if (test.endTime() <= note.startTime) {
+            continue;
+        }
+        if (test.startTime >= note.endTime()) {
+            break;
+        }
+        if (&note == &test) {
+            continue;
+        }
+        if (overlaps) {
+            overlaps->push_back(&test);
+        }
+        collision |= test.pitch() == pitch;
+    }
+    return collision;
+}
+
+bool Notes::pitchCollision(const DisplayNote& note, int newPitch) const {
+    return Notes::PitchCollision(notes, note, newPitch, nullptr);
+}
+
 void Notes::setDuration(DisplayNote* note) {
     vector<const DisplayNote*> overlaps;
-    if (!Notes::UniquePitch(notes, *note, note->pitch(), &overlaps)) {
+    if (!Notes::PitchCollision(notes, *note, note->pitch(), &overlaps)) {
         return;
     }
     for (auto test : overlaps) {
@@ -203,6 +232,47 @@ void Notes::setDuration(DisplayNote* note) {
             }
         }
     }
+}
+
+// unlike saving as MIDI, this preserves rests and other specialized information
+void Notes::serialize(vector<uint8_t>& storage) const {
+    NoteTakerMakeMidi midiMaker;
+    midiMaker.target = &storage;
+    int lastStart = 0;
+    for (auto& note : notes) {
+        if (note.duration < 0) {
+            DEBUG("[%d / %u] dur < 0", &note - &notes.front(), notes.size());
+            DEBUG(" %s", note.debugString().c_str());
+        }
+        midiMaker.add_delta(note.startTime, &lastStart);
+        midiMaker.add_size8(note.duration);
+        for (unsigned index = 0; index < 4; ++index) {
+            midiMaker.add_size8(note.data[index]);
+        }
+        // MIDI-like: pack type and channel into first byte
+        uint8_t chan = note.isNoteOrRest() ? note.channel : 0;
+        uint8_t byte = (note.type << 4) + chan;
+        midiMaker.add_one(byte);
+        midiMaker.add_one(note.selected);
+    }
+}
+
+void Notes::toJson(json_t* root) const {
+    // to do : write short note seq using old method for ease in editing json manually
+#if 0
+    json_t* _notes = json_array();
+    for (const auto& note : notes) {
+        json_array_append_new(_notes, note.dataToJson());
+    }
+    json_object_set_new(root, "notes", _notes);
+#else
+    NoteTakerStorage storage;
+    this->serialize(storage.midi);
+    vector<char> encoded;
+    storage.encode(&encoded);
+    encoded.push_back('\0'); // treat as string
+    json_object_set_new(root, "notesCompressed", json_string(&encoded.front()));
+#endif
 }
 
 // transpose the span up by approx. one score line (major/aug third) avoiding existing notes
@@ -216,8 +286,8 @@ bool Notes::transposeSpan(vector<DisplayNote>& span) const {
         // collect existing notes on this channel at this time
         vector<const DisplayNote*> overlaps;
         newPitch = (newPitch < 0 ? note.pitch() : newPitch) + 3;
-        bool collision = Notes::UniquePitch(notes, note, newPitch, &overlaps);
-        collision |= Notes::UniquePitch(transposed, note, newPitch, &overlaps);  // collect new notes in span 
+        bool collision = Notes::PitchCollision(notes, note, newPitch, &overlaps);
+        collision |= Notes::PitchCollision(transposed, note, newPitch, &overlaps);  // collect new notes in span 
         while (collision && ++newPitch <= 127) {  // transpose up to free slot
             collision = false;
             for (auto overlap : overlaps) {
@@ -246,37 +316,6 @@ bool Notes::transposeSpan(vector<DisplayNote>& span) const {
         transposed.push_back(note);
     }
     return true;
-}
-
-bool Notes::UniquePitch(const vector<DisplayNote>& notes, const DisplayNote& note,
-        int pitch, vector<const DisplayNote*>* overlaps) {
-    bool collision = false;
-    for (auto& test : notes) {
-        if (NOTE_ON != test.type) {
-            continue;
-        }
-        if (test.channel != note.channel) {
-            continue;
-        }
-        if (test.endTime() <= note.startTime) {
-            continue;
-        }
-        if (test.startTime >= note.endTime()) {
-            break;
-        }
-        if (&note == &test) {
-            continue;
-        }
-        if (overlaps) {
-            overlaps->push_back(&test);
-        }
-        collision |= test.pitch() == pitch;
-    }
-    return collision;
-}
-
-bool Notes::uniquePitch(const DisplayNote& note, int newPitch) const {
-    return Notes::UniquePitch(notes, note, newPitch, nullptr);
 }
 
 int Notes::xPosAtEndStart(const NoteTakerDisplay* display) const {
