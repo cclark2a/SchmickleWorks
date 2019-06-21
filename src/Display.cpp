@@ -1,8 +1,8 @@
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerButton.hpp"
-#include "NoteTakerWheel.hpp"
-#include "NoteTakerWidget.hpp"
-#include "NoteTaker.hpp"
+#include "Display.hpp"
+#include "Button.hpp"
+#include "Taker.hpp"
+#include "Wheel.hpp"
+#include "Widget.hpp"
 
 // to do: bug: eighth notes are beamed across bar in 2/4 time
 

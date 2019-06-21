@@ -1,6 +1,6 @@
 #pragma once
 
-#include "NoteTakerDisplayNote.hpp"
+#include "DisplayNote.hpp"
 
 struct BarPosition;
 struct BeamPositions;

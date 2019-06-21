@@ -1,7 +1,7 @@
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerWheel.hpp"
-#include "NoteTakerWidget.hpp"
-#include "NoteTaker.hpp"
+#include "Display.hpp"
+#include "Taker.hpp"
+#include "Wheel.hpp"
+#include "Widget.hpp"
 
 // frame varies from 0 to 1 to rotate the wheel
 void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) const {

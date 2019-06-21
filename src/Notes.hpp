@@ -1,6 +1,6 @@
 #pragma once
 
-#include "NoteTakerDisplayNote.hpp"
+#include "DisplayNote.hpp"
 
 struct NoteTakerDisplay;
 

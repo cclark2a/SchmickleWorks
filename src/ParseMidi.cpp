@@ -1,7 +1,7 @@
-#include "NoteTakerParseMidi.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerMakeMidi.hpp"
-#include "NoteTaker.hpp"
+#include "ParseMidi.hpp"
+#include "Display.hpp"
+#include "MakeMidi.hpp"
+#include "Taker.hpp"
 
 bool NoteTakerParseMidi::parseMidi() {
     if (debugVerbose) DEBUG("parseMidi start");

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "NoteTaker.hpp"
+#include "Taker.hpp"
 
 struct NoteTakerParseMidi {
     const vector<uint8_t>& midi;

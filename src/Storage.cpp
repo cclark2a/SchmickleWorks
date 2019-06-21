@@ -1,8 +1,8 @@
 #include <fstream>
 #include <iterator>
-#include "NoteTakerMakeMidi.hpp"
-#include "NoteTakerParseMidi.hpp"
-#include "NoteTakerStorage.hpp"
+#include "MakeMidi.hpp"
+#include "ParseMidi.hpp"
+#include "Storage.hpp"
 
 // to do : not sure if we need radix 64 encoded midi or not ... 
 // depends on whether user is allowed to choose to store sequences in patches ...

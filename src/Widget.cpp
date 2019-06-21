@@ -1,10 +1,10 @@
-#include "NoteTaker.hpp"
-#include "NoteTakerButton.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerMakeMidi.hpp"
-#include "NoteTakerParseMidi.hpp"
-#include "NoteTakerWheel.hpp"
-#include "NoteTakerWidget.hpp"
+#include "Button.hpp"
+#include "Display.hpp"
+#include "MakeMidi.hpp"
+#include "ParseMidi.hpp"
+#include "Taker.hpp"
+#include "Wheel.hpp"
+#include "Widget.hpp"
 
 struct ClipboardLabel : Widget {
     NoteTakerWidget* mainWidget;

@@ -1,6 +1,6 @@
-#include "NoteTakerMakeMidi.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTaker.hpp"
+#include "Display.hpp"
+#include "MakeMidi.hpp"
+#include "Taker.hpp"
 #include <set>
 
 // to do : move this to NoteTakeChannel.cpp

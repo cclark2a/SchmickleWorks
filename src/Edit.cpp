@@ -1,8 +1,8 @@
-#include "NoteTaker.hpp"
-#include "NoteTakerButton.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerWheel.hpp"
-#include "NoteTakerWidget.hpp"
+#include "Button.hpp"
+#include "Display.hpp"
+#include "Taker.hpp"
+#include "Wheel.hpp"
+#include "Widget.hpp"
 
 void NoteTakerWidget::setHorizontalWheelRange() {
     if (runButton->ledOn) {

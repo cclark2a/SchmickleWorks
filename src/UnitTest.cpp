@@ -2,11 +2,11 @@
 
 #if RUN_UNIT_TEST
 
-#include "NoteTakerButton.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerWheel.hpp"
-#include "NoteTakerWidget.hpp"
-#include "NoteTaker.hpp"
+#include "Button.hpp"
+#include "Display.hpp"
+#include "Taker.hpp"
+#include "Wheel.hpp"
+#include "Widget.hpp"
 
 static void Press(NoteTakerWidget* n, ParamWidget* ms) {
     event::DragStart evs;

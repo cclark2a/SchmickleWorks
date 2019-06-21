@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Notes.hpp"
-#include "NoteTakerChannel.hpp"
+#include "Channel.hpp"
 
 /* poly bugs
     - changing pitch of note needs to avoid other overlaps on same channel

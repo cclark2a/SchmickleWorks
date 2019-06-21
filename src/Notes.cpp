@@ -1,9 +1,9 @@
 #include "Notes.hpp"
-#include "NoteTakerChannel.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerMakeMidi.hpp"
-#include "NoteTakerParseMidi.hpp"
-#include "NoteTakerStorage.hpp"
+#include "Channel.hpp"
+#include "Display.hpp"
+#include "MakeMidi.hpp"
+#include "ParseMidi.hpp"
+#include "Storage.hpp"
 
 void Notes::deserialize(const vector<uint8_t>& storage) {
     array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;

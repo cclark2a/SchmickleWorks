@@ -14,7 +14,7 @@
 
 #define POLY_EXPERIMENT 01
 
-#include "NoteTakerConstants.hpp"
+#include "Constants.hpp"
 
 using namespace rack;
 

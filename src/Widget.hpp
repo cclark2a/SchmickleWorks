@@ -1,7 +1,7 @@
 #pragma once
 
-#include "NoteTakerEdit.hpp"
-#include "NoteTakerStorage.hpp"
+#include "Edit.hpp"
+#include "Storage.hpp"
 
 struct CutButton;
 struct DisplayBuffer;

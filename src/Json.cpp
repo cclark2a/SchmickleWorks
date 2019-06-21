@@ -1,10 +1,10 @@
 
-#include "NoteTakerButton.hpp"
-#include "NoteTakerDisplay.hpp"
-#include "NoteTakerStorage.hpp"
-#include "NoteTakerWheel.hpp"
-#include "NoteTakerWidget.hpp"
-#include "NoteTaker.hpp"
+#include "Button.hpp"
+#include "Display.hpp"
+#include "Taker.hpp"
+#include "Storage.hpp"
+#include "Wheel.hpp"
+#include "Widget.hpp"
 
 json_t* NoteTaker::dataToJson() {
     json_t* root = json_object();
