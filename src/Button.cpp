@@ -92,11 +92,9 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         ntw->copyNotes();
     }
     int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
-#if POLY_EXPERIMENT
     if (selectButton->editEnd()) {
         shiftTime = 0;
     }
-#endif
     n.eraseNotes(start, end, ntw->selectChannels);
     if (shiftTime) {
         ntw->shiftNotes(start, shiftTime);
@@ -194,11 +192,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         unsigned iStart = n.selectStart;
         unsigned iEnd = n.selectEnd;
         int lastEndTime = 0;
-    #if POLY_EXPERIMENT
         bool insertInPlace = ntw->selectButton->editEnd();
-    #else
-        bool insertInPlace = false;
-    #endif
         if (!n.selectStart) {
             iStart = insertLoc = ntw->wheelToNote(1);
         } else if (insertInPlace) {
@@ -235,11 +229,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         }
         if (nt->debugVerbose) DEBUG("insertTime %d insertLoc %u clipboard size %u", insertTime, insertLoc,
                 ntw->clipboard.notes.size());
-    #if POLY_EXPERIMENT
         bool useClipboard = ntw->selectButton->ledOn;
-    #else
-        bool useClipboard = ntw->selectButton->editStart();
-    #endif
         if (!useClipboard || ntw->clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
             if (nt->debugVerbose) DEBUG(!n.selectStart ? "left of first note" : "duplicate selection");
             if (nt->debugVerbose) DEBUG("iStart=%u iEnd=%u", iStart, iEnd);
@@ -277,7 +267,6 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             const DisplayNote& midC = ntw->middleC();
             span.push_back(midC);
         }
-    #if POLY_EXPERIMENT
         if (insertInPlace) {
             Notes::HighestOnly(span);  // if edit end, remove all but highest note of chord            
             if (!n.transposeSpan(span)) {
@@ -286,9 +275,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             }
             n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
             insertSize = span.size();
-        } else       
-    #endif
-        {
+        } else {
             int nextStart = ntw->nextStartTime(insertLoc);
             NoteTaker::ShiftNotes(span, 0, lastEndTime - span.front().startTime);
             n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());

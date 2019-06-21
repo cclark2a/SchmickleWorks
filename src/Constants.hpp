@@ -33,10 +33,7 @@ constexpr uint8_t stdTimeSignature32ndNotesInQuarter = 0x08;
 constexpr unsigned CHANNEL_COUNT = 16;      // MIDI channels
 constexpr unsigned ALL_CHANNELS = 0xFFFF;   // one bit set per MIDI channels
 constexpr unsigned ALL_CV_CHANNELS = 0x0F;  // one bit set per CV output
-
-#if POLY_EXPERIMENT
 constexpr unsigned MAX_VOICES = 16;
-#endif
 
 constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
 constexpr unsigned CV_OUTPUTS = 4;

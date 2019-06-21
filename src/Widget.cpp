@@ -102,8 +102,8 @@ void NoteTakerWidget::addWheel(const Vec& size, NoteTakerWheel* wheel) {
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
-    : clipboard(debugVerbose)
-    , storage(debugVerbose) {
+    : clipboard(DEBUG_VERBOSE)
+    , storage(DEBUG_VERBOSE) {
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));

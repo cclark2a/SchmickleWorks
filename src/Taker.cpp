@@ -207,7 +207,6 @@ void NoteTaker::process(const ProcessArgs &args) {
             continue;
         }
         auto& channelInfo = channels[note.channel];
-#if POLY_EXPERIMENT
         SCHMICKLE((uint8_t) -1 != note.voice);
         unsigned voiceIndex = note.voice;
         auto& voice = channelInfo.voices[voiceIndex];
@@ -246,44 +245,6 @@ void NoteTaker::process(const ProcessArgs &args) {
                 outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
             outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
         }
-#else
-        if (&note == channelInfo.note) {
-            if (midiTime < channelInfo.noteEnd) {
-                continue;
-            }
-        } else {
-            auto prior = channelInfo.note;
-            channelInfo.gateLow = note.slur() && start < lastNote ? INT_MAX : 
-                    note.startTime + channelInfo.sustain(note.duration);
-            channelInfo.noteEnd = endTime;
-            channelInfo.note = &note;
-            if (note.channel < CV_OUTPUTS) {
-                if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u prior %u midiTime %d old %g",
-                        note.channel, channelInfo.gateLow, channelInfo.noteEnd, 
-                        channelInfo.note - &n.notes.front(),
-                        prior, midiTime, outputs[GATE1_OUTPUT + note.channel].value);
-                outputs[GATE1_OUTPUT + note.channel].value = DEFAULT_GATE_HIGH_VOLTAGE;
-            }
-        }
-        if (running) {
-            sStart = std::min(sStart, start);
-        }
-        // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
-        if (note.channel < CV_OUTPUTS) {
-            float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-            auto verticalWheel = ntw()->verticalWheel;
-            if (mainWidget->runningWithButtonsOff()) {
-                bias += inputs[V_OCT_INPUT].value;
-                bias += ((int) verticalWheel->getValue() - 60) / 12.f;
-            }
-            if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
-                note.channel, bias,
-                inputs[V_OCT_INPUT].value, verticalWheel->getValue(),
-                note.pitch() / 12.f, bias + note.pitch() / 12.f,
-                outputs[CV1_OUTPUT + note.channel].value);
-            outputs[CV1_OUTPUT + note.channel].value = bias + note.pitch() / 12.f;
-        }
-#endif
     }
     if (running) {
         // to do : don't write to same state in different threads
@@ -422,9 +383,7 @@ bool NoteTaker::setSelectStart(unsigned start) {
     return true;
 }
 
-#if POLY_EXPERIMENT
 // to do : output debug data to show what set voice count did
-
 void NoteTaker::setVoiceCount() {
     DEBUG("setVoiceCount invalidVoiceCount %d", invalidVoiceCount);
     if (!invalidVoiceCount) {
@@ -491,7 +450,6 @@ void NoteTaker::setVoiceCount() {
         DEBUG("%u vCount %d chan %d %s", index, vCount, chan, note.debugString().c_str());
     }
 }
-#endif
 
 float NoteTaker::wheelToTempo(float value) const {
     int horzIndex = (int) value;

@@ -53,7 +53,7 @@ struct NoteTakerWidget : ModuleWidget {
 
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     bool clipboardInvalid = true;
-    bool debugVerbose = true;
+    bool debugVerbose = DEBUG_VERBOSE;
 #if RUN_UNIT_TEST
     bool runUnitTest = true;  // to do : ship with this disabled
     bool unitTestRunning = false;

@@ -122,19 +122,12 @@ struct NoteTaker : Module {
     void debugDumpChannels() const {
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
             auto& chan = channels[index];
-#if POLY_EXPERIMENT
             for (unsigned inner = 0; inner < chan.voiceCount; ++inner) {
                 if (!chan.voices[inner].note) {
                     continue;
                 }
                 DEBUG("[%u / %u] %s", index, inner, chan.debugString(&n.notes.front()).c_str());
             }
-#else
-            if (!chan.note) {
-                continue;
-            }
-            DEBUG("[%d] %s", index, chan.debugString(&n.notes.front()).c_str());
-#endif
         }
     }
 
@@ -205,7 +198,6 @@ struct NoteTaker : Module {
 
     void setGateLow(const DisplayNote& note) {
         auto& chan = channels[note.channel];
-#if POLY_EXPERIMENT
         unsigned voiceIndex = note.voice;
         if (UNASSIGNED_VOICE_INDEX != voiceIndex) {
             auto& voice = chan.voices[voiceIndex];
@@ -213,10 +205,6 @@ struct NoteTaker : Module {
             voice.gateLow = 0;
             voice.noteEnd = 0;
         }
-#else
-        chan.gateLow = 0;
-        chan.noteEnd = 0;
-#endif
     }
 
     void setExpiredGatesLow(int midiTime) {
@@ -229,7 +217,6 @@ struct NoteTaker : Module {
     #endif
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto& chan = channels[channel];
-    #if POLY_EXPERIMENT
             for (unsigned index = 0; index < chan.voiceCount; ++index) {
                 auto& voice = chan.voices[index];
                 if (!voice.note) {
@@ -246,40 +233,6 @@ struct NoteTaker : Module {
                     voice.noteEnd = 0;
                 }
             }
-    #else
-            if (!chan.noteEnd) {
-                continue;
-            }
-    #if DEBUG_GATES
-            if ((chan.gateLow && chan.gateLow < midiTime)
-                    || chan.noteEnd < midiTime) {
-                if (debugLastGateLow[channel] != chan.gateLow
-                        || debugLastNoteEnd[channel] != chan.noteEnd
-                        || (midiTime != debugMidiTime && midiTime != debugMidiTime + 1)
-                        || debugCount[channel] > 500) {
-                    debugLastGateLow[channel] = chan.gateLow;
-                    debugLastNoteEnd[channel] = chan.noteEnd;
-                    DEBUG("expire [%u] gateLow=%d noteEnd=%d noteIndex=%u midiTime=%d",
-                            channel, chan.gateLow, chan.noteEnd, 
-                            chan.noteIndex - &n.notes.front(), midiTime);
-                    debugCount[channel] = 0;
-                } else {
-                    ++debugCount[channel];
-                }
-                debugMidiTime = midiTime;
-            }
-    #endif
-            if (chan.gateLow && chan.gateLow < midiTime) {
-                chan.gateLow = 0;
-                if (channel < CV_OUTPUTS) {
-                    outputs[GATE1_OUTPUT + channel].value = 0;
-                    DEBUG("set expired low %d", channel);
-                }
-            }
-            if (chan.noteEnd < midiTime) {
-                chan.noteEnd = 0;
-            }
-    #endif
         }
     }
 
@@ -289,10 +242,7 @@ struct NoteTaker : Module {
     void setSelect(unsigned start, unsigned end);
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
-
-#if POLY_EXPERIMENT
     void setVoiceCount();
-#endif
 
     // shift track end only if another shifted note bumps it out
     // If all notes are selected, shift signatures. Otherwise, leave them be.
@@ -340,26 +290,17 @@ struct NoteTaker : Module {
     void zeroGates() {
         if (debugVerbose) DEBUG("zero gates");
         for (auto& channel : channels) {
-    #if POLY_EXPERIMENT
             for (unsigned index = 0; index < channel.voiceCount; ++index) {
                 auto& voice = channel.voices[index];
                 voice.note = nullptr;
                 voice.realStart = 0;
                 voice.gateLow = voice.noteEnd = 0;
             }
-    #else
-            channel.note = nullptr;
-            channel.gateLow = channel.noteEnd = 0;
-    #endif
         }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
-    #if POLY_EXPERIMENT
             for (unsigned inner = 0; inner < channels[index].voiceCount; ++inner) {
                 outputs[GATE1_OUTPUT + index].setVoltage(0, inner);
             }
-    #else
-            outputs[GATE1_OUTPUT + index].value = 0;
-    #endif
         }
     }
 };
