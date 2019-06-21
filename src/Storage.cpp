@@ -1,5 +1,7 @@
-#include <fstream>
 #include <iterator>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "MakeMidi.hpp"
 #include "ParseMidi.hpp"
 #include "Storage.hpp"
@@ -10,11 +12,11 @@
 // the disadvantage : auto save time could become onerous
 void NoteTakerStorage::UnitTest() {
     // unit test
-    NoteTakerStorage test;
+    NoteTakerStorage test(true);
     test.midi = { 0x80, 0x90, 0xFF, 0x3F, 0x5F, 0x7F, 0x00, 0x20, 0xAA, 0xCC};
     vector<char> encoded;
     test.encode(&encoded);
-    NoteTakerStorage copy;
+    NoteTakerStorage copy(true);
     copy.decode(encoded);
     SCHMICKLE(!memcmp(&test.midi.front(), &copy.midi.front(), test.midi.size()));
     vector<char> encodeJunk = { '0', 'A', '/', 'b', 'o', '/', '7', '='};
@@ -86,44 +88,61 @@ void NoteTakerStorage::EncodeTriplet(const uint8_t trips[3], vector<char>* encod
 }
 
 void NoteTakerStorage::writeMidi() const {
+    if (midi.empty()) {
+        return;
+    }
     std::string root = StorageArray::UserDir();
     if (!system::isDirectory(root)) {
         system::createDirectory(root);
         SCHMICKLE(system::isDirectory(root));
     }
-    std::string midi = StorageArray::UserMidi();
-    if (!system::isDirectory(midi)) {
-        system::createDirectory(midi);
-        SCHMICKLE(system::isDirectory(midi));
+    std::string userDir = StorageArray::UserMidi();
+    if (!system::isDirectory(userDir)) {
+        system::createDirectory(userDir);
+        SCHMICKLE(system::isDirectory(userDir));
     }
-    std::string dest = midi + filename;
-    int err = remove(dest.c_str());
+    std::string destPath = userDir + filename;
+    int err = remove(destPath.c_str());
     if (err) {
-        DEBUG("remove %s err %d", dest.c_str(), err);
+        DEBUG("remove %s err %d", destPath.c_str(), err);
     }
-    if (midi.empty()) {
-        return;
+    FILE* dest = fopen(destPath.c_str(), "wb");
+    size_t wrote = fwrite((const char*) &midi.front(), 1, midi.size(), dest);
+    fclose(dest);
+    if (debugVerbose) {
+        DEBUG("%s wrote %u requested to write %d", destPath.c_str(), wrote, midi.size());
     }
-    std::ofstream fout(dest.c_str(), std::ios::out | std::ios::binary);
-    fout.write((const char*) &midi.front(), midi.size());
-    fout.close();
+}
+
+static off_t fsize(const std::string& path) {
+    struct stat st; 
+    return !stat(path.c_str(), &st) ? st.st_size : -1;
 }
 
 bool NoteTakerStorage::readMidi(const std::string& dir) {
-    std::string dest = dir + filename;
-    std::ifstream in(dest.c_str(), std::ifstream::binary);
-    if (in.fail()) {
-        DEBUG("%s not opened for reading", dest.c_str());
+    std::string sourcePath = dir + filename;
+    if (!system::isFile(sourcePath)) {
+        DEBUG("%s file can't be read", sourcePath.c_str());
         return false;
     }
-    in.unsetf(std::ios::skipws);    // don't skip whitespace (!)
-    std::streampos fileSize;        // get the file size to reserve space
-    in.seekg(0, std::ios::end);
-    fileSize = in.tellg();
-    in.seekg(0, std::ios::beg);
-    midi.reserve(fileSize);        
-    std::istream_iterator<uint8_t> start(in), end;
-    midi.insert(midi.begin(), start, end);
+    off_t fileSize = fsize(sourcePath);
+    if (fileSize < 0) {
+        DEBUG("%s fsize failed", sourcePath.c_str());
+        return false;
+    }
+    FILE* source = fopen(sourcePath.c_str(), "rb");
+    if (!source) {
+        DEBUG("%s fopen failed", sourcePath.c_str());
+        return false;
+    }
+    midi.resize(fileSize);        
+    size_t bytesRead = fread(&midi.front(), 1, fileSize, source);
+    fclose(source);
+    if (bytesRead != (size_t) fileSize) {
+        DEBUG("%s did not read all of file: requested %d read %d", sourcePath.c_str(),
+                bytesRead, fileSize);
+        return false;
+    }
     return true;
 }
 
@@ -160,7 +179,7 @@ void StorageArray::setMidiMap(const std::string& dir, bool preset) {
         size_t count = slotMap.size();
         slotMap[filename] = count;
         if (count >= storage.size()) {
-            storage.resize(count + 1);
+            storage.resize(count + 1, debugVerbose);
         }
         auto& store = storage[count];
         store.filename = filename;
@@ -226,7 +245,7 @@ void StorageArray::saveJson() {
 void StorageArray::saveScore(const NoteTaker& nt, unsigned index) {
     SCHMICKLE(index <= storage.size());
     if (storage.size() == index) {
-        NoteTakerStorage noteStorage;
+        NoteTakerStorage noteStorage(debugVerbose);
         noteStorage.filename = std::to_string(storage.size()) + ".mid";
         slotMap[noteStorage.filename] = storage.size();
         storage.push_back(noteStorage);

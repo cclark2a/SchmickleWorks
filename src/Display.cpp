@@ -1578,7 +1578,7 @@ const Notes* NoteTakerDisplay::notes() {
         return &nt->n;
     }
     if (!previewNotes) {
-        previewNotes = new Notes();
+        previewNotes = new Notes(ntw()->debugVerbose);
         previewNotes->selectStart = 1;
         previewNotes->selectEnd = 2;
         previewNotes->ppq = 96;

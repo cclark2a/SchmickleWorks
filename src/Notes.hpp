@@ -10,8 +10,11 @@ struct Notes {
     unsigned selectStart = 0;           // index into notes of first selected (any channel)
     unsigned selectEnd = 1;             // one past last selected
     int ppq = stdTimePerQuarterNote;    // default to 96 pulses/ticks per quarter note
-
-    Notes() {}
+    bool debugVerbose;
+    
+    Notes(bool dbug) :
+        debugVerbose(dbug) {
+    }
 
     Notes( const Notes& ) = delete; // non construction-copyable
     Notes& operator=( const Notes& ) = delete; // non copyable

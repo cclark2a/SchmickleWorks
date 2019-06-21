@@ -53,10 +53,10 @@ struct NoteTakerButton : Switch {
     }
 
     void onDragStart(const event::DragStart &e) override {
-        DEBUG("onDragStart af %d ledOn %d", af, ledOn);
         if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
             return;
         }
+        DEBUG("onDragStart af %d ledOn %d", af, ledOn);
         af = hasLed ? (int) !ledOn : 1;
         auto framebuffer = this->fb();
         if (framebuffer) {
@@ -66,6 +66,9 @@ struct NoteTakerButton : Switch {
     }
 
     void onDragEnd(const event::DragEnd &e) override {
+        if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+            return;
+        }
         DEBUG("onDragEnd af %d ledOn %d", af, ledOn);
         auto framebuffer = this->fb();
         if (framebuffer) {

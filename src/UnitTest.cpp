@@ -280,8 +280,8 @@ static void Expected(NoteTakerWidget* n) {
 }
 
 static void TestEncode() {
-    NoteTakerStorage storage;
-    Notes n;
+    NoteTakerStorage storage(true);
+    Notes n(true);
     int start = 0;
     for (auto type : { MIDI_HEADER, KEY_SIGNATURE, TIME_SIGNATURE, MIDI_TEMPO, NOTE_ON,
             REST_TYPE, TRACK_END }) {
@@ -310,11 +310,11 @@ static void TestEncode() {
     DEBUG("encoded midi %s", encodedString);
     vector<char> encoded2(encodedString, encodedString + strlen(encodedString));
     DEBUG("encoded2     %.*s", encoded2.size(), &encoded2.front());
-    NoteTakerStorage storage2;
+    NoteTakerStorage storage2(true);
     storage2.decode(encoded2);
     DEBUG("raw midi2");
     NoteTaker::DebugDumpRawMidi(storage2.midi);
-    Notes n2;
+    Notes n2(true);
     n2.deserialize(storage2.midi);   
     vector<std::string> results2;
     for (const auto& note : n2.notes) {

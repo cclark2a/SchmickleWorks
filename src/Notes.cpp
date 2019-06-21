@@ -77,7 +77,7 @@ void Notes::fromJsonCompressed(json_t* jNotes) {
     }
     const char* encodedString = json_string_value(jNotes);
     vector<char> encoded(encodedString, encodedString + strlen(encodedString));
-    NoteTakerStorage storage;
+    NoteTakerStorage storage(debugVerbose);
     storage.decode(encoded);
     this->deserialize(storage.midi);    
 }
@@ -266,7 +266,7 @@ void Notes::toJson(json_t* root) const {
     }
     json_object_set_new(root, "notes", _notes);
 #else
-    NoteTakerStorage storage;
+    NoteTakerStorage storage(debugVerbose);
     this->serialize(storage.midi);
     vector<char> encoded;
     storage.encode(&encoded);

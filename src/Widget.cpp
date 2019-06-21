@@ -101,7 +101,9 @@ void NoteTakerWidget::addWheel(const Vec& size, NoteTakerWheel* wheel) {
 // move everything hanging off NoteTaker for inter-app communication and hang it off
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
-NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
+NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
+    : clipboard(debugVerbose)
+    , storage(debugVerbose) {
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
@@ -173,8 +175,24 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module) {
             createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
 
     if (module) {
+        module->configParam(NoteTaker::RUN_BUTTON, 0, 1, 0, "Play Score");
+        module->configParam(NoteTaker::EXTEND_BUTTON, 0, 1, 0, "Select Notes");
+        module->configParam(NoteTaker::INSERT_BUTTON, 0, 1, 0, "Insert Note");
+        module->configParam(NoteTaker::CUT_BUTTON, 0, 1, 0, "Cut Notes");
+        module->configParam(NoteTaker::REST_BUTTON, 0, 1, 0, "Insert Rest");
+        module->configParam(NoteTaker::PART_BUTTON, 0, 1, 0, "Choose Channels to Edit");
+        module->configParam(NoteTaker::FILE_BUTTON, 0, 1, 0, "Load or Save");
+        module->configParam(NoteTaker::SUSTAIN_BUTTON, 0, 1, 0, "Edit Sustain / Release");
+        module->configParam(NoteTaker::TIME_BUTTON, 0, 1, 0, "Insert Time Signature");
+        module->configParam(NoteTaker::KEY_BUTTON, 0, 1, 0, "Insert Key Signature");
+        module->configParam(NoteTaker::TIE_BUTTON, 0, 1, 0, "Add Slur / Tie / Tuplet");
+        module->configParam(NoteTaker::TRILL_BUTTON, 0, 1, 0, "Unimplemented");
+        module->configParam(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert Tempo Change");
+        module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
+        module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
         module->debugVerbose = debugVerbose;
+        module->n.debugVerbose = debugVerbose;
         module->onReset();
     }
 }

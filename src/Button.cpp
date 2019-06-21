@@ -46,6 +46,9 @@ void CutButton::draw(const DrawArgs& args) {
 }
 
 void CutButton::onDragEnd(const rack::event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     auto& n = nt->n;
@@ -112,6 +115,9 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
 
 // hidden
 void DumpButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     this->ntw()->debugDump();
     NoteTakerButton::onDragEnd(e);
 }
@@ -125,6 +131,9 @@ void EditButton::onDragStart(const event::DragStart& e) {
 }
 
 void FileButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -154,6 +163,9 @@ void InsertButton::draw(const DrawArgs& args) {
 }
 
 void InsertButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     auto& n = nt->n;
@@ -300,6 +312,9 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
 
 // insert key signature
 void KeyButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -338,6 +353,9 @@ void PartButton::draw(const DrawArgs& args) {
 }
 
 void PartButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -365,6 +383,9 @@ void RestButton::draw(const DrawArgs& args) {
 }
 
 void RestButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -386,6 +407,9 @@ void RestButton::onDragEnd(const event::DragEnd& e) {
 }
 
 void RunButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     NoteTakerButton::onDragEnd(e);
     auto ntw = this->ntw();
     auto nt = ntw->nt();
@@ -418,6 +442,9 @@ void SelectButton::draw(const DrawArgs& args) {
 }
 
 void SelectButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -498,6 +525,9 @@ void SelectButton::setSingle() {
 }
 
 void SustainButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -517,6 +547,9 @@ void SustainButton::draw(const DrawArgs& args) {
 }
 
 void TempoButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -545,6 +578,9 @@ void TempoButton::draw(const DrawArgs& args) {
 }
 
 void TieButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -565,6 +601,9 @@ void TieButton::draw(const DrawArgs& args) {
 
 // insert time signature
 void TimeButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn) {
         return;
@@ -594,6 +633,9 @@ void TimeButton::draw(const DrawArgs& args) {
 }
 
 void TrillButton::onDragEnd(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
     // to do : implement?
     return;
 }

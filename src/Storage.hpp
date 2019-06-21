@@ -7,7 +7,12 @@ struct NoteTaker;
 struct NoteTakerStorage {
     std::string filename;
     vector<uint8_t> midi;
+    bool debugVerbose = false;
     bool preset = false;
+
+    NoteTakerStorage(bool dbug) {
+        debugVerbose = dbug;
+    }
 
     void decode(const vector<char>& encoded);
     static void EncodeTriplet(const uint8_t trips[3], vector<char>* encoded);
@@ -20,6 +25,11 @@ struct NoteTakerStorage {
 struct StorageArray {
     vector<NoteTakerStorage> storage;
     std::map<std::string, unsigned> slotMap;
+    bool debugVerbose = false;
+
+    StorageArray(bool dbug) {
+        debugVerbose = dbug;
+    }
 
     void fromJson(json_t* root);
     void init();

@@ -8,7 +8,8 @@
 
 // to do : to run headless, allow mainWidget and ntw() to be nullptr
 
-NoteTaker::NoteTaker() {
+NoteTaker::NoteTaker() 
+    : n(false) {
     this->config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 }
 
