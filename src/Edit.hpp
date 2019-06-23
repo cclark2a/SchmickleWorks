@@ -12,6 +12,13 @@ enum class Inval {
     load,       // inval voice, cache, range; does not play
 };
 
+// the wheel that was last used
+enum class Wheel {
+    none,
+    horizontal,
+    vertical,
+};
+
 std::string InvalDebugStr(Inval );
 
 struct NoteTakerEdit {
@@ -24,7 +31,9 @@ struct NoteTakerEdit {
     int verticalValue;
     unsigned originalStart; // sel start / end before voice select
     unsigned originalEnd;
+    Wheel wheel;
     bool voice;                 // true if current or last edit selects one voice from channel
+
 
     NoteTakerEdit() {
         clear();
@@ -38,6 +47,7 @@ struct NoteTakerEdit {
         horizontalNote = verticalNote = nullptr;
         horizontalValue = verticalValue = INT_MAX;
         originalStart = originalEnd = 0;
+        wheel = Wheel::none;
         // leave voice alone
     }
 

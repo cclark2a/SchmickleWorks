@@ -966,7 +966,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         this->updateRange();
     }
 #if RUN_UNIT_TEST
-    if (ntw->runUnitTest) { // to do : remove this from shipping code
+    if (ntw->nt() && ntw->runUnitTest) { // to do : remove this from shipping code
         UnitTest(ntw, TestType::encode);
         ntw->runUnitTest = false;
         this->fb()->dirty = true;

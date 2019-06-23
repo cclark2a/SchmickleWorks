@@ -246,6 +246,11 @@ void NoteTakerWidget::updateHorizontal() {
     }
     Inval inval = Inval::none;
     if (!selectButton->ledOn) {
+        if (Wheel::vertical == edit.wheel) {
+            edit.clear();
+            edit.init(n, selectChannels);
+        }
+        edit.wheel = Wheel::horizontal;
         SCHMICKLE((unsigned) wheelValue < NoteDurations::Count());
         int wheelChange = wheelValue - edit.horizontalValue;
         int startTime = edit.base[0].startTime;
@@ -413,6 +418,11 @@ void NoteTakerWidget::updateVertical() {
         return;
     }
     if (!selectButton->ledOn) {
+        if (Wheel::horizontal == edit.wheel) {
+            edit.clear();
+            edit.init(n, selectChannels);
+        }
+        edit.wheel = Wheel::vertical;
         // transpose selection
         // loop below computes diff of first note, and adds diff to subsequent notes in select
         bool playNotes = false;

@@ -196,8 +196,8 @@ void NoteTakerWheel::onDragEnd(const event::DragEnd& ) {
 
 void HorizontalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
-    auto nt = this->getAncestorOfType<NoteTakerWidget>();
-    nt->updateHorizontal();
+    auto ntw = this->getAncestorOfType<NoteTakerWidget>();
+    ntw->updateHorizontal();
 }
 
 void HorizontalWheel::setDenominator(const DisplayNote& note) {
@@ -207,8 +207,8 @@ void HorizontalWheel::setDenominator(const DisplayNote& note) {
 
 void VerticalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
-    auto nt = this->getAncestorOfType<NoteTakerWidget>();
-    nt->updateVertical();
+    auto ntw = this->getAncestorOfType<NoteTakerWidget>();
+    ntw->updateVertical();
 }
 
 WheelBuffer::WheelBuffer(NoteTakerWidget* _ntw, NoteTakerWheel* wheel) {
