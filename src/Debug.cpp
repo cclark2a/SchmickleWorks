@@ -102,7 +102,7 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     DEBUG("clipboard");
     NoteTaker::DebugDump(clipboard.notes);
     this->nt()->debugDumpChannels();
-    if (!inWheel && selectButton->ledOn && !this->menuButtonOn() && !runButton->ledOn) {
+    if (!inWheel && selectButton->ledOn() && !this->menuButtonOn() && !runButton->ledOn()) {
         std::string w2n;
         for (int index = horizontalWheel->paramQuantity->minValue;
                 index <= horizontalWheel->paramQuantity->maxValue; ++index) {
@@ -146,7 +146,7 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
         if (INT_MAX != selectStart && &note == &notes[selectStart]) {
             s += "< ";
         }
-        if (cache) {
+        if (cache && note.cache) {
             unsigned cIndex = note.cache - &cache->front();
             do {
                 const NoteCache& c = (*cache)[cIndex];

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SchmickleWorks.hpp"
+#include "DisplayNote.hpp"
 
 struct Notes;
 struct NoteTaker;
@@ -8,25 +8,34 @@ struct NoteTakerButton;
 struct NoteTakerWidget;
 
 struct ButtonBuffer : Widget {
-    NoteTakerWidget* mainWidget = nullptr;
 	FramebufferWidget* fb = nullptr;
 
-    ButtonBuffer(NoteTakerWidget* , NoteTakerButton* );
+    ButtonBuffer(NoteTakerButton* );
 
     NoteTakerWidget* ntw() {
-         return mainWidget;
+         return getAncestorOfType<NoteTakerWidget>();
+    }
+};
+
+struct SelectButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        int val = (int) this->getValue();
+        switch (val) {
+            case 0: return "Edit Mode";
+            case 1: return "Insert Mode";
+            case 2: return "Select Mode";
+            default:
+                SCHMICKLE(0);
+        }
+        return "";
     }
 };
 
 struct NoteTakerButton : Switch {
-    NoteTakerWidget* mainWidget;
-    int af = 0;  // animation frame, 0 to 1
-    bool hasLed = false;
-    bool ledOn = false;
+    int animationFrame = 0;
 
     NoteTakerButton() {
-        this->setValue(0);
-        this->setLimits(0, 1);
+        momentary = true;
     }
 
     FramebufferWidget* fb() const {
@@ -34,56 +43,58 @@ struct NoteTakerButton : Switch {
     }
 
     virtual void fromJson(json_t* root) {
-        if (!hasLed) {
-            return;
-        }
-        ledOn = json_boolean_value(json_object_get(root, "ledOn"));
-        af = (int) ledOn;
-}
+    }
+
+    int getValue() const {
+        return paramQuantity ? (int) paramQuantity->getValue() : 0;
+    }
+
+    virtual bool ledOn() const {
+        return false;
+    }
 
     NoteTakerWidget* ntw() {
-        return mainWidget;
+        return getAncestorOfType<NoteTakerWidget>();
     }
 
     const NoteTakerWidget* ntw() const {
-        return mainWidget;
+        return const_cast<NoteTakerButton*>(this)->getAncestorOfType<NoteTakerWidget>();
     }
 
     void onDoubleClick(const event::DoubleClick& ) override {
     }
 
     void onDragStart(const event::DragStart &e) override {
+        Switch::onDragStart(e);
         if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
             return;
         }
-        DEBUG("onDragStart af %d ledOn %d", af, ledOn);
-        af = hasLed ? (int) !ledOn : 1;
+        DEBUG("NoteTakerButton onDragStart af %d ledOn %d val %d",
+                animationFrame, this->ledOn(), this->getValue());
+        animationFrame = momentary ? 1 : (int) !this->ledOn();
         auto framebuffer = this->fb();
         if (framebuffer) {
             framebuffer->dirty = true;
         }
-        DEBUG("onDragStart end af %d ledOn %d", af, ledOn);
+        DEBUG("onDragStart end af %d ledOn %d", animationFrame, this->ledOn());
     }
 
     void onDragEnd(const event::DragEnd &e) override {
+        Switch::onDragEnd(e);
         if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
             return;
         }
-        DEBUG("onDragEnd af %d ledOn %d", af, ledOn);
+        DEBUG("NoteTakerButton onDragEnd af %d ledOn %d val %d",
+                animationFrame, this->ledOn(), this->getValue());
         auto framebuffer = this->fb();
         if (framebuffer) {
             framebuffer->dirty = true;
         }
-        if (hasLed) {
-            ledOn = !ledOn;
-        } else {
-            af = 0;
-        }
+        animationFrame = momentary ? 0 : (int) !!this->getValue();
     }
 
     virtual void onTurnOff() {
-        ledOn = false;
-        af = 0;
+        this->setValue(0);
         fb()->dirty = true;
     }
 
@@ -91,7 +102,7 @@ struct NoteTakerButton : Switch {
         NoteTakerButton::onTurnOff();
         ParamWidget::reset();
     }
-
+    
     void setLimits(float lo, float hi) {
         if (paramQuantity) {
             paramQuantity->minValue = lo;
@@ -106,18 +117,14 @@ struct NoteTakerButton : Switch {
     }
 
     virtual json_t *toJson() const {
-        if (!hasLed) {
-            return nullptr;
-        }
-        json_t* root = json_object();
-        json_object_set_new(root, "ledOn", json_boolean(ledOn));
-        return root;
+        return nullptr;
     }
 };
 
 struct EditButton : NoteTakerButton {
 
     void draw(const DrawArgs& args) override {
+        const int af = animationFrame;
         NVGcontext* vg = args.vg;
         nvgScale(vg, .75, .75);
         // draw shadow
@@ -156,16 +163,17 @@ struct EditButton : NoteTakerButton {
         nvgLineTo(vg, 19 + af, 52 - af);
         nvgFillColor(vg, nvgRGB(0x77, 0x77, 0x77));
         nvgFill(vg);
-        if (hasLed) {
+        if (!momentary) {
             this->drawLED(vg);
         }
     }
 
     void drawLED(NVGcontext *vg) {
+        const int af = animationFrame;
         nvgBeginPath(vg);
         nvgRect(vg, 4 + af, 8 - af, 11, 5);
         NVGcolor color = ledColor();
-        if (!ledOn) {
+        if (!this->ledOn()) {
             color.r /= 2;
             color.g /= 2;
             color.b /= 2;
@@ -184,9 +192,12 @@ struct EditButton : NoteTakerButton {
 struct EditLEDButton : EditButton {
 
     EditLEDButton() {
-        hasLed = true;
+        momentary = false;
     }
 
+    bool ledOn() const override {
+         return paramQuantity ? this->paramQuantity->getValue() : false;
+    }
 };
 
 // shared by time signature and rest, but not insert
@@ -249,14 +260,58 @@ struct DumpButton : NoteTakerButton {
 
 struct FileButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
+
     void onDragEnd(const event::DragEnd &e) override;
 };
 
 // insert adds new note to right of select, defaulting to selected note / cut buffer
 // insert turns off select
 struct InsertButton : EditButton {
+    enum class State {
+        unknown,
+        running,
+        middleCInPlace,
+        middleCShift,
+        dupInPlace,
+        dupShift,
+        clipboardInPlace,
+        clipboardShift,
+    };
+
+    vector<DisplayNote> span;
+    unsigned insertLoc;
+    int insertTime;
+    int lastEndTime;
+    State state;
+
+    void getState();
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
+};
+
+// to do : determine how much will be inserted
+struct InsertButtonToolTip : ParamQuantity {
+    InsertButton* button = nullptr;
+
+    std::string getDisplayValueString() override {
+        if (!button) {
+            return "!uninitialized";
+        }
+        button->getState();
+        switch (button->state) {
+            case InsertButton::State::unknown: return "!unknown";
+            case InsertButton::State::running: return "(Running)";
+            case InsertButton::State::middleCInPlace: return "Middle C (in place)";
+            case InsertButton::State::middleCShift: return "Middle C";
+            case InsertButton::State::dupInPlace: return "Selection (in place)";
+            case InsertButton::State::dupShift: return "Selection";
+            case InsertButton::State::clipboardInPlace: return "Clipboard (in place)";
+            case InsertButton::State::clipboardShift: return "Clipboard";
+            default:
+                SCHMICKLE(0);
+        }
+        return "";
+    }
 };
 
 struct KeyButton : AdderButton {
@@ -286,11 +341,13 @@ struct RestButton : AdderButton {
 };
 
 struct RunButton : NoteTakerButton {
+
     RunButton() {
-        hasLed = true;
+        momentary = false;
     }
 
     void draw(const DrawArgs& args) override {
+        const int af = animationFrame;
         auto vg = args.vg;
         // draw shadow
         nvgBeginPath(vg);
@@ -317,8 +374,12 @@ struct RunButton : NoteTakerButton {
         // draw LED
         nvgBeginPath(vg);
         nvgCircle(vg, 10 + af, 11 - af, 5);
-        nvgFillColor(vg, ledOn ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
+        nvgFillColor(vg, this->ledOn() ? nvgRGB(0xF7, 0x37, 0x17) : nvgRGB(0x77, 0x17, 0x07));
         nvgFill(vg);
+    }
+
+    bool ledOn() const override {
+         return paramQuantity ? this->paramQuantity->getValue() : false;
     }
 
     void onDragEnd(const event::DragEnd &e) override;
@@ -338,45 +399,53 @@ struct SelectButton : EditLEDButton {
 
     unsigned selStart = 1;   // note index where extend grows from, >= 1
     bool saveZero = true;    // set if single was at left-most position
-    State state = State::single;
 
     SelectButton() {
-        ledOn = true;
+        this->setState(State::single);
     }
 
     void draw(const DrawArgs& ) override;
-    bool editEnd() const { return ledOn && State::extend == state; }
-    bool editStart() const { return ledOn && State::single == state; }
+    bool editEnd() const { return this->isExtend(); }
+    bool editStart() const { return this->isSingle(); }
 
     void fromJson(json_t* root) override {
         NoteTakerButton::fromJson(root);
-        state = (State) json_integer_value(json_object_get(root, "state"));
         selStart = json_integer_value(json_object_get(root, "selStart"));
         saveZero = json_integer_value(json_object_get(root, "saveZero"));
     }
 
-    void onDragEnd(const event::DragEnd &e) override;
-
-    void onTurnOff() override {
-        state = State::ledOff;
-        EditLEDButton::onTurnOff();
+    bool isOff() const { 
+        return State::ledOff == (State) (int) this->getValue();
     }
+
+    bool isExtend() const {
+        return State::extend == (State) (int) this->getValue();
+    }
+
+    bool isSingle() const {
+        return State::single == (State) (int) this->getValue();
+    }
+
+    void onDragEnd(const event::DragEnd &e) override;
 
     void reset() override {
         selStart = 1;
         saveZero = true;
-        state = State::single;
+        this->setState(State::single);
         EditLEDButton::reset();
-        af = 1;
-        ledOn = true;
+        animationFrame = 1;
     }
 
     void setOff();
-    void setExtend();
+    // void setExtend();  // currently not called by anyone
     void setSingle();
 
+    void setState(State state) {
+        this->setValue((int) state);
+    }
+
     NVGcolor ledColor() const override {
-        if (State::extend == state) {
+        if (State::extend == (State) (int) this->getValue()) {
             return nvgRGB(0x17, 0x37, 0xF7);
         }
         return EditLEDButton::ledColor();
@@ -384,7 +453,9 @@ struct SelectButton : EditLEDButton {
 
     json_t *toJson() const override {
         json_t* root = NoteTakerButton::toJson();
-        json_object_set_new(root, "state", json_integer((int) state));
+        if (!root) {
+            root = json_object();
+        }
         json_object_set_new(root, "selStart", json_integer(selStart));
         json_object_set_new(root, "saveZero", json_integer(saveZero));
         return root;

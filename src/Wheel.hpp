@@ -9,13 +9,12 @@ struct NoteTakerWheel;
 struct Notes;
 
 struct WheelBuffer : Widget {
-    NoteTakerWidget* mainWidget = nullptr;
 	FramebufferWidget* fb = nullptr;
 
-    WheelBuffer(NoteTakerWidget* , NoteTakerWheel* );
+    WheelBuffer(NoteTakerWheel* );
 
     NoteTakerWidget* ntw() {
-         return mainWidget;
+         return getAncestorOfType<NoteTakerWidget>();
     }
 };
 
@@ -94,11 +93,11 @@ struct NoteTakerWheel : app::SliderKnob {
     }
 
     NoteTakerWidget* ntw() {
-        return mainWidget;
+        return getAncestorOfType<NoteTakerWidget>();
     }
 
     const NoteTakerWidget* ntw() const {
-        return mainWidget;
+        return const_cast<NoteTakerWheel*>(this)->getAncestorOfType<NoteTakerWidget>();
     }
 
     NoteTaker* nt();

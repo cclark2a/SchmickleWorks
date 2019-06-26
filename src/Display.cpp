@@ -897,7 +897,7 @@ void NoteTakerDisplay::drawSelectionRect() {
                 nvgFill(vg);
                 break;
             case TIME_SIGNATURE:
-                if (!selectButton->ledOn) {
+                if (!selectButton->ledOn()) {
                     yTop = (1 - (int) ntw->verticalWheel->getValue()) * 12 + 35;
                     yHeight = 13;
                 }
@@ -997,16 +997,16 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     this->drawBars();
     nvgRestore(vg);
     this->recenterVerticalWheel();
-    if (ntw->fileButton->ledOn) {
+    if (ntw->fileButton->ledOn()) {
         this->drawFileControl();
     }
-    if (ntw->partButton->ledOn) {
+    if (ntw->partButton->ledOn()) {
         this->drawPartControl();
     }
-    if (ntw->sustainButton->ledOn) {
+    if (ntw->sustainButton->ledOn()) {
         this->drawSustainControl();
     }
-    if (ntw->tieButton->ledOn) {
+    if (ntw->tieButton->ledOn()) {
         this->drawTieControl();
     }
     if (ntw->runningWithButtonsOff()) {

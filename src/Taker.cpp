@@ -80,7 +80,7 @@ bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
 }
 
 bool NoteTaker::isRunning() const {
-    return ntw()->runButton->ledOn;
+    return ntw()->runButton->ledOn();
 }
 
 void NoteTaker::playSelection() {

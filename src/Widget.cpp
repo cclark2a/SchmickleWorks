@@ -84,9 +84,8 @@ struct DisplayBevel : Widget {
 
 void NoteTakerWidget::addButton(const Vec& size, NoteTakerButton* button) {
     button->box.size = size;
-    button->mainWidget = this;
     params.push_back(button);
-    ButtonBuffer* buffer = new ButtonBuffer(this, button);
+    ButtonBuffer* buffer = new ButtonBuffer(button);
     this->addChild(buffer);
 }
 
@@ -94,7 +93,7 @@ void NoteTakerWidget::addWheel(const Vec& size, NoteTakerWheel* wheel) {
     wheel->box.size = size;
     wheel->mainWidget = this;
     params.push_back(wheel);
-    WheelBuffer* buffer = new WheelBuffer(this, wheel);
+    WheelBuffer* buffer = new WheelBuffer(wheel);
     this->addChild(buffer);
 }
 
@@ -119,6 +118,26 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     panel->addChild(new ClipboardLabel(this, clipboardPos, clipboardSize));
     this->addChild(createLight<SmallLight<ClipboardLight>>(Vec(RACK_GRID_WIDTH * 1.25f + 16,
             RACK_GRID_WIDTH * 11.8f), module, NoteTaker::CLIPBOARD_ON_LIGHT));
+    if (module) {
+        module->configParam(NoteTaker::RUN_BUTTON, 0, 1, 0, "Play Score");
+        module->configParam<SelectButtonToolTip>(NoteTaker::EXTEND_BUTTON, 0, 2, 0, "Notes");
+        module->configParam<InsertButtonToolTip>(NoteTaker::INSERT_BUTTON, 0, 1, 0, "Insert");
+        module->configParam(NoteTaker::CUT_BUTTON, 0, 1, 0, "Cut Notes");
+        module->configParam(NoteTaker::REST_BUTTON, 0, 1, 0, "Insert Rest");
+        module->configParam(NoteTaker::PART_BUTTON, 0, 1, 0, "Choose Channels to Edit");
+        module->configParam(NoteTaker::FILE_BUTTON, 0, 1, 0, "Load or Save");
+        module->configParam(NoteTaker::SUSTAIN_BUTTON, 0, 1, 0, "Edit Sustain / Release");
+        module->configParam(NoteTaker::TIME_BUTTON, 0, 1, 0, "Insert Time Signature");
+        module->configParam(NoteTaker::KEY_BUTTON, 0, 1, 0, "Insert Key Signature");
+        module->configParam(NoteTaker::TIE_BUTTON, 0, 1, 0, "Add Slur / Tie / Tuplet");
+        module->configParam(NoteTaker::TRILL_BUTTON, 0, 1, 0, "Unimplemented");
+        module->configParam(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert Tempo Change");
+        module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
+        module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
+        module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
+        module->debugVerbose = debugVerbose;
+        module->n.debugVerbose = debugVerbose;
+    }
     Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
     Vec hWheelSize = Vec(100, 23);
     addWheel(hWheelSize, (horizontalWheel = createParam<HorizontalWheel>(
@@ -149,6 +168,9 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
             createParam<SelectButton>(Vec(30, 202), module, NoteTaker::EXTEND_BUTTON)));
     addButton(editButtonSize, (insertButton =
             createParam<InsertButton>(Vec(62, 202), module, NoteTaker::INSERT_BUTTON)));
+    if (insertButton->paramQuantity) {
+        ((InsertButtonToolTip*) insertButton->paramQuantity)->button = insertButton;
+    }
     addButton(editButtonSize, (cutButton = 
             createParam<CutButton>(Vec(94, 202), module, NoteTaker::CUT_BUTTON)));
     addButton(editButtonSize, (restButton = 
@@ -175,24 +197,6 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
             createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
 
     if (module) {
-        module->configParam(NoteTaker::RUN_BUTTON, 0, 1, 0, "Play Score");
-        module->configParam(NoteTaker::EXTEND_BUTTON, 0, 1, 0, "Select Notes");
-        module->configParam(NoteTaker::INSERT_BUTTON, 0, 1, 0, "Insert Note");
-        module->configParam(NoteTaker::CUT_BUTTON, 0, 1, 0, "Cut Notes");
-        module->configParam(NoteTaker::REST_BUTTON, 0, 1, 0, "Insert Rest");
-        module->configParam(NoteTaker::PART_BUTTON, 0, 1, 0, "Choose Channels to Edit");
-        module->configParam(NoteTaker::FILE_BUTTON, 0, 1, 0, "Load or Save");
-        module->configParam(NoteTaker::SUSTAIN_BUTTON, 0, 1, 0, "Edit Sustain / Release");
-        module->configParam(NoteTaker::TIME_BUTTON, 0, 1, 0, "Insert Time Signature");
-        module->configParam(NoteTaker::KEY_BUTTON, 0, 1, 0, "Insert Key Signature");
-        module->configParam(NoteTaker::TIE_BUTTON, 0, 1, 0, "Add Slur / Tie / Tuplet");
-        module->configParam(NoteTaker::TRILL_BUTTON, 0, 1, 0, "Unimplemented");
-        module->configParam(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert Tempo Change");
-        module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
-        module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
-        module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
-        module->debugVerbose = debugVerbose;
-        module->n.debugVerbose = debugVerbose;
         module->onReset();
     }
 }
@@ -226,9 +230,10 @@ void NoteTakerWidget::copySelectableNotes() {
     clipboard.notes.clear();
     auto& n = this->n();
     for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-        auto& note = n.notes[index];
+        auto note = n.notes[index];
         if (note.isSelectable(selectChannels)) {
-            clipboard.notes.push_back(note);
+            note.cache = nullptr;
+            clipboard.notes.push_back(std::move(note));
         }
     }
     clipboardInvalid = false;
@@ -236,7 +241,7 @@ void NoteTakerWidget::copySelectableNotes() {
 }
 
 bool NoteTakerWidget::displayUI_on() const {
-    return partButton->ledOn || fileButton->ledOn || sustainButton->ledOn || tieButton->ledOn;
+    return partButton->ledOn() || fileButton->ledOn() || sustainButton->ledOn() || tieButton->ledOn();
 }
 
 void NoteTakerWidget::enableInsertSignature(unsigned loc) {
@@ -247,7 +252,7 @@ void NoteTakerWidget::enableInsertSignature(unsigned loc) {
             { (NoteTakerButton*) timeButton, TIME_SIGNATURE },
             { (NoteTakerButton*) tempoButton, MIDI_TEMPO } };
     for (auto& pair : pairs) {
-        pair.first->af = this->nt()->insertContains(insertLoc, pair.second);
+        pair.first->animationFrame = (int) this->nt()->insertContains(insertLoc, pair.second);
     }
 }
 
@@ -489,7 +494,7 @@ void NoteTakerWidget::makeTuplet() {
 
 // true if a button that brings up a secondary menu on display is active
 bool NoteTakerWidget::menuButtonOn() const {
-    return fileButton->ledOn || partButton->ledOn || sustainButton->ledOn || tieButton->ledOn;
+    return fileButton->ledOn() || partButton->ledOn() || sustainButton->ledOn() || tieButton->ledOn();
 }
 
 DisplayNote NoteTakerWidget::middleC() const {
@@ -591,7 +596,7 @@ void NoteTakerWidget::resetState() {
 }
 
 bool NoteTakerWidget::runningWithButtonsOff() const {
-    return runButton->ledOn && !this->menuButtonOn();
+    return runButton->ledOn() && !this->menuButtonOn();
 }
 
 void NoteTakerWidget::setClipboardLight() {

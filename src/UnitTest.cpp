@@ -228,13 +228,13 @@ static void Expected(NoteTakerWidget* n) {
 
     DEBUG("press part button with empty score");
     n->resetControls();
-    SCHMICKLE(!n->partButton->ledOn);
+    SCHMICKLE(!n->partButton->ledOn());
     ExerciseWheels(n);
     Press(n, n->partButton);
-    SCHMICKLE(n->partButton->ledOn);
+    SCHMICKLE(n->partButton->ledOn());
     ExerciseWheels(n);
     Press(n, n->partButton);
-    SCHMICKLE(!n->partButton->ledOn);
+    SCHMICKLE(!n->partButton->ledOn());
     Press(n, n->partButton);
     Press(n, n->selectButton);
     ExerciseWheels(n);

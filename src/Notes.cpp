@@ -99,6 +99,8 @@ vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
     return result;
 }
 
+// not sure what I was thinking (also, this doesn't work)
+#if 0
 void Notes::HighestOnly(vector<DisplayNote>& span) {
     vector<DisplayNote> highest;
     for (auto& note : span) {
@@ -131,6 +133,7 @@ void Notes::HighestOnly(vector<DisplayNote>& span) {
     }
     std::swap(highest, span);
 }
+#endif
 
 // to compute range for horizontal wheel when selecting notes
 // to do : horizontalCount, noteToWheel, wheelToNote share loop logic. Consolidate?

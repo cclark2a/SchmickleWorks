@@ -24,7 +24,7 @@ struct Notes {
     void fromJson(json_t* );
     void fromJsonCompressed(json_t* );
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
-    static void HighestOnly(vector<DisplayNote>& );
+    // static void HighestOnly(vector<DisplayNote>& );
     unsigned horizontalCount(unsigned selectChannels) const;
     bool isEmpty(unsigned selectChannels) const;
     int noteCount(unsigned selectChannels) const;
