@@ -46,7 +46,6 @@ void NoteTakerStorage::decode(const vector<char>& encoded) {
     uint8_t test;
     while (index > wall) {
         test = midi[--index];
-        DEBUG("test %u", test);
         if (0xFF == test) {   // to do : use sentinel constant
             midi.resize(index);
             break;
@@ -167,47 +166,58 @@ static bool endsWithMid(const std::string& str) {
 
 void StorageArray::setMidiMap(const std::string& dir, bool preset) {
     std::list<std::string> entries(system::getEntries(dir));
+    unsigned freeSlot = 0;
     for (const auto& entry : entries) {
         if (!endsWithMid(entry)) {
             continue;
         }
         size_t lastSlash = entry.rfind('/');
         std::string filename = std::string::npos == lastSlash ? entry : entry.substr(lastSlash + 1);
-        if (slotMap.end() != slotMap.find(filename)) {
+        auto iter = slotMap.find(filename);
+        if (slotMap.end() != iter) {
             continue;
         }
-        size_t count = slotMap.size();
-        slotMap[filename] = count;
-        if (count >= storage.size()) {
-            storage.resize(count + 1, debugVerbose);
+        while (freeSlot < storage.size() && storage[freeSlot].filename.empty()) {
+            ++freeSlot;
         }
-        auto& store = storage[count];
+        if (freeSlot >= storage.size()) {
+            storage.resize(freeSlot + 1, debugVerbose);
+        }
+        auto& store = storage[freeSlot];
         store.filename = filename;
-        store.preset = preset;      
+        store.preset = preset;
     }
 }
 
 // sets up an empty slot in addition to any read slots
-void StorageArray::init() {
-    storage.clear();
+void StorageArray::init(bool firstTime) {
     slotMap.clear();
-    this->loadJson();
-    this->setMidiMap(StorageArray::UserDir(), false);
+    this->loadJson(false);
+    this->loadJson(true);
+    this->setMidiMap(StorageArray::UserMidi(), false);
     this->setMidiMap(StorageArray::PresetDir(), true);
     for (auto& entry : storage) {
-        const std::string& dir = entry.preset ? StorageArray::PresetDir() : StorageArray::UserDir();
+        if (entry.filename.empty()) {
+            if (debugVerbose) DEBUG("slot %d empty", &entry - &storage.front());
+            continue;
+        }
+        const std::string& dir = entry.preset ? StorageArray::PresetDir() :
+                StorageArray::UserMidi();
         if (!entry.readMidi(dir)) {
             entry.midi.clear();
         }
     }
 }
 
-void StorageArray::loadJson() {
-    if (!system::isFile(UserJson())) {
+void StorageArray::loadJson(bool preset) {
+    std::string jsonFile = preset ? StorageArray::PresetJson() : StorageArray::UserJson();
+    if (!system::isFile(jsonFile)) {
+        DEBUG("isn't found file %s", jsonFile);
+        _schmickled();
         return;
     }
     json_t* userJson = nullptr;
-	FILE *file = std::fopen(UserJson().c_str(), "r");
+	FILE *file = std::fopen(jsonFile.c_str(), "r");
 	if (!file) {
         return;
     }
@@ -224,7 +234,7 @@ void StorageArray::loadJson() {
 	DEFER({
 		json_decref(userJson);
 	});
-    this->fromJson(userJson);
+    this->fromJson(userJson, preset);
 }
 
 bool StorageArray::loadScore(NoteTaker& nt, unsigned index) {

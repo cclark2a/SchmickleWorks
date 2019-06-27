@@ -258,7 +258,7 @@ void NoteTaker::process(const ProcessArgs &args) {
 
 void NoteTaker::onReset() {
     this->resetState();
-    mainWidget->storage.init();
+    mainWidget->storage.init(true);
     Module::onReset();
 }
 

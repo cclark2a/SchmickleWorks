@@ -167,7 +167,7 @@ void FileButton::onDragEnd(const event::DragEnd& e) {
     }
     NoteTakerButton::onDragEnd(e);
     ntw->turnOffLedButtons(this);
-    ntw->storage.init();
+    ntw->storage.init(false);
     ntw->setWheelRange();
 }
 

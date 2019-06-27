@@ -131,18 +131,35 @@ struct NoteTakerChannel {
 
     json_t* dataToJson() const {
         json_t* root = json_object();
-        json_object_set_new(root, "releaseMax", json_integer(releaseMax));
-        json_object_set_new(root, "releaseMin", json_integer(releaseMin));
-        json_object_set_new(root, "sustainMin", json_integer(sustainMin));
-        json_object_set_new(root, "sustainMax", json_integer(sustainMax));
+        if (DefaultLimit(Limit::releaseMax) != releaseMax) {
+            json_object_set_new(root, "releaseMax", json_integer(releaseMax));
+        }
+        if (DefaultLimit(Limit::releaseMin) != releaseMin) {
+            json_object_set_new(root, "releaseMin", json_integer(releaseMin));
+        }
+        if (DefaultLimit(Limit::sustainMin) != sustainMin) {
+            json_object_set_new(root, "sustainMin", json_integer(sustainMin));
+        }
+        if (DefaultLimit(Limit::sustainMax) != sustainMax) {
+            json_object_set_new(root, "sustainMax", json_integer(sustainMax));
+        }
         return root;
     }
 
     void dataFromJson(json_t* root) {
-        releaseMax = json_integer_value(json_object_get(root, "releaseMax"));
-        releaseMin = json_integer_value(json_object_get(root, "releaseMin"));
-        sustainMin = json_integer_value(json_object_get(root, "sustainMin"));
-        sustainMax = json_integer_value(json_object_get(root, "sustainMax"));
+        json_t* obj;
+        if ((obj = json_object_get(root, "releaseMax"))) {
+            releaseMax = json_integer_value(obj);
+        }
+        if ((obj = json_object_get(root, "releaseMin"))) {
+            releaseMin = json_integer_value(obj);
+        }
+        if ((obj = json_object_get(root, "sustainMin"))) {
+            sustainMin = json_integer_value(obj);
+        }
+        if ((obj = json_object_get(root, "sustainMax"))) {
+            sustainMax = json_integer_value(obj);
+        }
     }
 };
 

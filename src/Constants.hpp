@@ -53,6 +53,7 @@ struct NoteDurations {
         return midi * stdTimePerQuarterNote / ppq;
     }
 
+    static int SmallestMidi(int ppq);
     static int ToMidi(unsigned index, int ppq);
     static int ToStd(unsigned index);
     static bool TripletPart(int midi, int ppq);

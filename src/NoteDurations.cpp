@@ -55,6 +55,10 @@ unsigned NoteDurations::FromStd(int duration) {
     return iter == noteDurations.end() ? 0 : iter - noteDurations.begin();
 }
 
+int NoteDurations::SmallestMidi(int ppq) {
+    return InMidi(ToStd(0), ppq);
+}
+
 int NoteDurations::ToMidi(unsigned index, int ppq) {
     return InMidi(ToStd(index), ppq);
 }

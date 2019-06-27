@@ -52,14 +52,18 @@ json_t* NoteTakerWidget::toJson() {
 }
 
 json_t* StorageArray::toJson() const {
-    json_t* root = json_array();
+    json_t* root = json_object();
+    json_t* slots = json_array();
     for (const auto& slot : slotMap) {
+        if (storage[slot.second].preset) {
+            continue;
+        }
         json_t* entry = json_object();
         json_object_set_new(entry, "filename", json_string(slot.first.c_str()));
         json_object_set_new(entry, "slot", json_integer(slot.second));
-        json_array_append_new(root, entry);
+        json_array_append_new(slots, entry);
     }
-    json_object_set_new(root, "slots", root);
+    json_object_set_new(root, "slots", slots);
     return root;
 }
 
@@ -113,13 +117,25 @@ void NoteTakerWidget::fromJson(json_t* root) {
     this->setClipboardLight();
 }
 
-void StorageArray::fromJson(json_t* root) {
+void StorageArray::fromJson(json_t* root, bool preset) {
     json_t* slots = json_object_get(root, "slots");
     size_t index;
     json_t* value;
     json_array_foreach(slots, index, value) {
         std::string filename = std::string(json_string_value(json_object_get(value, "filename")));
+        if (slotMap.end() != slotMap.find(filename)) {
+            continue;
+        }
         unsigned slot = json_integer_value(json_object_get(value, "slot"));
-        slotMap[filename] = slot;
+        if (!preset || slot >= storage.size() || storage[slot].filename.empty()
+                || storage[slot].preset) {
+            slotMap[filename] = slot;
+            if (slot >= storage.size()) {
+                storage.resize(slot + 1, debugVerbose);
+            }
+            auto& store = storage[slot];
+            store.filename = filename;
+            store.preset = preset;
+        }
     }
 }
