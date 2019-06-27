@@ -177,7 +177,8 @@ void StorageArray::setMidiMap(const std::string& dir, bool preset) {
         if (slotMap.end() != iter) {
             continue;
         }
-        while (freeSlot < storage.size() && storage[freeSlot].filename.empty()) {
+        while (freeSlot < storage.size()
+                && !storage[freeSlot].filename.empty()) {
             ++freeSlot;
         }
         if (freeSlot >= storage.size()) {

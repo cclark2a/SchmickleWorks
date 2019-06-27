@@ -80,7 +80,7 @@ std::string DisplayNote::debugString() const {
 
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto& n = this->n();
-#ifdef DEBUGGING_STORAGE // not normally defined
+#if 1 // def DEBUGGING_STORAGE // not normally defined
     DEBUG("storage slots %u midi %u", storage.slotMap.size(), storage.storage.size());
     for (auto& entry : storage.slotMap) {
         DEBUG("entry[%s]:%u", entry.first.c_str(), entry.second);

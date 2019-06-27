@@ -124,6 +124,7 @@ void StorageArray::fromJson(json_t* root, bool preset) {
     json_array_foreach(slots, index, value) {
         std::string filename = std::string(json_string_value(json_object_get(value, "filename")));
         if (slotMap.end() != slotMap.find(filename)) {
+            DEBUG("fromJson: filename already stored %s", filename.c_str());
             continue;
         }
         unsigned slot = json_integer_value(json_object_get(value, "slot"));
@@ -133,6 +134,7 @@ void StorageArray::fromJson(json_t* root, bool preset) {
             if (slot >= storage.size()) {
                 storage.resize(slot + 1, debugVerbose);
             }
+            if (debugVerbose) DEBUG("fromJson store %s [%d]", filename.c_str(), slot);
             auto& store = storage[slot];
             store.filename = filename;
             store.preset = preset;
