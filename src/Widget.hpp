@@ -93,6 +93,15 @@ struct NoteTakerWidget : ModuleWidget {
     const Notes& n() const;
     NoteTaker* nt();
     const NoteTaker* nt() const;
+    
+    void onButton(const event::Button &e) override {
+        if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_RIGHT
+                && (e.mods & RACK_MOD_MASK) == 0) {
+            e.consume(nullptr);
+        }
+        ModuleWidget::onButton(e);
+    }
+
     bool resetControls();
     void resetRun();
     void resetState();

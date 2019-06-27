@@ -203,6 +203,9 @@ void StorageArray::init() {
 }
 
 void StorageArray::loadJson() {
+    if (!system::isFile(UserJson())) {
+        return;
+    }
     json_t* userJson = nullptr;
 	FILE *file = std::fopen(UserJson().c_str(), "r");
 	if (!file) {

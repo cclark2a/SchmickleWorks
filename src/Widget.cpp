@@ -119,19 +119,19 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     this->addChild(createLight<SmallLight<ClipboardLight>>(Vec(RACK_GRID_WIDTH * 1.25f + 16,
             RACK_GRID_WIDTH * 11.8f), module, NoteTaker::CLIPBOARD_ON_LIGHT));
     if (module) {
-        module->configParam(NoteTaker::RUN_BUTTON, 0, 1, 0, "Play Score");
+        module->configParam<RunButtonToolTip>(NoteTaker::RUN_BUTTON, 0, 1, 0, "Play");
         module->configParam<SelectButtonToolTip>(NoteTaker::EXTEND_BUTTON, 0, 2, 0, "Notes");
         module->configParam<InsertButtonToolTip>(NoteTaker::INSERT_BUTTON, 0, 1, 0, "Insert");
-        module->configParam(NoteTaker::CUT_BUTTON, 0, 1, 0, "Cut Notes");
-        module->configParam(NoteTaker::REST_BUTTON, 0, 1, 0, "Insert Rest");
-        module->configParam(NoteTaker::PART_BUTTON, 0, 1, 0, "Choose Channels to Edit");
-        module->configParam(NoteTaker::FILE_BUTTON, 0, 1, 0, "Load or Save");
-        module->configParam(NoteTaker::SUSTAIN_BUTTON, 0, 1, 0, "Edit Sustain / Release");
-        module->configParam(NoteTaker::TIME_BUTTON, 0, 1, 0, "Insert Time Signature");
-        module->configParam(NoteTaker::KEY_BUTTON, 0, 1, 0, "Insert Key Signature");
-        module->configParam(NoteTaker::TIE_BUTTON, 0, 1, 0, "Add Slur / Tie / Tuplet");
-        module->configParam(NoteTaker::TRILL_BUTTON, 0, 1, 0, "Unimplemented");
-        module->configParam(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert Tempo Change");
+        module->configParam<CutButtonToolTip>(NoteTaker::CUT_BUTTON, 0, 1, 0, "Cut");
+        module->configParam<RestButtonToolTip>(NoteTaker::REST_BUTTON, 0, 1, 0, "Insert");
+        module->configParam<PartButtonToolTip>(NoteTaker::PART_BUTTON, 0, 1, 0, "Part");
+        module->configParam<FileButtonToolTip>(NoteTaker::FILE_BUTTON, 0, 1, 0, "Load");
+        module->configParam<SustainButtonToolTip>(NoteTaker::SUSTAIN_BUTTON, 0, 1, 0, "Edit");
+        module->configParam<TimeButtonToolTip>(NoteTaker::TIME_BUTTON, 0, 1, 0, "Insert");
+        module->configParam<KeyButtonToolTip>(NoteTaker::KEY_BUTTON, 0, 1, 0, "Insert");
+        module->configParam<TieButtonToolTip>(NoteTaker::TIE_BUTTON, 0, 1, 0, "Add");
+        module->configParam<TrillButtonToolTip>(NoteTaker::TRILL_BUTTON, 0, 1, 0, "Unimplemented");
+        module->configParam<TempoButtonToolTip>(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert");
         module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
         module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
@@ -173,6 +173,9 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     }
     addButton(editButtonSize, (cutButton = 
             createParam<CutButton>(Vec(94, 202), module, NoteTaker::CUT_BUTTON)));
+    if (cutButton->paramQuantity) {
+        ((CutButtonToolTip*) cutButton->paramQuantity)->button = cutButton;
+    }
     addButton(editButtonSize, (restButton = 
             createParam<RestButton>(Vec(126, 202), module, NoteTaker::REST_BUTTON)));
     addButton(editButtonSize, (partButton = 
@@ -218,6 +221,9 @@ void NoteTakerWidget::copyNotes() {
     if (start < n.selectEnd) {
         SCHMICKLE(TRACK_END != n.notes[n.selectEnd - 1].type);
         clipboard.notes.assign(n.notes.begin() + start, n.notes.begin() + n.selectEnd);
+    }
+    for (auto& note : clipboard.notes) {
+        note.cache = nullptr;
     }
     clipboardInvalid = false;
     this->setClipboardLight();

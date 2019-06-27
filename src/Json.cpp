@@ -13,7 +13,7 @@ json_t* NoteTaker::dataToJson() {
         json_array_append_new(voices, json_integer(outputs[CV1_OUTPUT + chan].getChannels()));
     }
     json_object_set_new(root, "voices", voices);
-    n.toJson(root);
+    n.toJson(root, "notesCompressed");
     // to do : rather than write full array, write only channels and fields not equal to default
     // to do : restructure all json writing to write only non-default elements
     json_t* chans = json_array();
@@ -31,7 +31,7 @@ json_t* NoteTaker::dataToJson() {
 json_t* NoteTakerWidget::toJson() {
     if (debugVerbose) n().validate();  // don't write invalid notes for the next reload
     json_t* root = ModuleWidget::toJson();
-    clipboard.toJson(root);
+    clipboard.toJson(root, "clipboardCompressed");
     // many of these are no-ops, but permits statefulness to change without recoding this block
     json_object_set_new(root, "display", display->toJson());
     json_object_set_new(root, "edit", edit.toJson());

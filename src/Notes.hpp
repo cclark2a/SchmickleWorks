@@ -49,7 +49,7 @@ struct Notes {
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
     bool transposeSpan(vector<DisplayNote>& span) const;
-    void toJson(json_t* ) const;
+    void toJson(json_t* , std::string ) const;
     void validate() const;
     int xPosAtEndEnd(const NoteTakerDisplay* ) const;
     int xPosAtEndStart(const NoteTakerDisplay* ) const;

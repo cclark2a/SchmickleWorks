@@ -45,30 +45,56 @@ void CutButton::draw(const DrawArgs& args) {
     nvgText(vg, 4 + af, 41 - af, ";", NULL);
 }
 
+void CutButton::getState() {
+    auto ntw = this->ntw();
+    if (ntw->runButton->ledOn()) {
+        state = State::running;
+        return;
+    }
+    if (ntw->fileButton->ledOn()) {
+        state = State::cutAll;
+        return;
+    }
+    if (ntw->partButton->ledOn()) {
+        state = State::cutPart;
+        return;
+    }
+    SelectButton* selectButton = ntw->selectButton;
+    if (selectButton->editStart() && selectButton->saveZero) {
+        state = State::clearClipboard;
+        return;
+    }
+    if (selectButton->editEnd()) {
+        state = State::cutToClipboard;
+        return;
+    }
+    state = selectButton->editStart() ? State::insertCutAndShift : State::cutAndShift;
+}
+
 void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
+    this->getState();
+    if (State::running == state) {
         return;
     }
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     auto& n = nt->n;
-    if (ntw->runButton->ledOn()) {
-        return;
-    }
     ntw->clipboardInvalid = true;
     NoteTakerButton::onDragEnd(e);
-    SelectButton* selectButton = ntw->selectButton;
-    if (ntw->fileButton->ledOn()) {
+    if (State::cutAll == state) {
         n.selectStart = 0;
         n.selectEnd = n.notes.size() - 1;
         ntw->copyNotes();  // allows add to undo accidental cut / clear all
         nt->setScoreEmpty();
         nt->setSelectStart(nt->atMidiTime(0));
-        selectButton->setSingle();
+        ntw->selectButton->setSingle();
         ntw->setWheelRange();
         return;
     }
-    if (ntw->partButton->ledOn()) {
+    if (State::cutPart == state) {
         n.selectStart = 0;
         n.selectEnd = n.notes.size() - 1;
         ntw->copySelectableNotes();
@@ -77,7 +103,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         ntw->setWheelRange();
         return;
     }
-    if (selectButton->editStart() && selectButton->saveZero) {
+    if (State::clearClipboard == state) {
         ntw->clipboard.notes.clear();
         return;
     }
@@ -88,12 +114,15 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         _schmickled();
         return;
     }
-    if (selectButton->editEnd()) {
+    if (State::insertCutAndShift != state) {
         ntw->copyNotes();
     }
     int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
-    if (selectButton->editEnd()) {
+    if (State::cutToClipboard == state) {
+        // to do : insert a rest if existing notes do not include deleted span
         shiftTime = 0;
+    } else {
+        SCHMICKLE(State::cutAndShift == state || State::insertCutAndShift == state);
     }
     n.eraseNotes(start, end, ntw->selectChannels);
     if (shiftTime) {
@@ -107,7 +136,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     int wheel = ntw->noteToWheel(start);
     unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
     nt->setSelect(previous, previous < start ? start : previous + 1);
-    selectButton->setSingle();
+    ntw->selectButton->setSingle();
     ntw->setWheelRange();  // range is smaller
 }
 
@@ -186,7 +215,8 @@ void InsertButton::getState() {
     //   Insert loc is select start; existing notes are not shifted, insert is transposed
     unsigned iStart = n.selectStart;
     unsigned iEnd = n.selectEnd;
-    bool insertInPlace = ntw->selectButton->editEnd();
+    auto selectButton = ntw->selectButton;
+    bool insertInPlace = selectButton->editEnd();
     if (!n.selectStart) {
         iStart = insertLoc = ntw->wheelToNote(1);
     } else if (insertInPlace) {
@@ -219,7 +249,7 @@ void InsertButton::getState() {
 
         }
     }
-    bool useClipboard = ntw->selectButton->ledOn();
+    bool useClipboard = selectButton->ledOn();
     if (!useClipboard || ntw->clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
         for (unsigned index = iStart; index < iEnd; ++index) {
             const auto& note = n.notes[index];
@@ -227,7 +257,8 @@ void InsertButton::getState() {
                 span.push_back(note);
             }
         }
-        state = insertInPlace ? State::dupInPlace : State::dupShift;
+        state = insertInPlace ? State::dupInPlace : selectButton->editStart() ?
+                State::dupLeft : State::dupShift;
     } else {
         state = insertInPlace ? State::clipboardInPlace : State::clipboardShift;
     }

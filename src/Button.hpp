@@ -17,20 +17,6 @@ struct ButtonBuffer : Widget {
     }
 };
 
-struct SelectButtonToolTip : ParamQuantity {
-    std::string getDisplayValueString() override {
-        int val = (int) this->getValue();
-        switch (val) {
-            case 0: return "Edit Mode";
-            case 1: return "Insert Mode";
-            case 2: return "Select Mode";
-            default:
-                SCHMICKLE(0);
-        }
-        return "";
-    }
-};
-
 struct NoteTakerButton : Switch {
     int animationFrame = 0;
 
@@ -62,6 +48,14 @@ struct NoteTakerButton : Switch {
     }
 
     void onDoubleClick(const event::DoubleClick& ) override {
+    }
+
+    void onButton(const event::Button &e) override {
+        if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_RIGHT
+                && (e.mods & RACK_MOD_MASK) == 0) {
+            e.consume(nullptr);
+        }
+        Switch::onButton(e);
     }
 
     void onDragStart(const event::DragStart &e) override {
@@ -248,10 +242,47 @@ struct AdderButton : EditButton {
 //   select off discards clipboard
 //   if cut is saved in clipboard, insert adds clipboard as paste
 struct CutButton : EditButton {
+    enum class State {
+        unknown,
+        running,
+        cutAll,
+        cutPart,
+        clearClipboard,
+        cutToClipboard,
+        cutAndShift,
+        insertCutAndShift,
+    };
+
+    State state = State::unknown;
+
     void draw(const DrawArgs& ) override;
+    void getState();
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+struct CutButtonToolTip : ParamQuantity {
+    CutButton* button = nullptr;
+
+    std::string getDisplayValueString() override {
+        if (!button) {
+            return "!uninitialized";
+        }
+        button->getState();
+        switch (button->state) {
+            case CutButton::State::unknown: return "!unknown";
+            case CutButton::State::running: return "(Running)";
+            case CutButton::State::cutAll: return "All";
+            case CutButton::State::cutPart: return "Editable Parts";
+            case CutButton::State::clearClipboard: return "Clear Clipboard";
+            case CutButton::State::cutToClipboard: return "To Clipboard (in place)";
+            case CutButton::State::cutAndShift: return "To Clipboard";
+            case CutButton::State::insertCutAndShift: return "Left and Discard";
+            default:
+                SCHMICKLE(0);
+        }
+        return "";
+    }
+};
 
 // hidden button to dump notes for debugging
 struct DumpButton : NoteTakerButton {
@@ -264,6 +295,12 @@ struct FileButton : EditLEDButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+struct FileButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return " or Save";
+    }
+};
+
 // insert adds new note to right of select, defaulting to selected note / cut buffer
 // insert turns off select
 struct InsertButton : EditButton {
@@ -273,16 +310,17 @@ struct InsertButton : EditButton {
         middleCInPlace,
         middleCShift,
         dupInPlace,
+        dupLeft,
         dupShift,
         clipboardInPlace,
         clipboardShift,
     };
 
     vector<DisplayNote> span;
-    unsigned insertLoc;
-    int insertTime;
-    int lastEndTime;
-    State state;
+    unsigned insertLoc = INT_MAX;
+    int insertTime = INT_MAX;
+    int lastEndTime = INT_MAX;
+    State state = State::unknown;
 
     void getState();
     void draw(const DrawArgs& ) override;
@@ -304,6 +342,7 @@ struct InsertButtonToolTip : ParamQuantity {
             case InsertButton::State::middleCInPlace: return "Middle C (in place)";
             case InsertButton::State::middleCShift: return "Middle C";
             case InsertButton::State::dupInPlace: return "Selection (in place)";
+            case InsertButton::State::dupLeft: return "Copy Left of Selection";
             case InsertButton::State::dupShift: return "Selection";
             case InsertButton::State::clipboardInPlace: return "Clipboard (in place)";
             case InsertButton::State::clipboardShift: return "Clipboard";
@@ -319,6 +358,12 @@ struct KeyButton : AdderButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+struct KeyButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Key Signature";
+    }
+};
+
 // stateful button that chooses part to add, and parts to insert before
 // editStart / part / choose channel / add or cut
 // select / [ part / choose channels to copy ] / insert / part / choose where to insert / add
@@ -332,12 +377,24 @@ struct PartButton : EditLEDButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+struct PartButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "To Edit";
+    }
+};
+
 // if selection, exchange note / reset
 // if insertion, insert/delete rest
 // if duration, horizontal changes rest size, vertical has no effect
 struct RestButton : AdderButton {
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
+};
+
+struct RestButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Rest";
+    }
 };
 
 struct RunButton : NoteTakerButton {
@@ -383,6 +440,12 @@ struct RunButton : NoteTakerButton {
     }
 
     void onDragEnd(const event::DragEnd &e) override;
+};
+
+struct RunButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Score";
+    }
 };
 
 // select button permits moving selection before, after, and between notes
@@ -462,14 +525,40 @@ struct SelectButton : EditLEDButton {
     }
 };
 
+struct SelectButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        int val = (int) this->getValue();
+        switch (val) {
+            case 0: return "Edit Mode";
+            case 1: return "Insert Mode";
+            case 2: return "Select Mode";
+            default:
+                SCHMICKLE(0);
+        }
+        return "";
+    }
+};
+
 struct SustainButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+struct SustainButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Sustain / Release";
+    }
+};
+
 struct TempoButton : AdderButton {
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
+};
+
+struct TempoButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Tempo Change";
+    }
 };
 
 struct TieButton : EditLEDButton {
@@ -485,9 +574,21 @@ struct TieButton : EditLEDButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+struct TieButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Slur / Tie / Tuplet";
+    }
+};
+
 struct TimeButton : AdderButton {
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
+};
+
+struct TimeButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Time Signature";
+    }
 };
 
 struct TrillButton : AdderButton {
@@ -495,3 +596,8 @@ struct TrillButton : AdderButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+struct TrillButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "";
+    }
+};

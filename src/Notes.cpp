@@ -260,7 +260,7 @@ void Notes::serialize(vector<uint8_t>& storage) const {
     }
 }
 
-void Notes::toJson(json_t* root) const {
+void Notes::toJson(json_t* root, std::string jsonName) const {
     // to do : write short note seq using old method for ease in editing json manually
 #if 0
     json_t* _notes = json_array();
@@ -274,7 +274,7 @@ void Notes::toJson(json_t* root) const {
     vector<char> encoded;
     storage.encode(&encoded);
     encoded.push_back('\0'); // treat as string
-    json_object_set_new(root, "notesCompressed", json_string(&encoded.front()));
+    json_object_set_new(root, jsonName.c_str(), json_string(&encoded.front()));
 #endif
 }
 
