@@ -213,7 +213,7 @@ void StorageArray::init(bool firstTime) {
 void StorageArray::loadJson(bool preset) {
     std::string jsonFile = preset ? StorageArray::PresetJson() : StorageArray::UserJson();
     if (!system::isFile(jsonFile)) {
-        DEBUG("isn't found file %s", jsonFile);
+        DEBUG("isn't found file %s", jsonFile.c_str());
         _schmickled();
         return;
     }
