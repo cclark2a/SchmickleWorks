@@ -9,6 +9,7 @@ struct NoteTakerStorage {
     vector<uint8_t> midi;
     bool debugVerbose = false;
     bool preset = true;
+    bool assignedSlot = false;
 
     NoteTakerStorage(bool dbug) {
         debugVerbose = dbug;
