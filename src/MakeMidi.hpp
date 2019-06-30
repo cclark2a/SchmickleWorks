@@ -2,7 +2,7 @@
 
 #include "DisplayNote.hpp"
 
-struct NoteTaker;
+struct NoteTakerSlot;
 
 inline int SecondsToMidi(float seconds, int ppq) {
     return (int) (ppq * seconds * 1000000 / stdMSecsPerQuarterNote);
@@ -80,7 +80,7 @@ struct NoteTakerMakeMidi {
     }
 
     void createEmpty(vector<uint8_t>& midi);
-    void createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi);
+    void createFromNotes(const NoteTakerSlot& , vector<uint8_t>& midi);
 
     void standardHeader(vector<uint8_t>& midi, int ppq) {
         target = &midi;

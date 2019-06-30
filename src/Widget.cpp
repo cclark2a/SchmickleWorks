@@ -82,27 +82,12 @@ struct DisplayBevel : Widget {
 
 };
 
-void NoteTakerWidget::addButton(const Vec& size, NoteTakerButton* button) {
-    button->box.size = size;
-    params.push_back(button);
-    ButtonBuffer* buffer = new ButtonBuffer(button);
-    this->addChild(buffer);
-}
-
-void NoteTakerWidget::addWheel(const Vec& size, NoteTakerWheel* wheel) {
-    wheel->box.size = size;
-    wheel->mainWidget = this;
-    params.push_back(wheel);
-    WheelBuffer* buffer = new WheelBuffer(wheel);
-    this->addChild(buffer);
-}
-
 // move everything hanging off NoteTaker for inter-app communication and hang it off
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
-    : clipboard(DEBUG_VERBOSE)
-    , storage(DEBUG_VERBOSE) {
+    : storage(DEBUG_VERBOSE) {
+    clipboard.debugVerbose = DEBUG_VERBOSE;
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
@@ -135,8 +120,8 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
         module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
         module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
+        module->slot = &storage.slots.front();
         module->debugVerbose = debugVerbose;
-        module->n.debugVerbose = debugVerbose;
     }
     Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
     Vec hWheelSize = Vec(100, 23);
@@ -204,6 +189,142 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     }
 }
 
+NoteTakerSlot* NoteTakerWidget::activeSlot() {
+    if (fileButton->ledOn()) {
+        unsigned index = (unsigned) horizontalWheel->getValue();
+        SCHMICKLE(index < storage.size());
+        return &storage.slots[index];
+    }
+    return this->nt()->slot;
+}
+
+void NoteTakerWidget::addButton(const Vec& size, NoteTakerButton* button) {
+    button->box.size = size;
+    params.push_back(button);
+    ButtonBuffer* buffer = new ButtonBuffer(button);
+    this->addChild(buffer);
+}
+
+void NoteTakerWidget::addWheel(const Vec& size, NoteTakerWheel* wheel) {
+    wheel->box.size = size;
+    wheel->mainWidget = this;
+    params.push_back(wheel);
+    WheelBuffer* buffer = new WheelBuffer(wheel);
+    this->addChild(buffer);
+}
+
+struct NoteTakerMidiItem : MenuItem {
+	NoteTakerWidget* widget;
+    std::string directory;
+
+	void onAction(const event::Action& e) override {
+        NoteTakerSlot* slot = widget->activeSlot();
+        slot->directory = directory;
+        slot->filename = text;
+        slot->setFromMidi();
+        widget->resetScore();
+	}
+};
+
+// matches dot mid and dot midi, case insensitive
+static bool endsWithMid(const std::string& str) {
+    if (str.size() < 5) {
+        return false;
+    }
+    const char* last = &str.back();
+    if ('i' == tolower(*last)) {
+        --last;
+    }
+    const char dotMid[] = ".mid";
+    const char* test = last - 3;
+    for (int index = 0; index < 3; ++index) {
+        if (dotMid[index] != tolower(test[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+struct NoteTakerLoadItem : MenuItem {
+	NoteTakerWidget* widget;
+
+	Menu *createChildMenu() override {
+		Menu *menu = new Menu;
+        for (auto& dir : { asset::user("/"), SlotArray::UserDirectory() }) {
+            std::list<std::string> entries(system::getEntries(dir));
+            for (const auto& entry : entries) {
+                if (!endsWithMid(entry)) {
+                    continue;
+                }
+                size_t lastSlash = entry.rfind('/');
+                std::string filename = std::string::npos == lastSlash ? entry : entry.substr(lastSlash + 1);
+                NoteTakerMidiItem *item = new NoteTakerMidiItem;
+                item->text = filename;
+                item->widget = widget;
+                item->directory = dir;
+                menu->addChild(item);
+            }
+        }
+		return menu;
+	}
+};
+
+struct NoteTakerSaveAsMidi : ui::TextField {
+	NoteTakerWidget* widget;
+
+	void step() override {
+		// Keep selected
+		APP->event->setSelected(this);
+		TextField::step();
+	}
+
+	void onSelectKey(const event::SelectKey& e) override {
+		if (e.action == GLFW_PRESS && (e.key == GLFW_KEY_ENTER || e.key == GLFW_KEY_KP_ENTER)) {
+            auto slot = widget->activeSlot();
+            slot->directory = SlotArray::UserDirectory();
+            slot->filename = text;
+            if (!endsWithMid(slot->filename)) {
+                slot->filename += ".mid";
+            }
+            slot->writeToMidi();
+			ui::MenuOverlay *overlay = getAncestorOfType<ui::MenuOverlay>();
+			overlay->requestDelete();
+			e.consume(this);
+        }
+		if (!e.getTarget()) {
+			TextField::onSelectKey(e);
+        }
+	}
+
+};
+
+struct NoteTakerSaveItem : MenuItem {
+	NoteTakerWidget* widget;
+
+	Menu *createChildMenu() override {
+		Menu *menu = new Menu;
+        NoteTakerSaveAsMidi *saveAsMidi = new NoteTakerSaveAsMidi;
+        saveAsMidi->box.size.x = 100;
+        saveAsMidi->widget = widget;
+        menu->addChild(saveAsMidi);
+		return menu;
+	}
+};
+
+void NoteTakerWidget::appendContextMenu(Menu *menu) {
+    menu->addChild(new MenuEntry);
+    NoteTakerLoadItem *loadItem = new NoteTakerLoadItem;
+    loadItem->text = "Load MIDI";
+    loadItem->rightText = RIGHT_ARROW;
+    loadItem->widget = this;
+    menu->addChild(loadItem);
+    NoteTakerSaveItem *saveItem = new NoteTakerSaveItem;
+    saveItem->text = "Save as MIDI";
+    saveItem->rightText = RIGHT_ARROW;
+    saveItem->widget = this;
+    menu->addChild(saveItem);
+}
+
 // to do : once clipboard is set, don't reset unless:
 // selection range was enlarged
 // insert or cut
@@ -244,6 +365,13 @@ void NoteTakerWidget::copySelectableNotes() {
     }
     clipboardInvalid = false;
     this->setClipboardLight();
+}
+
+void NoteTakerWidget::copyToSlot(unsigned index) {
+    SCHMICKLE(index < storage.size());
+    NoteTakerSlot* source = this->nt()->slot;
+    NoteTakerSlot* dest = &storage.slots[index];
+    *dest = *source;
 }
 
 bool NoteTakerWidget::displayUI_on() const {
@@ -340,14 +468,18 @@ void NoteTakerWidget::invalidateAndPlay(Inval inval) {
 }
 
 void NoteTakerWidget::loadScore() {
-    if (!storage.loadScore(*nt(), (unsigned) horizontalWheel->getValue())) {
-        nt()->setScoreEmpty();
-    }
+    unsigned slot = (unsigned) horizontalWheel->getValue();
+    SCHMICKLE(slot < storage.size());
+    nt()->setSlot(slot);
+    this->resetScore();
+}
+
+void NoteTakerWidget::resetScore() {
     display->resetXAxisOffset();
     nt()->resetRun();
     this->invalidateAndPlay(Inval::load);
     unsigned atZero = nt()->atMidiTime(0);
-    atZero -= TRACK_END == nt()->n.notes[atZero].type;
+    atZero -= TRACK_END == nt()->slot->n.notes[atZero].type;
     nt()->setSelectStart(atZero);
 }
 
@@ -554,11 +686,11 @@ int NoteTakerWidget::noteToWheel(const DisplayNote& match, bool dbug) const {
 }
 
 const Notes& NoteTakerWidget::n() const {
-    return nt()->n;
+    return nt()->slot->n;
 }
 
 Notes& NoteTakerWidget::n() {
-    return nt()->n;
+    return nt()->slot->n;
 }
 
 NoteTaker* NoteTakerWidget::nt() {

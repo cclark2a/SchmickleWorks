@@ -1143,7 +1143,7 @@ void NoteTakerDisplay::drawFileControl() {
     for (unsigned index = first; index <= last; ++index) {
         nvgSave(vg);
         nvgTranslate(vg, 40 + (index - xControlOffset) * boxWidth, box.size.y - boxWidth - 5);
-        if (index >= ntw->storage.size() || ntw->storage.isEmpty(index)) {
+        if (index >= ntw->storage.size() || ntw->storage.slots[index].n.isEmpty(ALL_CHANNELS)) {
             drawEmpty(index);
         } else {
             drawNote(index);
@@ -1175,7 +1175,7 @@ void NoteTakerDisplay::drawFileControl() {
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
     if ((unsigned) slot < ntw->storage.size()) {
-        const std::string& name = ntw->storage.name(slot);
+        const std::string& name = ntw->storage.slots[slot].filename;
         float bounds[4];
         nvgFontFaceId(vg, ntw->textFont());
         nvgFontSize(vg, 10);
@@ -1349,7 +1349,7 @@ void NoteTakerDisplay::drawSustainControl() const {
     // draw horizontal control
     nvgBeginPath(vg);
     auto nt = ntw->nt();
-    const NoteTakerChannel& channel = nt->channels[ntw->unlockedChannel()];
+    const NoteTakerChannel& channel = nt->slot->channels[ntw->unlockedChannel()];
     int susMin = std::max(6, channel.sustainMin);
     int susMax = channel.sustainMin == channel.sustainMax ? 0
             : std::max(6, channel.sustainMax - channel.sustainMin);
@@ -1407,19 +1407,19 @@ void NoteTakerDisplay::drawSustainControl() const {
     nvgFontSize(vg, 24);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 2 == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
-            NoteDurations::FromMidi(channel.sustainMin, nt->n.ppq)], nullptr);
+            NoteDurations::FromMidi(channel.sustainMin, nt->slot->n.ppq)], nullptr);
     if (susMax) {
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 3 == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin, box.size.y - 18, downFlagNoteSymbols[
-                NoteDurations::FromMidi(channel.sustainMax, nt->n.ppq)], nullptr);
+                NoteDurations::FromMidi(channel.sustainMax, nt->slot->n.ppq)], nullptr);
     }
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 1 == select ? 0xFF : 0x7f));
     nvgText(vg, 42 + susMin + susMax, box.size.y - 18, downFlagNoteSymbols[
-            NoteDurations::FromMidi(channel.releaseMin, nt->n.ppq)], nullptr);
+            NoteDurations::FromMidi(channel.releaseMin, nt->slot->n.ppq)], nullptr);
     if (relMax) {
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0 == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin + susMax + relMin, box.size.y - 18, downFlagNoteSymbols[
-                NoteDurations::FromMidi(channel.releaseMax, nt->n.ppq)], nullptr);
+                NoteDurations::FromMidi(channel.releaseMax, nt->slot->n.ppq)], nullptr);
     }
 }
 
@@ -1575,10 +1575,11 @@ void NoteTakerDisplay::drawVerticalLabel(const char* label, bool enabled,
 const Notes* NoteTakerDisplay::notes() {
     auto nt = ntw()->nt();
     if (nt) {
-        return &nt->n;
+        return &nt->slot->n;
     }
     if (!previewNotes) {
-        previewNotes = new Notes(ntw()->debugVerbose);
+        previewNotes = new Notes();
+        previewNotes->notes.clear();
         previewNotes->selectStart = 1;
         previewNotes->selectEnd = 2;
         previewNotes->ppq = 96;

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Notes.hpp"
 #include "Channel.hpp"
+#include "Storage.hpp"
 
 /* poly bugs
     - changing pitch of note needs to avoid other overlaps on same channel
@@ -13,6 +13,21 @@
 
 struct NoteTakerDisplay;
 struct NoteTakerWidget;
+struct DisplayNote;
+
+struct Voice {
+    const DisplayNote* note = nullptr;  // the note currently playing on this channel
+    double realStart = 0;   // real time when note started (used to recycle voice)
+    int gateLow = 0;        // midi time when gate goes low (start + sustain)
+    int noteEnd = 0;        // midi time when note expires (start + duration)
+
+    std::string debugString(const DisplayNote* base) const;
+};
+
+struct Voices {
+    array<Voice, VOICE_COUNT> voices;
+    unsigned voiceCount = 0;
+};
 
 struct NoteTaker : Module {
 	enum ParamIds {       // numbers used by unit test
@@ -60,10 +75,11 @@ struct NoteTaker : Module {
 
     const unsigned UNASSIGNED_VOICE_INDEX = (unsigned) -1;
 
-    NoteTakerWidget* mainWidget;
+    NoteTakerWidget* mainWidget = nullptr;
+    NoteTakerSlot* slot = nullptr;
     // state saved into json
-    Notes n;
-    array<NoteTakerChannel, CHANNEL_COUNT> channels;    // written to by step
+    // written by step:
+    array<Voices, CHANNEL_COUNT> channels;
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
@@ -87,7 +103,7 @@ struct NoteTaker : Module {
 
     bool advancePlayStart(int midiTime, unsigned lastNote) {
         do {
-            const auto& note = n.notes[playStart];
+            const auto& note = n().notes[playStart];
             if (note.isNoteOrRest() && note.endTime() > midiTime) {
                 break;
             }
@@ -105,8 +121,8 @@ struct NoteTaker : Module {
     }
 
     unsigned atMidiTime(int midiTime) const {
-        for (unsigned index = 0; index < n.notes.size(); ++index) {
-            const DisplayNote& note = n.notes[index];
+        for (unsigned index = 0; index < n().notes.size(); ++index) {
+            const DisplayNote& note = n().notes[index];
             if (midiTime < note.startTime || TRACK_END == note.type
                     || (note.isNoteOrRest() && midiTime == note.startTime)) {
                 return index;
@@ -119,14 +135,15 @@ struct NoteTaker : Module {
     void dataFromJson(json_t* rootJ) override;
     json_t* dataToJson() override;
 
-    void debugDumpChannels() const {
+    void debugDumpVoices() const {
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
-            auto& chan = channels[index];
-            for (unsigned inner = 0; inner < chan.voiceCount; ++inner) {
-                if (!chan.voices[inner].note) {
+            auto& c = channels[index];
+            for (unsigned inner = 0; inner < c.voiceCount; ++inner) {
+                auto& v = c.voices[inner];
+                if (!v.note) {
                     continue;
                 }
-                DEBUG("[%u / %u] %s", index, inner, chan.debugString(&n.notes.front()).c_str());
+                DEBUG("[%u / %u] %s", index, inner, v.debugString(&n().notes.front()).c_str());
             }
         }
     }
@@ -156,20 +173,29 @@ struct NoteTaker : Module {
         }    
     }
 
+
+    Notes& n() {
+        return slot->n;
+    }
+    
+    const Notes& n() const {
+        return slot->n;
+    }
+
     unsigned nextAfter(unsigned first, unsigned len) const {
         SCHMICKLE(len);
         unsigned start = first + len;
-        const auto& priorNote = n.notes[start - 1];
+        const auto& priorNote = n().notes[start - 1];
         if (!priorNote.duration) {
             return start;
         }
         int priorTime = priorNote.startTime;
-        int startTime = n.notes[start].startTime;
+        int startTime = n().notes[start].startTime;
         if (priorTime < startTime) {
             return start;
         }
-        for (unsigned index = start; index < n.notes.size(); ++index) {
-            const DisplayNote& note = n.notes[index];
+        for (unsigned index = start; index < n().notes.size(); ++index) {
+            const DisplayNote& note = n().notes[index];
             if (note.isSignature() || note.startTime > startTime) {
                 return index;
             }
@@ -197,13 +223,13 @@ struct NoteTaker : Module {
     }
 
     void setGateLow(const DisplayNote& note) {
-        auto& chan = channels[note.channel];
         unsigned voiceIndex = note.voice;
         if (UNASSIGNED_VOICE_INDEX != voiceIndex) {
-            auto& voice = chan.voices[voiceIndex];
-            voice.note = nullptr;
-            voice.gateLow = 0;
-            voice.noteEnd = 0;
+            auto& c = channels[note.channel];
+            auto& v = c.voices[voiceIndex];
+            v.note = nullptr;
+            v.gateLow = 0;
+            v.noteEnd = 0;
         }
     }
 
@@ -216,9 +242,9 @@ struct NoteTaker : Module {
         static int debugMidiTime = -1;
     #endif
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
-            auto& chan = channels[channel];
-            for (unsigned index = 0; index < chan.voiceCount; ++index) {
-                auto& voice = chan.voices[index];
+            auto& c = channels[channel];
+            for (unsigned index = 0; index < c.voiceCount; ++index) {
+                auto& voice = c.voices[index];
                 if (!voice.note) {
                     continue;
                 }
@@ -242,6 +268,7 @@ struct NoteTaker : Module {
     void setSelect(unsigned start, unsigned end);
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
+    void setSlot(unsigned slot);
     void setVoiceCount();
 
     // shift track end only if another shifted note bumps it out
@@ -276,6 +303,8 @@ struct NoteTaker : Module {
         }
    }
 
+   unsigned getSlot() const;
+
     // don't use std::sort function; use insertion sort to minimize reordering
     static void Sort(vector<DisplayNote>& notes, bool debugging = false) {
         if (debugging) DEBUG("sort notes");
@@ -289,9 +318,10 @@ struct NoteTaker : Module {
 
     void zeroGates() {
         if (debugVerbose) DEBUG("zero gates");
-        for (auto& channel : channels) {
-            for (unsigned index = 0; index < channel.voiceCount; ++index) {
-                auto& voice = channel.voices[index];
+        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+            auto& c = channels[index];
+            for (unsigned inner = 0; inner < c.voiceCount; ++inner) {
+                auto& voice = c.voices[inner];
                 voice.note = nullptr;
                 voice.realStart = 0;
                 voice.gateLow = voice.noteEnd = 0;

@@ -8,8 +8,7 @@
 
 // to do : to run headless, allow mainWidget and ntw() to be nullptr
 
-NoteTaker::NoteTaker() 
-    : n(false) {
+NoteTaker::NoteTaker() {
     this->config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 }
 
@@ -57,6 +56,7 @@ int NoteTaker::externalTempo(bool clockEdge) {
 bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
     unsigned before = loc;
     const DisplayNote* note;
+    auto& n = this->n();
     while (before) {
         note = &n.notes[--before];
         if (type == note->type) {
@@ -84,6 +84,7 @@ bool NoteTaker::isRunning() const {
 }
 
 void NoteTaker::playSelection() {
+    const auto& n = this->n();
     elapsedSeconds = MidiToSeconds(n.notes[n.selectStart].startTime, n.ppq);
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     this->setPlayStart();
@@ -107,6 +108,7 @@ void NoteTaker::process(const ProcessArgs &args) {
         return;
     }
 #endif
+    auto& n = this->n();
     bool running = this->isRunning();
     float clockCycle = 0;
     int localTempo;
@@ -218,7 +220,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             voice.note = &note;
             voice.realStart = realSeconds;
             voice.gateLow = note.slur() && start < lastNote ? INT_MAX : 
-                    note.startTime + channelInfo.sustain(note.duration);
+                    note.startTime + slot->channels[note.channel].sustain(note.duration);
             voice.noteEnd = endTime;
             if (note.channel < CV_OUTPUTS) {
                 if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
@@ -258,15 +260,18 @@ void NoteTaker::process(const ProcessArgs &args) {
 
 void NoteTaker::onReset() {
     this->resetState();
-    mainWidget->storage.init(true);
     Module::onReset();
 }
 
 void NoteTaker::resetState() {
     if (debugVerbose) DEBUG("notetaker reset");
+    auto& n = this->n();
     n.notes.clear();
-    for (auto channel : channels) {
+    for (auto& channel : slot->channels) {
         channel.reset();
+    }
+    for (auto& c : channels) {
+        c.voiceCount = 0;
     }
     this->resetRun();
     this->setScoreEmpty();
@@ -284,7 +289,7 @@ void NoteTaker::resetRun() {
     externalClockTempo = stdMSecsPerQuarterNote;
     resetHighTime = FLT_MAX;
     eosTime = FLT_MAX;
-    midiClockOut = n.ppq;
+    midiClockOut = n().ppq;
     clockOutTime = realSeconds + 0.001f;
     sawClockLow = false;
     sawResetLow = false;
@@ -303,7 +308,7 @@ void NoteTaker::setPlayStart() {
     this->zeroGates();
     tempo = stdMSecsPerQuarterNote;
     this->setVoiceCount();
-    playStart = ntw()->edit.voice ? n.selectStart : 0;
+    playStart = ntw()->edit.voice ? n().selectStart : 0;
 }
 
 void NoteTaker::setScoreEmpty() {
@@ -311,7 +316,7 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
     if (debugVerbose) DebugDumpRawMidi(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, *this);
+    NoteTakerParseMidi emptyParser(emptyMidi, slot->n, slot->channels);
     bool success = emptyParser.parseMidi();
     SCHMICKLE(success);
     ntw()->invalidateAndPlay(Inval::cut);
@@ -328,6 +333,7 @@ void NoteTaker::setScoreEmpty() {
 void NoteTaker::setSelect(unsigned start, unsigned end) {
     auto displayBuffer = ntw()->displayBuffer;
     auto display = ntw()->display;
+    auto& n = this->n();
     if (n.isEmpty(ntw()->selectChannels)) {
         n.selectStart = 0;
         n.selectEnd = 1;
@@ -351,6 +357,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
     auto selectButton = ntw()->selectButton;
+    const auto& n = this->n();
     DEBUG("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
             wheelValue, end, selectButton->selStart, n.selectStart, n.selectEnd);
     bool changed = true;
@@ -374,6 +381,7 @@ bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
 }
 
 bool NoteTaker::setSelectStart(unsigned start) {
+    const auto& n = this->n();
     unsigned end = start;
     do {
         ++end;
@@ -383,8 +391,13 @@ bool NoteTaker::setSelectStart(unsigned start) {
     return true;
 }
 
+void NoteTaker::setSlot(unsigned index) {
+    slot = &ntw()->storage.slots[index];
+}
+
 // to do : output debug data to show what set voice count did
 void NoteTaker::setVoiceCount() {
+    auto& n = this->n();
     DEBUG("setVoiceCount invalidVoiceCount %d", invalidVoiceCount);
     if (!invalidVoiceCount) {
         return;
@@ -398,7 +411,7 @@ void NoteTaker::setVoiceCount() {
         return;
     }
     vector<const DisplayNote* > overlaps;
-    overlaps.resize(CHANNEL_COUNT * MAX_VOICES);
+    overlaps.resize(CHANNEL_COUNT * VOICE_COUNT);
     overlaps.clear();
     --count;
     SCHMICKLE(TRACK_END == n.notes[count].type);
@@ -408,8 +421,8 @@ void NoteTaker::setVoiceCount() {
             continue;
         }
         auto chan = note.channel;
-        auto overStart = &overlaps[chan * MAX_VOICES];
-        const auto overEnd = overStart + MAX_VOICES;
+        auto overStart = &overlaps[chan * VOICE_COUNT];
+        const auto overEnd = overStart + VOICE_COUNT;
         unsigned vCount = 1;
         auto over = overStart - 1;
         while (++over < overEnd) {
@@ -426,7 +439,7 @@ void NoteTaker::setVoiceCount() {
             DEBUG("%d over note %s", vCount, note.debugString().c_str());
         }
         over = overStart - 1;
-        if (MAX_VOICES < vCount) {
+        if (VOICE_COUNT < vCount) {
             const DisplayNote** oldestOverlap = nullptr;
             int oldestTime = INT_MAX;
             while (++over < overEnd) {
@@ -449,6 +462,10 @@ void NoteTaker::setVoiceCount() {
         note.voice = over - overStart;
         DEBUG("%u vCount %d chan %d %s", index, vCount, chan, note.debugString().c_str());
     }
+}
+
+unsigned NoteTaker::getSlot() const {
+    return slot - &ntw()->storage.slots.front();
 }
 
 float NoteTaker::wheelToTempo(float value) const {

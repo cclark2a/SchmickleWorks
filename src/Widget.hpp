@@ -30,7 +30,7 @@ struct NoteTakerWidget : ModuleWidget {
     std::shared_ptr<Font> _musicFont = nullptr;
     std::shared_ptr<Font> _textFont = nullptr;
     Notes clipboard;
-    StorageArray storage;
+    SlotArray storage;
     NoteTakerEdit edit;
     CutButton* cutButton = nullptr;
     DisplayBuffer* displayBuffer = nullptr;
@@ -60,10 +60,13 @@ struct NoteTakerWidget : ModuleWidget {
 #endif
 
     NoteTakerWidget(NoteTaker* module);
+    NoteTakerSlot* activeSlot();
     void addButton(const Vec& size, NoteTakerButton* );
     void addWheel(const Vec& size, NoteTakerWheel* );
+    void appendContextMenu(Menu *menu) override;
     void copyNotes();
     void copySelectableNotes();
+    void copyToSlot(unsigned );
     void debugDump(bool validatable = true, bool inWheel = false) const;
     bool displayUI_on() const;
     void enableInsertSignature(unsigned loc);
@@ -94,16 +97,33 @@ struct NoteTakerWidget : ModuleWidget {
     NoteTaker* nt();
     const NoteTaker* nt() const;
     
+    // ignore right-clicks on buttons
+    // buttons are children of framebuffers, which are children of button buffers,
+    // so need to look at great-grandchildren to get bounds
     void onButton(const event::Button &e) override {
         if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_RIGHT
                 && (e.mods & RACK_MOD_MASK) == 0) {
-            e.consume(nullptr);
+            if (debugVerbose) DEBUG("e.context %p pos %g/%g", e.context, e.pos.x, e.pos.y);
+            for (auto& child : children) {
+                auto param = dynamic_cast<ParamWidget*>(child);
+                if (!param) {
+                    param = child->getFirstDescendantOfType<ParamWidget>();
+                }
+                if (!param) {
+                    continue;
+                }
+                if (param->box.isContaining(e.pos)) {
+                    e.consume(nullptr);
+                    break;
+                }
+            }
         }
         ModuleWidget::onButton(e);
     }
 
     bool resetControls();
     void resetRun();
+    void resetScore();
     void resetState();
     bool runningWithButtonsOff() const;
     void setClipboardLight();

@@ -10,24 +10,23 @@
 // depends on whether user is allowed to choose to store sequences in patches ...
 // the advantage : .vcv files can be distributed including additional sequences
 // the disadvantage : auto save time could become onerous
-void NoteTakerStorage::UnitTest() {
+void NoteTakerSlot::UnitTest() {
     // unit test
-    NoteTakerStorage test(true);
-    test.midi = { 0x80, 0x90, 0xFF, 0x3F, 0x5F, 0x7F, 0x00, 0x20, 0xAA, 0xCC};
+    vector<uint8_t> midi = { 0x80, 0x90, 0xFF, 0x3F, 0x5F, 0x7F, 0x00, 0x20, 0xAA, 0xCC};
     vector<char> encoded;
-    test.encode(&encoded);
-    NoteTakerStorage copy(true);
-    copy.decode(encoded);
-    SCHMICKLE(!memcmp(&test.midi.front(), &copy.midi.front(), test.midi.size()));
+    Encode(midi, &encoded);
+    vector<uint8_t> copy;
+    Decode(encoded, &copy);
+    SCHMICKLE(!memcmp(&midi.front(), &copy.front(), midi.size()));
     vector<char> encodeJunk = { '0', 'A', '/', 'b', 'o', '/', '7', '='};
-    copy.decode(encodeJunk);
-    copy.encode(&encoded);
+    Decode(encodeJunk, &copy);
+    Encode(copy, &encoded);
     SCHMICKLE(!memcmp(&encodeJunk.front(), &encoded.front(), encodeJunk.size()));
 }
 
-void NoteTakerStorage::decode(const vector<char>& encoded) {
-    midi.clear();
-    midi.reserve(encoded.size() * 3 / 4);
+void NoteTakerSlot::Decode(const vector<char>& encoded, vector<uint8_t>* midi) {
+    midi->clear();
+    midi->reserve(encoded.size() * 3 / 4);
     SCHMICKLE(encoded.size() / 4 * 4 == encoded.size());
     for (unsigned index = 0; index < encoded.size(); index += 4) {
         uint8_t stripped[4];
@@ -38,22 +37,22 @@ void NoteTakerStorage::decode(const vector<char>& encoded) {
         stripped[0] |= stripped[3] << 6;
         stripped[1] |= (stripped[3] << 4) & 0xC0;
         stripped[2] |= (stripped[3] << 2) & 0xC0;
-        midi.insert(midi.end(), stripped, &stripped[3]);
+        midi->insert(midi->end(), stripped, &stripped[3]);
     }
-    size_t index = midi.size();
+    size_t index = midi->size();
     size_t wall = index >= 4 ? index - 4 : 0;
     DEBUG("midi.size %u", index);
     uint8_t test;
     while (index > wall) {
-        test = midi[--index];
+        test = (*midi)[--index];
         if (0xFF == test) {   // to do : use sentinel constant
-            midi.resize(index);
+            midi->resize(index);
             break;
         }
     }
 }
 
-void NoteTakerStorage::encode(vector<char>* encoded) const {
+void NoteTakerSlot::Encode(const vector<uint8_t>& midi, vector<char>* encoded)  {
     encoded->clear();
     encoded->reserve(midi.size() * 4 / 3);
     unsigned triplets = midi.size() / 3 * 3;
@@ -71,7 +70,7 @@ void NoteTakerStorage::encode(vector<char>* encoded) const {
 }
 
 // only used by unit test
-void NoteTakerStorage::EncodeTriplet(const uint8_t trips[3], vector<char>* encoded) {
+void NoteTakerSlot::EncodeTriplet(const uint8_t trips[3], vector<char>* encoded) {
     int8_t out[4];
     out[0] = trips[0];
     out[3] = trips[0] >> 6;
@@ -86,16 +85,25 @@ void NoteTakerStorage::EncodeTriplet(const uint8_t trips[3], vector<char>* encod
     encoded->insert(encoded->end(), out, &out[4]);
 }
 
-void NoteTakerStorage::writeMidi() const {
+void NoteTakerSlot::fromJson(json_t* root) {
+    n.fromJson(json_object_get(root, "notes"));
+    n.fromJsonCompressed(json_object_get(root, "notesCompressed")); // overrides if both present
+    json_t* chans = json_object_get(root, "channels");
+    size_t index;
+    json_t* value;
+    json_array_foreach(chans, index, value) {
+        channels[index].dataFromJson(value);
+    }
+}
+
+void NoteTakerSlot::writeToMidi() const {
+    vector<uint8_t> midi;
+    NoteTakerMakeMidi maker;
+    maker.createFromNotes(*this, midi);
     if (midi.empty()) {
         return;
     }
-    std::string root = StorageArray::UserDir();
-    if (!system::isDirectory(root)) {
-        system::createDirectory(root);
-        SCHMICKLE(system::isDirectory(root));
-    }
-    std::string userDir = StorageArray::UserMidi();
+    std::string userDir = SlotArray::UserDirectory();
     if (!system::isDirectory(userDir)) {
         system::createDirectory(userDir);
         SCHMICKLE(system::isDirectory(userDir));
@@ -108,7 +116,7 @@ void NoteTakerStorage::writeMidi() const {
     FILE* dest = fopen(destPath.c_str(), "wb");
     size_t wrote = fwrite((const char*) &midi.front(), 1, midi.size(), dest);
     fclose(dest);
-    if (debugVerbose) {
+    if (n.debugVerbose) {
         DEBUG("%s wrote %u requested to write %d", destPath.c_str(), wrote, midi.size());
     }
 }
@@ -118,8 +126,8 @@ static off_t fsize(const std::string& path) {
     return !stat(path.c_str(), &st) ? st.st_size : -1;
 }
 
-bool NoteTakerStorage::readMidi(const std::string& dir) {
-    std::string sourcePath = dir + filename;
+bool NoteTakerSlot::setFromMidi() {
+    std::string sourcePath = directory + filename;
     if (!system::isFile(sourcePath)) {
         DEBUG("%s file can't be read", sourcePath.c_str());
         return false;
@@ -134,7 +142,8 @@ bool NoteTakerStorage::readMidi(const std::string& dir) {
         DEBUG("%s fopen failed", sourcePath.c_str());
         return false;
     }
-    midi.resize(fileSize);        
+    vector<uint8_t> midi;
+    midi.resize(fileSize);
     size_t bytesRead = fread(&midi.front(), 1, fileSize, source);
     fclose(source);
     if (bytesRead != (size_t) fileSize) {
@@ -142,9 +151,15 @@ bool NoteTakerStorage::readMidi(const std::string& dir) {
                 bytesRead, fileSize);
         return false;
     }
+    NoteTakerParseMidi parser(midi, n, channels);
+    if (!parser.parseMidi()) {
+        DEBUG("failed to parseMidi %s %s", directory, filename);
+        return false;
+    }
     return true;
 }
 
+#if 0
 // matches dot mid and dot midi, case insensitive
 static bool endsWithMid(const std::string& str) {
     if (str.size() < 5) {
@@ -238,12 +253,6 @@ void StorageArray::loadJson(bool preset) {
     this->fromJson(userJson, preset);
 }
 
-bool StorageArray::loadScore(NoteTaker& nt, unsigned index) {
-    SCHMICKLE(index < storage.size());
-    NoteTakerParseMidi parser(storage[index].midi, nt);
-    return parser.parseMidi();
-}
-
 void StorageArray::saveJson() {
 	json_t *rootJ = this->toJson();
 	SCHMICKLE(rootJ);
@@ -259,7 +268,7 @@ void StorageArray::saveJson() {
 void StorageArray::saveScore(const NoteTaker& nt, unsigned index) {
     SCHMICKLE(index <= storage.size());
     if (storage.size() == index) {
-        NoteTakerStorage noteStorage(debugVerbose);
+        NoteTakerSlot noteStorage(debugVerbose);
         noteStorage.filename = std::to_string(storage.size()) + ".mid";
         slotMap[noteStorage.filename] = storage.size();
         storage.push_back(noteStorage);
@@ -271,3 +280,4 @@ void StorageArray::saveScore(const NoteTaker& nt, unsigned index) {
     storage[index].writeMidi();
     this->saveJson();
 }
+#endif

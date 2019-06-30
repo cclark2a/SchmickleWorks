@@ -24,7 +24,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     if (sustainButton->ledOn()) {
         // use first unlocked channel as guide
         horizontalWheel->setLimits(0, NoteDurations::Count() - 1);
-        int sustainMinDuration = nt()->channels[this->unlockedChannel()].sustainMin;
+        int sustainMinDuration = nt()->slot->channels[this->unlockedChannel()].sustainMin;
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, n().ppq));
         return;
     }
@@ -188,7 +188,7 @@ void NoteTakerWidget::updateHorizontal() {
             if (!(selectChannels & (1 << index))) {
                 continue;
             }
-            NoteTakerChannel& channel = nt()->channels[index];
+            NoteTakerChannel& channel = nt()->slot->channels[index];
             channel.setLimit((NoteTakerChannel::Limit) verticalWheel->getValue(),
                     NoteDurations::ToMidi(horizontalWheel->getValue(), n.ppq));
         }
@@ -369,7 +369,9 @@ void NoteTakerWidget::updateVertical() {
         if (verticalWheel->getValue() <= 2) {
             display->downSelected = true;
             if (fileButton->ledOn()) {
-                storage.saveScore(*nt(), (unsigned) horizontalWheel->getValue());
+                unsigned val = (unsigned) horizontalWheel->getValue();
+                SCHMICKLE(val < storage.size());
+                this->copyToSlot(val);
             } else {
                 int part = horizontalWheel->part();
                 if (part < 0) {
@@ -396,7 +398,7 @@ void NoteTakerWidget::updateVertical() {
     }
     if (sustainButton->ledOn()) {
         // use first unlocked channel as guide
-        NoteTakerChannel& channel = nt()->channels[this->unlockedChannel()];
+        NoteTakerChannel& channel = nt()->slot->channels[this->unlockedChannel()];
         int sustainDuration = INT_MAX;
         switch(wheelValue) {
             case 3: // to do : create enum to identify values

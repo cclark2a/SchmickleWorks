@@ -280,8 +280,7 @@ static void Expected(NoteTakerWidget* n) {
 }
 
 static void TestEncode() {
-    NoteTakerStorage storage(true);
-    Notes n(true);
+    Notes n;
     int start = 0;
     for (auto type : { MIDI_HEADER, KEY_SIGNATURE, TIME_SIGNATURE, MIDI_TEMPO, NOTE_ON,
             REST_TYPE, TRACK_END }) {
@@ -300,22 +299,22 @@ static void TestEncode() {
         results.push_back(note.debugString());
         DEBUG("n.notes %s", results.back().c_str());
     }
-    n.serialize(storage.midi);
+    vector<uint8_t> midi;
+    n.serialize(midi);
     DEBUG("raw midi");
-    NoteTaker::DebugDumpRawMidi(storage.midi);
+    NoteTaker::DebugDumpRawMidi(midi);
     vector<char> encoded;
-    storage.encode(&encoded);
+    NoteTakerSlot::Encode(midi, &encoded);
     encoded.push_back('\0'); // treat as string
     const char* encodedString = &encoded.front();
     DEBUG("encoded midi %s", encodedString);
     vector<char> encoded2(encodedString, encodedString + strlen(encodedString));
     DEBUG("encoded2     %.*s", encoded2.size(), &encoded2.front());
-    NoteTakerStorage storage2(true);
-    storage2.decode(encoded2);
+    NoteTakerSlot::Decode(encoded2, &midi);
     DEBUG("raw midi2");
-    NoteTaker::DebugDumpRawMidi(storage2.midi);
-    Notes n2(true);
-    n2.deserialize(storage2.midi);   
+    NoteTaker::DebugDumpRawMidi(midi);
+    Notes n2;
+    n2.deserialize(midi);   
     vector<std::string> results2;
     for (const auto& note : n2.notes) {
         results2.push_back(note.debugString());

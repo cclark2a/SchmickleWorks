@@ -9,7 +9,7 @@ void AdderButton::onDragEndPreamble(const event::DragEnd& e) {
     NoteTaker* nt = this->ntw()->nt();
     // insertLoc, shiftTime set by caller
     shiftLoc = insertLoc + 1;
-    startTime = nt->n.notes[insertLoc].startTime;
+    startTime = nt->n().notes[insertLoc].startTime;
     if (nt->debugVerbose) DEBUG("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
 }
 
@@ -17,9 +17,9 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     if (shiftTime) {
-        NoteTaker::ShiftNotes(nt->n.notes, shiftLoc, shiftTime);
+        NoteTaker::ShiftNotes(nt->n().notes, shiftLoc, shiftTime);
     }
-    NoteTaker::Sort(nt->n.notes);
+    NoteTaker::Sort(nt->n().notes);
     ntw->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
     ntw->invalidateAndPlay(Inval::cut);
@@ -81,7 +81,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     ntw->clipboardInvalid = true;
     NoteTakerButton::onDragEnd(e);
     if (State::cutAll == state) {
@@ -167,7 +167,6 @@ void FileButton::onDragEnd(const event::DragEnd& e) {
     }
     NoteTakerButton::onDragEnd(e);
     ntw->turnOffLedButtons(this);
-    ntw->storage.init(false);
     ntw->setWheelRange();
 }
 
@@ -194,7 +193,7 @@ void InsertButton::draw(const DrawArgs& args) {
 void InsertButton::getState() {
     auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    const auto& n = nt->n();
     if (ntw->runButton->ledOn()) {
         state = State::running;
         return;
@@ -303,7 +302,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     ntw->clipboardInvalid = true;
     ntw->turnOffLedButtons();  // turn off pitch, file, sustain, etc
     if (nt->debugVerbose) DEBUG("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
@@ -367,7 +366,7 @@ void KeyButton::onDragEnd(const event::DragEnd& e) {
         return;
     }
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
     if (nt->insertContains(insertLoc, KEY_SIGNATURE)) {
         return;
@@ -441,7 +440,7 @@ void RestButton::onDragEnd(const event::DragEnd& e) {
         return;
     }
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     ntw->turnOffLedButtons();  // turn off pitch, file, sustain, etc
     if (!ntw->selectButton->editStart()) {
         event::DragEnd e;
@@ -466,7 +465,7 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     if (!ledOn()) {
         nt->zeroGates();
     } else {
-        auto& n = nt->n;
+        auto& n = nt->n();
         nt->resetRun();
         ntw->display->setRange();
         unsigned next = nt->nextAfter(n.selectStart, 1);
@@ -501,7 +500,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         return;
     }
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     NoteTakerButton::onDragEnd(e);
     if (this->isOff()) {
         SCHMICKLE(!this->ledOn());
@@ -556,7 +555,7 @@ void SelectButton::setOff() {
 void SelectButton::setSingle() {
     auto ntw = this->ntw();
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     saveZero = !ntw->noteToWheel(n.selectStart);
     this->setState(State::single);
     fb()->dirty = true;
@@ -595,7 +594,7 @@ void TempoButton::onDragEnd(const event::DragEnd& e) {
         return;
     }
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
     if (nt->insertContains(insertLoc, MIDI_TEMPO)) {
         return;
@@ -651,7 +650,7 @@ void TimeButton::onDragEnd(const event::DragEnd& e) {
         return;
     }
     auto nt = ntw->nt();
-    auto& n = nt->n;
+    auto& n = nt->n();
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
     if (nt->insertContains(insertLoc, TIME_SIGNATURE)) {
         return;

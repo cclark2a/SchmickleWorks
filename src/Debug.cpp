@@ -81,14 +81,9 @@ std::string DisplayNote::debugString() const {
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto& n = this->n();
 #if 1 // def DEBUGGING_STORAGE // not normally defined
-    DEBUG("storage slots %u midi %u", storage.slotMap.size(), storage.storage.size());
-    for (auto& entry : storage.slotMap) {
-        DEBUG("entry[%s]:%u", entry.first.c_str(), entry.second);
-    }
-    for (unsigned index = 0; index < storage.storage.size(); ++index) {
-        auto& e = storage.storage[index];
-        DEBUG("[%u] filename:%s midi:%u preset:%d", index, e.filename.c_str(), e.midi.size(),
-                e.preset);
+    for (auto& entry : storage.slots) {
+        DEBUG("[%u] %s%s notes:%d", &entry - &storage.slots.front(),
+                entry.directory.c_str(), entry.filename.c_str(), entry.n.notes.size());
     }
 #endif
     DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, n.horizontalCount(selectChannels));
@@ -101,7 +96,10 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             n.selectStart, n.selectEnd);
     DEBUG("clipboard");
     NoteTaker::DebugDump(clipboard.notes);
-    this->nt()->debugDumpChannels();
+    auto& slot = nt()->slot;
+    for (const auto& chan : slot->channels) {
+        DEBUG("[%d] %s", &chan - &slot->channels.front(), chan.debugString().c_str());
+    }
     if (!inWheel && selectButton->ledOn() && !this->menuButtonOn() && !runButton->ledOn()) {
         std::string w2n;
         for (int index = horizontalWheel->paramQuantity->minValue;
@@ -312,21 +310,11 @@ void Notes::validate() const {
     }
 }
 
-std::string NoteTakerChannel::debugString(const DisplayNote* noteBase) const {
+std::string NoteTakerChannel::debugString() const {
     std::string s;    
     s =   "relMax " + std::to_string(releaseMax);
     s += " relMin " + std::to_string(releaseMin);
     s += " susMin " + std::to_string(sustainMin);
     s += " susMax " + std::to_string(sustainMax);
-    for (unsigned index = 0; index < voiceCount; ++index) {
-        auto& voice = voices[index];
-        if (voice.note) {
-            s += " [" + std::to_string(index) + "] ";
-            s += " noteIdx " + std::to_string(voice.note - noteBase);
-            s += " realStart " + std::to_string(voice.realStart);
-            s += " gateLow " + std::to_string(voice.gateLow);
-            s += " noteEnd " + std::to_string(voice.noteEnd);
-        }
-    }
     return s;
 }

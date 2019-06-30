@@ -1,51 +1,38 @@
 #pragma once
 
-#include "SchmickleWorks.hpp"
+#include "Channel.hpp"
+#include "Notes.hpp"
 
-struct NoteTaker;
-
-struct NoteTakerStorage {
+struct NoteTakerSlot {
+    Notes n;
+    array<NoteTakerChannel, CHANNEL_COUNT> channels;
+    std::string directory;
     std::string filename;
-    vector<uint8_t> midi;
-    bool debugVerbose = false;
-    bool preset = true;
-    bool assignedSlot = false;
 
-    NoteTakerStorage(bool dbug) {
-        debugVerbose = dbug;
-    }
-
-    void decode(const vector<char>& encoded);
+    static void Decode(const vector<char>& encoded, vector<uint8_t>* midi);
     static void EncodeTriplet(const uint8_t trips[3], vector<char>* encoded);
-    void encode(vector<char>* encoded) const;
-    bool readMidi(const std::string& dir);
+    static void Encode(const vector<uint8_t>& midi, vector<char>* encoded);
+    void fromJson(json_t* root);
+    bool setFromMidi();
+    json_t* toJson() const;
     static void UnitTest();
-    void writeMidi() const;
+    void writeToMidi() const;
 };
 
-struct StorageArray {
-    vector<NoteTakerStorage> storage;
-    std::map<std::string, unsigned> slotMap;
+struct SlotArray {
+    array<NoteTakerSlot, STORAGE_SLOTS> slots;
     bool debugVerbose = false;
 
-    StorageArray(bool dbug) {
+    void fromJson(json_t* root);
+
+    SlotArray(bool dbug) {
         debugVerbose = dbug;
+        for (auto& s : slots) {
+            s.n.debugVerbose = dbug;
+        }
     }
 
-    void fromJson(json_t* root, bool preset);
-    void init(bool firstTime);
-    bool isEmpty(unsigned index) const { return storage[index].midi.empty(); }
-    void loadJson(bool preset);
-    bool loadScore(NoteTaker& nt, unsigned index);
-    void setMidiMap(const std::string& dir, bool preset);
-    static std::string PresetDir() { return asset::user("plugins/Schmickleworks/midi/"); }
-    static std::string PresetJson() { return "plugins/Schmickleworks/SchmickleWorks.json"; }
-    static std::string UserDir() { return asset::user("Schmickleworks/"); }
-    static std::string UserMidi() { return asset::user("Schmickleworks/midi/"); }
-    static std::string UserJson() { return "SchmickleWorks.json"; }
-    std::string name(unsigned index) const { return storage[index].filename; }
-    void saveJson();
-    void saveScore(const NoteTaker& nt, unsigned index);
-    unsigned size() const { return storage.size(); }
+    unsigned size() const { return slots.size(); }
     json_t* toJson() const;
+    static std::string UserDirectory() { return asset::user("Schmickleworks/"); }
 };

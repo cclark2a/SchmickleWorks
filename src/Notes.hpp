@@ -10,18 +10,17 @@ struct Notes {
     unsigned selectStart = 0;           // index into notes of first selected (any channel)
     unsigned selectEnd = 1;             // one past last selected
     int ppq = stdTimePerQuarterNote;    // default to 96 pulses/ticks per quarter note
-    bool debugVerbose;
+    bool debugVerbose = false;
     
-    Notes(bool dbug) :
-        debugVerbose(dbug) {
+    Notes() {
+        notes.emplace_back(MIDI_HEADER);
+        notes.emplace_back(TRACK_END);
     }
-
-    Notes( const Notes& ) = delete; // non construction-copyable
-    Notes& operator=( const Notes& ) = delete; // non copyable
 
     void deserialize(const vector<uint8_t>& );
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
-    void fromJson(json_t* );
+    void fromJson(json_t* root);
+    void fromJsonUncompressed(json_t* );
     void fromJsonCompressed(json_t* );
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     // static void HighestOnly(vector<DisplayNote>& );
@@ -49,7 +48,9 @@ struct Notes {
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
     bool transposeSpan(vector<DisplayNote>& span) const;
-    void toJson(json_t* , std::string ) const;
+    json_t* toJson() const;
+    void toJsonCompressed(json_t* , std::string ) const;
+    void toJsonUncompressed(json_t* , std::string ) const;
     void validate() const;
     int xPosAtEndEnd(const NoteTakerDisplay* ) const;
     int xPosAtEndStart(const NoteTakerDisplay* ) const;

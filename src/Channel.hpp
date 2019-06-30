@@ -2,15 +2,6 @@
 
 #include "SchmickleWorks.hpp"
 
-struct DisplayNote;
-
-struct Voice {
-    const DisplayNote* note;  // the note currently playing on this channel
-    double realStart;   // real time when note started (used to recycle voice)
-    int gateLow;        // midi time when gate goes low (start + sustain)
-    int noteEnd;        // midi time when note expires (start + duration)
-};
-
 // per cv/gate info
 
 // if note is shorter than sustainMax + releaseMax, releaseMax takes precedence
@@ -25,19 +16,12 @@ struct NoteTakerChannel {
         sustainMax,
     };
 
-    int releaseMax;
-    int releaseMin;  // midi time for smallest interval gate goes low
-    int sustainMin;  // midi time for smallest interval gate goes high
-    int sustainMax;
-    // written by step:
-    array<Voice, 16> voices;
-    unsigned voiceCount;     // number of simultaneous notes on channel (needs better name?)
+    int releaseMax = 24;
+    int releaseMin = 1;  // midi time for smallest interval gate goes low
+    int sustainMin = 1;  // midi time for smallest interval gate goes high
+    int sustainMax = 24;
 
-    NoteTakerChannel() {
-        this->reset();
-    }
-
-    std::string debugString(const DisplayNote* base) const;
+    std::string debugString() const;
 
     static int DefaultLimit(Limit limit) {
          switch (limit) {
@@ -81,7 +65,6 @@ struct NoteTakerChannel {
         releaseMin = DefaultLimit(Limit::releaseMin);
         sustainMin = DefaultLimit(Limit::sustainMin);
         sustainMax = DefaultLimit(Limit::sustainMax);
-        voiceCount = 0;
     }
 
     void setLimit(Limit limit, int duration) {

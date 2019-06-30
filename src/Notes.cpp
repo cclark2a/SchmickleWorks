@@ -11,6 +11,7 @@ void Notes::deserialize(const vector<uint8_t>& storage) {
     vector<uint8_t>::const_iterator iter = midiParser.midi.begin();
     DisplayNote note(UNUSED);
     int lastSuccess = 0;
+    notes.clear();
     do {
         int delta;
         int attempt = iter - midiParser.midi.begin();
@@ -62,24 +63,24 @@ void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
     }
 }
 
-void Notes::fromJson(json_t* jNotes) {
-    size_t index;
-    json_t* value;
-    notes.resize(json_array_size(jNotes), DisplayNote(UNUSED));
-    json_array_foreach(jNotes, index, value) {
-        notes[index].dataFromJson(value);
-    }
-}
-
 void Notes::fromJsonCompressed(json_t* jNotes) {
     if (!jNotes) {
         return;
     }
     const char* encodedString = json_string_value(jNotes);
     vector<char> encoded(encodedString, encodedString + strlen(encodedString));
-    NoteTakerStorage storage(debugVerbose);
-    storage.decode(encoded);
-    this->deserialize(storage.midi);    
+    vector<uint8_t> midi;
+    NoteTakerSlot::Decode(encoded, &midi);
+    this->deserialize(midi);    
+}
+
+void Notes::fromJsonUncompressed(json_t* jNotes) {
+    size_t index;
+    json_t* value;
+    notes.resize(json_array_size(jNotes), DisplayNote(UNUSED));
+    json_array_foreach(jNotes, index, value) {
+        notes[index].dataFromJson(value);
+    }
 }
 
 vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
@@ -260,22 +261,22 @@ void Notes::serialize(vector<uint8_t>& storage) const {
     }
 }
 
-void Notes::toJson(json_t* root, std::string jsonName) const {
     // to do : write short note seq using old method for ease in editing json manually
-#if 0
+void Notes::toJsonUncompressed(json_t* root, std::string jsonName) const {
     json_t* _notes = json_array();
     for (const auto& note : notes) {
         json_array_append_new(_notes, note.dataToJson());
     }
-    json_object_set_new(root, "notes", _notes);
-#else
-    NoteTakerStorage storage(debugVerbose);
-    this->serialize(storage.midi);
+    json_object_set_new(root, jsonName.c_str(), _notes);
+}
+
+void Notes::toJsonCompressed(json_t* root, std::string jsonName) const {
+    vector<uint8_t> midi;
+    this->serialize(midi);
     vector<char> encoded;
-    storage.encode(&encoded);
+    NoteTakerSlot::Encode(midi, &encoded);
     encoded.push_back('\0'); // treat as string
     json_object_set_new(root, jsonName.c_str(), json_string(&encoded.front()));
-#endif
 }
 
 // transpose the span up by approx. one score line (major/aug third) avoiding existing notes

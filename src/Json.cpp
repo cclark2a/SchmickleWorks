@@ -6,32 +6,44 @@
 #include "Wheel.hpp"
 #include "Widget.hpp"
 
+
+json_t* Notes::toJson() const {
+    json_t* root = json_object();
+    this->toJsonCompressed(root, "notesCompressed");
+    json_object_set_new(root, "selectStart", json_integer(selectStart));
+    json_object_set_new(root, "selectEnd", json_integer(selectEnd));
+    json_object_set_new(root, "ppq", json_integer(ppq));
+    return root;
+}
+
 json_t* NoteTaker::dataToJson() {
     json_t* root = json_object();
     json_t* voices = json_array();
     for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
         json_array_append_new(voices, json_integer(outputs[CV1_OUTPUT + chan].getChannels()));
     }
-    json_object_set_new(root, "voices", voices);
-    n.toJson(root, "notesCompressed");
-    // to do : rather than write full array, write only channels and fields not equal to default
-    // to do : restructure all json writing to write only non-default elements
+    json_object_set_new(root, "voiceCounts", voices);
+    json_object_set_new(root, "tempo", json_integer(tempo));
+    return root;
+}
+
+json_t* NoteTakerSlot::toJson() const {
+    json_t* root = json_object();
+    json_object_set_new(root, "n", n.toJson());
     json_t* chans = json_array();
     for (const auto& channel : channels) {
-        json_array_append_new(chans, channel.dataToJson());
+        json_object_set_new(chans, "channel", channel.dataToJson());
     }
     json_object_set_new(root, "channels", chans);
-    json_object_set_new(root, "selectStart", json_integer(n.selectStart));
-    json_object_set_new(root, "selectEnd", json_integer(n.selectEnd));
-    json_object_set_new(root, "tempo", json_integer(tempo));
-    json_object_set_new(root, "ppq", json_integer(n.ppq));
+    json_object_set_new(root, "directory", json_string(directory.c_str()));
+    json_object_set_new(root, "filename", json_string(filename.c_str()));
     return root;
 }
 
 json_t* NoteTakerWidget::toJson() {
     if (debugVerbose) n().validate();  // don't write invalid notes for the next reload
     json_t* root = ModuleWidget::toJson();
-    clipboard.toJson(root, "clipboardCompressed");
+    clipboard.toJsonCompressed(root, "clipboardCompressed");
     // many of these are no-ops, but permits statefulness to change without recoding this block
     json_object_set_new(root, "display", display->toJson());
     json_object_set_new(root, "edit", edit.toJson());
@@ -48,47 +60,44 @@ json_t* NoteTakerWidget::toJson() {
     json_object_set_new(root, "verticalWheel", verticalWheel->toJson());
     // end of mostly no-op section
     json_object_set_new(root, "selectChannels", json_integer(selectChannels));
+    json_object_set_new(root, "storage", storage.toJson());
     return root;
 }
 
-json_t* StorageArray::toJson() const {
+json_t* SlotArray::toJson() const {
     json_t* root = json_object();
-    json_t* slots = json_array();
-    for (const auto& slot : slotMap) {
-        if (storage[slot.second].preset) {
+    json_t* _slots = json_array();
+    for (auto& slot : slots) {
+        if (slot.n.isEmpty(ALL_CHANNELS)) {
             continue;
         }
-        json_t* entry = json_object();
-        json_object_set_new(entry, "filename", json_string(slot.first.c_str()));
-        json_object_set_new(entry, "slot", json_integer(slot.second));
-        json_array_append_new(slots, entry);
+        json_object_set_new(_slots, "slot", slot.toJson());
     }
-    json_object_set_new(root, "slots", slots);
+    json_object_set_new(root, "slots", _slots);
     return root;
+}
+
+void Notes::fromJson(json_t* root) {
+    this->fromJsonUncompressed(json_object_get(root, "notesUncompressed"));
+    this->fromJsonCompressed(json_object_get(root, "notesCompressed")); // overrides if both present
+    selectStart = json_integer_value(json_object_get(root, "selectStart"));
+    selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
+    ppq = json_integer_value(json_object_get(root, "ppq"));
 }
 
 void NoteTaker::dataFromJson(json_t* root) {
-    json_t* voices = json_object_get(root, "voices");
+    json_t* voiceCounts = json_object_get(root, "voiceCounts");
     size_t index;
     json_t* value;
-    json_array_foreach(voices, index, value) {
+    json_array_foreach(voiceCounts, index, value) {
         outputs[CV1_OUTPUT + index].setChannels(json_integer_value(value));
     }
-    n.fromJson(json_object_get(root, "notes"));
-    n.fromJsonCompressed(json_object_get(root, "notesCompressed")); // overrides if both present
-    json_t* chans = json_object_get(root, "channels");
-    json_array_foreach(chans, index, value) {
-        channels[index].dataFromJson(value);
-    }
-    n.selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    n.selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     tempo = json_integer_value(json_object_get(root, "tempo"));
-    n.ppq = json_integer_value(json_object_get(root, "ppq"));
 }
 
 void NoteTakerWidget::fromJson(json_t* root) {
     ModuleWidget::fromJson(root);
-    clipboard.fromJson(json_object_get(root, "clipboard"));
+    clipboard.fromJsonUncompressed(json_object_get(root, "clipboardUncompressed"));
     clipboard.fromJsonCompressed(json_object_get(root, "clipboardCompressed"));
     // read back controls' state
     display->fromJson(json_object_get(root, "display"));
@@ -106,38 +115,28 @@ void NoteTakerWidget::fromJson(json_t* root) {
     verticalWheel->fromJson(json_object_get(root, "verticalWheel"));
     // end of controls' state
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
-    if (!nt()->n.notes.size()) {
-        unsigned scoreIndex = json_integer_value(json_object_get(root, "score"));
-        storage.loadScore(*nt(), scoreIndex);
-    }
-
+    storage.fromJson(json_object_get(root, "storage"));
     // update display cache
     this->setWheelRange();
     this->invalidateAndPlay(Inval::load);
     this->setClipboardLight();
 }
 
-void StorageArray::fromJson(json_t* root, bool preset) {
-    json_t* slots = json_object_get(root, "slots");
+void SlotArray::fromJson(json_t* root) {
+    json_t* _slots = json_object_get(root, "slots");
     size_t index;
     json_t* value;
-    json_array_foreach(slots, index, value) {
-        std::string filename = std::string(json_string_value(json_object_get(value, "filename")));
-        if (slotMap.end() != slotMap.find(filename)) {
-            DEBUG("fromJson: filename already stored %s", filename.c_str());
-            continue;
+    json_array_foreach(_slots, index, value) {
+        auto& store = slots[index];
+        store.directory = std::string(json_string_value(json_object_get(value, "directory")));
+        store.filename = std::string(json_string_value(json_object_get(value, "filename")));
+        json_t* _channels = json_object_get(root, "channels");
+        size_t inner;
+        json_t* value2;
+        json_array_foreach(_channels, inner, value2) {
+            auto& chan = store.channels[inner];
+            chan.dataFromJson(value2);
         }
-        unsigned slot = json_integer_value(json_object_get(value, "slot"));
-        if (!preset || slot >= storage.size() || storage[slot].filename.empty()
-                || storage[slot].preset) {
-            slotMap[filename] = slot;
-            if (slot >= storage.size()) {
-                storage.resize(slot + 1, debugVerbose);
-            }
-            if (debugVerbose) DEBUG("fromJson store %s [%d]", filename.c_str(), slot);
-            auto& store = storage[slot];
-            store.filename = filename;
-            store.preset = preset;
-        }
+        store.n.fromJson(json_object_get(value, "notes"));
     }
 }

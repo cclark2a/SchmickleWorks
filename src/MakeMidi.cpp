@@ -32,8 +32,8 @@ struct LastNote {
     const DisplayNote* note;
 };
 
-void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& midi) {
-    this->standardHeader(midi, nt.n.ppq);
+void NoteTakerMakeMidi::createFromNotes(const NoteTakerSlot& slot, vector<uint8_t>& midi) {
+    this->standardHeader(midi, slot.n.ppq);
     // after header, write channel dur/sus as control change 0xBx
                 // 0x57 release max mapped to duration index
                 // 0x58 release min
@@ -41,19 +41,19 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTaker& nt, vector<uint8_t>& mi
                 // 0x5A sustain max
     // to do : allow sustain/release changes during playback?
     for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
-        const auto& chan = nt.channels[index];
+        const auto& chan = slot.channels[index];
         for (const auto& limit : NoteTakerChannelLimits) {
             if (!chan.isDefault(limit)) {
                 add_size8(0);
                 add_one(midiControlChange + index);
                 add_one(midiReleaseMax + (int) limit);
-                add_one(NoteDurations::FromMidi(chan.getLimit(limit), nt.n.ppq));
+                add_one(NoteDurations::FromMidi(chan.getLimit(limit), slot.n.ppq));
             }
         }
     }
     std::set<LastNote> lastNotes;
     int lastTime = 0;
-    for (auto& n : nt.n.notes) {
+    for (auto& n : slot.n.notes) {
         switch(n.type) {
             case MIDI_HEADER:
                 break;
