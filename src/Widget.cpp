@@ -433,7 +433,7 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
         auto& n = this->n();
         NoteTaker::Sort(n.notes);
     }
-    display->displayEnd = 0;  // force recompute of display end
+    display->range.displayEnd = 0;  // force recompute of display end
     nt()->setSelect(insertLoc, nt()->nextAfter(insertLoc, insertSize));
     if (debugVerbose) DEBUG("insert final");
     this->setWheelRange();  // range is larger
@@ -470,12 +470,12 @@ void NoteTakerWidget::invalidateAndPlay(Inval inval) {
 void NoteTakerWidget::loadScore() {
     unsigned slot = (unsigned) horizontalWheel->getValue();
     SCHMICKLE(slot < storage.size());
-    nt()->setSlot(slot);
+    this->setSlot(slot);
     this->resetScore();
 }
 
 void NoteTakerWidget::resetScore() {
-    display->resetXAxisOffset();
+    display->range.resetXAxisOffset();
     nt()->resetRun();
     this->invalidateAndPlay(Inval::load);
     unsigned atZero = nt()->atMidiTime(0);
@@ -720,7 +720,7 @@ bool NoteTakerWidget::resetControls() {
 }
 
 void NoteTakerWidget::resetRun() {
-    display->displayStart = display->displayEnd = 0;
+    display->range.displayStart = display->range.displayEnd = 0;
     display->rangeInvalid = true;
     edit.voice = false;
 }
@@ -728,7 +728,7 @@ void NoteTakerWidget::resetRun() {
 void NoteTakerWidget::resetState() {
     clipboard.notes.clear();
     this->setClipboardLight();
-    display->resetXAxisOffset();
+    display->range.resetXAxisOffset();
     selectChannels = ALL_CHANNELS;
     this->resetControls();
 }
@@ -754,9 +754,18 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
         }
     }
     this->invalidateAndPlay(Inval::cut);
-    display->displayEnd = 0;  // force recompute of display end
+    display->range.displayEnd = 0;  // force recompute of display end
     nt()->setSelect(0, 1);
     this->setWheelRange();
+}
+
+
+void NoteTakerWidget::setSlot(unsigned index) {
+    selectedSlot = index;
+    auto nt = this->nt();
+    if (nt) {
+        nt->slot = &storage.slots[index];
+    }
 }
 
 void NoteTakerWidget::shiftNotes(unsigned start, int diff) {

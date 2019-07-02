@@ -1,4 +1,5 @@
 #include "Button.hpp"
+#include "Cache.hpp"
 #include "Display.hpp"
 #include "Taker.hpp"
 #include "Wheel.hpp"
@@ -86,13 +87,14 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
                 entry.directory.c_str(), entry.filename.c_str(), entry.n.notes.size());
     }
 #endif
-    DEBUG("display xOffset: %g horzCount: %u", display->xAxisOffset, n.horizontalCount(selectChannels));
+    DEBUG("display xOffset: %g horzCount: %u", display->range.xAxisOffset, n.horizontalCount(selectChannels));
     DEBUG("horz: %s vert: %s",
             horizontalWheel->debugString().c_str(), verticalWheel->debugString().c_str());
     DEBUG("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d voice %d",
-            n.selectStart, n.selectEnd, display->displayStart, display->displayEnd, selectChannels, 
+            n.selectStart, n.selectEnd, display->range.displayStart, display->range.displayEnd,
+            selectChannels, 
             this->unlockedChannel(), nt()->tempo, n.ppq, edit.voice);
-    NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &display->cache,
+    NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &nt()->slot->cache.notes,
             n.selectStart, n.selectEnd);
     DEBUG("clipboard");
     NoteTaker::DebugDump(clipboard.notes);

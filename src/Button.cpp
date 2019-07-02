@@ -77,6 +77,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     }
     this->getState();
     if (State::running == state) {
+        this->stageSlot(2);
         return;
     }
     auto ntw = this->ntw();
@@ -163,6 +164,7 @@ void FileButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(5);
         return;
     }
     NoteTakerButton::onDragEnd(e);
@@ -298,6 +300,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     }
     this->getState();
     if (State::running == state) {
+        this->stageSlot(1);
         return;
     }
     auto ntw = this->ntw();
@@ -363,6 +366,7 @@ void KeyButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(8);
         return;
     }
     auto nt = ntw->nt();
@@ -390,6 +394,10 @@ void KeyButton::draw(const DrawArgs& args) {
     nvgText(vg, 10 + af, 41 - af, "$", NULL);
 }
 
+void NoteTakerButton::stageSlot(unsigned slot) {
+    this->ntw()->nt()->stageSlot(slot);
+}
+
 void PartButton::draw(const DrawArgs& args) {
     const int af = animationFrame;
     EditLEDButton::draw(args);
@@ -406,6 +414,7 @@ void PartButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(4);
         return;
     }
     NoteTakerButton::onDragEnd(e);
@@ -437,6 +446,7 @@ void RestButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(3);
         return;
     }
     auto nt = ntw->nt();
@@ -467,7 +477,7 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     } else {
         auto& n = nt->n();
         nt->resetRun();
-        ntw->display->setRange();
+        ntw->display->range.setRange(n);
         unsigned next = nt->nextAfter(n.selectStart, 1);
         nt->setSelectStart(next < n.notes.size() - 1 ? next : 
                 ntw->selectButton->editStart() ? 0 : 1);
@@ -497,6 +507,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(0);
         return;
     }
     auto nt = ntw->nt();
@@ -568,6 +579,7 @@ void SustainButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(6);
         return;
     }
     NoteTakerButton::onDragEnd(e);
@@ -591,6 +603,7 @@ void TempoButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(11);
         return;
     }
     auto nt = ntw->nt();
@@ -623,6 +636,7 @@ void TieButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(9);
         return;
     }
     NoteTakerButton::onDragEnd(e);
@@ -647,6 +661,7 @@ void TimeButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     if (ntw->runButton->ledOn()) {
+        this->stageSlot(7);
         return;
     }
     auto nt = ntw->nt();
@@ -676,6 +691,10 @@ void TimeButton::draw(const DrawArgs& args) {
 
 void TrillButton::onDragEnd(const event::DragEnd& e) {
     if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return;
+    }
+    if (this->ntw()->runButton->ledOn()) {
+        this->stageSlot(10);
         return;
     }
     // to do : implement?

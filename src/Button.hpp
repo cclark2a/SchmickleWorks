@@ -110,6 +110,8 @@ struct NoteTakerButton : Switch {
         }
     }
 
+    void stageSlot(unsigned slot);
+
     virtual json_t *toJson() const {
         return nullptr;
     }

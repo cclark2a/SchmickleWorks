@@ -2,6 +2,7 @@
 
 #include "DisplayNote.hpp"
 
+struct DisplayState;
 struct NoteTakerDisplay;
 
 // break out notes and range so that preview can draw notes without instantiated module
@@ -47,13 +48,14 @@ struct Notes {
     void serialize(vector<uint8_t>& ) const;
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
+
     bool transposeSpan(vector<DisplayNote>& span) const;
     json_t* toJson() const;
     void toJsonCompressed(json_t* , std::string ) const;
     void toJsonUncompressed(json_t* , std::string ) const;
     void validate() const;
-    int xPosAtEndEnd(const NoteTakerDisplay* ) const;
-    int xPosAtEndStart(const NoteTakerDisplay* ) const;
-    int xPosAtStartEnd(const NoteTakerDisplay* ) const;
-    int xPosAtStartStart(const NoteTakerDisplay* ) const;
+    int xPosAtEndEnd(const DisplayState& ) const;
+    int xPosAtEndStart() const;
+    int xPosAtStartEnd() const;
+    int xPosAtStartStart() const;
 };

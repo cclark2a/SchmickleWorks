@@ -32,7 +32,7 @@ json_t* NoteTakerSlot::toJson() const {
     json_object_set_new(root, "n", n.toJson());
     json_t* chans = json_array();
     for (const auto& channel : channels) {
-        json_object_set_new(chans, "channel", channel.dataToJson());
+        json_array_append_new(chans, channel.toJson());
     }
     json_object_set_new(root, "channels", chans);
     json_object_set_new(root, "directory", json_string(directory.c_str()));
@@ -45,7 +45,7 @@ json_t* NoteTakerWidget::toJson() {
     json_t* root = ModuleWidget::toJson();
     clipboard.toJsonCompressed(root, "clipboardCompressed");
     // many of these are no-ops, but permits statefulness to change without recoding this block
-    json_object_set_new(root, "display", display->toJson());
+    json_object_set_new(root, "display", display->range.toJson());
     json_object_set_new(root, "edit", edit.toJson());
     json_object_set_new(root, "cutButton", cutButton->toJson());
     json_object_set_new(root, "fileButton", fileButton->toJson());
@@ -68,10 +68,7 @@ json_t* SlotArray::toJson() const {
     json_t* root = json_object();
     json_t* _slots = json_array();
     for (auto& slot : slots) {
-        if (slot.n.isEmpty(ALL_CHANNELS)) {
-            continue;
-        }
-        json_object_set_new(_slots, "slot", slot.toJson());
+        json_array_append_new(_slots, slot.toJson());
     }
     json_object_set_new(root, "slots", _slots);
     return root;
@@ -95,12 +92,24 @@ void NoteTaker::dataFromJson(json_t* root) {
     tempo = json_integer_value(json_object_get(root, "tempo"));
 }
 
+void NoteTakerSlot::fromJson(json_t* root) {
+    n.fromJson(json_object_get(root, "n"));
+    json_t* chans = json_object_get(root, "channels");
+    size_t index;
+    json_t* value;
+    json_array_foreach(chans, index, value) {
+        channels[index].fromJson(value);
+    }
+    directory = std::string(json_string_value(json_object_get(root, "directory")));
+    filename = std::string(json_string_value(json_object_get(root, "filename")));
+}
+
 void NoteTakerWidget::fromJson(json_t* root) {
     ModuleWidget::fromJson(root);
     clipboard.fromJsonUncompressed(json_object_get(root, "clipboardUncompressed"));
     clipboard.fromJsonCompressed(json_object_get(root, "clipboardCompressed"));
     // read back controls' state
-    display->fromJson(json_object_get(root, "display"));
+    display->range.fromJson(json_object_get(root, "display"));
     edit.fromJson(json_object_get(root, "edit"));
     cutButton->fromJson(json_object_get(root, "cutButton"));
     fileButton->fromJson(json_object_get(root, "fileButton"));
@@ -127,16 +136,6 @@ void SlotArray::fromJson(json_t* root) {
     size_t index;
     json_t* value;
     json_array_foreach(_slots, index, value) {
-        auto& store = slots[index];
-        store.directory = std::string(json_string_value(json_object_get(value, "directory")));
-        store.filename = std::string(json_string_value(json_object_get(value, "filename")));
-        json_t* _channels = json_object_get(root, "channels");
-        size_t inner;
-        json_t* value2;
-        json_array_foreach(_channels, inner, value2) {
-            auto& chan = store.channels[inner];
-            chan.dataFromJson(value2);
-        }
-        store.n.fromJson(json_object_get(value, "notes"));
+        slots[index].fromJson(value);
     }
 }

@@ -94,6 +94,7 @@ struct NoteTaker : Module {
     float eosTime = FLT_MAX;
     int midiClockOut = INT_MAX;
     float clockOutTime = FLT_MAX;
+    unsigned stagedSlot = INT_MAX;
     bool sawClockLow = false;
     bool sawResetLow = false;
     bool invalidVoiceCount = false;
@@ -268,7 +269,6 @@ struct NoteTaker : Module {
     void setSelect(unsigned start, unsigned end);
     bool setSelectEnd(int wheelValue, unsigned end);
     bool setSelectStart(unsigned start);
-    void setSlot(unsigned slot);
     void setVoiceCount();
 
     // shift track end only if another shifted note bumps it out
@@ -303,8 +303,6 @@ struct NoteTaker : Module {
         }
    }
 
-   unsigned getSlot() const;
-
     // don't use std::sort function; use insertion sort to minimize reordering
     static void Sort(vector<DisplayNote>& notes, bool debugging = false) {
         if (debugging) DEBUG("sort notes");
@@ -314,6 +312,7 @@ struct NoteTaker : Module {
         }
     }
 
+    void stageSlot(unsigned slot);
     float wheelToTempo(float value) const;
 
     void zeroGates() {

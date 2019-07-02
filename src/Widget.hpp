@@ -52,6 +52,7 @@ struct NoteTakerWidget : ModuleWidget {
     VerticalWheel* verticalWheel = nullptr;
 
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
+    unsigned selectedSlot = 0;
     bool clipboardInvalid = true;
     bool debugVerbose = DEBUG_VERBOSE;
 #if RUN_UNIT_TEST
@@ -129,6 +130,7 @@ struct NoteTakerWidget : ModuleWidget {
     void setClipboardLight();
     void setHorizontalWheelRange();
     void setSelectableScoreEmpty();
+    void setSlot(unsigned index);
     void setVerticalWheelRange();
     void setWheelRange();
     void shiftNotes(unsigned start, int diff);

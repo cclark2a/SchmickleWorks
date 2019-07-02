@@ -322,25 +322,21 @@ bool Notes::transposeSpan(vector<DisplayNote>& span) const {
     return true;
 }
 
-int Notes::xPosAtEndStart(const NoteTakerDisplay* display) const {
-    SCHMICKLE(!display->cacheInvalid);
+int Notes::xPosAtEndStart() const {
     return notes[selectEnd - 1].cache->xPosition;
 }
 
-int Notes::xPosAtEndEnd(const NoteTakerDisplay* display) const {
-    SCHMICKLE(!display->cacheInvalid);
+int Notes::xPosAtEndEnd(const DisplayState& state) const {
     const NoteCache* noteCache = notes[selectEnd - 1].cache;
-    return display->xEndPos(*noteCache);
+    return NoteTakerDisplay::XEndPos(*noteCache, state.vg);
 }
 
-int Notes::xPosAtStartEnd(const NoteTakerDisplay* display) const {
-    SCHMICKLE(!display->cacheInvalid);
+int Notes::xPosAtStartEnd() const {
     unsigned startEnd = this->selectEndPos(selectStart);
     return notes[startEnd].cache->xPosition;
 }
 
-int Notes::xPosAtStartStart(const NoteTakerDisplay* display) const {
-    SCHMICKLE(!display->cacheInvalid);
+int Notes::xPosAtStartStart() const {
     return notes[selectStart].cache->xPosition;
 }
 

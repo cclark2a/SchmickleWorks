@@ -1,10 +1,12 @@
 #pragma once
 
+#include "Cache.hpp"
 #include "Channel.hpp"
 #include "Notes.hpp"
 
 struct NoteTakerSlot {
     Notes n;
+    DisplayCache cache;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;
     std::string directory;
     std::string filename;

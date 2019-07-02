@@ -108,6 +108,12 @@ void NoteTaker::process(const ProcessArgs &args) {
         return;
     }
 #endif
+// to do : defer switch until criteria (e.g., end of bar) is met
+    if (INT_MAX != stagedSlot) {
+        ntw()->setSlot(stagedSlot);
+        stagedSlot = INT_MAX;
+        this->resetRun();
+    }
     auto& n = this->n();
     bool running = this->isRunning();
     float clockCycle = 0;
@@ -160,7 +166,7 @@ void NoteTaker::process(const ProcessArgs &args) {
     } else {
         localTempo = this->externalTempo(clockCycle);
         if (resetCycle) {
-            ntw()->display->resetXAxisOffset();
+            ntw()->display->range.resetXAxisOffset();
             this->resetRun();
         }
     }
@@ -184,7 +190,7 @@ void NoteTaker::process(const ProcessArgs &args) {
         playStart = 0;
         if (running) {
             // to do : add option to stop running (waiting for feature req. / design inspiration)
-            ntw()->display->resetXAxisOffset();
+            ntw()->display->range.resetXAxisOffset();
             this->resetRun();
             outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
             eosTime = realSeconds + 0.01f;
@@ -337,7 +343,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     if (n.isEmpty(ntw()->selectChannels)) {
         n.selectStart = 0;
         n.selectEnd = 1;
-        display->setRange();
+        display->range.setRange(n);
         displayBuffer->fb->dirty = true;
         if (debugVerbose) DEBUG("setSelect set empty");
         return;
@@ -345,7 +351,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     SCHMICKLE(start < end);
     SCHMICKLE(n.notes.size() >= 2);
     SCHMICKLE(end <= n.notes.size() - 1);
-    display->setRange();
+    display->range.setRange(n);
     if (!this->isRunning()) {
         mainWidget->enableInsertSignature(end);  // disable buttons that already have signatures in score
     }
@@ -389,10 +395,6 @@ bool NoteTaker::setSelectStart(unsigned start) {
             && n.notes[end].isNoteOrRest());
     this->setSelect(start, end);
     return true;
-}
-
-void NoteTaker::setSlot(unsigned index) {
-    slot = &ntw()->storage.slots[index];
 }
 
 // to do : output debug data to show what set voice count did
@@ -464,8 +466,8 @@ void NoteTaker::setVoiceCount() {
     }
 }
 
-unsigned NoteTaker::getSlot() const {
-    return slot - &ntw()->storage.slots.front();
+void NoteTaker::stageSlot(unsigned slot) {
+    stagedSlot = this->ntw()->selectedSlot == slot ? INT_MAX : slot;
 }
 
 float NoteTaker::wheelToTempo(float value) const {

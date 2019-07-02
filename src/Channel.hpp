@@ -112,7 +112,7 @@ struct NoteTakerChannel {
         return sustainMax;
     }
 
-    json_t* dataToJson() const {
+    json_t* toJson() const {
         json_t* root = json_object();
         if (DefaultLimit(Limit::releaseMax) != releaseMax) {
             json_object_set_new(root, "releaseMax", json_integer(releaseMax));
@@ -129,7 +129,7 @@ struct NoteTakerChannel {
         return root;
     }
 
-    void dataFromJson(json_t* root) {
+    void fromJson(json_t* root) {
         json_t* obj;
         if ((obj = json_object_get(root, "releaseMax"))) {
             releaseMax = json_integer_value(obj);
