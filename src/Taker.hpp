@@ -98,7 +98,7 @@ struct NoteTaker : Module {
     bool sawClockLow = false;
     bool sawResetLow = false;
     bool invalidVoiceCount = false;
-    bool debugVerbose;          // enable this in note taker widget include
+    const bool debugVerbose;          // enable this in note taker widget include
 
     NoteTaker();
 

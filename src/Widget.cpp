@@ -86,8 +86,7 @@ struct DisplayBevel : Widget {
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
-    : storage(DEBUG_VERBOSE) {
-    clipboard.debugVerbose = DEBUG_VERBOSE;
+    : debugVerbose(DEBUG_VERBOSE) {
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
@@ -121,7 +120,6 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
         module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
         module->slot = &storage.slots.front();
-        module->debugVerbose = debugVerbose;
     }
     Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
     Vec hWheelSize = Vec(100, 23);
@@ -720,8 +718,7 @@ bool NoteTakerWidget::resetControls() {
 }
 
 void NoteTakerWidget::resetRun() {
-    display->range.displayStart = display->range.displayEnd = 0;
-    display->rangeInvalid = true;
+    display->range.reset();
     edit.voice = false;
 }
 
@@ -761,7 +758,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
 
 
 void NoteTakerWidget::setSlot(unsigned index) {
-    selectedSlot = index;
+    storage.selected = index;
     auto nt = this->nt();
     if (nt) {
         nt->slot = &storage.slots[index];

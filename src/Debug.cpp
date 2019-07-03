@@ -93,14 +93,14 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     DEBUG("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d voice %d",
             n.selectStart, n.selectEnd, display->range.displayStart, display->range.displayEnd,
             selectChannels, 
-            this->unlockedChannel(), nt()->tempo, n.ppq, edit.voice);
-    NoteTaker::DebugDump(n.notes, display->cacheInvalid ? nullptr : &nt()->slot->cache.notes,
+            this->unlockedChannel(), nt() ? nt()->tempo : 0, n.ppq, edit.voice);
+    auto& slot = storage.slots[storage.selected];
+    NoteTaker::DebugDump(n.notes, slot.invalid ? nullptr : &slot.cache.notes,
             n.selectStart, n.selectEnd);
     DEBUG("clipboard");
     NoteTaker::DebugDump(clipboard.notes);
-    auto& slot = nt()->slot;
-    for (const auto& chan : slot->channels) {
-        DEBUG("[%d] %s", &chan - &slot->channels.front(), chan.debugString().c_str());
+    for (const auto& chan : slot.channels) {
+        DEBUG("[%d] %s", &chan - &slot.channels.front(), chan.debugString().c_str());
     }
     if (!inWheel && selectButton->ledOn() && !this->menuButtonOn() && !runButton->ledOn()) {
         std::string w2n;

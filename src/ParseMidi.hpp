@@ -7,15 +7,16 @@ struct NoteTakerParseMidi {
     vector<DisplayNote>& displayNotes;
     array<NoteTakerChannel, CHANNEL_COUNT>& channels;
     int& ntPpq;
-    bool debugVerbose = true;
+    const bool debugVerbose;
 
     NoteTakerParseMidi(const vector<uint8_t>& m, Notes& notes, 
             array<NoteTakerChannel, CHANNEL_COUNT>& chans)
         : midi(m)
         , displayNotes(notes.notes)
         , channels(chans)
-        , ntPpq(notes.ppq) {
-        if (notes.debugVerbose) NoteTaker::DebugDumpRawMidi(m);
+        , ntPpq(notes.ppq)
+        , debugVerbose(DEBUG_VERBOSE) {
+        if (debugVerbose) NoteTaker::DebugDumpRawMidi(m);
     }
 
     bool parseMidi();

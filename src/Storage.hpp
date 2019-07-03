@@ -10,6 +10,7 @@ struct NoteTakerSlot {
     array<NoteTakerChannel, CHANNEL_COUNT> channels;
     std::string directory;
     std::string filename;
+    bool invalid = true;
 
     static void Decode(const vector<char>& encoded, vector<uint8_t>* midi);
     static void EncodeTriplet(const uint8_t trips[3], vector<char>* encoded);
@@ -23,15 +24,17 @@ struct NoteTakerSlot {
 
 struct SlotArray {
     array<NoteTakerSlot, STORAGE_SLOTS> slots;
-    bool debugVerbose = false;
+    unsigned selected = 0;
+    const bool debugVerbose;
 
     void fromJson(json_t* root);
 
-    SlotArray(bool dbug) {
-        debugVerbose = dbug;
-        for (auto& s : slots) {
-            s.n.debugVerbose = dbug;
-        }
+    SlotArray()
+    : debugVerbose(DEBUG_VERBOSE) {
+    }
+
+    void invalidate() {
+        slots[selected].invalid = true;
     }
 
     unsigned size() const { return slots.size(); }

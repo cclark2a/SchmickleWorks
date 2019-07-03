@@ -530,6 +530,8 @@ void CacheBuilder::updateXPosition(const Notes& n) {
         int stdStart = NoteDurations::InStd(noteCache.vStartTime, n.ppq);
         noteCache.xPosition = (int) std::ceil((stdStart + bars * BAR_WIDTH)
                 * xAxisScale + pos);
+        if (debugVerbose) DEBUG("vStartTime %d n.ppq %d bars %d xAxisScale %g xPos %d",
+                noteCache.vStartTime, n.ppq, bars, xAxisScale, noteCache.xPosition);
         if (noteCache.accidentalSpace) {
             noteCache.xPosition += 8;  // space for possible accidental
         } else if (NOTE_ON == noteCache.note->type) {  // if another note at same time allows for
@@ -554,6 +556,7 @@ void CacheBuilder::updateXPosition(const Notes& n) {
             case MIDI_HEADER:
                 SCHMICKLE(!pos);
                 pos = CLEF_WIDTH * xAxisScale;
+                if (debugVerbose) DEBUG("header pos %g", pos);
                 break;
             case NOTE_ON:
             case REST_TYPE: {

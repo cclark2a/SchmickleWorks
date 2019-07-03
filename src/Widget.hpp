@@ -52,9 +52,8 @@ struct NoteTakerWidget : ModuleWidget {
     VerticalWheel* verticalWheel = nullptr;
 
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
-    unsigned selectedSlot = 0;
     bool clipboardInvalid = true;
-    bool debugVerbose = DEBUG_VERBOSE;
+    const bool debugVerbose;
 #if RUN_UNIT_TEST
     bool runUnitTest = true;  // to do : ship with this disabled
     bool unitTestRunning = false;

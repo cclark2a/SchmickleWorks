@@ -38,11 +38,12 @@ struct DisplayBuffer : Widget {
 // elements visible by cache builder
 struct DisplayState {
     NVGcontext* vg = nullptr;
+    FramebufferWidget* fb = nullptr;
     const float xAxisScale;
     const int musicFont;
     const bool debugVerbose;
 
-    DisplayState(const NoteTakerDisplay& display, const NoteTakerWidget* );
+    DisplayState(float xAxisScale, FramebufferWidget* , int musicFont );
 };
 
 struct DisplayRange {
@@ -51,21 +52,36 @@ struct DisplayRange {
     float xAxisScale = 0.25;
     float dynamicXOffsetTimer = 0;
     float dynamicXOffsetStep = 0;
+    const float bw;       // from display->box.width
     unsigned displayStart = 0;
     unsigned displayEnd = 0;
     unsigned oldStart = 0;
     unsigned oldEnd = 0;
-    const int boxWidth;       // from display->box.width
-    bool rangeInvalid = true;
+    bool invalid = true;
     const bool debugVerbose;
 
-    DisplayRange(const DisplayState& , int boxWidth);
+    DisplayRange(const DisplayState& , float boxWidth);
 
     void fromJson(json_t* root) {
         displayStart = json_integer_value(json_object_get(root, "displayStart"));
         displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
         xAxisOffset = json_real_value(json_object_get(root, "xAxisOffset"));
         xAxisScale = json_real_value(json_object_get(root, "xAxisScale"));
+        this->invalidate();
+    }
+
+    void invalidate() {
+        if (debugVerbose) DEBUG("invalidate state.fb %p dirty %d", state.fb,
+                state.fb ? state.fb->dirty : false);
+        invalid = true;
+        if (state.fb) {
+            state.fb->dirty = true;
+        }
+    }
+
+    void reset() {
+        displayStart = displayEnd = 0;
+        this->invalidate();
     }
     
     void resetXAxisOffset() {
@@ -94,11 +110,11 @@ struct DisplayRange {
 // be precalcuated. Store them with notes in the slot for that reason
 
 struct NoteTakerDisplay : Widget {
-    DisplayState state;
     NoteTakerWidget* mainWidget;
     Notes* previewNotes = nullptr; // hardcoded set of notes for preview
     array<Accidental, 75> accidentals;  // marks when accidental was used in bar
     DisplayRange range;
+    DisplayState state;
     const StaffNote* pitchMap = nullptr;
     float xControlOffset = 0;
     int dynamicPitchAlpha = 0;
@@ -111,12 +127,10 @@ struct NoteTakerDisplay : Widget {
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
-    bool cacheInvalid = false;
     bool upSelected = false;
     bool downSelected = false;
-    bool rangeInvalid = false;
 
-    NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw);
+    NoteTakerDisplay(const Vec& pos, const Vec& size, FramebufferWidget* , NoteTakerWidget* );
     void advanceBar(BarPosition& bar, unsigned index);
     void applyKeySignature();
     const DisplayCache* cache() const;
@@ -155,15 +169,10 @@ struct NoteTakerDisplay : Widget {
         return dynamic_cast<FramebufferWidget*>(parent);
     }
 
-    void invalidateCache() {
-        cacheInvalid = true;
-        rangeInvalid = true;
-        this->fb()->dirty = true;
-    }
+    void invalidateCache();
 
     void invalidateRange() {
-        rangeInvalid = true;
-        this->fb()->dirty = true;
+        range.invalidate();
     }
 
     const Notes* notes();
@@ -189,8 +198,7 @@ struct NoteTakerDisplay : Widget {
         lastTempo = stdTimePerQuarterNote;
         upSelected = false;
         downSelected = false;
-        cacheInvalid = true;
-        rangeInvalid = true;
+        this->invalidateCache();
         range.resetXAxisOffset();
     }
 

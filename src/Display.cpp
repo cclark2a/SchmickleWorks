@@ -92,22 +92,23 @@ DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _
     fb = new FramebufferWidget();
     fb->dirty = true;
     this->addChild(fb);
-    auto display = new NoteTakerDisplay(pos, size, _ntw);
-    display->box.pos = pos;
+    auto display = new NoteTakerDisplay(pos, size, fb, _ntw);
     fb->addChild(display);
 }
 
-DisplayState::DisplayState(const NoteTakerDisplay& display, const NoteTakerWidget* ntw)
-    : xAxisScale(display.range.xAxisScale)
-    , musicFont(ntw->musicFont())
-    , debugVerbose(ntw->debugVerbose) {
+DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicFnt)
+    : fb(frameBuffer)
+    , xAxisScale(xas)
+    , musicFont(musicFnt)
+    , debugVerbose(DEBUG_VERBOSE) {
+    if (debugVerbose) DEBUG("DisplayState fb %p", fb);
 }
 
-DisplayRange::DisplayRange(const DisplayState& ds, int bw)
+DisplayRange::DisplayRange(const DisplayState& ds, float boxWidth)
     : state(ds)
-    , boxWidth(bw)
-    , debugVerbose(ds.debugVerbose) {
-    ;
+    , bw(boxWidth)
+    , debugVerbose(DEBUG_VERBOSE) {
+        if (debugVerbose) DEBUG("DisplayRange bw %g xAxisOffset %g", bw, xAxisOffset);
 }
 
 void DisplayRange::scroll(NVGcontext* vg) {
@@ -124,19 +125,19 @@ void DisplayRange::scroll(NVGcontext* vg) {
 void DisplayRange::setRange(const Notes& n) {
     oldStart = n.selectStart;
     oldEnd = n.selectEnd;
-    rangeInvalid = true;
+    invalidate();
 }
 
 // editStart is selectButton->editStart()
 void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool editStart) {
-    rangeInvalid = false;
     const vector<NoteCache>& notes = cache->notes;
     int selectStartXPos = n.xPosAtStartStart();
     int selectEndXPos = n.xPosAtEndEnd(state);
     int selectWidth = selectEndXPos - selectStartXPos;
-    int displayEndXPos = xAxisOffset + boxWidth;
-    if (debugVerbose) DEBUG("selectStartXPos %d selectEndXPos %d xAxisOffset %d displayEndXPos %d",
-            selectStartXPos, selectEndXPos, xAxisOffset, displayEndXPos);
+    int boxWidth = (int) std::ceil(bw);
+    int displayEndXPos = (int) (std::ceil(xAxisOffset + bw));
+    if (debugVerbose) DEBUG("selectStartXPos %d selectEndXPos %d xAxisOffset %d boxWidth %d displayEndXPos %d",
+            selectStartXPos, selectEndXPos, xAxisOffset, boxWidth, displayEndXPos);
     if (debugVerbose) DEBUG("old displayStart %u displayEnd %u", displayStart, displayEnd);
     // note condition to require the first quarter note of a very long note to be visible
     const int displayQuarterNoteWidth = stdTimePerQuarterNote * xAxisScale;
@@ -210,9 +211,10 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
     }
 }
 
-NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw)
-    : state(*this, _ntw)
-    , range(state, box.size.x)
+NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, FramebufferWidget* fb,
+        NoteTakerWidget* _ntw)
+    : range(state, size.x)
+    , state(range.xAxisScale, fb, _ntw->musicFont())
     , pitchMap(sharpMap) {
     mainWidget = _ntw;
     box.pos = pos;
@@ -268,8 +270,8 @@ void NoteTakerDisplay::applyKeySignature() {
 }
 
 const DisplayCache* NoteTakerDisplay::cache() const {
-    auto ntw = this->ntw();
-    return &ntw->storage.slots[ntw->selectedSlot].cache;
+    auto& storage = this->ntw()->storage;
+    return &storage.slots[storage.selected].cache;
 }
 
 float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
@@ -280,6 +282,77 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
             noteCache.stemUp ? upFlagNoteSymbols : downFlagNoteSymbols;
     nvgTextBounds(vg, 0, 0, symbols[noteCache.symbol], nullptr, bounds);
     return bounds[2];
+}
+
+void NoteTakerDisplay::draw(const DrawArgs& args) {
+    auto ntw = this->ntw();
+    const auto& n = *this->notes();
+    auto vg = state.vg = args.vg;
+    auto& storage = ntw->storage;
+    auto& slot = storage.slots[storage.selected];
+    auto cache = &slot.cache;
+    SCHMICKLE(state.fb == this->fb());
+    if (slot.invalid) {
+        CacheBuilder builder(state, cache);
+        builder.updateXPosition(n);
+        slot.invalid = false;
+        range.invalid = true;
+    }
+    if (range.invalid) {
+        SCHMICKLE(n.notes.front().cache == &cache->notes.front());
+        SCHMICKLE(cache->notes.front().note == &n.notes.front());
+        range.updateRange(n, cache, ntw->selectButton->editStart());
+        range.invalid = false;
+    }
+#if RUN_UNIT_TEST
+    if (ntw->nt() && ntw->runUnitTest) { // to do : remove this from shipping code
+        UnitTest(ntw, TestType::encode);
+        ntw->runUnitTest = false;
+        this->fb()->dirty = true;
+        return;
+    }
+#endif
+    if (!n.notes.size()) {
+        return;  // do nothing if we're not set up yet
+    }
+    nvgSave(vg);
+    accidentals.fill(NO_ACCIDENTAL);
+// to do : figure out why this doesn't draw?
+//         for now, workaround is to append bevel draw as child to svg panel in note taker widget
+//    this->drawBevel(vg);
+    nvgScissor(vg, 0, 0, box.size.x, box.size.y);
+    nvgBeginPath(vg);
+    nvgRect(vg, 0, 0, box.size.x, box.size.y);
+    nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
+    nvgFill(vg);
+    this->drawStaffLines();
+    nvgSave(vg);
+    this->scroll();
+    this->drawClefs();
+    this->drawSelectionRect();
+    BarPosition bar(ntw->debugVerbose);
+    this->setUpAccidentals(bar);
+    this->drawNotes(bar);
+    this->drawBars(bar);
+    nvgRestore(vg);
+    this->recenterVerticalWheel();
+    if (ntw->fileButton->ledOn()) {
+        this->drawFileControl();
+    }
+    if (ntw->partButton->ledOn()) {
+        this->drawPartControl();
+    }
+    if (ntw->sustainButton->ledOn()) {
+        this->drawSustainControl();
+    }
+    if (ntw->tieButton->ledOn()) {
+        this->drawTieControl();
+    }
+    if (ntw->runningWithButtonsOff()) {
+        this->drawDynamicPitchTempo();
+    }
+    nvgRestore(vg);
+    Widget::draw(args);
 }
 
 void NoteTakerDisplay::drawBarAt(int xPos) {
@@ -691,73 +764,6 @@ void NoteTakerDisplay::drawStaffLines() const {
 	nvgStrokeColor(vg, nvgRGB(0x7f, 0x7f, 0x7f));
     nvgStrokeWidth(vg, 0.5);
 	nvgStroke(vg);
-}
-
-void NoteTakerDisplay::draw(const DrawArgs& args) {
-    auto ntw = this->ntw();
-    const auto& n = *this->notes();
-    auto vg = state.vg = args.vg;
-    if (cacheInvalid) {
-        auto c = &ntw->storage.slots[ntw->selectedSlot].cache;
-        CacheBuilder builder(state, c);
-        builder.updateXPosition(n);
-        cacheInvalid = false;
-    }
-    if (rangeInvalid) {
-        auto cache = this->cache();
-        SCHMICKLE(n.notes.front().cache == &cache->notes.front());
-        SCHMICKLE(cache->notes.front().note == &n.notes.front());
-        range.updateRange(n, cache, ntw->selectButton->editStart());
-    }
-#if RUN_UNIT_TEST
-    if (ntw->nt() && ntw->runUnitTest) { // to do : remove this from shipping code
-        UnitTest(ntw, TestType::encode);
-        ntw->runUnitTest = false;
-        this->fb()->dirty = true;
-        return;
-    }
-#endif
-    if (!n.notes.size()) {
-        return;  // do nothing if we're not set up yet
-    }
-    nvgSave(vg);
-    accidentals.fill(NO_ACCIDENTAL);
-// to do : figure out why this doesn't draw?
-//         for now, workaround is to append bevel draw as child to svg panel in note taker widget
-//    this->drawBevel(vg);
-    nvgScissor(vg, 0, 0, box.size.x, box.size.y);
-    nvgBeginPath(vg);
-    nvgRect(vg, 0, 0, box.size.x, box.size.y);
-    nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
-    nvgFill(vg);
-    this->drawStaffLines();
-    nvgSave(vg);
-    this->scroll();
-    this->drawClefs();
-    this->drawSelectionRect();
-    BarPosition bar(ntw->debugVerbose);
-    this->setUpAccidentals(bar);
-    this->drawNotes(bar);
-    this->drawBars(bar);
-    nvgRestore(vg);
-    this->recenterVerticalWheel();
-    if (ntw->fileButton->ledOn()) {
-        this->drawFileControl();
-    }
-    if (ntw->partButton->ledOn()) {
-        this->drawPartControl();
-    }
-    if (ntw->sustainButton->ledOn()) {
-        this->drawSustainControl();
-    }
-    if (ntw->tieButton->ledOn()) {
-        this->drawTieControl();
-    }
-    if (ntw->runningWithButtonsOff()) {
-        this->drawDynamicPitchTempo();
-    }
-    nvgRestore(vg);
-    Widget::draw(args);
 }
 
 void NoteTakerDisplay::drawDynamicPitchTempo() {
@@ -1331,6 +1337,11 @@ void NoteTakerDisplay::drawVerticalLabel(const char* label, bool enabled,
     nvgText(vg, textX, textY, label, NULL);
 }
 
+void NoteTakerDisplay::invalidateCache() {
+    this->ntw()->storage.invalidate();
+    this->fb()->dirty = true;
+}
+
 const Notes* NoteTakerDisplay::notes() {
     auto nt = ntw()->nt();
     if (nt) {
@@ -1362,9 +1373,7 @@ const Notes* NoteTakerDisplay::notes() {
         notes.push_back(midE);
         notes.push_back(trailer);
         NoteTaker::DebugDump(notes);
-        
-        cacheInvalid = true;
-        rangeInvalid = true;
+        this->invalidateCache();
     }
     // use a hardcoded set of notes for preview
     return previewNotes;

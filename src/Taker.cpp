@@ -8,7 +8,8 @@
 
 // to do : to run headless, allow mainWidget and ntw() to be nullptr
 
-NoteTaker::NoteTaker() {
+NoteTaker::NoteTaker()
+    : debugVerbose(DEBUG_VERBOSE) {
     this->config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 }
 
@@ -467,7 +468,7 @@ void NoteTaker::setVoiceCount() {
 }
 
 void NoteTaker::stageSlot(unsigned slot) {
-    stagedSlot = this->ntw()->selectedSlot == slot ? INT_MAX : slot;
+    stagedSlot = this->ntw()->storage.selected == slot ? INT_MAX : slot;
 }
 
 float NoteTaker::wheelToTempo(float value) const {
