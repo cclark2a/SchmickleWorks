@@ -13,7 +13,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     if (fileButton->ledOn()) {
         // to do : here, and in other places: set speed proportional to limits
         horizontalWheel->setLimits(0, storage.size());
-        horizontalWheel->setValue(0);
+        horizontalWheel->setValue(this->getSlot());
         return;
     }
     if (partButton->ledOn()) {
@@ -175,6 +175,9 @@ void NoteTakerWidget::setWheelRange() {
 void NoteTakerWidget::updateHorizontal() {
     auto& n = this->n();
     
+    if (runButton->ledOn()) {
+        return;
+    }
     displayBuffer->fb->dirty |= this->menuButtonOn();
     if (fileButton->ledOn()) {
         return;
@@ -192,9 +195,6 @@ void NoteTakerWidget::updateHorizontal() {
             channel.setLimit((NoteTakerChannel::Limit) verticalWheel->getValue(),
                     NoteDurations::ToMidi(horizontalWheel->getValue(), n.ppq));
         }
-        return;
-    }
-    if (runButton->ledOn()) {
         return;
     }
     if (tieButton->ledOn()) {
@@ -372,6 +372,7 @@ void NoteTakerWidget::updateVertical() {
                 unsigned val = (unsigned) horizontalWheel->getValue();
                 SCHMICKLE(val < storage.size());
                 this->copyToSlot(val);
+                this->setSlot(val);
             } else {
                 int part = horizontalWheel->part();
                 if (part < 0) {

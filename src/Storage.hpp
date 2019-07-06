@@ -4,12 +4,26 @@
 #include "Channel.hpp"
 #include "Notes.hpp"
 
+
+
 struct NoteTakerSlot {
+    // switch slots on next ...
+    enum class Stage {
+        unknown,
+        step,
+        beat,
+        quarterNote,
+        bar,
+        song,
+        never,
+    };
+
     Notes n;
     DisplayCache cache;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;
     std::string directory;
     std::string filename;
+    Stage stage = Stage::unknown;
     bool invalid = true;
 
     static void Decode(const vector<char>& encoded, vector<uint8_t>* midi);

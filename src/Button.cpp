@@ -72,14 +72,10 @@ void CutButton::getState() {
 }
 
 void CutButton::onDragEnd(const rack::event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     this->getState();
-    if (State::running == state) {
-        this->stageSlot(2);
-        return;
-    }
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     auto& n = nt->n();
@@ -159,15 +155,11 @@ void EditButton::onDragStart(const event::DragStart& e) {
 }
 
 void FileButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
-        return;
-    }
-    auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(5);
+    if (this->stageSlot(e)) {
         return;
     }
     NoteTakerButton::onDragEnd(e);
+    auto ntw = this->ntw();
     ntw->turnOffLedButtons(this);
     ntw->setWheelRange();
 }
@@ -295,14 +287,10 @@ void InsertButton::getState() {
 // 1) determine what the insert button is going to do (for tooltip)
 // 2) given an action, do it
 void InsertButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     this->getState();
-    if (State::running == state) {
-        this->stageSlot(1);
-        return;
-    }
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     auto& n = nt->n();
@@ -361,14 +349,10 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
 
 // insert key signature
 void KeyButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(8);
-        return;
-    }
     auto nt = ntw->nt();
     auto& n = nt->n();
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
@@ -394,8 +378,19 @@ void KeyButton::draw(const DrawArgs& args) {
     nvgText(vg, 10 + af, 41 - af, "$", NULL);
 }
 
-void NoteTakerButton::stageSlot(unsigned slot) {
-    this->ntw()->nt()->stageSlot(slot);
+bool NoteTakerButton::stageSlot(const event::DragEnd& e) {
+    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+        return true;
+    }
+    auto ntw = this->ntw();
+    if (!ntw->runButton->ledOn()) {
+        return false;
+    }
+    if (ntw->storage.slots[slotNumber].n.isEmpty(ALL_CHANNELS)) {
+        return true;
+    }
+    ntw->nt()->stageSlot(slotNumber);
+    return true;
 }
 
 void PartButton::draw(const DrawArgs& args) {
@@ -409,15 +404,11 @@ void PartButton::draw(const DrawArgs& args) {
 }
 
 void PartButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
-        return;
-    }
-    auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(4);
+    if (this->stageSlot(e)) {
         return;
     }
     NoteTakerButton::onDragEnd(e);
+    auto ntw = this->ntw();
     if (!ledOn()) {
         this->onTurnOff();
     } else if (ntw->selectButton->editEnd()) {
@@ -441,14 +432,10 @@ void RestButton::draw(const DrawArgs& args) {
 }
 
 void RestButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(3);
-        return;
-    }
     auto nt = ntw->nt();
     auto& n = nt->n();
     ntw->turnOffLedButtons();  // turn off pitch, file, sustain, etc
@@ -474,20 +461,14 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     auto nt = ntw->nt();
     if (!ledOn()) {
         nt->zeroGates();
+        ntw->enableButtons();
     } else {
-        auto& n = nt->n();
         nt->resetRun();
-        ntw->display->range.setRange(n);
-        unsigned next = nt->nextAfter(n.selectStart, 1);
-        nt->setSelectStart(next < n.notes.size() - 1 ? next : 
-                ntw->selectButton->editStart() ? 0 : 1);
-        ntw->horizontalWheel->lastRealValue = INT_MAX;
-        ntw->verticalWheel->lastValue = INT_MAX;
-        nt->playSelection();
+        ntw->resetAndPlay();
+        ntw->turnOffLedButtons(this);
+        ntw->disableEmptyButtons();
     }
-    if (!ntw->menuButtonOn()) {
-        ntw->setWheelRange();
-    }
+    ntw->setWheelRange();
     DEBUG("onDragEnd end af %d ledOn %d", animationFrame, ledOn());
 }
 
@@ -502,14 +483,10 @@ void SelectButton::draw(const DrawArgs& args) {
 }
 
 void SelectButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(0);
-        return;
-    }
     auto nt = ntw->nt();
     auto& n = nt->n();
     NoteTakerButton::onDragEnd(e);
@@ -574,14 +551,10 @@ void SelectButton::setSingle() {
 }
 
 void SustainButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(6);
-        return;
-    }
     NoteTakerButton::onDragEnd(e);
     ntw->turnOffLedButtons(this);
     ntw->setWheelRange();
@@ -598,14 +571,10 @@ void SustainButton::draw(const DrawArgs& args) {
 }
 
 void TempoButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(11);
-        return;
-    }
     auto nt = ntw->nt();
     auto& n = nt->n();
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
@@ -631,14 +600,10 @@ void TempoButton::draw(const DrawArgs& args) {
 }
 
 void TieButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(9);
-        return;
-    }
     NoteTakerButton::onDragEnd(e);
     ntw->turnOffLedButtons(this);
     ntw->setWheelRange();
@@ -656,14 +621,10 @@ void TieButton::draw(const DrawArgs& args) {
 
 // insert time signature
 void TimeButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
+    if (this->stageSlot(e)) {
         return;
     }
     auto ntw = this->ntw();
-    if (ntw->runButton->ledOn()) {
-        this->stageSlot(7);
-        return;
-    }
     auto nt = ntw->nt();
     auto& n = nt->n();
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
@@ -689,12 +650,9 @@ void TimeButton::draw(const DrawArgs& args) {
     nvgText(vg, 8 + af, 41 - af, "4", NULL);
 }
 
+// to do : instead of trill add button to edit order of slots, and slot ending criteria
 void TrillButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
-        return;
-    }
-    if (this->ntw()->runButton->ledOn()) {
-        this->stageSlot(10);
+    if (this->stageSlot(e)) {
         return;
     }
     // to do : implement?

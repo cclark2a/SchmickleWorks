@@ -86,7 +86,8 @@ struct DisplayBevel : Widget {
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
-    : debugVerbose(DEBUG_VERBOSE) {
+    : editButtonSize(Vec(22, 43))
+    , debugVerbose(DEBUG_VERBOSE) {
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
@@ -143,45 +144,30 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
             addOutput(createOutput<PJ301MPort>(Vec(12 + i * 32, 338), module,
                     NoteTaker::GATE1_OUTPUT + i));
     }
-    Vec editButtonSize = Vec(22, 43);
     Vec runButtonSize = Vec(24, 24);
-    addButton(runButtonSize, (runButton = 
+    this->addButton(runButtonSize, (runButton = 
             createParam<RunButton>(Vec(200, 172), module, NoteTaker::RUN_BUTTON)));
-    addButton(editButtonSize, (selectButton =
-            createParam<SelectButton>(Vec(30, 202), module, NoteTaker::EXTEND_BUTTON)));
-    addButton(editButtonSize, (insertButton =
-            createParam<InsertButton>(Vec(62, 202), module, NoteTaker::INSERT_BUTTON)));
+    this->addButton<SelectButton>(&selectButton, NoteTaker::EXTEND_BUTTON);
+    this->addButton<InsertButton>(&insertButton, NoteTaker::INSERT_BUTTON);
     if (insertButton->paramQuantity) {
         ((InsertButtonToolTip*) insertButton->paramQuantity)->button = insertButton;
     }
-    addButton(editButtonSize, (cutButton = 
-            createParam<CutButton>(Vec(94, 202), module, NoteTaker::CUT_BUTTON)));
+    this->addButton<CutButton>(&cutButton, NoteTaker::CUT_BUTTON);
     if (cutButton->paramQuantity) {
         ((CutButtonToolTip*) cutButton->paramQuantity)->button = cutButton;
     }
-    addButton(editButtonSize, (restButton = 
-            createParam<RestButton>(Vec(126, 202), module, NoteTaker::REST_BUTTON)));
-    addButton(editButtonSize, (partButton = 
-            createParam<PartButton>(Vec(158, 202), module, NoteTaker::PART_BUTTON)));
-    addButton(editButtonSize, (fileButton = 
-            createParam<FileButton>(Vec(190, 202), module, NoteTaker::FILE_BUTTON)));
-    addButton(editButtonSize, (sustainButton = 
-            createParam<SustainButton>(Vec(30, 252), module, NoteTaker::SUSTAIN_BUTTON)));
-    addButton(editButtonSize, (timeButton = 
-            createParam<TimeButton>(Vec(62, 252), module, NoteTaker::TIME_BUTTON)));
-    addButton(editButtonSize, (keyButton = 
-            createParam<KeyButton>(Vec(94, 252), module, NoteTaker::KEY_BUTTON)));
-    addButton(editButtonSize, (tieButton = 
-            createParam<TieButton>(Vec(126, 252), module, NoteTaker::TIE_BUTTON)));
-    addButton(editButtonSize, (trillButton = 
-            createParam<TrillButton>(Vec(158, 252), module, NoteTaker::TRILL_BUTTON)));
-    addButton(editButtonSize, (tempoButton = 
-            createParam<TempoButton>(Vec(190, 252), module, NoteTaker::TEMPO_BUTTON)));
-
+    this->addButton<RestButton>(&restButton, NoteTaker::REST_BUTTON);
+    this->addButton<PartButton>(&partButton, NoteTaker::PART_BUTTON);
+    this->addButton<FileButton>(&fileButton, NoteTaker::FILE_BUTTON);
+    this->addButton<SustainButton>(&sustainButton, NoteTaker::SUSTAIN_BUTTON);
+    this->addButton<TimeButton>(&timeButton, NoteTaker::TIME_BUTTON);
+    this->addButton<KeyButton>(&keyButton, NoteTaker::KEY_BUTTON);
+    this->addButton<TieButton>(&tieButton, NoteTaker::TIE_BUTTON);
+    this->addButton<TrillButton>(&trillButton, NoteTaker::TRILL_BUTTON);
+    this->addButton<TempoButton>(&tempoButton, NoteTaker::TEMPO_BUTTON);
     // debug button is hidden to the right of tempo
     addButton(editButtonSize, (dumpButton = 
             createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
-
     if (module) {
         module->onReset();
     }
@@ -194,6 +180,17 @@ NoteTakerSlot* NoteTakerWidget::activeSlot() {
         return &storage.slots[index];
     }
     return this->nt()->slot;
+}
+
+template<class TButton> void NoteTakerWidget::addButton(TButton** butPtr, int id) {
+    unsigned slot = (unsigned) id;
+    SCHMICKLE(slot > 0);
+    --slot;
+    const Vec position = { (float) (30 + slot % 6 * 32), (float) (202 + slot / 6 * 50) };
+    TButton* button = createParam<TButton>(position, module, id);
+    *butPtr = button;
+    this->addButton(editButtonSize, button);
+    button->slotNumber = slot;
 }
 
 void NoteTakerWidget::addButton(const Vec& size, NoteTakerButton* button) {
@@ -372,8 +369,37 @@ void NoteTakerWidget::copyToSlot(unsigned index) {
     *dest = *source;
 }
 
+void NoteTakerWidget::disableEmptyButtons() const {
+    for (NoteTakerButton* button : {
+            (NoteTakerButton*) selectButton,    (NoteTakerButton*) insertButton,
+            (NoteTakerButton*) cutButton,       (NoteTakerButton*) restButton,
+            (NoteTakerButton*) partButton,      (NoteTakerButton*) fileButton,
+            (NoteTakerButton*) sustainButton,   (NoteTakerButton*) timeButton,
+            (NoteTakerButton*) keyButton,       (NoteTakerButton*) tieButton,
+            (NoteTakerButton*) trillButton,     (NoteTakerButton*) tempoButton }) {
+        unsigned slotNumber = button->slotNumber;
+        if (storage.slots[slotNumber].n.isEmpty(ALL_CHANNELS)) {
+            button->animationFrame = 1;
+            button->fb()->dirty = true;
+        }
+    }
+}
+
 bool NoteTakerWidget::displayUI_on() const {
     return partButton->ledOn() || fileButton->ledOn() || sustainButton->ledOn() || tieButton->ledOn();
+}
+
+void NoteTakerWidget::enableButtons() const {
+    for (NoteTakerButton* button : {
+            (NoteTakerButton*) selectButton,    (NoteTakerButton*) insertButton,
+            (NoteTakerButton*) cutButton,       (NoteTakerButton*) restButton,
+            (NoteTakerButton*) partButton,      (NoteTakerButton*) fileButton,
+            (NoteTakerButton*) sustainButton,   (NoteTakerButton*) timeButton,
+            (NoteTakerButton*) keyButton,       (NoteTakerButton*) tieButton,
+            (NoteTakerButton*) trillButton,     (NoteTakerButton*) tempoButton }) {
+        button->animationFrame = 0;
+        button->fb()->dirty = true;
+    }
 }
 
 void NoteTakerWidget::enableInsertSignature(unsigned loc) {
@@ -422,6 +448,12 @@ bool NoteTakerWidget::extractClipboard(vector<DisplayNote>* span) const {
         }
     }
     return true;
+}
+
+unsigned NoteTakerWidget::getSlot() const {
+    unsigned result = this->nt()->slot - &storage.slots.front();
+    SCHMICKLE(result < STORAGE_SLOTS);
+    return result;
 }
 
 void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSize) {
@@ -697,6 +729,18 @@ NoteTaker* NoteTakerWidget::nt() {
 
 const NoteTaker* NoteTakerWidget::nt() const {
     return dynamic_cast<const NoteTaker* >(module);
+}
+
+void NoteTakerWidget::resetAndPlay() {
+    auto nt = this->nt();
+    auto& n = nt->n();
+    display->range.setRange(n);
+    unsigned next = nt->nextAfter(n.selectStart, 1);
+    nt->setSelectStart(next < n.notes.size() - 1 ? next : 
+            selectButton->editStart() ? 0 : 1);
+    horizontalWheel->lastRealValue = INT_MAX;
+    verticalWheel->lastValue = INT_MAX;
+    nt->playSelection();
 }
 
 bool NoteTakerWidget::resetControls() {

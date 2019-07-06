@@ -49,12 +49,14 @@ struct NoteTaker : Module {
         HORIZONTAL_WHEEL, // 15
 		NUM_PARAMS
 	};
+
 	enum InputIds {
 		V_OCT_INPUT,      // 16
         CLOCK_INPUT,      // 17
         RESET_INPUT,      // 18
 		NUM_INPUTS
 	};
+
 	enum OutputIds {
         CV1_OUTPUT,
         CV2_OUTPUT,
@@ -68,6 +70,7 @@ struct NoteTaker : Module {
         EOS_OUTPUT,
 		NUM_OUTPUTS
 	};
+    
 	enum LightIds {
         CLIPBOARD_ON_LIGHT,
 		NUM_LIGHTS

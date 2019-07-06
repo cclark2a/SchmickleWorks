@@ -19,6 +19,7 @@ struct ButtonBuffer : Widget {
 
 struct NoteTakerButton : Switch {
     int animationFrame = 0;
+    unsigned slotNumber = INT_MAX;
 
     NoteTakerButton() {
         momentary = true;
@@ -110,7 +111,7 @@ struct NoteTakerButton : Switch {
         }
     }
 
-    void stageSlot(unsigned slot);
+    bool stageSlot(const event::DragEnd& );
 
     virtual json_t *toJson() const {
         return nullptr;

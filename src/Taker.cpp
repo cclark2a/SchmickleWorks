@@ -113,7 +113,9 @@ void NoteTaker::process(const ProcessArgs &args) {
     if (INT_MAX != stagedSlot) {
         ntw()->setSlot(stagedSlot);
         stagedSlot = INT_MAX;
+        ntw()->invalidateAndPlay(Inval::load);
         this->resetRun();
+        ntw()->resetAndPlay();
     }
     auto& n = this->n();
     bool running = this->isRunning();
@@ -468,6 +470,7 @@ void NoteTaker::setVoiceCount() {
 }
 
 void NoteTaker::stageSlot(unsigned slot) {
+    if (debugVerbose) DEBUG("stageSlot %u", slot);
     stagedSlot = this->ntw()->storage.selected == slot ? INT_MAX : slot;
 }
 

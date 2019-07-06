@@ -48,8 +48,9 @@ struct NoteTakerWheel : app::SliderKnob {
     }
 
     // to do: not working yet
+    // to do: make this allow using scroll wheel to turn these wheels?
     void onHoverScroll(const event::HoverScroll &e) override {
-        DEBUG("onScroll %s\n");
+        DEBUG("onHoverScroll %s [%g, %g] \n", horizontal ? "horz" : "vert", e.pos.x, e.pos.y);
 	    Knob::onHoverScroll(e);
     }
 

@@ -50,7 +50,7 @@ struct NoteTakerWidget : ModuleWidget {
     TimeButton* timeButton = nullptr;
     TrillButton* trillButton = nullptr;
     VerticalWheel* verticalWheel = nullptr;
-
+    const Vec editButtonSize;
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     bool clipboardInvalid = true;
     const bool debugVerbose;
@@ -60,7 +60,8 @@ struct NoteTakerWidget : ModuleWidget {
 #endif
 
     NoteTakerWidget(NoteTaker* module);
-    NoteTakerSlot* activeSlot();
+    NoteTakerSlot* activeSlot();  // slot selected by wheel if file button active; or module slot
+    template<class TButton> void addButton(TButton** , int paramId );
     void addButton(const Vec& size, NoteTakerButton* );
     void addWheel(const Vec& size, NoteTakerWheel* );
     void appendContextMenu(Menu *menu) override;
@@ -68,10 +69,13 @@ struct NoteTakerWidget : ModuleWidget {
     void copySelectableNotes();
     void copyToSlot(unsigned );
     void debugDump(bool validatable = true, bool inWheel = false) const;
+    void disableEmptyButtons() const;
     bool displayUI_on() const;
+    void enableButtons() const;
     void enableInsertSignature(unsigned loc);
     bool extractClipboard(vector<DisplayNote>* span = nullptr) const;
     void fromJson(json_t* rootJ) override;
+    unsigned getSlot() const;  // index of module slot, not influenced by file button or wheel
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
     void invalidateAndPlay(Inval inval);
     void loadScore();
@@ -121,6 +125,7 @@ struct NoteTakerWidget : ModuleWidget {
         ModuleWidget::onButton(e);
     }
 
+    void resetAndPlay();
     bool resetControls();
     void resetRun();
     void resetScore();
