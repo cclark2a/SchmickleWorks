@@ -538,7 +538,8 @@ void NoteTakerDisplay::drawKeySignature(unsigned index) {
     } else {    
         if (dynamicSelectAlpha > 0) {
             auto nt = ntw()->nt();
-            dynamicSelectAlpha = (int) (255 * (dynamicSelectTimer - nt->realSeconds) / fadeDuration);
+            dynamicSelectAlpha = std::min(255, (int) (255 * (dynamicSelectTimer - nt->realSeconds)
+                    / fadeDuration));
             nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicSelectAlpha));
             nvgText(vg, xPos, 32 * 3 - 48, "%", NULL);
             nvgText(vg, xPos, 46 * 3 - 48, "%", NULL);
@@ -779,8 +780,12 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
             dynamicTempoTimer = nt->realSeconds + fadeDuration;
             horizontalWheel->lastRealValue = horizontalWheel->getValue();
         }
-        dynamicTempoAlpha = (int) (255 * (dynamicTempoTimer - nt->realSeconds) / fadeDuration);
-        dynamicPitchAlpha = (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration);
+        this->fb()->dirty = (dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
+                || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255);
+        dynamicTempoAlpha = std::max(0, (int) (255 * (dynamicTempoTimer - nt->realSeconds) / fadeDuration));
+        dynamicPitchAlpha = std::max(0, (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration));
+        this->fb()->dirty |= (dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
+                || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255);
     }
     auto vg = state.vg;
     if (dynamicPitchAlpha > 0) {
@@ -795,7 +800,6 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicPitchAlpha));
         nvgFill(vg);
         this->drawFreeNote(note, &noteCache, box.size.x - 7, dynamicPitchAlpha);
-        this->fb()->dirty = true;
     }
     if (dynamicTempoAlpha > 0) {
         nvgBeginPath(vg);
@@ -841,7 +845,7 @@ void NoteTakerDisplay::drawFileControl() {
         nvgFontFaceId(vg, ntw->textFont());
         nvgFontSize(vg, 10);
         nvgTextAlign(vg, NVG_ALIGN_RIGHT);
-        std::string label = std::to_string(index);
+        std::string label = std::to_string(index + 1);
         float bounds[4];
         (void) nvgTextBounds(vg, textX, textY, label.c_str(), NULL, bounds);
         nvgBeginPath(vg);

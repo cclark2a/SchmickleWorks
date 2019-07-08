@@ -18,12 +18,14 @@ struct ButtonBuffer : Widget {
 };
 
 struct NoteTakerButton : Switch {
-    int animationFrame = 0;
     unsigned slotNumber = INT_MAX;
+    int animationFrame = 0;
 
     NoteTakerButton() {
         momentary = true;
     }
+
+    void draw(const DrawArgs& args) override;
 
     FramebufferWidget* fb() const {
         return dynamic_cast<FramebufferWidget*>(parent);
@@ -97,6 +99,8 @@ struct NoteTakerButton : Switch {
         NoteTakerButton::onTurnOff();
         ParamWidget::reset();
     }
+
+    int runAlpha() const;
     
     void setLimits(float lo, float hi) {
         if (paramQuantity) {
@@ -163,6 +167,7 @@ struct EditButton : NoteTakerButton {
         if (!momentary) {
             this->drawLED(vg);
         }
+        NoteTakerButton::draw(args);
     }
 
     void drawLED(NVGcontext *vg) {
@@ -175,6 +180,7 @@ struct EditButton : NoteTakerButton {
             color.g /= 2;
             color.b /= 2;
         }
+        color = nvgTransRGBA(color, this->runAlpha());
         nvgFillColor(vg, color);
         nvgFill(vg);
     }
@@ -401,6 +407,9 @@ struct RestButtonToolTip : ParamQuantity {
 };
 
 struct RunButton : NoteTakerButton {
+    int dynamicRunAlpha = 0;
+    float dynamicRunTimer = 0;
+    const float fadeDuration = 1;
 
     RunButton() {
         momentary = false;

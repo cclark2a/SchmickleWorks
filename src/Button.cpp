@@ -40,7 +40,8 @@ void CutButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, ";", NULL);
 }
@@ -169,7 +170,8 @@ void FileButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 5 + af, 41 - af, ":", NULL);
 }
@@ -179,7 +181,8 @@ void InsertButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 41 - af, "H", NULL);
 }
@@ -372,10 +375,44 @@ void KeyButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 6 + af, 33 - af, "#", NULL);
     nvgText(vg, 10 + af, 41 - af, "$", NULL);
+}
+
+void NoteTakerButton::draw(const DrawArgs& args) {
+    const int af = animationFrame;
+    auto ntw = this->ntw();
+    auto nt = ntw->nt();
+    if (!nt || slotNumber >= STORAGE_SLOTS) {
+        return;
+    }
+    auto runButton = ntw->runButton;
+    if (runButton->dynamicRunTimer >= nt->realSeconds) {
+        this->fb()->dirty = true;
+    }
+    auto vg = args.vg;
+    int alpha = std::max(0, (int) (255 * (runButton->dynamicRunTimer - nt->realSeconds)
+            / runButton->fadeDuration));
+    if (runButton->ledOn()) {
+        alpha = 255 - alpha;
+    }
+    runButton->dynamicRunAlpha = alpha;
+    if (ntw->storage.slots[slotNumber].n.isEmpty(ALL_CHANNELS)) {
+        alpha /= 3;
+    }
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
+    std::string label = std::to_string(slotNumber + 1);
+    nvgFontFaceId(vg, ntw->textFont());
+    nvgTextAlign(vg, NVG_ALIGN_CENTER);
+    nvgFontSize(vg, 18);
+    nvgText(vg, 10 + af, 32 - af, label.c_str(), NULL);
+}
+
+int NoteTakerButton::runAlpha() const {
+    return 255 - ntw()->runButton->dynamicRunAlpha;
 }
 
 bool NoteTakerButton::stageSlot(const event::DragEnd& e) {
@@ -398,7 +435,8 @@ void PartButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 41 - af, "\"", NULL);
 }
@@ -426,7 +464,8 @@ void RestButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 36);
     nvgText(vg, 8 + af, 41 - af, "t", NULL);
 }
@@ -459,15 +498,18 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     auto ntw = this->ntw();
     auto nt = ntw->nt();
-    if (!ledOn()) {
+    if (!this->ledOn()) {
         nt->zeroGates();
         ntw->enableButtons();
+        dynamicRunAlpha = 255;
     } else {
         nt->resetRun();
         ntw->resetAndPlay();
         ntw->turnOffLedButtons(this);
         ntw->disableEmptyButtons();
+        dynamicRunAlpha = 0;
     }
+    dynamicRunTimer = nt->realSeconds + fadeDuration;
     ntw->setWheelRange();
     DEBUG("onDragEnd end af %d ledOn %d", animationFrame, ledOn());
 }
@@ -477,7 +519,8 @@ void SelectButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, "<", NULL);  // was \u00E0
 }
@@ -565,7 +608,8 @@ void SustainButton::draw(const DrawArgs& args) {
     EditLEDButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 4 + af, 41 - af, "=", NULL);
 }
@@ -594,7 +638,8 @@ void TempoButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 5 + af, 41 - af, "@", NULL);
 }
@@ -614,7 +659,8 @@ void TieButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 1 + af, 41 - af, ">", NULL);
 }
@@ -644,7 +690,8 @@ void TimeButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 33 - af, "4", NULL);
     nvgText(vg, 8 + af, 41 - af, "4", NULL);
@@ -664,7 +711,8 @@ void TrillButton::draw(const DrawArgs& args) {
     EditButton::draw(args);
     NVGcontext* vg = args.vg;
     nvgFontFaceId(vg, ntw()->musicFont());
-    nvgFillColor(vg, nvgRGB(0, 0, 0));
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 8.5 + af, 41 - af, "?", NULL);
 }
