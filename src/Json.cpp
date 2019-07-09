@@ -54,6 +54,7 @@ json_t* NoteTakerWidget::toJson() {
     json_object_set_new(root, "restButton", restButton->toJson());
     json_object_set_new(root, "runButton", runButton->toJson());
     json_object_set_new(root, "selectButton", selectButton->toJson());
+    json_object_set_new(root, "slotButton", slotButton->toJson());
     json_object_set_new(root, "sustainButton", sustainButton->toJson());
     json_object_set_new(root, "timeButton", timeButton->toJson());
     json_object_set_new(root, "horizontalWheel", horizontalWheel->toJson());
@@ -118,6 +119,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     restButton->fromJson(json_object_get(root, "restButton"));
     runButton->fromJson(json_object_get(root, "runButton"));
     selectButton->fromJson(json_object_get(root, "selectButton"));
+    slotButton->fromJson(json_object_get(root, "slotButton"));
     sustainButton->fromJson(json_object_get(root, "sustainButton"));
     timeButton->fromJson(json_object_get(root, "timeButton"));
     horizontalWheel->fromJson(json_object_get(root, "horizontalWheel"));

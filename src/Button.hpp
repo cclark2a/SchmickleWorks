@@ -201,6 +201,8 @@ struct EditLEDButton : EditButton {
     bool ledOn() const override {
          return paramQuantity ? this->paramQuantity->getValue() : false;
     }
+
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 // shared by time signature and rest, but not insert
@@ -300,8 +302,6 @@ struct DumpButton : NoteTakerButton {
 
 struct FileButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
-
-    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct FileButtonToolTip : ParamQuantity {
@@ -551,9 +551,24 @@ struct SelectButtonToolTip : ParamQuantity {
     }
 };
 
+struct SlotButton : EditLEDButton {
+    enum class Select {
+        end,
+        slot,
+        repeat,
+    };
+
+    void draw(const DrawArgs& ) override;
+};
+
+struct SlotButtonToolTip : ParamQuantity {
+    std::string getDisplayValueString() override {
+        return "Playback Order";
+    }
+};
+
 struct SustainButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
-    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct SustainButtonToolTip : ParamQuantity {
@@ -583,7 +598,6 @@ struct TieButton : EditLEDButton {
     State state = State::normal;
 
     void draw(const DrawArgs& ) override;
-    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct TieButtonToolTip : ParamQuantity {
@@ -600,16 +614,5 @@ struct TimeButton : AdderButton {
 struct TimeButtonToolTip : ParamQuantity {
     std::string getDisplayValueString() override {
         return "Time Signature";
-    }
-};
-
-struct TrillButton : AdderButton {
-    void draw(const DrawArgs& ) override;
-    void onDragEnd(const event::DragEnd &e) override;
-};
-
-struct TrillButtonToolTip : ParamQuantity {
-    std::string getDisplayValueString() override {
-        return "";
     }
 };

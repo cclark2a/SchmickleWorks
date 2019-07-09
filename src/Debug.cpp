@@ -94,7 +94,7 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             n.selectStart, n.selectEnd, display->range.displayStart, display->range.displayEnd,
             selectChannels, 
             this->unlockedChannel(), nt() ? nt()->tempo : 0, n.ppq, edit.voice);
-    auto& slot = storage.slots[storage.selected];
+    auto& slot = storage.slots[storage.selectStart];
     NoteTaker::DebugDump(n.notes, slot.invalid ? nullptr : &slot.cache.notes,
             n.selectStart, n.selectEnd);
     DEBUG("clipboard");

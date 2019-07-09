@@ -41,9 +41,9 @@ struct NoteTaker : Module {
         SUSTAIN_BUTTON,   // 7
         TIME_BUTTON,      // 8
         KEY_BUTTON,       // 9
-        TIE_BUTTON,       // 10
-        TRILL_BUTTON,     // 11
-        TEMPO_BUTTON,     // 12
+        TEMPO_BUTTON,     // 10
+        TIE_BUTTON,       // 11
+        SLOT_BUTTON,      // 12
         DUMP_BUTTON,      // 13
         VERTICAL_WHEEL,   // 14
         HORIZONTAL_WHEEL, // 15
@@ -54,6 +54,7 @@ struct NoteTaker : Module {
 		V_OCT_INPUT,      // 16
         CLOCK_INPUT,      // 17
         RESET_INPUT,      // 18
+        SLOT_INPUT,       // 19
 		NUM_INPUTS
 	};
 

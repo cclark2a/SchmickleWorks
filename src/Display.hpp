@@ -109,6 +109,26 @@ struct DisplayRange {
 // to fluidly switch between banks of notes on the fly, the display cache and so on must
 // be precalcuated. Store them with notes in the slot for that reason
 
+struct DisplayControl {
+    NoteTakerDisplay* display;
+    NVGcontext* vg;
+    const float boxWidth = 25;
+    unsigned firstVisible;
+    unsigned lastVisible;
+
+    DisplayControl(NoteTakerDisplay* , NVGcontext*);
+    void autoDrift(float fSlot, int slot);
+    void clear(int slot) const;
+    void drawActive(float wheel) const;
+    void drawActiveNarrow(int slot) const;
+    void drawEmpty() const;
+    void drawEnd() const;
+    void drawNumber(unsigned index) const;
+    void drawNote() const;
+    void drawSlot(unsigned position, unsigned slotIndex) const;
+    void drawStart() const;
+};
+
 struct NoteTakerDisplay : Widget {
     NoteTakerWidget* mainWidget;
     Notes* previewNotes = nullptr; // hardcoded set of notes for preview
@@ -116,7 +136,6 @@ struct NoteTakerDisplay : Widget {
     DisplayRange range;
     DisplayState state;
     const StaffNote* pitchMap = nullptr;
-    float xControlOffset = 0;
     int dynamicPitchAlpha = 0;
     int dynamicSelectAlpha = 0;
     int dynamicTempoAlpha = 0;
@@ -124,6 +143,7 @@ struct NoteTakerDisplay : Widget {
     float dynamicPitchTimer = 0;
     float dynamicSelectTimer = 0;
     float dynamicTempoTimer = 0;
+    float xControlOffset = 0;
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;
@@ -155,6 +175,7 @@ struct NoteTakerDisplay : Widget {
     void drawNotes(BarPosition& bar);
     void drawPartControl() const;
     void drawSelectionRect();
+    void drawSlotControl();
     void drawSlur(unsigned start, unsigned char alpha) const;
     void drawStaffLines() const;
     void drawSustainControl() const;

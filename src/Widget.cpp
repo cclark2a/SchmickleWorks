@@ -115,7 +115,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
         module->configParam<TimeButtonToolTip>(NoteTaker::TIME_BUTTON, 0, 1, 0, "Insert");
         module->configParam<KeyButtonToolTip>(NoteTaker::KEY_BUTTON, 0, 1, 0, "Insert");
         module->configParam<TieButtonToolTip>(NoteTaker::TIE_BUTTON, 0, 1, 0, "Add");
-        module->configParam<TrillButtonToolTip>(NoteTaker::TRILL_BUTTON, 0, 1, 0, "Unimplemented");
+        module->configParam<SlotButtonToolTip>(NoteTaker::SLOT_BUTTON, 0, 1, 0, "Edit");
         module->configParam<TempoButtonToolTip>(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert");
         module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
         module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
@@ -135,6 +135,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     addInput(createInput<PJ301MPort>(Vec(140, 306), module, NoteTaker::V_OCT_INPUT));
     addInput(createInput<PJ301MPort>(Vec(172, 306), module, NoteTaker::CLOCK_INPUT));
     addInput(createInput<PJ301MPort>(Vec(204, 306), module, NoteTaker::RESET_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(140, 338), module, NoteTaker::SLOT_INPUT));
     addOutput(createOutput<PJ301MPort>(Vec(172, 338), module, NoteTaker::CLOCK_OUTPUT));
     addOutput(createOutput<PJ301MPort>(Vec(204, 338), module, NoteTaker::EOS_OUTPUT));
 
@@ -163,7 +164,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     this->addButton<TimeButton>(&timeButton, NoteTaker::TIME_BUTTON);
     this->addButton<KeyButton>(&keyButton, NoteTaker::KEY_BUTTON);
     this->addButton<TieButton>(&tieButton, NoteTaker::TIE_BUTTON);
-    this->addButton<TrillButton>(&trillButton, NoteTaker::TRILL_BUTTON);
+    this->addButton<SlotButton>(&slotButton, NoteTaker::SLOT_BUTTON);
     this->addButton<TempoButton>(&tempoButton, NoteTaker::TEMPO_BUTTON);
     // debug button is hidden to the right of tempo
     addButton(editButtonSize, (dumpButton = 
@@ -376,17 +377,14 @@ void NoteTakerWidget::disableEmptyButtons() const {
             (NoteTakerButton*) partButton,      (NoteTakerButton*) fileButton,
             (NoteTakerButton*) sustainButton,   (NoteTakerButton*) timeButton,
             (NoteTakerButton*) keyButton,       (NoteTakerButton*) tieButton,
-            (NoteTakerButton*) trillButton,     (NoteTakerButton*) tempoButton }) {
+            (NoteTakerButton*) slotButton,      (NoteTakerButton*) tempoButton }) {
         unsigned slotNumber = button->slotNumber;
-        if (storage.slots[slotNumber].n.isEmpty(ALL_CHANNELS)) {
+        if (storage.slots[slotNumber].n.isEmpty(ALL_CHANNELS)
+                || button->slotNumber == storage.selectStart) {
             button->animationFrame = 1;
         }
         button->fb()->dirty = true;
     }
-}
-
-bool NoteTakerWidget::displayUI_on() const {
-    return partButton->ledOn() || fileButton->ledOn() || sustainButton->ledOn() || tieButton->ledOn();
 }
 
 void NoteTakerWidget::enableButtons() const {
@@ -396,7 +394,7 @@ void NoteTakerWidget::enableButtons() const {
             (NoteTakerButton*) partButton,      (NoteTakerButton*) fileButton,
             (NoteTakerButton*) sustainButton,   (NoteTakerButton*) timeButton,
             (NoteTakerButton*) keyButton,       (NoteTakerButton*) tieButton,
-            (NoteTakerButton*) trillButton,     (NoteTakerButton*) tempoButton }) {
+            (NoteTakerButton*) slotButton,      (NoteTakerButton*) tempoButton }) {
         button->animationFrame = 0;
         button->fb()->dirty = true;
     }
@@ -662,7 +660,8 @@ void NoteTakerWidget::makeTuplet() {
 
 // true if a button that brings up a secondary menu on display is active
 bool NoteTakerWidget::menuButtonOn() const {
-    return fileButton->ledOn() || partButton->ledOn() || sustainButton->ledOn() || tieButton->ledOn();
+    return fileButton->ledOn() || partButton->ledOn() || slotButton->ledOn()
+            || sustainButton->ledOn() || tieButton->ledOn();
 }
 
 DisplayNote NoteTakerWidget::middleC() const {
@@ -802,7 +801,9 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
 
 
 void NoteTakerWidget::setSlot(unsigned index) {
-    storage.selected = index;
+    storage.selectStart = index;
+    storage.selectEnd = index + 1;
+    storage.saveZero = false;
     auto nt = this->nt();
     if (nt) {
         nt->slot = &storage.slots[index];
@@ -824,6 +825,7 @@ void NoteTakerWidget::turnOffLedButtons(const NoteTakerButton* exceptFor) {
                 (NoteTakerButton*) fileButton,
                 (NoteTakerButton*) partButton,
                 (NoteTakerButton*) runButton,
+                (NoteTakerButton*) slotButton,
                 (NoteTakerButton*) sustainButton,
                 (NoteTakerButton*) tieButton }) {
         if (exceptFor != button) {

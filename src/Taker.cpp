@@ -471,7 +471,7 @@ void NoteTaker::setVoiceCount() {
 
 void NoteTaker::stageSlot(unsigned slot) {
     if (debugVerbose) DEBUG("stageSlot %u", slot);
-    stagedSlot = this->ntw()->storage.selected == slot ? INT_MAX : slot;
+    stagedSlot = this->ntw()->storage.selectStart == slot ? INT_MAX : slot;
 }
 
 float NoteTaker::wheelToTempo(float value) const {

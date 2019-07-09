@@ -12,13 +12,45 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     }
     if (fileButton->ledOn()) {
         // to do : here, and in other places: set speed proportional to limits
-        horizontalWheel->setLimits(0, storage.size());
+        horizontalWheel->setLimits(0, storage.size() - 1);
         horizontalWheel->setValue(this->getSlot());
         return;
     }
     if (partButton->ledOn()) {
         horizontalWheel->setLimits(-1, CV_OUTPUTS);
         horizontalWheel->setValue(this->unlockedChannel());
+        return;
+    }
+    if (slotButton->ledOn()) {
+        if (selectButton->isOff()) {
+            SlotButton::Select select = (SlotButton::Select) verticalWheel->getValue();
+            const auto& slotPlay = storage.playback[storage.selectStart];
+            switch(select) {
+                case SlotButton::Select::repeat:
+                    horizontalWheel->setLimits(1, 99);
+                    horizontalWheel->setValue(slotPlay.repeat);
+                    break;
+                case SlotButton::Select::slot:
+                    horizontalWheel->setLimits(0, storage.size() - 1);
+                    horizontalWheel->setValue(slotPlay.index);
+                    break;
+                case SlotButton::Select::end:
+                    horizontalWheel->setLimits(0, (int) SlotPlay::Stage::never);
+                    horizontalWheel->setValue((int) slotPlay.stage);
+                    break;
+                default:
+                    _schmickled();
+            }
+        } else if (selectButton->isSingle()) {
+            horizontalWheel->setLimits(0, storage.playback.size());
+            horizontalWheel->setValue(storage.selectStart);
+        } else {
+            SCHMICKLE(selectButton->isExtend());
+            horizontalWheel->setLimits(0, storage.playback.size() - 1);
+            horizontalWheel->setValue(storage.selectStart);
+            edit.originalStart = storage.selectStart;
+            edit.originalEnd = storage.selectEnd;
+        }
         return;
     }
     if (sustainButton->ledOn()) {
@@ -103,6 +135,13 @@ void NoteTakerWidget::setVerticalWheelRange() {
         verticalWheel->setValue(5);
         return;
     }
+    if (slotButton->ledOn()) {
+        if (selectButton->isOff()) {
+            verticalWheel->setLimits(0, 2.999f);
+            verticalWheel->setValue(1.5f); // choose slot
+        }
+        return;
+    }
     if (sustainButton->ledOn()) {
         verticalWheel->setLimits(0, 3.999f);
         verticalWheel->setValue(2.5f); // sustain min
@@ -174,7 +213,6 @@ void NoteTakerWidget::setWheelRange() {
 
 void NoteTakerWidget::updateHorizontal() {
     auto& n = this->n();
-    
     if (runButton->ledOn()) {
         return;
     }
@@ -183,6 +221,41 @@ void NoteTakerWidget::updateHorizontal() {
         return;
     }
     if (partButton->ledOn()) {
+        return;
+    }
+    if (slotButton->ledOn()) {
+        // move selection in storage playback, or change slot #, repeat, stage
+        unsigned wheelValue = (unsigned) horizontalWheel->getValue();
+        if (selectButton->isOff()) {
+            for (unsigned index = storage.selectStart; index < storage.selectEnd; ++index) {
+                auto& slot = storage.playback[index];
+                switch ((SlotButton::Select) verticalWheel->getValue()) {
+                    case SlotButton::Select::repeat:
+                        slot.repeat = wheelValue;
+                    break;
+                    case SlotButton::Select::slot:
+                        slot.index = wheelValue;
+                    break;
+                    case SlotButton::Select::end:
+                        slot.stage = (SlotPlay::Stage) wheelValue;
+                    break;
+                    default:
+                        _schmickled();
+                }
+            }
+        } else if (selectButton->isSingle()) {
+            storage.selectStart = wheelValue;
+            storage.saveZero = !storage.selectStart;
+            if (storage.selectStart) {
+                storage.selectStart -= 1;
+            }
+            storage.selectEnd = storage.selectStart + 1;
+        } else {
+            SCHMICKLE(selectButton->isExtend());
+            unsigned wheelStart = storage.selectStart - (int) storage.saveZero + 1;
+            storage.selectStart = std::min(wheelValue, wheelStart);
+            storage.selectEnd = std::max(wheelValue + 1, wheelStart);
+        }
         return;
     }
     if (sustainButton->ledOn()) {
@@ -374,6 +447,7 @@ void NoteTakerWidget::updateVertical() {
                 this->copyToSlot(val);
                 this->setSlot(val);
             } else {
+                SCHMICKLE(partButton->ledOn());
                 int part = horizontalWheel->part();
                 if (part < 0) {
                     selectChannels = ALL_CHANNELS;
@@ -395,6 +469,26 @@ void NoteTakerWidget::updateVertical() {
                 }
             }
         }
+        return;
+    }
+    if (slotButton->ledOn()) {
+        // to do : choose edit mode: 'repeat', 'slot', 'end'
+        SlotPlay& slot = storage.playback[storage.selectStart];
+        int slotParam = INT_MAX;
+        switch(wheelValue) {
+            case 2:
+                slotParam = slot.repeat;
+                break;
+            case 1:
+                slotParam = slot.index;
+                break;
+            case 0:
+                slotParam = (int) slot.stage;
+                break;
+            default:
+                _schmickled();
+        }
+        horizontalWheel->setValue(slotParam);
         return;
     }
     if (sustainButton->ledOn()) {

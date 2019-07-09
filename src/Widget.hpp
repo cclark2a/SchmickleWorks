@@ -23,7 +23,7 @@ struct SustainButton;
 struct TempoButton;
 struct TieButton;
 struct TimeButton;
-struct TrillButton;
+struct SlotButton;
 struct VerticalWheel;
 
 struct NoteTakerWidget : ModuleWidget {
@@ -48,7 +48,7 @@ struct NoteTakerWidget : ModuleWidget {
     TempoButton* tempoButton = nullptr;
     TieButton* tieButton = nullptr;
     TimeButton* timeButton = nullptr;
-    TrillButton* trillButton = nullptr;
+    SlotButton* slotButton = nullptr;
     VerticalWheel* verticalWheel = nullptr;
     const Vec editButtonSize;
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
@@ -70,7 +70,6 @@ struct NoteTakerWidget : ModuleWidget {
     void copyToSlot(unsigned );
     void debugDump(bool validatable = true, bool inWheel = false) const;
     void disableEmptyButtons() const;
-    bool displayUI_on() const;
     void enableButtons() const;
     void enableInsertSignature(unsigned loc);
     bool extractClipboard(vector<DisplayNote>* span = nullptr) const;

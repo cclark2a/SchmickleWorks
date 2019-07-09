@@ -4,9 +4,7 @@
 #include "Channel.hpp"
 #include "Notes.hpp"
 
-
-
-struct NoteTakerSlot {
+struct SlotPlay {
     // switch slots on next ...
     enum class Stage {
         unknown,
@@ -18,12 +16,17 @@ struct NoteTakerSlot {
         never,
     };
 
+    unsigned index = 0;
+    unsigned repeat = 1;
+    Stage stage = Stage::song;
+};
+
+struct NoteTakerSlot {
     Notes n;
     DisplayCache cache;
     array<NoteTakerChannel, CHANNEL_COUNT> channels;
     std::string directory;
     std::string filename;
-    Stage stage = Stage::unknown;
     bool invalid = true;
 
     static void Decode(const vector<char>& encoded, vector<uint8_t>* midi);
@@ -38,17 +41,21 @@ struct NoteTakerSlot {
 
 struct SlotArray {
     array<NoteTakerSlot, STORAGE_SLOTS> slots;
-    unsigned selected = 0;
+    vector<SlotPlay> playback;
+    unsigned selectStart = 0;
+    unsigned selectEnd = 1;
+    bool saveZero = false;   // set if single was at left-most position
     const bool debugVerbose;
 
     void fromJson(json_t* root);
 
     SlotArray()
     : debugVerbose(DEBUG_VERBOSE) {
+        playback.emplace_back();
     }
 
     void invalidate() {
-        slots[selected].invalid = true;
+        slots[selectStart].invalid = true;
     }
 
     unsigned size() const { return slots.size(); }

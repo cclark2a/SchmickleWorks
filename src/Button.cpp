@@ -155,12 +155,12 @@ void EditButton::onDragStart(const event::DragStart& e) {
     NoteTakerButton::onDragStart(e);
 }
 
-void FileButton::onDragEnd(const event::DragEnd& e) {
+void EditLEDButton::onDragEnd(const event::DragEnd& e) {
     if (this->stageSlot(e)) {
         return;
     }
-    NoteTakerButton::onDragEnd(e);
     auto ntw = this->ntw();
+    NoteTakerButton::onDragEnd(e);
     ntw->turnOffLedButtons(this);
     ntw->setWheelRange();
 }
@@ -593,14 +593,15 @@ void SelectButton::setSingle() {
     ntw->setClipboardLight();
 }
 
-void SustainButton::onDragEnd(const event::DragEnd& e) {
-    if (this->stageSlot(e)) {
-        return;
-    }
-    auto ntw = this->ntw();
-    NoteTakerButton::onDragEnd(e);
-    ntw->turnOffLedButtons(this);
-    ntw->setWheelRange();
+void SlotButton::draw(const DrawArgs& args) {
+    const int af = animationFrame;
+    EditLEDButton::draw(args);
+    NVGcontext* vg = args.vg;
+    nvgFontFaceId(vg, ntw()->musicFont());
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
+    nvgFontSize(vg, 32);
+    nvgText(vg, 1.5 + af, 41 - af, "?", NULL);
 }
 
 void SustainButton::draw(const DrawArgs& args) {
@@ -644,16 +645,6 @@ void TempoButton::draw(const DrawArgs& args) {
     nvgText(vg, 5 + af, 41 - af, "@", NULL);
 }
 
-void TieButton::onDragEnd(const event::DragEnd& e) {
-    if (this->stageSlot(e)) {
-        return;
-    }
-    auto ntw = this->ntw();
-    NoteTakerButton::onDragEnd(e);
-    ntw->turnOffLedButtons(this);
-    ntw->setWheelRange();
-}
-
 void TieButton::draw(const DrawArgs& args) {
     const int af = animationFrame;
     EditButton::draw(args);
@@ -695,24 +686,4 @@ void TimeButton::draw(const DrawArgs& args) {
     nvgFontSize(vg, 24);
     nvgText(vg, 8 + af, 33 - af, "4", NULL);
     nvgText(vg, 8 + af, 41 - af, "4", NULL);
-}
-
-// to do : instead of trill add button to edit order of slots, and slot ending criteria
-void TrillButton::onDragEnd(const event::DragEnd& e) {
-    if (this->stageSlot(e)) {
-        return;
-    }
-    // to do : implement?
-    return;
-}
-
-void TrillButton::draw(const DrawArgs& args) {
-    const int af = animationFrame;
-    EditButton::draw(args);
-    NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, ntw()->musicFont());
-    nvgTextAlign(vg, NVG_ALIGN_LEFT);
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
-    nvgFontSize(vg, 24);
-    nvgText(vg, 8.5 + af, 41 - af, "?", NULL);
 }

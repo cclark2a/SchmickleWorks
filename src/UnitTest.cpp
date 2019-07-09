@@ -95,8 +95,8 @@ static void LowLevelAction(NoteTakerWidget* n, int control) {
         case NoteTaker::TIE_BUTTON:
             Press(n, n->tieButton);
         break;
-        case NoteTaker::TRILL_BUTTON:
-            Press(n, n->trillButton);
+        case NoteTaker::SLOT_BUTTON:
+            Press(n, n->slotButton);
         break;
         case NoteTaker::TEMPO_BUTTON:
             Press(n, n->tempoButton);
