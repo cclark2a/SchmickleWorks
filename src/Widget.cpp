@@ -82,6 +82,28 @@ struct DisplayBevel : Widget {
 
 };
 
+void Clipboard::fromJsonCompressed(json_t* root) {
+    Notes::FromJsonCompressed(root, &notes, nullptr);
+}
+
+void Clipboard::fromJsonUncompressed(json_t* root) {
+    Notes::FromJsonUncompressed(root, &notes);
+}
+
+json_t* Clipboard::playBackToJson() const {
+    json_t* root = json_object();
+    json_t* slots = json_array();
+    for (const auto& slot : playback) {
+        json_array_append_new(slots, slot.toJson());
+    }
+    json_object_set_new(root, "slots", slots);
+    return root;
+}
+
+void Clipboard::toJsonCompressed(json_t* root) const {
+    Notes::ToJsonCompressed(notes, root, "clipboardCompressed");
+}
+
 // move everything hanging off NoteTaker for inter-app communication and hang it off
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
@@ -346,6 +368,11 @@ void NoteTakerWidget::copyNotes() {
     this->setClipboardLight();
 }
 
+void NoteTakerWidget::copySlots() {
+    clipboard.playback.assign(storage.playback.begin() + storage.selectStart,
+            storage.playback.begin() + storage.selectEnd);
+}
+
 void NoteTakerWidget::copySelectableNotes() {
     if (!clipboardInvalid) {
         return;
@@ -450,22 +477,30 @@ bool NoteTakerWidget::extractClipboard(vector<DisplayNote>* span) const {
 
 unsigned NoteTakerWidget::getSlot() const {
     unsigned result = this->nt()->slot - &storage.slots.front();
-    SCHMICKLE(result < STORAGE_SLOTS);
+    SCHMICKLE(result < SLOT_COUNT);
     return result;
 }
 
 void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned insertSize) {
-    if (shiftTime) {
-        this->shiftNotes(insertLoc + insertSize, shiftTime);
+    bool slotOn = slotButton->ledOn();
+    if (slotOn) {
+        storage.selectStart = insertLoc;
+        storage.selectEnd = insertLoc + insertSize;
     } else {
-        auto& n = this->n();
-        NoteTaker::Sort(n.notes);
+        if (shiftTime) {
+            this->shiftNotes(insertLoc + insertSize, shiftTime);
+        } else {
+            auto& n = this->n();
+            NoteTaker::Sort(n.notes);
+        }
+        nt()->setSelect(insertLoc, nt()->nextAfter(insertLoc, insertSize));
     }
     display->range.displayEnd = 0;  // force recompute of display end
-    nt()->setSelect(insertLoc, nt()->nextAfter(insertLoc, insertSize));
     if (debugVerbose) DEBUG("insert final");
     this->setWheelRange();  // range is larger
-    this->invalidateAndPlay(Inval::note);
+    if (!slotOn) {
+        this->invalidateAndPlay(Inval::note);
+    }
     if (debugVerbose) this->debugDump(true);
 }
 
@@ -743,7 +778,7 @@ void NoteTakerWidget::resetAndPlay() {
 }
 
 bool NoteTakerWidget::resetControls() {
-    this->turnOffLedButtons();
+    this->turnOffLEDButtons();
     for (NoteTakerButton* button : {
             (NoteTakerButton*) cutButton,
             (NoteTakerButton*) insertButton,
@@ -778,7 +813,8 @@ bool NoteTakerWidget::runningWithButtonsOff() const {
 }
 
 void NoteTakerWidget::setClipboardLight() {
-    bool ledOn = !clipboard.notes.empty() && this->extractClipboard();
+    bool ledOn = slotButton->ledOn() ? !clipboard.playback.empty() :
+            !clipboard.notes.empty() && this->extractClipboard();
     float brightness = ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
     nt()->setClipboardLight(brightness);
 }
@@ -801,9 +837,6 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
 
 
 void NoteTakerWidget::setSlot(unsigned index) {
-    storage.selectStart = index;
-    storage.selectEnd = index + 1;
-    storage.saveZero = false;
     auto nt = this->nt();
     if (nt) {
         nt->slot = &storage.slots[index];
@@ -820,7 +853,7 @@ void NoteTakerWidget::shiftNotes(unsigned start, int diff) {
 // never turns off select button, since it cannot be turned off if score is empty,
 // and it contains state that should not be arbitrarily deleted. select button
 // is explicitly reset only when notetaker overall state is reset
-void NoteTakerWidget::turnOffLedButtons(const NoteTakerButton* exceptFor) {
+void NoteTakerWidget::turnOffLEDButtons(const NoteTakerButton* exceptFor, bool exceptSlot) {
     for (NoteTakerButton* button : {
                 (NoteTakerButton*) fileButton,
                 (NoteTakerButton*) partButton,
@@ -828,7 +861,7 @@ void NoteTakerWidget::turnOffLedButtons(const NoteTakerButton* exceptFor) {
                 (NoteTakerButton*) slotButton,
                 (NoteTakerButton*) sustainButton,
                 (NoteTakerButton*) tieButton }) {
-        if (exceptFor != button) {
+        if (exceptFor != button && (!exceptSlot || slotButton != button)) {
             button->onTurnOff();
         }
     }

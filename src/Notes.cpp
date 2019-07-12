@@ -5,13 +5,13 @@
 #include "ParseMidi.hpp"
 #include "Storage.hpp"
 
-void Notes::deserialize(const vector<uint8_t>& storage) {
+void Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
     array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;
-    NoteTakerParseMidi midiParser(storage, *this, dummyChannels);
+    NoteTakerParseMidi midiParser(storage, notes, ppq, dummyChannels);
     vector<uint8_t>::const_iterator iter = midiParser.midi.begin();
     DisplayNote note(UNUSED);
     int lastSuccess = 0;
-    notes.clear();
+    notes->clear();
     do {
         int delta;
         int attempt = iter - midiParser.midi.begin();
@@ -50,7 +50,7 @@ void Notes::deserialize(const vector<uint8_t>& storage) {
             return;
         }
         note.selected = *iter++;
-        notes.push_back(note);
+        notes->push_back(note);
         lastSuccess = attempt;
     } while (iter != midiParser.midi.end());
 }
@@ -63,7 +63,7 @@ void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
     }
 }
 
-void Notes::fromJsonCompressed(json_t* jNotes) {
+void Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* ppq) {
     if (!jNotes) {
         return;
     }
@@ -71,15 +71,15 @@ void Notes::fromJsonCompressed(json_t* jNotes) {
     vector<char> encoded(encodedString, encodedString + strlen(encodedString));
     vector<uint8_t> midi;
     NoteTakerSlot::Decode(encoded, &midi);
-    this->deserialize(midi);    
+    Deserialize(midi, notes, ppq);    
 }
 
-void Notes::fromJsonUncompressed(json_t* jNotes) {
+void Notes::FromJsonUncompressed(json_t* jNotes, vector<DisplayNote>* notes) {
     size_t index;
     json_t* value;
-    notes.resize(json_array_size(jNotes), DisplayNote(UNUSED));
+    notes->resize(json_array_size(jNotes), DisplayNote(UNUSED));
     json_array_foreach(jNotes, index, value) {
-        notes[index].dataFromJson(value);
+        (*notes)[index].dataFromJson(value);
     }
 }
 
@@ -239,7 +239,7 @@ void Notes::setDuration(DisplayNote* note) {
 }
 
 // unlike saving as MIDI, this preserves rests and other specialized information
-void Notes::serialize(vector<uint8_t>& storage) const {
+void Notes::Serialize(const vector<DisplayNote>& notes, vector<uint8_t>& storage) {
     NoteTakerMakeMidi midiMaker;
     midiMaker.target = &storage;
     int lastStart = 0;
@@ -261,8 +261,9 @@ void Notes::serialize(vector<uint8_t>& storage) const {
     }
 }
 
-    // to do : write short note seq using old method for ease in editing json manually
-void Notes::toJsonUncompressed(json_t* root, std::string jsonName) const {
+// to do : write short note seq using old method for ease in editing json manually
+void Notes::ToJsonUncompressed(const vector<DisplayNote>& notes, json_t* root,
+        std::string jsonName) {
     json_t* _notes = json_array();
     for (const auto& note : notes) {
         json_array_append_new(_notes, note.dataToJson());
@@ -270,9 +271,9 @@ void Notes::toJsonUncompressed(json_t* root, std::string jsonName) const {
     json_object_set_new(root, jsonName.c_str(), _notes);
 }
 
-void Notes::toJsonCompressed(json_t* root, std::string jsonName) const {
+void Notes::ToJsonCompressed(const vector<DisplayNote>& notes, json_t* root, std::string jsonName) {
     vector<uint8_t> midi;
-    this->serialize(midi);
+    Serialize(notes, midi);
     vector<char> encoded;
     NoteTakerSlot::Encode(midi, &encoded);
     encoded.push_back('\0'); // treat as string

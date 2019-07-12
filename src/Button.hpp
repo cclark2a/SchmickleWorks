@@ -559,6 +559,12 @@ struct SlotButton : EditLEDButton {
     };
 
     void draw(const DrawArgs& ) override;
+
+    // to do : removeq after debugging
+    void onTurnOff() override {
+        EditLEDButton::onTurnOff();
+        if (DEBUG_VERBOSE) DEBUG("slot button off");
+    }
 };
 
 struct SlotButtonToolTip : ParamQuantity {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Notes.hpp"
+#include "Storage.hpp"
 
 // which cache elements are invalidated; whether to play the current selection
 enum class Inval {
@@ -23,6 +24,7 @@ std::string InvalDebugStr(Inval );
 
 struct NoteTakerEdit {
     vector<DisplayNote> base;
+    vector<SlotPlay> pbase;
     vector<unsigned> voices;  // index of notes in note array, sorted in ascending pitch
     const DisplayNote* horizontalNote;  // note, if any, used to determine wheel value
     const DisplayNote* verticalNote;
@@ -53,6 +55,13 @@ struct NoteTakerEdit {
 
     void fromJson(json_t* root) {
         voice = json_boolean_value(json_object_get(root, "voice"));
+    }
+
+    void init(const SlotArray& storage) {
+        originalStart = storage.selectStart;
+        originalEnd = storage.selectEnd;
+        pbase.assign(storage.playback.begin() + originalStart,
+                storage.playback.begin() + originalEnd);
     }
 
     void init(const Notes& n, unsigned selectChannels) {

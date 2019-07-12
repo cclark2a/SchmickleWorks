@@ -18,11 +18,11 @@ struct Notes {
         notes.emplace_back(TRACK_END);
     }
 
-    void deserialize(const vector<uint8_t>& );
+    static void Deserialize(const vector<uint8_t>& , vector<DisplayNote>* , int* ppq);
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
     void fromJson(json_t* root);
-    void fromJsonUncompressed(json_t* );
-    void fromJsonCompressed(json_t* );
+    static void FromJsonCompressed(json_t* , vector<DisplayNote>* , int* ppq);
+    static void FromJsonUncompressed(json_t* , vector<DisplayNote>* );
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     // static void HighestOnly(vector<DisplayNote>& );
     unsigned horizontalCount(unsigned selectChannels) const;
@@ -45,14 +45,14 @@ struct Notes {
 
     // to do : move notetaker sort here?
 
-    void serialize(vector<uint8_t>& ) const;
+    static void Serialize(const vector<DisplayNote>& , vector<uint8_t>& );
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
 
     bool transposeSpan(vector<DisplayNote>& span) const;
     json_t* toJson() const;
-    void toJsonCompressed(json_t* , std::string ) const;
-    void toJsonUncompressed(json_t* , std::string ) const;
+    static void ToJsonCompressed(const vector<DisplayNote>& , json_t* , std::string );
+    static void ToJsonUncompressed(const vector<DisplayNote>& , json_t* , std::string );
     void validate() const;
     int xPosAtEndEnd(const DisplayState& ) const;
     int xPosAtEndStart() const;

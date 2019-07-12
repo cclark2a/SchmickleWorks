@@ -9,7 +9,7 @@
 
 json_t* Notes::toJson() const {
     json_t* root = json_object();
-    this->toJsonCompressed(root, "notesCompressed");
+    ToJsonCompressed(notes, root, "notesCompressed");
     json_object_set_new(root, "selectStart", json_integer(selectStart));
     json_object_set_new(root, "selectEnd", json_integer(selectEnd));
     json_object_set_new(root, "ppq", json_integer(ppq));
@@ -43,7 +43,8 @@ json_t* NoteTakerSlot::toJson() const {
 json_t* NoteTakerWidget::toJson() {
     if (debugVerbose) n().validate();  // don't write invalid notes for the next reload
     json_t* root = ModuleWidget::toJson();
-    clipboard.toJsonCompressed(root, "clipboardCompressed");
+    clipboard.toJsonCompressed(root);
+    json_object_set_new(root, "clipboardSlots", clipboard.playBackToJson());
     // many of these are no-ops, but permits statefulness to change without recoding this block
     json_object_set_new(root, "display", display->range.toJson());
     json_object_set_new(root, "edit", edit.toJson());
@@ -72,12 +73,19 @@ json_t* SlotArray::toJson() const {
         json_array_append_new(_slots, slot.toJson());
     }
     json_object_set_new(root, "slots", _slots);
+    json_t* _playback = json_array();
+    for (auto& slotPlay : playback) {
+        json_array_append_new(_playback, slotPlay.toJson());
+    }
+    json_object_set_new(root, "playback", _playback);
+    json_object_set_new(root, "selectStart", json_integer(selectStart));
+    json_object_set_new(root, "selectEnd", json_integer(selectEnd));
     return root;
 }
 
 void Notes::fromJson(json_t* root) {
-    this->fromJsonUncompressed(json_object_get(root, "notesUncompressed"));
-    this->fromJsonCompressed(json_object_get(root, "notesCompressed")); // overrides if both present
+    FromJsonUncompressed(json_object_get(root, "notesUncompressed"), &notes);
+    FromJsonCompressed(json_object_get(root, "notesCompressed"), &notes, &ppq); // overrides if both present
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     ppq = json_integer_value(json_object_get(root, "ppq"));
@@ -139,5 +147,15 @@ void SlotArray::fromJson(json_t* root) {
     json_t* value;
     json_array_foreach(_slots, index, value) {
         slots[index].fromJson(value);
+    }
+    json_t* _playback = json_object_get(root, "playback");
+    size_t playbackSize = json_array_size(_playback);
+    if (playbackSize) {
+        playback.resize(playbackSize);
+        json_array_foreach(_playback, index, value) {
+            playback[index].fromJson(value);
+        }
+        selectStart = json_integer_value(json_object_get(root, "selectStart"));
+        selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     }
 }

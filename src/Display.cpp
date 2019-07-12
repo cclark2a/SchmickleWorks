@@ -139,20 +139,14 @@ void DisplayControl::clear(int slot) const {
             display->box.size.y - boxWidth - 5, boxWidth, boxWidth);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgFill(vg);
-
 }
 
 void DisplayControl::drawActiveNarrow(int slot) const {
     nvgBeginPath(vg);
-    SCHMICKLE(!display->ntw()->storage.saveZero || !slot);
-    if (!display->ntw()->storage.saveZero) {
-        slot += 1;
-    }
     nvgRect(vg, 40 + (slot - display->xControlOffset) * boxWidth,
             display->box.size.y - boxWidth - 5, 5, boxWidth);
-    nvgStrokeWidth(vg, 2);
-    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
-    nvgStroke(vg);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+    nvgFill(vg);
 }
 
 void DisplayControl::drawActive(float wheel) const {
@@ -423,8 +417,12 @@ void NoteTakerDisplay::applyKeySignature() {
 }
 
 const DisplayCache* NoteTakerDisplay::cache() const {
-    auto& storage = this->ntw()->storage;
-    return &storage.slots[storage.selectStart].cache;
+    auto ntw = this->ntw();
+    auto nt = ntw->nt();
+    if (!nt) {
+        return &ntw->storage.slots[0].cache;
+    }
+    return &nt->slot->cache;
 }
 
 float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
@@ -439,10 +437,11 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
 
 void NoteTakerDisplay::draw(const DrawArgs& args) {
     auto ntw = this->ntw();
+    auto nt = ntw->nt();
     const auto& n = *this->notes();
     auto vg = state.vg = args.vg;
     auto& storage = ntw->storage;
-    auto& slot = storage.slots[storage.selectStart];
+    auto& slot = nt ? *nt->slot : storage.slots[0];
     auto cache = &slot.cache;
     SCHMICKLE(state.fb == this->fb());
     if (slot.invalid) {
@@ -458,7 +457,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         range.invalid = false;
     }
 #if RUN_UNIT_TEST
-    if (ntw->nt() && ntw->runUnitTest) { // to do : remove this from shipping code
+    if (nt && ntw->runUnitTest) { // to do : remove this from shipping code
         UnitTest(ntw, TestType::encode);
         ntw->runUnitTest = false;
         this->fb()->dirty = true;
@@ -1141,11 +1140,11 @@ void NoteTakerDisplay::drawSlotControl() {
         this->drawVerticalControl();
     }
     DisplayControl control(this, state.vg);
-    auto horizontalWheel = ntw->horizontalWheel;
-    float fSlot = horizontalWheel->getValue();
-    int slot = (int) (fSlot + .5);
-    control.clear(slot);
-    control.autoDrift(fSlot, slot);
+//    auto horizontalWheel = ntw->horizontalWheel;
+//    float fSlot = horizontalWheel->getValue();
+//    int slot = (int) (fSlot + .5);
+//    control.clear(slot);
+//    control.autoDrift(fSlot, slot);
     control.firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
     control.lastVisible = std::min((unsigned) ntw->storage.playback.size() - 1,
             (unsigned) (xControlOffset + 5));
@@ -1155,7 +1154,7 @@ void NoteTakerDisplay::drawSlotControl() {
     }
     control.drawEnd();
     if (ntw->selectButton->isSingle()) {
-            control.drawActiveNarrow(slot);
+        control.drawActiveNarrow(ntw->storage.selectStart);
     } else {
         for (unsigned index = ntw->storage.selectStart; index < ntw->storage.selectEnd; ++index) {
             control.drawActive(index);

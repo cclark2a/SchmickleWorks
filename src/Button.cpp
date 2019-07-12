@@ -24,7 +24,7 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     ntw->invalidateAndPlay(Inval::cut);
     nt->setSelect(insertLoc, insertLoc + 1);
-    ntw->turnOffLedButtons();
+    ntw->turnOffLEDButtons();
     ntw->setWheelRange();  // range is larger
 }
 
@@ -61,7 +61,8 @@ void CutButton::getState() {
         return;
     }
     SelectButton* selectButton = ntw->selectButton;
-    if (selectButton->editStart() && selectButton->saveZero) {
+    if (selectButton->editStart()
+            && (ntw->slotButton->ledOn() ? ntw->storage.saveZero : selectButton->saveZero)) {
         state = State::clearClipboard;
         return;
     }
@@ -83,6 +84,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     ntw->clipboardInvalid = true;
     NoteTakerButton::onDragEnd(e);
     if (State::cutAll == state) {
+        SCHMICKLE(!ntw->slotButton->ledOn());
         n.selectStart = 0;
         n.selectEnd = n.notes.size() - 1;
         ntw->copyNotes();  // allows add to undo accidental cut / clear all
@@ -93,6 +95,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         return;
     }
     if (State::cutPart == state) {
+        SCHMICKLE(!ntw->slotButton->ledOn());
         n.selectStart = 0;
         n.selectEnd = n.notes.size() - 1;
         ntw->copySelectableNotes();
@@ -101,38 +104,48 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         ntw->setWheelRange();
         return;
     }
+    bool slotOn = ntw->slotButton->ledOn();
     if (State::clearClipboard == state) {
-        ntw->clipboard.notes.clear();
+        ntw->clipboard.clear(slotOn);
         return;
     }
-    unsigned start = n.selectStart;
-    unsigned end = n.selectEnd;
+    unsigned start = slotOn ? ntw->storage.selectStart : n.selectStart;
+    unsigned end = slotOn ? ntw->storage.selectEnd : n.selectEnd;
     if (!start || end <= 1) {
         DEBUG("*** selectButton should have been set to edit start, save zero");
         _schmickled();
         return;
     }
     if (State::insertCutAndShift != state) {
-        ntw->copyNotes();
+        slotOn ? ntw->copySlots() : ntw->copyNotes();
     }
-    int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
-    if (State::cutToClipboard == state) {
-        // to do : insert a rest if existing notes do not include deleted span
-        shiftTime = 0;
+    unsigned previous;
+    if (slotOn) {
+        if (0 == start && ntw->storage.size() == end) {
+            ++start;
+        }
+        ntw->storage.shiftSlots(start, end);
+        previous = start ? start - 1 : 0;
     } else {
-        SCHMICKLE(State::cutAndShift == state || State::insertCutAndShift == state);
+        int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
+        if (State::cutToClipboard == state) {
+            // to do : insert a rest if existing notes do not include deleted span
+            shiftTime = 0;
+        } else {
+            SCHMICKLE(State::cutAndShift == state || State::insertCutAndShift == state);
+        }
+        n.eraseNotes(start, end, ntw->selectChannels);
+        if (shiftTime) {
+            ntw->shiftNotes(start, shiftTime);
+        } else {
+            NoteTaker::Sort(n.notes);
+        }
+        ntw->invalidateAndPlay(Inval::cut);
+        ntw->turnOffLEDButtons();
+        // set selection to previous selectable note, or zero if none
+        int wheel = ntw->noteToWheel(start);
+        previous = ntw->wheelToNote(std::max(0, wheel - 1));
     }
-    n.eraseNotes(start, end, ntw->selectChannels);
-    if (shiftTime) {
-        ntw->shiftNotes(start, shiftTime);
-    } else {
-        NoteTaker::Sort(n.notes);
-    }
-    ntw->invalidateAndPlay(Inval::cut);
-    ntw->turnOffLedButtons();
-    // set selection to previous selectable note, or zero if none
-    int wheel = ntw->noteToWheel(start);
-    unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
     nt->setSelect(previous, previous < start ? start : previous + 1);
     ntw->selectButton->setSingle();
     ntw->setWheelRange();  // range is smaller
@@ -161,7 +174,7 @@ void EditLEDButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     NoteTakerButton::onDragEnd(e);
-    ntw->turnOffLedButtons(this);
+    ntw->turnOffLEDButtons(this, true);
     ntw->setWheelRange();
 }
 
@@ -187,12 +200,21 @@ void InsertButton::draw(const DrawArgs& args) {
     nvgText(vg, 8 + af, 41 - af, "H", NULL);
 }
 
+// allows tooltip to show what button is going to do without pressing it
 void InsertButton::getState() {
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     const auto& n = nt->n();
     if (ntw->runButton->ledOn()) {
         state = State::running;
+        return;
+    }
+    auto selectButton = ntw->selectButton;
+    bool useClipboard = selectButton->ledOn();
+    if (ntw->slotButton->ledOn()) {
+        insertLoc = ntw->storage.selectStart ? ntw->storage.selectEnd : 1;
+        state = useClipboard && !ntw->clipboard.playback.empty() ? State::clipboardShift :
+                State::dupShift;
         return;
     }
     span.clear();
@@ -209,11 +231,10 @@ void InsertButton::getState() {
     //   the new start time is 'last end time(insert loc)'
     // select set to extend (end):
     //   Insert loc is select start; existing notes are not shifted, insert is transposed
+    bool insertInPlace = selectButton->editEnd();
     unsigned iStart = n.selectStart;
     unsigned iEnd = n.selectEnd;
-    auto selectButton = ntw->selectButton;
-    bool insertInPlace = selectButton->editEnd();
-    if (!n.selectStart) {
+    if (!iStart) {
         iStart = insertLoc = ntw->wheelToNote(1);
     } else if (insertInPlace) {
         insertLoc = iStart;
@@ -245,7 +266,6 @@ void InsertButton::getState() {
 
         }
     }
-    bool useClipboard = selectButton->ledOn();
     if (!useClipboard || ntw->clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
         for (unsigned index = iStart; index < iEnd; ++index) {
             const auto& note = n.notes[index];
@@ -286,9 +306,6 @@ void InsertButton::getState() {
     }
 }
 
-// to do : separate into two pieces
-// 1) determine what the insert button is going to do (for tooltip)
-// 2) given an action, do it
 void InsertButton::onDragEnd(const event::DragEnd& e) {
     if (this->stageSlot(e)) {
         return;
@@ -298,10 +315,12 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     auto nt = ntw->nt();
     auto& n = nt->n();
     ntw->clipboardInvalid = true;
-    ntw->turnOffLedButtons();  // turn off pitch, file, sustain, etc
+    ntw->turnOffLEDButtons(nullptr, true);  // turn off pitch, file, sustain, etc but not slot
     if (nt->debugVerbose) DEBUG("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
+    bool slotOn = ntw->slotButton->ledOn();
     if (nt->debugVerbose) DEBUG("insertTime %d clipboard size %u", insertTime,
-            ntw->clipboard.notes.size());
+            slotOn ? ntw->clipboard.playback.size() : ntw->clipboard.notes.size());
+    vector<SlotPlay> pspan;
     if (State::middleCShift != state) {
         // select set to insert (start) or off:
         //   Insert loc is where the new note goes, but not when the new note goes; 
@@ -311,15 +330,23 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (state != State::clipboardInPlace && state != State::clipboardShift) {
             if (nt->debugVerbose) DEBUG(!n.selectStart ? "left of first note" :
                     "duplicate selection");
-            ntw->clipboard.notes.clear();
+            ntw->clipboard.clear(slotOn);
             ntw->setClipboardLight();
+            if (slotOn) {
+                pspan.assign(ntw->storage.playback.begin() + ntw->storage.selectStart,
+                        ntw->storage.playback.begin() + ntw->storage.selectEnd);
+            }
         } else {
-            if (nt->debugVerbose) DEBUG("clipboard to span (%u notes)", span.size());
+            if (slotOn) {
+                pspan = ntw->clipboard.playback;
+            }
+            if (nt->debugVerbose) slotOn ? DEBUG("clipboard to pspan (%u slots)", pspan.size()) :
+                    DEBUG("clipboard to span (%u notes)", span.size());
         }
     }
-    bool insertInPlace = ntw->selectButton->editEnd();
-    unsigned insertSize = span.size();
-    int shiftTime;
+    bool insertInPlace = !slotOn && ntw->selectButton->editEnd();
+    unsigned insertSize = slotOn ? pspan.size() : span.size();
+    int shiftTime = 0;
     if (insertInPlace) {
 #if 0 // not sure what I was thinking -- already have a way to add single notes to chord
         Notes::HighestOnly(span);  // if edit end, remove all but highest note of chord            
@@ -329,20 +356,27 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             return;
         }
         n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
-        shiftTime = 0;
     } else {
-        int nextStart = ntw->nextStartTime(insertLoc);
-        NoteTaker::ShiftNotes(span, 0, lastEndTime - span.front().startTime);
-        n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
-        // include notes on other channels that fit within the start/end window
-        // shift by span duration less next start (if any) on same channel minus selectStart time
-        shiftTime = (lastEndTime - insertTime)
-                + (NoteTaker::LastEndTime(span) - span.front().startTime);
-        int availableShiftTime = nextStart - insertTime;
-        if (nt->debugVerbose) DEBUG("shift time %d available %d", shiftTime, availableShiftTime);
-        shiftTime = std::max(0, shiftTime - availableShiftTime);
-        if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u selectEnd=%u",
-                insertLoc, insertSize, shiftTime, n.selectStart, n.selectEnd);
+        if (slotOn) {
+            ntw->storage.playback.insert(ntw->storage.playback.begin() + insertLoc, pspan.begin(),
+                    pspan.end());
+            nt->stageSlot(pspan[0].index);
+        } else {
+            int nextStart = ntw->nextStartTime(insertLoc);
+            NoteTaker::ShiftNotes(span, 0, lastEndTime - span.front().startTime);
+            n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
+            // include notes on other channels that fit within the start/end window
+           // shift by span duration less next start (if any) on same channel minus selectStart time
+            shiftTime = (lastEndTime - insertTime)
+                    + (NoteTaker::LastEndTime(span) - span.front().startTime);
+            int availableTime = nextStart - insertTime;
+            if (nt->debugVerbose) DEBUG("shift time %d available %d", shiftTime, availableTime);
+            shiftTime = std::max(0, shiftTime - availableTime);
+        }
+        if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u"
+                " selectEnd=%u",
+                insertLoc, insertSize, shiftTime, slotOn ? ntw->storage.selectStart : n.selectStart,
+                slotOn ? ntw->storage.selectEnd : n.selectEnd);
         if (nt->debugVerbose) ntw->debugDump(false, true);
     }
     ntw->selectButton->setOff();
@@ -386,7 +420,7 @@ void NoteTakerButton::draw(const DrawArgs& args) {
     const int af = animationFrame;
     auto ntw = this->ntw();
     auto nt = ntw->nt();
-    if (!nt || slotNumber >= STORAGE_SLOTS) {
+    if (!nt || slotNumber >= SLOT_COUNT) {
         return;
     }
     auto runButton = ntw->runButton;
@@ -455,7 +489,7 @@ void PartButton::onDragEnd(const event::DragEnd& e) {
     }
     if (ntw->debugVerbose) DEBUG("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
             this->ledOn(), ntw->horizontalWheel->part(), ntw->selectChannels, ntw->unlockedChannel());
-    ntw->turnOffLedButtons(this);
+    ntw->turnOffLEDButtons(this);
     ntw->setWheelRange();  // range is larger
 }
 
@@ -477,7 +511,7 @@ void RestButton::onDragEnd(const event::DragEnd& e) {
     auto ntw = this->ntw();
     auto nt = ntw->nt();
     auto& n = nt->n();
-    ntw->turnOffLedButtons();  // turn off pitch, file, sustain, etc
+    ntw->turnOffLEDButtons();  // turn off pitch, file, sustain, etc
     if (!ntw->selectButton->editStart()) {
         event::DragEnd e;
         ntw->cutButton->onDragEnd(e);
@@ -505,7 +539,7 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     } else {
         nt->resetRun();
         ntw->resetAndPlay();
-        ntw->turnOffLedButtons(this);
+        ntw->turnOffLEDButtons(this, true);
         ntw->disableEmptyButtons();
         dynamicRunAlpha = 0;
     }
@@ -533,37 +567,64 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
     auto nt = ntw->nt();
     auto& n = nt->n();
     NoteTakerButton::onDragEnd(e);
+    bool slotOn = ntw->slotButton->ledOn();
+    auto& storage = ntw->storage;
     if (this->isOff()) {
         SCHMICKLE(!this->ledOn());
-        ntw->copySelectableNotes();
+        slotOn ? ntw->copySlots() : ntw->copySelectableNotes();
     } else if (this->isSingle()) {
         SCHMICKLE(this->ledOn());
-        nt->invalidVoiceCount |= ntw->edit.voice;
-        ntw->edit.voice = false;
-        unsigned start = saveZero ? ntw->wheelToNote(0) : n.selectStart;
-        nt->setSelect(start, nt->nextAfter(start, 1));
+        if (slotOn) {
+            if (DEBUG_VERBOSE) DEBUG("isSingle pre storage saveZero=%d s=%d e=%d", storage.saveZero,
+                    storage.selectStart, storage.selectEnd);
+            if (storage.saveZero) {
+                storage.selectStart = 0;
+            } else {
+                storage.selectStart += 1;
+            }
+            storage.selectEnd = storage.selectStart + 1; 
+            if (DEBUG_VERBOSE) DEBUG("isSingle post storage saveZero=%d s=%d e=%d", storage.saveZero,
+                    storage.selectStart, storage.selectEnd);
+        } else {
+            nt->invalidVoiceCount |= ntw->edit.voice;
+            ntw->edit.voice = false;
+            unsigned start = saveZero ? ntw->wheelToNote(0) : n.selectStart;
+            nt->setSelect(start, nt->nextAfter(start, 1));
+        }
     } else {
         SCHMICKLE(this->isExtend());
         SCHMICKLE(this->ledOn());
-        nt->invalidVoiceCount |= ntw->edit.voice;
-        ntw->edit.voice = false;
-        if (!n.horizontalCount(ntw->selectChannels)) {
-            ntw->clipboard.notes.clear();
-            this->setState(State::single);  // can't start selection if there's nothing to select
+        if (slotOn) {
+            if (DEBUG_VERBOSE) DEBUG("isExtend pre storage saveZero=%d s=%d e=%d", storage.saveZero,
+                    storage.selectStart, storage.selectEnd);
+            storage.saveZero = !storage.selectStart;
+            if (storage.selectStart) {
+                --storage.selectStart;
+            }
+            storage.selectEnd = storage.selectStart + 1;
+            if (DEBUG_VERBOSE) DEBUG("isExtend post storage saveZero=%d s=%d e=%d", storage.saveZero,
+                    storage.selectStart, storage.selectEnd);
         } else {
-            int wheelStart = ntw->noteToWheel(n.selectStart);
-            saveZero = !wheelStart;
-            int wheelIndex = std::max(1, wheelStart);
-            selStart = ntw->wheelToNote(wheelIndex);
-            SCHMICKLE(MIDI_HEADER != n.notes[selStart].type);
-            SCHMICKLE(TRACK_END != n.notes[selStart].type);
-            const auto& note = n.notes[selStart];
-            unsigned end = note.isSignature() ? selStart + 1 : nt->nextAfter(selStart, 1);
-            nt->setSelect(selStart, end);
+            nt->invalidVoiceCount |= ntw->edit.voice;
+            ntw->edit.voice = false;
+            if (!n.horizontalCount(ntw->selectChannels)) {
+                ntw->clipboard.notes.clear();
+                this->setState(State::single);  // can't start selection if there's nothing to select
+            } else {
+                int wheelStart = ntw->noteToWheel(n.selectStart);
+                saveZero = !wheelStart;
+                int wheelIndex = std::max(1, wheelStart);
+                selStart = ntw->wheelToNote(wheelIndex);
+                SCHMICKLE(MIDI_HEADER != n.notes[selStart].type);
+                SCHMICKLE(TRACK_END != n.notes[selStart].type);
+                const auto& note = n.notes[selStart];
+                unsigned end = note.isSignature() ? selStart + 1 : nt->nextAfter(selStart, 1);
+                nt->setSelect(selStart, end);
+            }
         }
     }
     ntw->setClipboardLight();
-    ntw->turnOffLedButtons(this);
+    ntw->turnOffLEDButtons(this, true);
     ntw->setWheelRange();  // if state is single, set to horz from -1 to size
 }
 

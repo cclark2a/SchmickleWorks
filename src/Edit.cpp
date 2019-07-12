@@ -22,25 +22,11 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         return;
     }
     if (slotButton->ledOn()) {
+        edit.init(storage);
         if (selectButton->isOff()) {
-            SlotButton::Select select = (SlotButton::Select) verticalWheel->getValue();
             const auto& slotPlay = storage.playback[storage.selectStart];
-            switch(select) {
-                case SlotButton::Select::repeat:
-                    horizontalWheel->setLimits(1, 99);
-                    horizontalWheel->setValue(slotPlay.repeat);
-                    break;
-                case SlotButton::Select::slot:
-                    horizontalWheel->setLimits(0, storage.size() - 1);
-                    horizontalWheel->setValue(slotPlay.index);
-                    break;
-                case SlotButton::Select::end:
-                    horizontalWheel->setLimits(0, (int) SlotPlay::Stage::never);
-                    horizontalWheel->setValue((int) slotPlay.stage);
-                    break;
-                default:
-                    _schmickled();
-            }
+            horizontalWheel->setLimits(0, storage.size() - 1);
+            horizontalWheel->setValue(slotPlay.index);
         } else if (selectButton->isSingle()) {
             horizontalWheel->setLimits(0, storage.playback.size());
             horizontalWheel->setValue(storage.selectStart);
@@ -48,9 +34,8 @@ void NoteTakerWidget::setHorizontalWheelRange() {
             SCHMICKLE(selectButton->isExtend());
             horizontalWheel->setLimits(0, storage.playback.size() - 1);
             horizontalWheel->setValue(storage.selectStart);
-            edit.originalStart = storage.selectStart;
-            edit.originalEnd = storage.selectEnd;
         }
+        edit.horizontalValue = (int) horizontalWheel->getValue();
         return;
     }
     if (sustainButton->ledOn()) {
@@ -225,19 +210,30 @@ void NoteTakerWidget::updateHorizontal() {
     }
     if (slotButton->ledOn()) {
         // move selection in storage playback, or change slot #, repeat, stage
-        unsigned wheelValue = (unsigned) horizontalWheel->getValue();
+        int wheelValue = (int) horizontalWheel->getValue();
         if (selectButton->isOff()) {
             for (unsigned index = storage.selectStart; index < storage.selectEnd; ++index) {
+                // note that changes are relative to their original values
+                auto& orig = edit.pbase[index - edit.originalStart];
                 auto& slot = storage.playback[index];
+                int diff = wheelValue - edit.horizontalValue;
                 switch ((SlotButton::Select) verticalWheel->getValue()) {
                     case SlotButton::Select::repeat:
-                        slot.repeat = wheelValue;
+                        slot.repeat = (int) orig.repeat < -diff ? 0 :
+                                std::min(orig.repeat + diff, 99U);
                     break;
                     case SlotButton::Select::slot:
-                        slot.index = wheelValue;
+                        // change current slot in nt as well
+                        slot.index = (int) orig.index < -diff ? 0 :
+                                std::min(orig.index + diff, SLOT_COUNT);
+                        if (storage.selectStart == index) {
+                            this->nt()->stageSlot(slot.index);
+                        }
                     break;
                     case SlotButton::Select::end:
-                        slot.stage = (SlotPlay::Stage) wheelValue;
+                        slot.stage = (SlotPlay::Stage) ((int) slot.stage + diff);
+                        slot.stage = std::min(SlotPlay::Stage::never,
+                                std::max(SlotPlay::Stage::step, slot.stage));
                     break;
                     default:
                         _schmickled();
@@ -245,16 +241,23 @@ void NoteTakerWidget::updateHorizontal() {
             }
         } else if (selectButton->isSingle()) {
             storage.selectStart = wheelValue;
-            storage.saveZero = !storage.selectStart;
+        #if 0
             if (storage.selectStart) {
                 storage.selectStart -= 1;
+            } else {
+                storage.saveZero = true;
             }
+        #endif
             storage.selectEnd = storage.selectStart + 1;
+            static unsigned debugStart = INT_MAX;
+            if (DEBUG_VERBOSE && debugStart != storage.selectStart) {
+                DEBUG("updateHorizontal %u", storage.selectStart);
+                debugStart = storage.selectStart;
+            }
         } else {
             SCHMICKLE(selectButton->isExtend());
-            unsigned wheelStart = storage.selectStart - (int) storage.saveZero + 1;
-            storage.selectStart = std::min(wheelValue, wheelStart);
-            storage.selectEnd = std::max(wheelValue + 1, wheelStart);
+            storage.selectStart = std::min((unsigned) wheelValue, edit.originalStart);
+            storage.selectEnd = std::max((unsigned) wheelValue + 1, edit.originalStart + 1);
         }
         return;
     }
@@ -475,14 +478,18 @@ void NoteTakerWidget::updateVertical() {
         // to do : choose edit mode: 'repeat', 'slot', 'end'
         SlotPlay& slot = storage.playback[storage.selectStart];
         int slotParam = INT_MAX;
-        switch(wheelValue) {
-            case 2:
+        SlotButton::Select select = (SlotButton::Select) wheelValue;
+        switch(select) {
+            case SlotButton::Select::repeat:
+                horizontalWheel->setLimits(1, 99);
                 slotParam = slot.repeat;
                 break;
-            case 1:
+            case SlotButton::Select::slot:
+                horizontalWheel->setLimits(0, storage.size() - 1);
                 slotParam = slot.index;
                 break;
-            case 0:
+            case SlotButton::Select::end:
+                horizontalWheel->setLimits(0, (int) SlotPlay::Stage::never);
                 slotParam = (int) slot.stage;
                 break;
             default:

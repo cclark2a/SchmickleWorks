@@ -26,10 +26,24 @@ struct TimeButton;
 struct SlotButton;
 struct VerticalWheel;
 
+struct Clipboard {
+    vector<DisplayNote> notes;
+    vector<SlotPlay> playback;
+
+    void clear(bool slotOn) {
+        slotOn ? playback.clear() : notes.clear();
+    }
+
+    void fromJsonCompressed(json_t*);
+    void fromJsonUncompressed(json_t*);
+    json_t* playBackToJson() const;
+    void toJsonCompressed(json_t* root) const;
+};
+
 struct NoteTakerWidget : ModuleWidget {
     std::shared_ptr<Font> _musicFont = nullptr;
     std::shared_ptr<Font> _textFont = nullptr;
-    Notes clipboard;
+    Clipboard clipboard;
     SlotArray storage;
     NoteTakerEdit edit;
     CutButton* cutButton = nullptr;
@@ -66,6 +80,7 @@ struct NoteTakerWidget : ModuleWidget {
     void addWheel(const Vec& size, NoteTakerWheel* );
     void appendContextMenu(Menu *menu) override;
     void copyNotes();
+    void copySlots();
     void copySelectableNotes();
     void copyToSlot(unsigned );
     void debugDump(bool validatable = true, bool inWheel = false) const;
@@ -138,7 +153,7 @@ struct NoteTakerWidget : ModuleWidget {
     void setWheelRange();
     void shiftNotes(unsigned start, int diff);
     json_t* toJson() override;
-    void turnOffLedButtons(const NoteTakerButton* exceptFor = nullptr);
+    void turnOffLEDButtons(const NoteTakerButton* exceptFor = nullptr, bool exceptSlot = false);
 
     unsigned unlockedChannel() const {
         for (unsigned x = 0; x < CHANNEL_COUNT; ++x) {

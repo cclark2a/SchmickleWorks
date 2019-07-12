@@ -325,7 +325,7 @@ void NoteTaker::setScoreEmpty() {
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
     if (debugVerbose) DebugDumpRawMidi(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, slot->n, slot->channels);
+    NoteTakerParseMidi emptyParser(emptyMidi, &slot->n.notes, nullptr, slot->channels);
     bool success = emptyParser.parseMidi();
     SCHMICKLE(success);
     ntw()->invalidateAndPlay(Inval::cut);
@@ -469,9 +469,11 @@ void NoteTaker::setVoiceCount() {
     }
 }
 
-void NoteTaker::stageSlot(unsigned slot) {
-    if (debugVerbose) DEBUG("stageSlot %u", slot);
-    stagedSlot = this->ntw()->storage.selectStart == slot ? INT_MAX : slot;
+void NoteTaker::stageSlot(unsigned slotIndex) {
+    unsigned last = slot - &this->ntw()->storage.slots.front();
+    SCHMICKLE(last < SLOT_COUNT);
+    if (debugVerbose && slotIndex != last) DEBUG("stageSlot %u old %u", slotIndex, last);
+    stagedSlot = last == slotIndex ? INT_MAX : slotIndex;
 }
 
 float NoteTaker::wheelToTempo(float value) const {

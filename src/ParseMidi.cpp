@@ -498,9 +498,11 @@ bool NoteTakerParseMidi::parseMidi() {
         lastTime = note.startTime;
     }
     if (debugVerbose) NoteTaker::DebugDump(withRests);
-    displayNotes.swap(withRests);
-    ntPpq = ppq;
-    if (debugVerbose) DEBUG("ntPpq %d", ntPpq);
+    displayNotes->swap(withRests);
+    if (ntPpq) {
+        *ntPpq = ppq;
+    }
+    if (debugVerbose && ntPpq) DEBUG("ntPpq %d", *ntPpq);
     return true;
 }
 

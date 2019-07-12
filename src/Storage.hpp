@@ -19,6 +19,20 @@ struct SlotPlay {
     unsigned index = 0;
     unsigned repeat = 1;
     Stage stage = Stage::song;
+
+    void fromJson(json_t* root) {
+        index = json_integer_value(json_object_get(root, "index"));
+        repeat = json_integer_value(json_object_get(root, "repeat"));
+        stage = (Stage) json_integer_value(json_object_get(root, "stage"));
+    }
+
+    json_t* toJson() const {
+        json_t* root = json_object();
+        json_object_set_new(root, "index", json_integer(index));
+        json_object_set_new(root, "repeat", json_integer(repeat));
+        json_object_set_new(root, "stage", json_integer((int) stage));
+        return root;
+    }
 };
 
 struct NoteTakerSlot {
@@ -40,9 +54,9 @@ struct NoteTakerSlot {
 };
 
 struct SlotArray {
-    array<NoteTakerSlot, STORAGE_SLOTS> slots;
+    array<NoteTakerSlot, SLOT_COUNT> slots;
     vector<SlotPlay> playback;
-    unsigned selectStart = 0;
+    unsigned selectStart = 0; // current selection in playback vector
     unsigned selectEnd = 1;
     bool saveZero = false;   // set if single was at left-most position
     const bool debugVerbose;
@@ -58,6 +72,12 @@ struct SlotArray {
         slots[selectStart].invalid = true;
     }
 
+    void shiftSlots(unsigned start, unsigned end) {  // do a 'cut'
+        SCHMICKLE(start || playback.size() != end);
+        SCHMICKLE(start < end);
+        playback.erase(playback.begin() + start, playback.begin() + end);
+    }
+      
     unsigned size() const { return slots.size(); }
     json_t* toJson() const;
     static std::string UserDirectory() { return asset::user("Schmickleworks/"); }
