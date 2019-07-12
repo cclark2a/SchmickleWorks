@@ -212,7 +212,7 @@ void InsertButton::getState() {
     auto selectButton = ntw->selectButton;
     bool useClipboard = selectButton->ledOn();
     if (ntw->slotButton->ledOn()) {
-        insertLoc = ntw->storage.selectStart ? ntw->storage.selectEnd : 1;
+        insertLoc = selectButton->editStart() ? ntw->storage.selectStart : ntw->storage.selectEnd;
         state = useClipboard && !ntw->clipboard.playback.empty() ? State::clipboardShift :
                 State::dupShift;
         return;
@@ -333,8 +333,14 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             ntw->clipboard.clear(slotOn);
             ntw->setClipboardLight();
             if (slotOn) {
-                pspan.assign(ntw->storage.playback.begin() + ntw->storage.selectStart,
-                        ntw->storage.playback.begin() + ntw->storage.selectEnd);
+                unsigned start = ntw->storage.selectStart;
+                unsigned end = ntw->storage.selectEnd;
+                if (ntw->selectButton->editStart() && start) {
+                    --start;
+                    --end;
+                }
+                pspan.assign(ntw->storage.playback.begin() + start,
+                        ntw->storage.playback.begin() + end);
             }
         } else {
             if (slotOn) {

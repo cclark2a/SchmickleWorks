@@ -839,6 +839,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
 void NoteTakerWidget::setSlot(unsigned index) {
     auto nt = this->nt();
     if (nt) {
+        if (DEBUG_VERBOSE) DEBUG("process setSlot %u", index);
         nt->slot = &storage.slots[index];
     }
 }

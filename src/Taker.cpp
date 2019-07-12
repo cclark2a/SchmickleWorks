@@ -111,6 +111,7 @@ void NoteTaker::process(const ProcessArgs &args) {
 #endif
 // to do : defer switch until criteria (e.g., end of bar) is met
     if (INT_MAX != stagedSlot) {
+        if (DEBUG_VERBOSE) DEBUG("process stagedSlot %u", stagedSlot);
         ntw()->setSlot(stagedSlot);
         stagedSlot = INT_MAX;
         ntw()->invalidateAndPlay(Inval::load);
@@ -472,8 +473,11 @@ void NoteTaker::setVoiceCount() {
 void NoteTaker::stageSlot(unsigned slotIndex) {
     unsigned last = slot - &this->ntw()->storage.slots.front();
     SCHMICKLE(last < SLOT_COUNT);
-    if (debugVerbose && slotIndex != last) DEBUG("stageSlot %u old %u", slotIndex, last);
-    stagedSlot = last == slotIndex ? INT_MAX : slotIndex;
+    if (slotIndex == last) {
+        return;
+    }
+    if (debugVerbose) DEBUG("stageSlot %u old %u", slotIndex, last);
+    stagedSlot = slotIndex;
 }
 
 float NoteTaker::wheelToTempo(float value) const {
