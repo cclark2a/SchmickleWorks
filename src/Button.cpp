@@ -182,7 +182,7 @@ void EditLEDButton::onDragEnd(const event::DragEnd& e) {
     }
     auto ntw = this->ntw();
     NoteTakerButton::onDragEnd(e);
-    ntw->turnOffLEDButtons(this, true);
+    ntw->turnOffLEDButtons(this);
     ntw->setWheelRange();
 }
 

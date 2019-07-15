@@ -111,22 +111,20 @@ struct DisplayRange {
 // be precalcuated. Store them with notes in the slot for that reason
 
 struct DisplayControl {
-    NoteTakerDisplay* display;
-    NVGcontext* vg;
+    NoteTakerDisplay* display;  // initialized by constructor
+    NVGcontext* vg;  // initialized by constructor
     const float boxWidth = 25;
-    unsigned firstVisible;
-    unsigned lastVisible;
 
     DisplayControl(NoteTakerDisplay* , NVGcontext*);
-    void autoDrift(float frameTime);
-    void clear(int slot) const;
+    void autoDrift(float value, float frameTime, int visCells = 3);
     void drawActive(float wheel) const;
     void drawActiveNarrow(int slot) const;
     void drawEmpty() const;
     void drawEnd() const;
     void drawNumber(unsigned index) const;
     void drawNote() const;
-    void drawSlot(unsigned position, unsigned slotIndex) const;
+    void drawSlot(unsigned position, unsigned slotIndex, unsigned firstVisible,
+            unsigned lastVisible) const;
     void drawStart() const;
 };
 

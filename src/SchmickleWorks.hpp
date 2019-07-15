@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rack.hpp"
+#include "settings.hpp"
 #include <algorithm>
 #include <array>
 #include <float.h>

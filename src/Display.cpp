@@ -101,43 +101,25 @@ DisplayControl::DisplayControl(NoteTakerDisplay* d, NVGcontext* v)
     , vg(v) {
 }
 
-void DisplayControl::autoDrift(float frameTime) {
-    // if display slot, set control offset to bring offscreen into view
-    // also, change abs adds to current time to work with any screen refresh rate
-
-    // horizontalWheel->value auto-drifts towards integer, range of 0 to storage size
-    auto ntw = display->ntw();
-    auto horizontalWheel = ntw->horizontalWheel;
+// set control offset to bring offscreen into view
+// frame time works with any screen refresh rate
+void DisplayControl::autoDrift(float value, float frameTime, int visCells) {
+    constexpr float scrollRate = 5.6f;
+    auto horzLo = floorf(value);
     auto xOff = display->xControlOffset;
-#if 0
-    if (!horizontalWheel->inUse) {
-        display->fb()->dirty |= fSlot != slot;
-        if (fSlot < slot) {
-            horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
-        } else if (fSlot > slot) {
-            horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
-        }
-    }
-#endif
     // xControlOffset draws current location, 0 to storage size - 4
-    auto horzVal = horizontalWheel->getValue();
-    if (xOff != floorf(xOff) || horzVal - xOff > 3 || horzVal < xOff) {
-        if (xOff > 0 && (horzVal - xOff < 1 || (xOff - floorf(xOff) < .5 && horzVal - xOff < 3))) {
-            xOff = std::max(floorf(xOff), xOff - .04f * 70 * frameTime);
+    if (horzLo < xOff) {
+        xOff = std::max(horzLo, xOff - scrollRate * frameTime);
+    } else {
+        auto horzHi = ceilf(value - visCells);
+        if (horzHi > xOff) {
+            xOff = std::min(horzHi, xOff + scrollRate * frameTime);
         } else {
-            xOff = std::min(ceilf(xOff), xOff + .04f * 70 * frameTime);
+            xOff = floorf(xOff);
         }
-        display->fb()->dirty = true;
     }
+    display->fb()->dirty = display->xControlOffset != xOff;
     display->xControlOffset = xOff;
-}
-
-void DisplayControl::clear(int slot) const {
-    nvgBeginPath(vg);
-    nvgRect(vg, 40 + (slot - display->xControlOffset) * boxWidth,
-            display->box.size.y - boxWidth - 5, boxWidth, boxWidth);
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x3F));
-    nvgFill(vg);
 }
 
 void DisplayControl::drawActiveNarrow(int slot) const {
@@ -206,7 +188,8 @@ void DisplayControl::drawNote() const {
     nvgText(vg, boxWidth / 2, boxWidth - 7, "H", NULL);
 }
 
-void DisplayControl::drawSlot(unsigned position, unsigned slotIndex) const {
+void DisplayControl::drawSlot(unsigned position, unsigned slotIndex, unsigned firstVisible,
+        unsigned lastVisible) const {
     nvgSave(vg);
     nvgTranslate(vg, 40 + (position - display->xControlOffset) * boxWidth,
             display->box.size.y - boxWidth - 5);
@@ -461,15 +444,10 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         return;
     }
 #endif
-    if (!n.notes.size()) {
-        return;  // do nothing if we're not set up yet
-    }
-    if (lastCall && ntw->nt()) {
+    if (ntw->nt()) {
         float realT = (float) ntw->nt()->realSeconds;
-        callInterval = realT - lastCall;
+        callInterval = lastCall ? realT - lastCall : 1 / (float) settings::frameRateLimit;
         lastCall = realT;    
-    } else {
-        callInterval = 1 / 70.f;
     }
     nvgSave(vg);
     accidentals.fill(NO_ACCIDENTAL);
@@ -1001,16 +979,15 @@ void NoteTakerDisplay::drawFileControl() {
     // draw horizontal control
     float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
-    control.clear(slot);
-    control.autoDrift(callInterval);
-    control.firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
-    control.lastVisible = std::min(ntw->storage.size() - 1, (unsigned) (xControlOffset + 5));
+    control.autoDrift(fSlot, callInterval);
+    unsigned firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
+    unsigned lastVisible = std::min(ntw->storage.size() - 1, (unsigned) (xControlOffset + 5));
     control.drawStart();
-    for (unsigned index = control.firstVisible; index <= control.lastVisible; ++index) {
-        control.drawSlot(index, index);
+    for (unsigned index = firstVisible; index <= lastVisible; ++index) {
+        control.drawSlot(index, index, firstVisible, lastVisible);
     }
     control.drawEnd();
-    control.drawActive(horizontalWheel->getValue());
+    control.drawActive(slot);
     SCHMICKLE((unsigned) slot < ntw->storage.size());
     const std::string& name = ntw->storage.slots[slot].filename;
     if (!name.empty()) {
@@ -1136,7 +1113,8 @@ void NoteTakerDisplay::drawTie(unsigned start, unsigned char alpha) const {
 // note this assumes storage playback has at least one entry
 void NoteTakerDisplay::drawSlotControl() {
     auto ntw = this->ntw();
-    if (ntw->selectButton->isOff()) {
+    auto selectButton = ntw->selectButton;
+    if (selectButton->isOff()) {
         SlotButton::Select select = (SlotButton::Select) ntw->verticalWheel->getValue();
         this->drawVerticalLabel("repeat", true, SlotButton::Select::repeat == select, 0);
         this->drawVerticalLabel("slot", true, SlotButton::Select::slot == select, (box.size.y - 50) / 2);
@@ -1144,17 +1122,15 @@ void NoteTakerDisplay::drawSlotControl() {
         this->drawVerticalControl();
     }
     DisplayControl control(this, state.vg);
-    auto horizontalWheel = ntw->horizontalWheel;
-    float fSlot = horizontalWheel->getValue();
-    int slot = (int) (fSlot + .5);
-    control.clear(slot);
-    control.autoDrift(callInterval);
-    control.firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
-    control.lastVisible = std::min((unsigned) ntw->storage.playback.size() - 1,
+    float fSlot = selectButton->ledOn() ? ntw->horizontalWheel->getValue() :
+            (float) ntw->storage.selectStart;
+    control.autoDrift(fSlot, callInterval, 3 + (int) selectButton->isSingle());
+    unsigned firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
+    unsigned lastVisible = std::min((unsigned) ntw->storage.playback.size() - 1,
             (unsigned) (xControlOffset + 5));
     control.drawStart();
-    for (unsigned index = control.firstVisible; index <= control.lastVisible; ++index) {
-        control.drawSlot(index, ntw->storage.playback[index].index);
+    for (unsigned index = firstVisible; index <= lastVisible; ++index) {
+        control.drawSlot(index, ntw->storage.playback[index].index, firstVisible, lastVisible);
     }
     control.drawEnd();
     if (ntw->selectButton->isSingle()) {
