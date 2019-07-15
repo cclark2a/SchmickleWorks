@@ -142,7 +142,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
         module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
         module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
-        module->slot = &storage.slots.front();
+        this->setSlot(0);
     }
     Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
     Vec hWheelSize = Vec(100, 23);
@@ -533,7 +533,7 @@ void NoteTakerWidget::invalidateAndPlay(Inval inval) {
 void NoteTakerWidget::loadScore() {
     unsigned slot = (unsigned) horizontalWheel->getValue();
     SCHMICKLE(slot < storage.size());
-    this->setSlot(slot);
+    this->nt()->stageSlot(slot);
     this->resetScore();
 }
 
@@ -838,10 +838,12 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
 
 void NoteTakerWidget::setSlot(unsigned index) {
     auto nt = this->nt();
+    auto slot = &storage.slots[index];
     if (nt) {
         if (DEBUG_VERBOSE) DEBUG("process setSlot %u", index);
-        nt->slot = &storage.slots[index];
+        nt->slot = slot;
     }
+    display->stagedSlot = slot;
 }
 
 void NoteTakerWidget::shiftNotes(unsigned start, int diff) {

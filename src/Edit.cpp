@@ -448,7 +448,7 @@ void NoteTakerWidget::updateVertical() {
                 unsigned val = (unsigned) horizontalWheel->getValue();
                 SCHMICKLE(val < storage.size());
                 this->copyToSlot(val);
-                this->setSlot(val);
+                this->nt()->stageSlot(val);
             } else {
                 SCHMICKLE(partButton->ledOn());
                 int part = horizontalWheel->part();

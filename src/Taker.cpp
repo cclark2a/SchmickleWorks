@@ -471,10 +471,13 @@ void NoteTaker::setVoiceCount() {
 }
 
 void NoteTaker::stageSlot(unsigned slotIndex) {
-    unsigned last = slot - &this->ntw()->storage.slots.front();
-    SCHMICKLE(last < SLOT_COUNT);
-    if (slotIndex == last) {
-        return;
+    unsigned last = INT_MAX;
+    if (slot) {
+        last = slot - &this->ntw()->storage.slots.front();
+        SCHMICKLE(last < SLOT_COUNT);
+        if (slotIndex == last) {
+            return;
+        }
     }
     if (debugVerbose) DEBUG("stageSlot %u old %u", slotIndex, last);
     stagedSlot = slotIndex;

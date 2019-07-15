@@ -190,7 +190,7 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) const {
 }
 
 void NoteTakerWheel::onDragEnd(const event::DragEnd& ) {
-    inUse = false;
+//    inUse = false;
     ntw()->displayBuffer->fb->dirty = true;
 }
 

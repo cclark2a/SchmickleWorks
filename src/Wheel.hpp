@@ -24,7 +24,7 @@ struct NoteTakerWheel : app::SliderKnob {
     float lastRealValue = INT_MAX;  // manually maintained
     int lastValue = INT_MAX;
     int shadow;
-    bool inUse = false;
+//    bool inUse = false;
 
     NoteTakerWheel() {
     }
@@ -62,7 +62,7 @@ struct NoteTakerWheel : app::SliderKnob {
     void onDragEnd(const event::DragEnd& ) override;
 
     void onDragStart(const event::DragStart& ) override {
-        inUse = true;
+//        inUse = true;
     }
 
     void reset() override {

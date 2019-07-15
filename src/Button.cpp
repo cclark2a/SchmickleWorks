@@ -111,7 +111,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     }
     unsigned start = slotOn ? ntw->storage.selectStart : n.selectStart;
     unsigned end = slotOn ? ntw->storage.selectEnd : n.selectEnd;
-    if (!start || end <= 1) {
+    if (!slotOn && (!start || end <= 1)) {
         DEBUG("*** selectButton should have been set to edit start, save zero");
         _schmickled();
         return;
@@ -119,13 +119,21 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     if (State::insertCutAndShift != state) {
         slotOn ? ntw->copySlots() : ntw->copyNotes();
     }
-    unsigned previous;
     if (slotOn) {
-        if (0 == start && ntw->storage.size() == end) {
-            ++start;
+        bool isSingle = ntw->selectButton->isSingle();
+        if (start && isSingle) {
+            --start;
+            --end;
+        }
+        if (0 == start && ntw->storage.size() <= end) {
+            ++start;    // always leave one slot
+        }
+        if (start >= end) {
+            return;
         }
         ntw->storage.shiftSlots(start, end);
-        previous = start ? start - 1 : 0;
+        ntw->storage.selectStart = start;
+        ntw->storage.selectEnd = start + 1;
     } else {
         int shiftTime = n.notes[start].startTime - n.notes[end].startTime;
         if (State::cutToClipboard == state) {
@@ -144,9 +152,9 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         ntw->turnOffLEDButtons();
         // set selection to previous selectable note, or zero if none
         int wheel = ntw->noteToWheel(start);
-        previous = ntw->wheelToNote(std::max(0, wheel - 1));
+        unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
+        nt->setSelect(previous, previous < start ? start : previous + 1);
     }
-    nt->setSelect(previous, previous < start ? start : previous + 1);
     ntw->selectButton->setSingle();
     ntw->setWheelRange();  // range is smaller
 }

@@ -7,6 +7,7 @@ struct BeamPositions;
 struct DisplayCache;
 struct Notes;
 struct NoteTakerDisplay;
+struct NoteTakerSlot;
 
 enum Accidental : uint8_t {
     NO_ACCIDENTAL,
@@ -117,7 +118,7 @@ struct DisplayControl {
     unsigned lastVisible;
 
     DisplayControl(NoteTakerDisplay* , NVGcontext*);
-    void autoDrift(float fSlot, int slot);
+    void autoDrift(float frameTime);
     void clear(int slot) const;
     void drawActive(float wheel) const;
     void drawActiveNarrow(int slot) const;
@@ -130,7 +131,9 @@ struct DisplayControl {
 };
 
 struct NoteTakerDisplay : Widget {
-    NoteTakerWidget* mainWidget;
+    NoteTakerWidget* mainWidget = nullptr;
+    NoteTakerSlot* slot = nullptr;
+    NoteTakerSlot* stagedSlot = nullptr;
     Notes* previewNotes = nullptr; // hardcoded set of notes for preview
     array<Accidental, 75> accidentals;  // marks when accidental was used in bar
     DisplayRange range;
@@ -140,6 +143,8 @@ struct NoteTakerDisplay : Widget {
     int dynamicSelectAlpha = 0;
     int dynamicTempoAlpha = 0;
     const float fadeDuration = 1;
+    float lastCall = 0;
+    float callInterval = 1 / 70.f;
     float dynamicPitchTimer = 0;
     float dynamicSelectTimer = 0;
     float dynamicTempoTimer = 0;

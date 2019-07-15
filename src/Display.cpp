@@ -101,11 +101,15 @@ DisplayControl::DisplayControl(NoteTakerDisplay* d, NVGcontext* v)
     , vg(v) {
 }
 
-void DisplayControl::autoDrift(float fSlot, int slot) {
+void DisplayControl::autoDrift(float frameTime) {
+    // if display slot, set control offset to bring offscreen into view
+    // also, change abs adds to current time to work with any screen refresh rate
+
     // horizontalWheel->value auto-drifts towards integer, range of 0 to storage size
     auto ntw = display->ntw();
     auto horizontalWheel = ntw->horizontalWheel;
-    auto xControlOffset = display->xControlOffset;
+    auto xOff = display->xControlOffset;
+#if 0
     if (!horizontalWheel->inUse) {
         display->fb()->dirty |= fSlot != slot;
         if (fSlot < slot) {
@@ -114,23 +118,18 @@ void DisplayControl::autoDrift(float fSlot, int slot) {
             horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
         }
     }
+#endif
     // xControlOffset draws current location, 0 to storage size - 4
-    if (horizontalWheel->getValue() - xControlOffset > 3) {
-        xControlOffset += .04f;
-    } else if (horizontalWheel->getValue() < xControlOffset) {
-        xControlOffset -= .04f;
-    }
-    if (xControlOffset != floorf(xControlOffset)) {
-        if (xControlOffset > 0 && (horizontalWheel->getValue() - xControlOffset < 1
-                || (xControlOffset - floorf(xControlOffset) < .5
-                && horizontalWheel->getValue() - xControlOffset < 3))) {
-            xControlOffset = std::max(floorf(xControlOffset), xControlOffset - .04f);
+    auto horzVal = horizontalWheel->getValue();
+    if (xOff != floorf(xOff) || horzVal - xOff > 3 || horzVal < xOff) {
+        if (xOff > 0 && (horzVal - xOff < 1 || (xOff - floorf(xOff) < .5 && horzVal - xOff < 3))) {
+            xOff = std::max(floorf(xOff), xOff - .04f * 70 * frameTime);
         } else {
-            xControlOffset = std::min(ceilf(xControlOffset), xControlOffset + .04f);
+            xOff = std::min(ceilf(xOff), xOff + .04f * 70 * frameTime);
         }
         display->fb()->dirty = true;
     }
-    display->xControlOffset = xControlOffset;
+    display->xControlOffset = xOff;
 }
 
 void DisplayControl::clear(int slot) const {
@@ -359,11 +358,13 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
 }
 
 NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, FramebufferWidget* fb,
-        NoteTakerWidget* _ntw)
-    : range(state, size.x)
-    , state(range.xAxisScale, fb, _ntw->musicFont())
-    , pitchMap(sharpMap) {
-    mainWidget = _ntw;
+        NoteTakerWidget* ntw)
+    : mainWidget(ntw)
+    , slot(&ntw->storage.slots[0])
+    , range(state, size.x)
+    , state(range.xAxisScale, fb, ntw->musicFont())
+    , pitchMap(sharpMap)
+{
     box.pos = pos;
     box.size = size;
     SCHMICKLE(sizeof(upFlagNoteSymbols) / sizeof(char*) == NoteDurations::Count());
@@ -417,12 +418,7 @@ void NoteTakerDisplay::applyKeySignature() {
 }
 
 const DisplayCache* NoteTakerDisplay::cache() const {
-    auto ntw = this->ntw();
-    auto nt = ntw->nt();
-    if (!nt) {
-        return &ntw->storage.slots[0].cache;
-    }
-    return &nt->slot->cache;
+    return &slot->cache;
 }
 
 float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
@@ -437,17 +433,18 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
 
 void NoteTakerDisplay::draw(const DrawArgs& args) {
     auto ntw = this->ntw();
-    auto nt = ntw->nt();
     const auto& n = *this->notes();
     auto vg = state.vg = args.vg;
-    auto& storage = ntw->storage;
-    auto& slot = nt ? *nt->slot : storage.slots[0];
-    auto cache = &slot.cache;
+    if (stagedSlot) {
+        slot = stagedSlot;
+        stagedSlot = nullptr;
+    }
+    auto cache = &slot->cache;
     SCHMICKLE(state.fb == this->fb());
-    if (slot.invalid) {
+    if (slot->invalid) {
         CacheBuilder builder(state, cache);
         builder.updateXPosition(n);
-        slot.invalid = false;
+        slot->invalid = false;
         range.invalid = true;
     }
     if (range.invalid) {
@@ -457,7 +454,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         range.invalid = false;
     }
 #if RUN_UNIT_TEST
-    if (nt && ntw->runUnitTest) { // to do : remove this from shipping code
+    if (ntw->nt() && ntw->runUnitTest) { // to do : remove this from shipping code
         UnitTest(ntw, TestType::encode);
         ntw->runUnitTest = false;
         this->fb()->dirty = true;
@@ -466,6 +463,13 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
 #endif
     if (!n.notes.size()) {
         return;  // do nothing if we're not set up yet
+    }
+    if (lastCall && ntw->nt()) {
+        float realT = (float) ntw->nt()->realSeconds;
+        callInterval = realT - lastCall;
+        lastCall = realT;    
+    } else {
+        callInterval = 1 / 70.f;
     }
     nvgSave(vg);
     accidentals.fill(NO_ACCIDENTAL);
@@ -998,7 +1002,7 @@ void NoteTakerDisplay::drawFileControl() {
     float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
     control.clear(slot);
-    control.autoDrift(fSlot, slot);
+    control.autoDrift(callInterval);
     control.firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
     control.lastVisible = std::min(ntw->storage.size() - 1, (unsigned) (xControlOffset + 5));
     control.drawStart();
@@ -1140,11 +1144,11 @@ void NoteTakerDisplay::drawSlotControl() {
         this->drawVerticalControl();
     }
     DisplayControl control(this, state.vg);
-//    auto horizontalWheel = ntw->horizontalWheel;
-//    float fSlot = horizontalWheel->getValue();
-//    int slot = (int) (fSlot + .5);
-//    control.clear(slot);
-//    control.autoDrift(fSlot, slot);
+    auto horizontalWheel = ntw->horizontalWheel;
+    float fSlot = horizontalWheel->getValue();
+    int slot = (int) (fSlot + .5);
+    control.clear(slot);
+    control.autoDrift(callInterval);
     control.firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
     control.lastVisible = std::min((unsigned) ntw->storage.playback.size() - 1,
             (unsigned) (xControlOffset + 5));
@@ -1320,6 +1324,7 @@ void NoteTakerDisplay::drawTieControl() {
     nvgRestore(vg);
     auto ntw = this->ntw();
     auto horizontalWheel = ntw->horizontalWheel;
+#if false
     float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
     if (!ntw->horizontalWheel->inUse) {
@@ -1330,6 +1335,7 @@ void NoteTakerDisplay::drawTieControl() {
             horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
         }
     }
+#endif
     nvgBeginPath(vg);
     nvgRect(vg, leftEdge + (horizontalWheel->getValue()) * boxSpace,
             box.size.y - boxWidth - 5, boxWidth, boxWidth);
