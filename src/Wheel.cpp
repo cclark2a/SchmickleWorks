@@ -217,3 +217,65 @@ WheelBuffer::WheelBuffer(NoteTakerWheel* wheel) {
     this->addChild(fb);
     fb->addChild(wheel);
 }
+
+// to do : show duration as name
+std::string HorizontalWheelToolTip::getDisplayValueString() {
+    if (!wheel) {
+        return "!uninitialized";
+    }
+    auto ntw = wheel->ntw();
+    int value = (int) this->getValue();
+    if (ntw->slotButton->ledOn()) {
+        if (ntw->selectButton->isOff()) {
+            switch ((int) ntw->verticalWheel->getValue()) {
+                case 2:  // repeat
+                    return value <= 1 ? std::string("no repeat") : "repeat "
+                            + std::to_string(value) + " times";
+                break;
+                case 1:  // slot
+                    return "slot " + std::to_string(value + 1);
+                break;
+                case 0: { // stage
+                    SlotPlay::Stage stage = std::max(SlotPlay::Stage::step, 
+                            std::min(SlotPlay::Stage::never, (SlotPlay::Stage) this->getValue()));
+                    switch(stage) {
+                        case SlotPlay::Stage::step:
+                            return "end immediately";
+                            break;
+                        case SlotPlay::Stage::beat:
+                            return "end on beat";
+                            break;
+                        case SlotPlay::Stage::quarterNote:
+                            return "end on quarter note";
+                            break;
+                        case SlotPlay::Stage::bar:
+                            return "end on bar";
+                            break;
+                        case SlotPlay::Stage::song:
+                            return "end on song";
+                            break;
+                        case SlotPlay::Stage::never:
+                            return "end never";
+                            break;
+                        default:
+                            DEBUG("unexpected stage %d", stage);
+                            _schmickled();
+                    }
+                } break;
+            }
+        }
+    }
+    return std::to_string(wheel->getValue());
+}
+
+// to do : show pitch as note name
+std::string VerticalWheelToolTip::getDisplayValueString() {
+    if (!wheel) {
+        return "!uninitialized";
+    }
+    auto ntw = wheel->ntw();
+    if (ntw->slotButton->ledOn()) {
+        
+    }
+    return std::to_string(wheel->getValue());
+}

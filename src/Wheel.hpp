@@ -154,6 +154,12 @@ struct HorizontalWheel : NoteTakerWheel {
     void setDenominator(const DisplayNote& );
 };
 
+struct HorizontalWheelToolTip : ParamQuantity {
+    HorizontalWheel* wheel = nullptr;
+
+    std::string getDisplayValueString() override;
+};
+
 struct VerticalWheel : NoteTakerWheel {
     VerticalWheel() {
         shadow = 1;
@@ -175,3 +181,10 @@ struct VerticalWheel : NoteTakerWheel {
 
     void onDragMove(const event::DragMove& e) override;
 };
+
+struct VerticalWheelToolTip : ParamQuantity {
+    VerticalWheel* wheel = nullptr;
+
+    std::string getDisplayValueString() override;
+};
+

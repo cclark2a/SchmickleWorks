@@ -35,6 +35,8 @@ struct SlotPlay {
     }
 };
 
+// to fluidly switch between banks of notes on the fly, the display cache and so on must
+// be precalcuated. Store them with notes in the slot for that reason
 struct NoteTakerSlot {
     Notes n;
     DisplayCache cache;

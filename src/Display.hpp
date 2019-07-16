@@ -1,13 +1,11 @@
 #pragma once
 
 #include "DisplayNote.hpp"
+#include "Storage.hpp"
 
 struct BarPosition;
 struct BeamPositions;
-struct DisplayCache;
-struct Notes;
 struct NoteTakerDisplay;
-struct NoteTakerSlot;
 
 enum Accidental : uint8_t {
     NO_ACCIDENTAL,
@@ -41,6 +39,7 @@ struct DisplayState {
     NVGcontext* vg = nullptr;
     FramebufferWidget* fb = nullptr;
     const float xAxisScale;
+    float callInterval = 1 / 70.f;
     const int musicFont;
     const bool debugVerbose;
 
@@ -106,10 +105,6 @@ struct DisplayRange {
     void updateRange(const Notes& , const DisplayCache* , bool editStart);
 };
 
-// start here;
-// to fluidly switch between banks of notes on the fly, the display cache and so on must
-// be precalcuated. Store them with notes in the slot for that reason
-
 struct DisplayControl {
     NoteTakerDisplay* display;  // initialized by constructor
     NVGcontext* vg;  // initialized by constructor
@@ -117,14 +112,14 @@ struct DisplayControl {
 
     DisplayControl(NoteTakerDisplay* , NVGcontext*);
     void autoDrift(float value, float frameTime, int visCells = 3);
-    void drawActive(float wheel) const;
-    void drawActiveNarrow(int slot) const;
+    void drawActive(unsigned start, unsigned end) const;
+    void drawActiveNarrow(unsigned slot) const;
     void drawEmpty() const;
     void drawEnd() const;
-    void drawNumber(unsigned index) const;
-    void drawNote() const;
-    void drawSlot(unsigned position, unsigned slotIndex, unsigned firstVisible,
-            unsigned lastVisible) const;
+    void drawNumber(const char* prefix, unsigned index) const;
+    void drawNote(SlotPlay::Stage) const;
+    void drawSlot(unsigned position, unsigned slotIndex, unsigned repeat, SlotPlay::Stage ,
+            unsigned firstVisible, unsigned lastVisible) const;
     void drawStart() const;
 };
 
@@ -142,7 +137,6 @@ struct NoteTakerDisplay : Widget {
     int dynamicTempoAlpha = 0;
     const float fadeDuration = 1;
     float lastCall = 0;
-    float callInterval = 1 / 70.f;
     float dynamicPitchTimer = 0;
     float dynamicSelectTimer = 0;
     float dynamicTempoTimer = 0;

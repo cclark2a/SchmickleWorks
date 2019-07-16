@@ -124,6 +124,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
         if (selectButton->isOff()) {
             verticalWheel->setLimits(0, 2.999f);
             verticalWheel->setValue(1.5f); // choose slot
+            this->updateSlotVertical(SlotButton::Select::slot);
         }
         return;
     }
@@ -219,21 +220,22 @@ void NoteTakerWidget::updateHorizontal() {
                 int diff = wheelValue - edit.horizontalValue;
                 switch ((SlotButton::Select) verticalWheel->getValue()) {
                     case SlotButton::Select::repeat:
-                        slot.repeat = (int) orig.repeat < -diff ? 0 :
+                        slot.repeat = (int) orig.repeat + diff < 1 ? 1 :
                                 std::min(orig.repeat + diff, 99U);
                     break;
                     case SlotButton::Select::slot:
                         // change current slot in nt as well
-                        slot.index = (int) orig.index < -diff ? 0 :
-                                std::min(orig.index + diff, SLOT_COUNT);
+                        slot.index = (int) orig.index + diff < 0 ? 0 :
+                                std::min(orig.index + diff, SLOT_COUNT - 1);
                         if (storage.selectStart == index) {
                             this->nt()->stageSlot(slot.index);
                         }
                     break;
                     case SlotButton::Select::end:
-                        slot.stage = (SlotPlay::Stage) ((int) slot.stage + diff);
-                        slot.stage = std::min(SlotPlay::Stage::never,
-                                std::max(SlotPlay::Stage::step, slot.stage));
+                        slot.stage = (int) orig.stage + diff < (int) SlotPlay::Stage::step ?
+                                SlotPlay::Stage::step :
+                                (SlotPlay::Stage) std::min((int) orig.stage + diff,
+                                (int) SlotPlay::Stage::never);
                     break;
                     default:
                         _schmickled();
@@ -430,7 +432,48 @@ void NoteTakerWidget::updateHorizontal() {
     if (debugVerbose) n.validate(); // find buggy shifts sooner?
     this->invalidateAndPlay(inval);
 }
-    
+
+void NoteTakerWidget::updateSlotVertical(SlotButton::Select select) {
+    SlotPlay& slot = storage.playback[storage.selectStart];
+    int slotParam = INT_MAX;
+    int repMin = INT_MAX;
+    int repMax = 0;
+    int slotMax = 0;
+    switch (select) {
+        case SlotButton::Select::repeat:
+            // find range of repeat counts in all existing slots
+            for (const auto& s : edit.pbase) {
+                repMin = std::min(repMin, (int) s.repeat);
+                repMax = std::max(repMax, (int) s.repeat);
+            }
+            slotParam = slot.repeat;
+            slotMax = 99;
+            break;
+        case SlotButton::Select::slot:
+            for (const auto& s : edit.pbase) {
+                repMin = std::min(repMin, (int) s.index);
+                repMax = std::max(repMax, (int) s.index);
+            }
+            slotParam = slot.index;
+            slotMax = storage.size() - 1;
+            break;
+        case SlotButton::Select::end:
+            for (const auto& s : edit.pbase) {
+                repMin = std::min(repMin, (int) s.stage);
+                repMax = std::max(repMax, (int) s.stage);
+            }
+            slotParam = (int) slot.stage;
+            slotMax = (int) SlotPlay::Stage::never;
+            break;
+        default:
+            _schmickled();
+    }
+    horizontalWheel->setLimits(slotParam - repMax, slotMax + slotParam - repMin);
+    horizontalWheel->setValue(slotParam);
+    edit.horizontalValue = slotParam;
+    return;
+}
+
 void NoteTakerWidget::updateVertical() {
     auto& n = this->n();
     if (runButton->ledOn()) {
@@ -475,27 +518,7 @@ void NoteTakerWidget::updateVertical() {
         return;
     }
     if (slotButton->ledOn()) {
-        // to do : choose edit mode: 'repeat', 'slot', 'end'
-        SlotPlay& slot = storage.playback[storage.selectStart];
-        int slotParam = INT_MAX;
-        SlotButton::Select select = (SlotButton::Select) wheelValue;
-        switch(select) {
-            case SlotButton::Select::repeat:
-                horizontalWheel->setLimits(1, 99);
-                slotParam = slot.repeat;
-                break;
-            case SlotButton::Select::slot:
-                horizontalWheel->setLimits(0, storage.size() - 1);
-                slotParam = slot.index;
-                break;
-            case SlotButton::Select::end:
-                horizontalWheel->setLimits(0, (int) SlotPlay::Stage::never);
-                slotParam = (int) slot.stage;
-                break;
-            default:
-                _schmickled();
-        }
-        horizontalWheel->setValue(slotParam);
+        this->updateSlotVertical((SlotButton::Select) wheelValue);
         return;
     }
     if (sustainButton->ledOn()) {

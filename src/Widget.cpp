@@ -139,8 +139,8 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
         module->configParam<TieButtonToolTip>(NoteTaker::TIE_BUTTON, 0, 1, 0, "Add");
         module->configParam<SlotButtonToolTip>(NoteTaker::SLOT_BUTTON, 0, 1, 0, "Edit");
         module->configParam<TempoButtonToolTip>(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert");
-        module->configParam(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
-        module->configParam(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
+        module->configParam<HorizontalWheelToolTip>(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
+        module->configParam<VerticalWheelToolTip>(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
         module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
         this->setSlot(0);
     }
@@ -148,16 +148,21 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     Vec hWheelSize = Vec(100, 23);
     addWheel(hWheelSize, (horizontalWheel = createParam<HorizontalWheel>(
             hWheelPos, module, NoteTaker::HORIZONTAL_WHEEL)));
+    if (horizontalWheel->paramQuantity) {
+        ((HorizontalWheelToolTip*) horizontalWheel->paramQuantity)->wheel = horizontalWheel;
+    }
     // vertical wheel is horizontal wheel (+x) rotated ccw (-y); value and limits are negated
     Vec vWheelPos = Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 50);
     Vec vWheelSize = Vec(23, 100);
     addWheel(vWheelSize, (verticalWheel = createParam<VerticalWheel>(
             vWheelPos, module, NoteTaker::VERTICAL_WHEEL)));
-
+    if (verticalWheel->paramQuantity) {
+        ((VerticalWheelToolTip*) verticalWheel->paramQuantity)->wheel = verticalWheel;
+    }
     addInput(createInput<PJ301MPort>(Vec(140, 306), module, NoteTaker::V_OCT_INPUT));
     addInput(createInput<PJ301MPort>(Vec(172, 306), module, NoteTaker::CLOCK_INPUT));
-    addInput(createInput<PJ301MPort>(Vec(204, 306), module, NoteTaker::RESET_INPUT));
-    addInput(createInput<PJ301MPort>(Vec(140, 338), module, NoteTaker::SLOT_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(204, 306), module, NoteTaker::SLOT_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(140, 338), module, NoteTaker::RESET_INPUT));
     addOutput(createOutput<PJ301MPort>(Vec(172, 338), module, NoteTaker::CLOCK_OUTPUT));
     addOutput(createOutput<PJ301MPort>(Vec(204, 338), module, NoteTaker::EOS_OUTPUT));
 

@@ -1,29 +1,16 @@
 #pragma once
 
+#include "Button.hpp"
 #include "Edit.hpp"
 #include "Storage.hpp"
 
 struct CutButton;
 struct DisplayBuffer;
-struct DumpButton;
-struct FileButton;
 struct HorizontalWheel;
-struct InsertButton;
-struct KeyButton;
 struct Notes;
 struct NoteTaker;
-struct NoteTakerButton;
 struct NoteTakerDisplay;
 struct NoteTakerWheel;
-struct PartButton;
-struct RestButton;
-struct RunButton;
-struct SelectButton;
-struct SustainButton;
-struct TempoButton;
-struct TieButton;
-struct TimeButton;
-struct SlotButton;
 struct VerticalWheel;
 
 struct Clipboard {
@@ -165,6 +152,7 @@ struct NoteTakerWidget : ModuleWidget {
     }
 
     void updateHorizontal();
+    void updateSlotVertical(SlotButton::Select );
     void updateVertical();
     unsigned wheelToNote(int value, bool dbug = true) const;  // maps wheel value to index in notes
     void writeStorage(unsigned index) const;

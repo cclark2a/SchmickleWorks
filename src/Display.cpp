@@ -122,7 +122,7 @@ void DisplayControl::autoDrift(float value, float frameTime, int visCells) {
     display->xControlOffset = xOff;
 }
 
-void DisplayControl::drawActiveNarrow(int slot) const {
+void DisplayControl::drawActiveNarrow(unsigned slot) const {
     nvgBeginPath(vg);
     nvgRect(vg, 40 + (slot - display->xControlOffset) * boxWidth,
             display->box.size.y - boxWidth - 5, 5, boxWidth);
@@ -130,10 +130,10 @@ void DisplayControl::drawActiveNarrow(int slot) const {
     nvgFill(vg);
 }
 
-void DisplayControl::drawActive(float wheel) const {
+void DisplayControl::drawActive(unsigned start, unsigned end) const {
     nvgBeginPath(vg);
-    nvgRect(vg, 40 + (wheel - display->xControlOffset) * boxWidth,
-            display->box.size.y - boxWidth - 5, boxWidth, boxWidth);
+    nvgRect(vg, 40 + (start - display->xControlOffset) * boxWidth,
+            display->box.size.y - boxWidth - 5, boxWidth * (end - start), boxWidth);
     nvgStrokeWidth(vg, 2);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
@@ -155,14 +155,29 @@ void DisplayControl::drawEnd() const {
     nvgRestore(vg);
 }
 
-void DisplayControl::drawNumber(unsigned index) const {
+void DisplayControl::drawNote(SlotPlay::Stage stage) const {
+    const char stages[] = " ^tH[\\]";
+    nvgBeginPath(vg);
+    nvgRect(vg, 0, 0, boxWidth, boxWidth);
+    nvgStrokeWidth(vg, 1);
+    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+    nvgStroke(vg);
+    auto ntw = display->ntw();
+    nvgFontFaceId(vg, ntw->musicFont());
+    nvgFontSize(vg, 16);
+    nvgTextAlign(vg, NVG_ALIGN_CENTER);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+    nvgText(vg, boxWidth / 2, boxWidth - 7, &stages[(int) stage], &stages[(int) stage] + 1);
+}
+
+void DisplayControl::drawNumber(const char* prefix, unsigned index) const {
     float textX = boxWidth - 2;
     float textY = 8;
     auto ntw = display->ntw();
-    nvgFontFaceId(vg, ntw->textFont());
+    nvgFontFaceId(vg, INT_MAX == index ? ntw->musicFont() : ntw->textFont());
     nvgFontSize(vg, 10);
     nvgTextAlign(vg, NVG_ALIGN_RIGHT);
-    std::string label = std::to_string(index + 1);
+    std::string label = INT_MAX == index ? "_": prefix + std::to_string(index);
     float bounds[4];
     (void) nvgTextBounds(vg, textX, textY, label.c_str(), NULL, bounds);
     nvgBeginPath(vg);
@@ -174,22 +189,8 @@ void DisplayControl::drawNumber(unsigned index) const {
     nvgText(vg, textX, textY, label.c_str(), NULL);
 }
 
-void DisplayControl::drawNote() const {
-    nvgBeginPath(vg);
-    nvgRect(vg, 0, 0, boxWidth, boxWidth);
-    nvgStrokeWidth(vg, 1);
-    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-    nvgStroke(vg);
-    auto ntw = display->ntw();
-    nvgFontFaceId(vg, ntw->musicFont());
-    nvgFontSize(vg, 16);
-    nvgTextAlign(vg, NVG_ALIGN_CENTER);
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-    nvgText(vg, boxWidth / 2, boxWidth - 7, "H", NULL);
-}
-
-void DisplayControl::drawSlot(unsigned position, unsigned slotIndex, unsigned firstVisible,
-        unsigned lastVisible) const {
+void DisplayControl::drawSlot(unsigned position, unsigned slotIndex, unsigned repeat,
+        SlotPlay::Stage stage, unsigned firstVisible, unsigned lastVisible) const {
     nvgSave(vg);
     nvgTranslate(vg, 40 + (position - display->xControlOffset) * boxWidth,
             display->box.size.y - boxWidth - 5);
@@ -197,9 +198,15 @@ void DisplayControl::drawSlot(unsigned position, unsigned slotIndex, unsigned fi
     if (slotIndex >= ntw->storage.size() || ntw->storage.slots[slotIndex].n.isEmpty(ALL_CHANNELS)) {
         this->drawEmpty();
     } else {
-        this->drawNote();
+        this->drawNote(stage);
     }
-    this->drawNumber(slotIndex);
+    this->drawNumber("", slotIndex + 1);
+    if (repeat > 1) {
+        nvgSave(vg);
+        nvgTranslate(vg, 0, boxWidth / 2);
+        this->drawNumber("x", 99 == repeat ? INT_MAX : repeat);
+        nvgRestore(vg);
+    }
     if (firstVisible == position && display->xControlOffset > .5) {  // to do : offscreen with transparency ?
         NVGpaint paint = nvgLinearGradient(vg, boxWidth / 2, 0, boxWidth, 0,
                 nvgRGBA(0xFF, 0xFF, 0xFF, 0), nvgRGBA(0xFF, 0xFF, 0xFF, 0xFF));
@@ -222,7 +229,6 @@ void DisplayControl::drawSlot(unsigned position, unsigned slotIndex, unsigned fi
 void DisplayControl::drawStart() const {
     nvgSave(vg);
     nvgScissor(vg, 40 - boxWidth / 2, display->box.size.y - boxWidth - 5, boxWidth * 5, boxWidth);
-
 }
 
 DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicFnt)
@@ -304,7 +310,7 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
         if (fabsf(dynamicXOffsetTimer) <= 5) {
             dynamicXOffsetTimer = 0;
         } else {
-            dynamicXOffsetStep = -dynamicXOffsetTimer / 24;
+            dynamicXOffsetStep = -dynamicXOffsetTimer * 70 * state.callInterval / 24;
         }
     }
     SCHMICKLE(xAxisOffset <= std::max(0, lastXPostion - boxWidth));
@@ -446,7 +452,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
 #endif
     if (ntw->nt()) {
         float realT = (float) ntw->nt()->realSeconds;
-        callInterval = lastCall ? realT - lastCall : 1 / (float) settings::frameRateLimit;
+        state.callInterval = lastCall ? realT - lastCall : 1 / (float) settings::frameRateLimit;
         lastCall = realT;    
     }
     nvgSave(vg);
@@ -463,7 +469,9 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     nvgSave(vg);
     this->scroll();
     this->drawClefs();
-    this->drawSelectionRect();
+    if (!ntw->menuButtonOn()) {
+        this->drawSelectionRect();
+    }
     BarPosition bar(ntw->debugVerbose);
     this->setUpAccidentals(bar);
     this->drawNotes(bar);
@@ -667,7 +675,7 @@ void NoteTakerDisplay::drawFreeNote(const DisplayNote& note, NoteCache* noteCach
     noteCache->setDuration(n.ppq);
     noteCache->stemUp = true;
     noteCache->staff = true;
-    drawNote((Accidental) pitchMap[note.pitch()].accidental, *noteCache, alpha, 24);
+    this->drawNote((Accidental) pitchMap[note.pitch()].accidental, *noteCache, alpha, 24);
 }
             
 void NoteTakerDisplay::drawKeySignature(unsigned index) {
@@ -979,15 +987,15 @@ void NoteTakerDisplay::drawFileControl() {
     // draw horizontal control
     float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
-    control.autoDrift(fSlot, callInterval);
+    control.autoDrift(fSlot, state.callInterval);
     unsigned firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
     unsigned lastVisible = std::min(ntw->storage.size() - 1, (unsigned) (xControlOffset + 5));
     control.drawStart();
     for (unsigned index = firstVisible; index <= lastVisible; ++index) {
-        control.drawSlot(index, index, firstVisible, lastVisible);
+        control.drawSlot(index, index, 0, SlotPlay::Stage::quarterNote, firstVisible, lastVisible);
     }
     control.drawEnd();
-    control.drawActive(slot);
+    control.drawActive(slot, slot + 1);
     SCHMICKLE((unsigned) slot < ntw->storage.size());
     const std::string& name = ntw->storage.slots[slot].filename;
     if (!name.empty()) {
@@ -1124,21 +1132,21 @@ void NoteTakerDisplay::drawSlotControl() {
     DisplayControl control(this, state.vg);
     float fSlot = selectButton->ledOn() ? ntw->horizontalWheel->getValue() :
             (float) ntw->storage.selectStart;
-    control.autoDrift(fSlot, callInterval, 3 + (int) selectButton->isSingle());
+    control.autoDrift(fSlot, state.callInterval, 3 + (int) selectButton->isSingle());
     unsigned firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
     unsigned lastVisible = std::min((unsigned) ntw->storage.playback.size() - 1,
             (unsigned) (xControlOffset + 5));
     control.drawStart();
     for (unsigned index = firstVisible; index <= lastVisible; ++index) {
-        control.drawSlot(index, ntw->storage.playback[index].index, firstVisible, lastVisible);
+        auto& slotPlay = ntw->storage.playback[index];
+        control.drawSlot(index, slotPlay.index, slotPlay.repeat, slotPlay.stage,
+                firstVisible, lastVisible);
     }
     control.drawEnd();
     if (ntw->selectButton->isSingle()) {
         control.drawActiveNarrow(ntw->storage.selectStart);
     } else {
-        for (unsigned index = ntw->storage.selectStart; index < ntw->storage.selectEnd; ++index) {
-            control.drawActive(index);
-        }
+        control.drawActive(ntw->storage.selectStart, ntw->storage.selectEnd);
     }
 }
 
