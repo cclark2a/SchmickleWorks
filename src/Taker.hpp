@@ -53,8 +53,8 @@ struct NoteTaker : Module {
 	enum InputIds {
 		V_OCT_INPUT,      // 16
         CLOCK_INPUT,      // 17
-        RESET_INPUT,      // 18
-        SLOT_INPUT,       // 19
+        EOS_INPUT,        // 18
+        RESET_INPUT,      // 19
 		NUM_INPUTS
 	};
 
@@ -84,35 +84,41 @@ struct NoteTaker : Module {
     // state saved into json
     // written by step:
     array<Voices, CHANNEL_COUNT> channels;
-    int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per q)
+    dsp::SchmittTrigger clockTrigger;
+    dsp::SchmittTrigger eosTrigger;
+    dsp::SchmittTrigger resetTrigger;
+    dsp::PulseGenerator clockPulse;
+    dsp::PulseGenerator eosPulse;
+    dsp::Timer resetTimer;
+    int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per qn)
     // end of state saved into json; written by step
     float elapsedSeconds = 0;               // seconds into score
     double realSeconds = 0;                 // seconds for UI timers
     unsigned playStart = 0;                 // index of notes output
+    int midiEndTime = INT_MAX;
+    unsigned repeat = INT_MAX;
     // clock input state (not saved)
+    float clockCycle = 0;
     float clockHighTime = FLT_MAX;
-    float lastClock = 0;
     int externalClockTempo = stdMSecsPerQuarterNote;
     // reset input state (not saved)
+    float resetCycle = 0;
     float resetHighTime = FLT_MAX;
-    float eosTime = FLT_MAX;
     int midiClockOut = INT_MAX;
-    float clockOutTime = FLT_MAX;
     unsigned stagedSlot = INT_MAX;
-    bool sawClockLow = false;
-    bool sawResetLow = false;
     bool invalidVoiceCount = false;
     const bool debugVerbose;          // enable this in note taker widget include
 
     NoteTaker();
 
-    bool advancePlayStart(int midiTime, unsigned lastNote) {
+    // returns true if playstart could be advanced, false if end was reached
+    bool advancePlayStart(int midiTime, int midiEndTime) {
+        if (midiTime >= midiEndTime) {
+            return false;
+        }
         do {
             const auto& note = n().notes[playStart];
-            if (note.isNoteOrRest() && note.endTime() > midiTime) {
-                break;
-            }
-            if (playStart >= lastNote) {
+            if (midiTime < note.endTime()) {
                 return true;
             }
             if (MIDI_TEMPO == note.type && this->isRunning()) {
@@ -120,9 +126,12 @@ struct NoteTaker : Module {
                 externalClockTempo = (int) ((float) externalClockTempo / stdMSecsPerQuarterNote
                         * tempo);
             }
+            if (TRACK_END == note.type) {
+                return false;
+            }
             ++playStart;
+            SCHMICKLE(playStart < n().notes.size());
         } while (true);
-        return false;
     }
 
     unsigned atMidiTime(int midiTime) const {
@@ -157,7 +166,7 @@ struct NoteTaker : Module {
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static void DebugDumpRawMidi(const vector<uint8_t>& v);
 
-    int externalTempo(bool clockEdge);
+    int externalTempo();
     bool extractClipboard(vector<DisplayNote>* ) const;
     bool insertContains(unsigned loc, DisplayType type) const;
     bool isRunning() const;

@@ -17,7 +17,7 @@ struct SlotPlay {
     };
 
     unsigned index = 0;
-    unsigned repeat = 1;
+    unsigned repeat = INT_MAX;
     Stage stage = Stage::song;
 
     void fromJson(json_t* root) {
@@ -61,6 +61,7 @@ struct SlotArray {
     unsigned selectStart = 0; // current selection in playback vector
     unsigned selectEnd = 1;
     bool saveZero = false;   // set if single was at left-most position
+    bool slotEndTrigger = false;
     const bool debugVerbose;
 
     void fromJson(json_t* root);

@@ -53,7 +53,7 @@ constexpr unsigned ALL_CV_CHANNELS = 0x0F;  // one bit set per CV output
 constexpr unsigned SLOT_COUNT = 12;
 constexpr unsigned VOICE_COUNT = 16;
 
-constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 5;
+constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 10;
 constexpr unsigned CV_OUTPUTS = 4;
 
 struct NoteDurations {

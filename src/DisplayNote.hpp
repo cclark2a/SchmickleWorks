@@ -270,12 +270,14 @@ enum class PositionType : uint8_t {
     right,
 };
 
+// to do : set up end stage time for slot/stage end
 struct NoteCache {
     const DisplayNote* note;  // needed because with tied notes, cache entries are > than notes
     int xPosition;
     float yPosition = 0;
     int vStartTime;  // visible start time, for multi part note alignment
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
+    int endStageTime = INT_MAX;  // midi time when slot ends, after eos trigger
     PositionType beamPosition = PositionType::none;
     uint8_t beamCount = 0;
     uint8_t channel;

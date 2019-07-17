@@ -115,7 +115,7 @@ static void LowLevelAction(NoteTakerWidget* n, int control) {
         case NoteTaker::NUM_PARAMS + NoteTaker::CLOCK_INPUT: 
         case NoteTaker::NUM_PARAMS + NoteTaker::RESET_INPUT: {
             float value = -10 + (float) rand() / RAND_MAX * 20;
-            n->nt()->inputs[control - NoteTaker::NUM_PARAMS].value = value;
+            n->nt()->inputs[control - NoteTaker::NUM_PARAMS].setVoltage(value);
         } break;
         default:
             _schmickled();  // shouldn't land here

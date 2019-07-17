@@ -35,19 +35,17 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
     return deltaTime;
 }
 
-int NoteTaker::externalTempo(bool clockEdge) {
-    if (inputs[CLOCK_INPUT].active) {
-        if (clockEdge) {
+// if clockCycle is 120 bpm, external clock tempo equals internal tempo
+int NoteTaker::externalTempo() {
+    if (inputs[CLOCK_INPUT].isConnected()) {
+        if (clockCycle) {
             // upward edge, advance clock
             if (!this->isRunning()) {
                 event::DragEnd e;
-                auto runButton = ntw()->runButton;
-                runButton->onDragEnd(e);
+                ntw()->runButton->onDragEnd(e);
             } else {
-                externalClockTempo =
-                        (int) ((lastClock ? ((realSeconds - lastClock) * 2) : 1) * tempo);
+                externalClockTempo = (int) (tempo * 2 / clockCycle);
             }
-            lastClock = realSeconds;
         }
         return externalClockTempo;
     }
@@ -90,20 +88,18 @@ void NoteTaker::playSelection() {
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     this->setPlayStart();
     int midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
-    this->advancePlayStart(midiTime, n.notes.size() - 1);
+    this->advancePlayStart(midiTime, midiEndTime);
+    const auto& storage = ntw()->storage;
+    repeat = this->isRunning() ? ntw()->slotButton->ledOn() ?
+            storage.playback[storage.selectStart].repeat : INT_MAX : 1;
 }
 
 // since this runs on a high frequency thread, avoid state except to play notes
 void NoteTaker::process(const ProcessArgs &args) {
     realSeconds += args.sampleTime;
-    if (eosTime < realSeconds) {
-        outputs[EOS_OUTPUT].value = 0;
-        eosTime = FLT_MAX;
-    }
-    if (clockOutTime < realSeconds) {
-        outputs[CLOCK_OUTPUT].value = 0;
-        clockOutTime = FLT_MAX;
-    }
+    outputs[CLOCK_OUTPUT].setVoltage(clockPulse.process(args.sampleTime) ? 10 : 0);
+    outputs[EOS_OUTPUT].setVoltage(clockPulse.process(args.sampleTime) ? 10 : 0);
+    bool ignoreClock = 0.001f > resetTimer.process(args.sampleTime);
 #if RUN_UNIT_TEST
     if (mainWidget->runUnitTest) {
         return;
@@ -120,59 +116,50 @@ void NoteTaker::process(const ProcessArgs &args) {
     }
     auto& n = this->n();
     bool running = this->isRunning();
-    float clockCycle = 0;
-    int localTempo;
-    if (inputs[CLOCK_INPUT].active) {
-        sawClockLow |= inputs[CLOCK_INPUT].value < 2;
-        if (inputs[CLOCK_INPUT].value > 8 && sawClockLow) {
-            clockCycle = std::max(0., realSeconds - clockHighTime);
-            sawClockLow = false;
-            clockHighTime = realSeconds;
-        }
-    }
-    float resetCycle = 0;
-    if (inputs[RESET_INPUT].active) {
-        sawResetLow |= inputs[RESET_INPUT].value < 2;
-        if (inputs[RESET_INPUT].value > 8 && sawResetLow) {
+    int localTempo = tempo;
+    if (inputs[RESET_INPUT].isConnected()) {
+        if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
             resetCycle = std::max(0., realSeconds - resetHighTime);
-            sawResetLow = false;
             resetHighTime = realSeconds;
+            resetTimer.reset();
         }
-    }
-    if (clockCycle && !running && ntw()->selectButton->editStart() && inputs[CLOCK_INPUT].active
-            && inputs[V_OCT_INPUT].active) {
-        int duration = 0;
-        if (inputs[RESET_INPUT].active) {
-            sawResetLow = inputs[RESET_INPUT].value < 2;
-            if (inputs[RESET_INPUT].value > 8 && sawResetLow) {
-                if (realSeconds > resetHighTime) {
-                    // insert note with pitch v/oct and duration quantized by clock step
-                    duration = n.ppq * (realSeconds - resetHighTime) / clockCycle;
-                }
-                sawResetLow = false;
-                resetHighTime = realSeconds;
-            }
-        } else {
-            duration = n.ppq;   // on clock step, insert quarter note with pitch set from v/oct input
-        }        
-        if (duration) { // to do : make bias common const (if it really is one)
-            const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-            int midiNote = (int) ((inputs[V_OCT_INPUT].value - bias) * 12);
-            unsigned insertLoc = !n.noteCount(ntw()->selectChannels) ? this->atMidiTime(0) :
-                    !n.selectStart ? mainWidget->wheelToNote(1) : n.selectEnd;
-            int startTime = n.notes[insertLoc].startTime;
-            DisplayNote note(NOTE_ON, startTime, duration, (uint8_t) mainWidget->unlockedChannel());
-            note.setPitch(midiNote);
-            n.notes.insert(n.notes.begin() + insertLoc, note);
-            mainWidget->insertFinal(duration, insertLoc, 1);
-        }
-        localTempo = tempo;
     } else {
-        localTempo = this->externalTempo(clockCycle);
-        if (resetCycle) {
-            ntw()->display->range.resetXAxisOffset();
-            this->resetRun();
+        resetCycle = 0;
+    }
+    if (inputs[CLOCK_INPUT].isConnected()) {
+        if (!ignoreClock && clockTrigger.process(inputs[CLOCK_INPUT].getVoltage())) {
+            clockCycle = std::max(0., realSeconds - clockHighTime);
+            clockHighTime = realSeconds;
+            if (!running && ntw()->selectButton->editStart() && inputs[V_OCT_INPUT].isConnected()) {
+                int duration;
+                if (resetCycle && clockCycle) {
+                    // insert note with pitch v/oct and duration quantized by clock step
+                    duration = n.ppq * resetCycle / clockCycle;
+                    resetCycle = 0;
+                } else {
+                    duration = n.ppq;  // on clock step, insert quarter note with pitch set from v/oct input
+                }        
+                // to do : make bias common const (if it really is one)
+                const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
+                int midiNote = (int) ((inputs[V_OCT_INPUT].getVoltage() - bias) * 12);
+                unsigned insertLoc = !n.noteCount(ntw()->selectChannels) ? this->atMidiTime(0) :
+                        !n.selectStart ? mainWidget->wheelToNote(1) : n.selectEnd;
+                int startTime = n.notes[insertLoc].startTime;
+                DisplayNote note(NOTE_ON, startTime, duration, (uint8_t) mainWidget->unlockedChannel());
+                note.setPitch(midiNote);
+                n.notes.insert(n.notes.begin() + insertLoc, note);
+                mainWidget->insertFinal(duration, insertLoc, 1);
+            } else {
+                localTempo = this->externalTempo();
+                if (resetCycle) {
+                    ntw()->display->range.resetXAxisOffset();
+                    this->resetRun();
+                    resetCycle = 0;
+                }
+            }
         }
+    } else {
+        clockCycle = 0;
     }
     if (!playStart) {
         return;
@@ -184,30 +171,55 @@ void NoteTaker::process(const ProcessArgs &args) {
     elapsedSeconds += args.sampleTime * this->beatsPerHalfSecond(localTempo);
     if (midiTime >= midiClockOut) {
         midiClockOut += n.ppq;
-        outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
-        clockOutTime = 0.001f + realSeconds;
+        clockPulse.trigger();
     }
     this->setOutputsVoiceCount();
     this->setExpiredGatesLow(midiTime);
-    unsigned lastNote = running ? n.notes.size() - 1 : n.selectEnd - 1;
-    if (this->advancePlayStart(midiTime, lastNote)) {
+    bool slotOn = ntw()->slotButton->ledOn();
+    auto& storage = ntw()->storage;
+    // if eos input is high, set bit to look for slot ending condition
+    if (eosTrigger.process(inputs[EOS_INPUT].getVoltage())) {
+        repeat = 1;
+        midiEndTime = n.notes[playStart].cache->endStageTime;
+        // to do : turn on slot button if off
+        storage.slotEndTrigger = true;
+    }
+    if (!this->advancePlayStart(midiTime, midiEndTime)) {
         playStart = 0;
+        if (running && slotOn) {
+            storage.slotEndTrigger = false;
+            if (repeat-- <= 1) {
+                auto& selectStart = storage.selectStart;
+                if (selectStart + 1 >= storage.playback.size()) {
+                    repeat = 1;
+                    running = false;
+                    selectStart = 0;
+                    storage.selectEnd = 1;
+                    // to do : turn run button off
+                } else {
+                    const SlotPlay& slotPlay = storage.playback[++selectStart];
+                    storage.selectEnd = selectStart + 1;
+                    repeat = slotPlay.repeat;
+                    this->stageSlot(slotPlay.index);
+                    return;
+                }
+            }
+        }
         if (running) {
-            // to do : add option to stop running (waiting for feature req. / design inspiration)
             ntw()->display->range.resetXAxisOffset();
             this->resetRun();
-            outputs[EOS_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
-            eosTime = realSeconds + 0.01f;
-            this->advancePlayStart(midiTime, n.notes.size() - 1);
-        } else {
+            eosPulse.trigger();
+            this->advancePlayStart(0, midiEndTime);
+        }
+        if (!running) {
             this->setExpiredGatesLow(INT_MAX);
         }
         return;
     }
     unsigned start = playStart - 1;
     unsigned sStart = INT_MAX;
-    while (++start <= lastNote) {
-        const auto& note = n.notes[start];
+    do {
+        const auto& note = n.notes[++start];
         if (note.startTime > midiTime) {
             break;
         }
@@ -229,7 +241,7 @@ void NoteTaker::process(const ProcessArgs &args) {
         } else {
             voice.note = &note;
             voice.realStart = realSeconds;
-            voice.gateLow = note.slur() && start < lastNote ? INT_MAX : 
+            voice.gateLow = note.slur() ? INT_MAX : 
                     note.startTime + slot->channels[note.channel].sustain(note.duration);
             voice.noteEnd = endTime;
             if (note.channel < CV_OUTPUTS) {
@@ -247,17 +259,17 @@ void NoteTaker::process(const ProcessArgs &args) {
             float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             auto verticalWheel = ntw()->verticalWheel;
             if (mainWidget->runningWithButtonsOff()) {
-                bias += inputs[V_OCT_INPUT].value;
+                bias += inputs[V_OCT_INPUT].getVoltage();
                 bias += ((int) verticalWheel->getValue() - 60) / 12.f;
             }
             if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
                 note.channel, bias,
-                inputs[V_OCT_INPUT].value, verticalWheel->getValue(),
+                inputs[V_OCT_INPUT].getVoltage(), verticalWheel->getValue(),
                 note.pitch() / 12.f, bias + note.pitch() / 12.f,
                 outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
             outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
         }
-    }
+    } while (true);
     if (running) {
         // to do : don't write to same state in different threads
         // not sure how to enforce this, but the gist is that here is only written to
@@ -292,17 +304,18 @@ void NoteTaker::resetState() {
 }
 
 void NoteTaker::resetRun() {
-    outputs[CLOCK_OUTPUT].value = DEFAULT_GATE_HIGH_VOLTAGE;
+    outputs[CLOCK_OUTPUT].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE);
     elapsedSeconds = 0;
     clockHighTime = FLT_MAX;
-    lastClock = 0;
     externalClockTempo = stdMSecsPerQuarterNote;
     resetHighTime = FLT_MAX;
-    eosTime = FLT_MAX;
     midiClockOut = n().ppq;
-    clockOutTime = realSeconds + 0.001f;
-    sawClockLow = false;
-    sawResetLow = false;
+    clockTrigger.reset();
+    eosTrigger.reset();
+    resetTrigger.reset();
+    clockPulse.reset();
+    eosPulse.reset();
+    resetTimer.reset();
     mainWidget->resetRun();
     this->setPlayStart();
 }
@@ -318,7 +331,12 @@ void NoteTaker::setPlayStart() {
     this->zeroGates();
     tempo = stdMSecsPerQuarterNote;
     this->setVoiceCount();
-    playStart = ntw()->edit.voice ? n().selectStart : 0;
+    auto& n = this->n();
+    playStart = ntw()->edit.voice ? n.selectStart : 0;
+    unsigned lastNote = (this->isRunning() ? n.notes.size() : n.selectEnd) - 1;
+    if (DEBUG_VERBOSE) DEBUG("setPlayStart lastNote %u", lastNote);
+    midiEndTime = n.notes[lastNote].endTime();
+    if (DEBUG_VERBOSE) DEBUG("setPlayStart midiEndTime %d", midiEndTime);
 }
 
 void NoteTaker::setScoreEmpty() {

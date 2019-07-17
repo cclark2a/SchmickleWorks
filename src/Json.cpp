@@ -141,6 +141,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     this->setClipboardLight();
 }
 
+// to do : for all json reading, validate inputs, and make illegal values legal
 void SlotArray::fromJson(json_t* root) {
     json_t* _slots = json_object_get(root, "slots");
     size_t index;
@@ -155,7 +156,16 @@ void SlotArray::fromJson(json_t* root) {
         json_array_foreach(_playback, index, value) {
             playback[index].fromJson(value);
         }
-        selectStart = json_integer_value(json_object_get(root, "selectStart"));
-        selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
+    } else {
+        playback.emplace_back();
+        playbackSize = playback.size();
+    }
+    selectStart = json_integer_value(json_object_get(root, "selectStart"));
+    if (selectStart >= playbackSize) {
+        selectStart = 0;
+    }
+    selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
+    if (selectEnd <= selectStart) {
+        selectEnd = selectStart + 1;
     }
 }

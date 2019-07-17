@@ -161,7 +161,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     }
     addInput(createInput<PJ301MPort>(Vec(140, 306), module, NoteTaker::V_OCT_INPUT));
     addInput(createInput<PJ301MPort>(Vec(172, 306), module, NoteTaker::CLOCK_INPUT));
-    addInput(createInput<PJ301MPort>(Vec(204, 306), module, NoteTaker::SLOT_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(204, 306), module, NoteTaker::EOS_INPUT));
     addInput(createInput<PJ301MPort>(Vec(140, 338), module, NoteTaker::RESET_INPUT));
     addOutput(createOutput<PJ301MPort>(Vec(172, 338), module, NoteTaker::CLOCK_OUTPUT));
     addOutput(createOutput<PJ301MPort>(Vec(204, 338), module, NoteTaker::EOS_OUTPUT));
