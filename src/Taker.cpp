@@ -201,7 +201,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                     storage.selectEnd = selectStart + 1;
                     repeat = slotPlay.repeat;
                     this->stageSlot(slotPlay.index);
-                    return;
+//                    return;
                 }
             }
         }

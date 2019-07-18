@@ -181,7 +181,9 @@ void NoteTakerWidget::setVerticalWheelRange() {
             if (!vCount) {
                 verticalWheel->setValue(60); // to do : add const for c4 (middle c)
             } else {
-                verticalWheel->setValue(n.notes[edit.voices[0]].pitch());
+                SCHMICKLE(edit.voices[0] < n.notes.size());
+                const DisplayNote& note = n.notes[edit.voices[0]];
+                verticalWheel->setValue(NOTE_ON == note.type ? note.pitch() : 60); // to do : add const
             }
         }
     }

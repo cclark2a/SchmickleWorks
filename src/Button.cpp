@@ -550,6 +550,7 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
         nt->zeroGates();
         ntw->enableButtons();
         dynamicRunAlpha = 255;
+        nt->playStart = 0;
     } else {
         nt->resetRun();
         ntw->resetAndPlay();

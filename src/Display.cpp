@@ -1093,7 +1093,10 @@ void NoteTakerDisplay::drawSlur(unsigned start, unsigned char alpha) const {
             this->setBeamPos(start, index, &bp);
             break;
         }
-        SCHMICKLE(PositionType::mid == notes[index].slurPosition);
+        if (PositionType::mid != notes[index].slurPosition) {
+            if (DEBUG_VERBOSE) DEBUG("malformed slur");
+            return;
+        }
     }
     SCHMICKLE(PositionType::right == notes[index].slurPosition);
     SetNoteColor(state.vg, chan, alpha);
@@ -1346,7 +1349,10 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
         }
         SCHMICKLE(PositionType::mid == noteCache.tupletPosition);
     }
-    SCHMICKLE(PositionType::right == notes[index].tupletPosition);
+    if (PositionType::right != notes[index].tupletPosition) {
+        if (DEBUG_VERBOSE) DEBUG("malformed tuplet");
+        return;
+    }
     auto vg = state.vg;
     SetNoteColor(vg, notes[index].channel, alpha);
     // draw '3' at center of notes above or below staff
