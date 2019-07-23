@@ -277,7 +277,6 @@ struct NoteCache {
     float yPosition = 0;
     int vStartTime;  // visible start time, for multi part note alignment
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
-    int endStageTime = INT_MAX;  // midi time when slot ends, after eos trigger
     PositionType beamPosition = PositionType::none;
     uint8_t beamCount = 0;
     uint8_t channel;

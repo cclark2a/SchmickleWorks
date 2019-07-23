@@ -25,10 +25,11 @@ using std::array;
 using std::vector;
 
 // Forward-declare the Plugin, defined in Template.cpp
-extern Plugin *pluginInstance;
+extern Plugin* pluginInstance;
 
 // Forward-declare each Model, defined in each module source file
-extern Model *modelNoteTaker;
+extern Model* modelNoteTaker;
+extern Model* modelSuper8;
 
 #define RUN_UNIT_TEST 1 // to do : set to zero for shipping code
 #define DEBUG_VERBOSE true
@@ -43,6 +44,17 @@ extern Model *modelNoteTaker;
 
     void UnitTest(struct NoteTakerWidget* , TestType );
 #endif
+
+struct Super8Data {
+    float cv[4] = {};
+    float gate[4] = {};
+    float velocity[8] = {};
+    unsigned cvVoice[4] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX };
+    unsigned gateVoice[4] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX };
+    unsigned velocityVoice[8] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX,
+                                  INT_MAX, INT_MAX, INT_MAX, INT_MAX };
+    unsigned channels[8] = {};
+};
 
 // to do : create a compile time option to omit debugging code?
 #define SCHMICKLE(x) _schmickle(x, #x)

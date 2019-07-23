@@ -55,6 +55,7 @@ constexpr unsigned VOICE_COUNT = 16;
 
 constexpr float DEFAULT_GATE_HIGH_VOLTAGE = 10;
 constexpr unsigned CV_OUTPUTS = 4;
+constexpr unsigned EXPANSION_OUTPUTS = 8;
 
 struct NoteDurations {
     static int Beams(unsigned index);

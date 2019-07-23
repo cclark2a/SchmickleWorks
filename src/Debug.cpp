@@ -50,6 +50,8 @@ std::string DisplayNote::debugString() const {
             s += " offVel=" + std::to_string(offVelocity());
 #endif
             break;
+        case NOTE_OFF:
+            break;
         case REST_TYPE:
             break;
         case MIDI_HEADER:

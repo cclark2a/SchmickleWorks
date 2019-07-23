@@ -16,6 +16,9 @@ struct NoteTakerChannel {
         sustainMax,
     };
 
+    std::string sequenceName;
+    std::string instrumentName;
+    int gmInstrument = 0;
     int releaseMax = 24;
     int releaseMin = 1;  // midi time for smallest interval gate goes low
     int sustainMin = 1;  // midi time for smallest interval gate goes high
@@ -114,6 +117,15 @@ struct NoteTakerChannel {
 
     json_t* toJson() const {
         json_t* root = json_object();
+        if (!sequenceName.empty()) {
+            json_object_set_new(root, "sequenceName", json_string(sequenceName.c_str()));
+        }
+        if (!instrumentName.empty()) {
+            json_object_set_new(root, "instrumentName", json_string(instrumentName.c_str()));
+        }
+        if (1 != gmInstrument) {
+            json_object_set_new(root, "gmInstrument", json_integer(gmInstrument));
+        }
         if (DefaultLimit(Limit::releaseMax) != releaseMax) {
             json_object_set_new(root, "releaseMax", json_integer(releaseMax));
         }
@@ -131,6 +143,15 @@ struct NoteTakerChannel {
 
     void fromJson(json_t* root) {
         json_t* obj;
+        if ((obj = json_object_get(root, "sequenceName"))) {
+            sequenceName = json_string_value(obj);
+        }
+        if ((obj = json_object_get(root, "instrumentName"))) {
+            instrumentName = json_string_value(obj);
+        }
+        if ((obj = json_object_get(root, "gmInstrument"))) {
+            gmInstrument = json_integer_value(obj);
+        }
         if ((obj = json_object_get(root, "releaseMax"))) {
             releaseMax = json_integer_value(obj);
         }

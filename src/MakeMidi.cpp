@@ -42,6 +42,25 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTakerSlot& slot, vector<uint8_
     // to do : allow sustain/release changes during playback?
     for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
         const auto& chan = slot.channels[index];
+        if (!chan.sequenceName.empty()) {
+            add_channel_prefix(index);
+            add_size8(0);
+            add_one(midiMetaEvent);
+            add_one(0x03);
+            add_string(chan.sequenceName);
+        }
+        if (!chan.instrumentName.empty()) {
+            add_channel_prefix(index);
+            add_size8(0);
+            add_one(midiMetaEvent);
+            add_one(0x04);
+            add_string(chan.instrumentName);
+        }
+        if (chan.gmInstrument) {
+            add_size8(0);
+            add_one(midiProgramChange + index);
+            add_one(chan.gmInstrument);
+        }
         for (const auto& limit : NoteTakerChannelLimits) {
             if (!chan.isDefault(limit)) {
                 add_size8(0);

@@ -187,6 +187,8 @@ struct NoteTakerDisplay : Widget {
         return dynamic_cast<FramebufferWidget*>(parent);
     }
 
+    static const char* GMInstrumentName(unsigned index);
+
     void invalidateCache();
 
     void invalidateRange() {

@@ -96,6 +96,8 @@ struct NoteTaker : Module {
     double realSeconds = 0;                 // seconds for UI timers
     unsigned playStart = 0;                 // index of notes output
     int midiEndTime = INT_MAX;
+    int eosBase = INT_MAX;    // during playback, start of bar/quarter note in midi ticks
+    int eosInterval = 0;      // duration of bar/quarter note in midi ticks
     unsigned repeat = INT_MAX;
     // clock input state (not saved)
     float clockCycle = 0;
@@ -105,6 +107,7 @@ struct NoteTaker : Module {
     float resetCycle = 0;
     float resetHighTime = FLT_MAX;
     int midiClockOut = INT_MAX;
+    SlotPlay::Stage runningStage;
     unsigned stagedSlot = INT_MAX;
     bool invalidVoiceCount = false;
     const bool debugVerbose;          // enable this in note taker widget include
@@ -119,15 +122,45 @@ struct NoteTaker : Module {
         do {
             const auto& note = n().notes[playStart];
             if (midiTime < note.endTime()) {
+                switch (runningStage) {
+                    case SlotPlay::Stage::step:
+                    case SlotPlay::Stage::beat:
+                        eosBase = midiTime;
+                        break;
+                    case SlotPlay::Stage::quarterNote:
+                        eosBase += (midiTime - eosBase) / n().ppq * n().ppq;
+                        break;
+                    case SlotPlay::Stage::bar:
+                        eosBase += (midiTime  - eosBase) / eosInterval * eosInterval;
+                        break;
+                    default:
+                        ;
+                }
                 return true;
             }
-            if (MIDI_TEMPO == note.type && this->isRunning()) {
-                tempo = note.tempo();
-                externalClockTempo = (int) ((float) externalClockTempo / stdMSecsPerQuarterNote
-                        * tempo);
-            }
-            if (TRACK_END == note.type) {
-                return false;
+            switch (note.type) {
+                case MIDI_TEMPO:
+                    if (this->isRunning()) {
+                        tempo = note.tempo();
+                        externalClockTempo = 
+                                (int) ((float) externalClockTempo / stdMSecsPerQuarterNote * tempo);
+                    }
+                    // fall through
+                case KEY_SIGNATURE:
+                    if (SlotPlay::Stage::bar == runningStage) {
+                        eosBase = note.startTime;
+                    }
+                    break;
+                case TIME_SIGNATURE:
+                    if (SlotPlay::Stage::bar == runningStage) {
+                        eosBase = note.startTime;
+                        eosInterval = n().ppq * 4 * note.numerator() / (1 << note.denominator());
+                    }
+                    break;
+                case TRACK_END:
+                    return false;
+                default:
+                    ;
             }
             ++playStart;
             SCHMICKLE(playStart < n().notes.size());
@@ -227,6 +260,13 @@ struct NoteTaker : Module {
     }
 
     void onReset() override;
+
+    int outputCount() const {
+        return rightExpander.module && modelSuper8 == rightExpander.module->model ?
+                EXPANSION_OUTPUTS : CV_OUTPUTS;
+
+    }
+
     void playSelection();
     void process(const ProcessArgs &args) override;
     void resetRun();
@@ -255,6 +295,8 @@ struct NoteTaker : Module {
         static array<int, CHANNEL_COUNT> debugCount {-1, -1, -1, -1};
         static int debugMidiTime = -1;
     #endif
+        bool hasExpander = rightExpander.module
+                && modelSuper8 == rightExpander.module->model;
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto& c = channels[channel];
             for (unsigned index = 0; index < c.voiceCount; ++index) {
@@ -267,6 +309,11 @@ struct NoteTaker : Module {
                     if (channel < CV_OUTPUTS) {
                         outputs[GATE1_OUTPUT + channel].setVoltage(0, index);
                         DEBUG("set expired low [%u / %u]", channel, index);
+                    } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
+                        Super8Data* message
+                                = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+                        message->gate[channel - CV_OUTPUTS] = 0;
+                        message->gateVoice[channel - CV_OUTPUTS] = index;
                     }
                 }
                 if (voice.noteEnd < midiTime) {
@@ -342,6 +389,16 @@ struct NoteTaker : Module {
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
             for (unsigned inner = 0; inner < channels[index].voiceCount; ++inner) {
                 outputs[GATE1_OUTPUT + index].setVoltage(0, inner);
+            }
+        }
+        if (rightExpander.module && modelSuper8 == rightExpander.module->model) {
+            for (unsigned index = 0; index < EXPANSION_OUTPUTS - CV_OUTPUTS; ++index) {
+                for (unsigned inner = 0; inner < channels[CV_OUTPUTS + index].voiceCount; ++inner) {
+                    Super8Data* message
+                            = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+                    message->gate[index] = 0;
+                    message->gateVoice[index] = inner;
+                }
             }
         }
     }

@@ -3,6 +3,9 @@
 #include "MakeMidi.hpp"
 #include "Taker.hpp"
 
+// to do : not sure what the rules are if note on follows note on without note off... 
+#define DEBUG_NOTE_OFF 0
+
 bool NoteTakerParseMidi::parseMidi() {
     if (debugVerbose) DEBUG("parseMidi start");
     vector<DisplayNote> parsedNotes;
@@ -65,6 +68,7 @@ bool NoteTakerParseMidi::parseMidi() {
         if (debugVerbose) DEBUG("trackLength %d", trackLength);
         unsigned lowNibble;
         unsigned runningStatus = -1;
+        unsigned defaultChannel = trackCount;
         // don't allow notes with the same pitch and channel to overlap
         // to detect this economically, store last pitch/channel combo in table
         unsigned pitched[CHANNEL_COUNT][128];
@@ -95,12 +99,18 @@ bool NoteTakerParseMidi::parseMidi() {
             displayNote.startTime = midiTime;
             displayNote.duration = -1;  // not known yet
             memset(displayNote.data, 0, sizeof(displayNote.data));
-            displayNote.channel = runningStatus & 0x0F;
-            lowNibble = displayNote.channel;
-            if (!displayNote.channel && trackCount > 0) {
-                displayNote.channel = trackCount;
-            }
+            lowNibble = runningStatus & 0x0F;
             displayNote.type = (DisplayType) ((runningStatus >> 4) & 0x7);
+            if (MIDI_SYSTEM == displayNote.type) {
+                displayNote.channel = defaultChannel;
+            } else {
+                if (!lowNibble && trackCount > 0) {
+                    displayNote.channel = trackCount;
+                } else {
+                    displayNote.channel = lowNibble;
+                }
+                defaultChannel = trackCount;
+            }
             displayNote.selected = false;
             if (NOTE_ON == displayNote.type || NOTE_OFF == displayNote.type) {
                 if (!midi_check7bits(iter, "pitch", midiTime)) {
@@ -125,9 +135,9 @@ bool NoteTakerParseMidi::parseMidi() {
                             noteOn->duration =
                                     std::max(NoteDurations::SmallestMidi(ppq), midiTime - noteOn->startTime);
                             noteOn->setOffVelocity(displayNote.onVelocity());
-                            DEBUG("assign vel %s", noteOn->debugString().c_str());
+                            if (DEBUG_NOTE_OFF) DEBUG("assign vel %s", noteOn->debugString().c_str());
                         } else {
-                            DEBUG("unexpected note off old %s new %s",
+                            if (DEBUG_NOTE_OFF) DEBUG("unexpected note off old %s new %s",
                                  noteOn->debugString().c_str(), displayNote.debugString().c_str());
                         }
                     } else {
@@ -155,7 +165,7 @@ bool NoteTakerParseMidi::parseMidi() {
                             continue;  // don't add the same note on twice
                         }
                         if (noteOn->duration < 0) {
-                            DEBUG("missing note off old %s new %s",
+                            if (DEBUG_NOTE_OFF) DEBUG("missing note off old %s new %s",
                                   noteOn->debugString().c_str(), displayNote.debugString().c_str());
                             noteOn->duration = midiTime - noteOn->startTime;
                         }
@@ -165,7 +175,25 @@ bool NoteTakerParseMidi::parseMidi() {
                 }
                 break;
                 case KEY_PRESSURE:
+                    for (int i = 0; i < 2; i++) {
+                        if (!midi_check7bits(iter, "key pressure", midiTime)) {
+                            return false;
+                        }
+                        displayNote.data[i] = *iter++;
+                    }
+                    if (DEBUG_VERBOSE) DEBUG("key pressure [chan %d] %d %d", displayNote.channel,
+                            displayNote.data[0], displayNote.data[1]);
+                break;
                 case CONTROL_CHANGE:
+                    for (int i = 0; i < 2; i++) {
+                        if (!midi_check7bits(iter, "control change", midiTime)) {
+                            return false;
+                        }
+                        displayNote.data[i] = *iter++;
+                    }
+                    if (DEBUG_VERBOSE) DEBUG("control change [chan %d] %d %d", displayNote.channel,
+                            displayNote.data[0], displayNote.data[1]);
+                break;
                 case PITCH_WHEEL:
                     for (int i = 0; i < 2; i++) {
                         if (!midi_check7bits(iter, "pitch wheel", midiTime)) {
@@ -173,21 +201,27 @@ bool NoteTakerParseMidi::parseMidi() {
                         }
                         displayNote.data[i] = *iter++;
                     }
+                    if (DEBUG_VERBOSE) DEBUG("pitch wheel [chan %d] %d %d", displayNote.channel,
+                            displayNote.data[0], displayNote.data[1]);
                 break;
                 case PROGRAM_CHANGE:
                     if (!midi_check7bits(iter, "program change", midiTime)) {
                         return false;
                     }
                     displayNote.data[0] = *iter++;
+                    if (DEBUG_VERBOSE) DEBUG("program change [chan %d] %s", displayNote.channel,
+                            NoteTakerDisplay::GMInstrumentName(displayNote.data[0]));
+                    channels[displayNote.channel].gmInstrument = displayNote.data[0];
                 break;
                 case CHANNEL_PRESSURE:
                     if (!midi_check7bits(iter, "channel pressure", midiTime)) {
                         return false;
                     }
                     displayNote.data[0] = *iter++;
+                    if (DEBUG_VERBOSE) DEBUG("channel pressure [chan %d] %d", displayNote.channel,
+                            displayNote.data[0]);
                 break;
                 case MIDI_SYSTEM:
-                    displayNote.channel = 0;
                     if (debugVerbose) DEBUG("system message 0x%02x", lowNibble);
                     switch (lowNibble) {
                         case 0x0:  // system exclusive
@@ -271,6 +305,22 @@ bool NoteTakerParseMidi::parseMidi() {
                                                 displayNote.data[1]);
                                     }
                                     std::advance(iter, displayNote.data[1]);
+                                    std::string text((char*) &midi.front() + displayNote.data[2],
+                                            displayNote.data[1]);
+                                    if (0x03 == displayNote.data[0]) {
+                                        channels[displayNote.channel].sequenceName = text;
+                                    } else if (0x04 == displayNote.data[0]) {
+                                        channels[displayNote.channel].instrumentName = text;
+                                    } 
+                                    if (DEBUG_VERBOSE) {
+                                        static const char* textType[] = { "text event",
+                                                "copyright notice", "sequence/track name",
+                                                "instrument name", "lyric", "marker",
+                                                "cue point"};
+                            DEBUG("track %d channel %u %s %s", trackCount, displayNote.channel,
+                                    1 <= displayNote.data[0] && displayNote.data[0] <= 7 ?
+                                    textType[displayNote.data[0] - 1] : "(unknown)", text.c_str());
+                                    }
                                 } break;
                                 case 0x20: // channel prefix
                                     if (1 != displayNote.data[1]) {
@@ -283,6 +333,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                         return false;
                                     }
                                     displayNote.data[2] = *iter++;
+                                    defaultChannel = displayNote.data[2];
                                 break;
                             #if 01  // not in the formal midi spec?
                                 case 0x21: // port prefix
@@ -406,7 +457,7 @@ bool NoteTakerParseMidi::parseMidi() {
             }
             if ((!midiFormat || !trackCount || NOTE_ON == displayNote.type)
                     && TRACK_END != displayNote.type) {
-                DEBUG("push %s", displayNote.debugString().c_str());
+                if (DEBUG_NOTE_OFF) DEBUG("push %s", displayNote.debugString().c_str());
                 parsedNotes.push_back(displayNote);
             }
         }
@@ -432,6 +483,7 @@ bool NoteTakerParseMidi::parseMidi() {
             if (!last[index]) {
                 continue;
             }
+            if (DEBUG_VERBOSE) DEBUG("channel used %d", index);
             channelUsed[index] = true;
         }
     } while (iter != midi.end());
@@ -456,11 +508,11 @@ bool NoteTakerParseMidi::parseMidi() {
     memset(reassign, 0xFF, sizeof(reassign));
     for (auto& note : parsedNotes) {
         unsigned chan = note.channel;
-        if (NOTE_ON == note.type && chan >= CV_OUTPUTS && 10 != chan && 11 != chan) {
+        if (NOTE_ON == note.type && chan >= EXPANSION_OUTPUTS && 10 != chan && 11 != chan) {
             // map to unused channel, if any
             if (0xFF == reassign[chan]) {
                 reassign[chan] = 0xFE;      // assume we won't find a free channel
-                for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
+                for (unsigned index = 0; index < EXPANSION_OUTPUTS; ++index) {
                     if (!channelUsed[index]) {
                         channelUsed[index] = true;
                         reassign[chan] = index;
@@ -468,7 +520,7 @@ bool NoteTakerParseMidi::parseMidi() {
                     }
                 }
             }
-            if (reassign[chan] < CV_OUTPUTS) {
+            if (reassign[chan] < EXPANSION_OUTPUTS) {
                 note.channel = reassign[chan];
             }
         }

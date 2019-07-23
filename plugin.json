@@ -1,17 +1,34 @@
 {
-	"slug": "SchmickleWorks",
-	"name": "SchmickleWorks",
-	"version": "1.beta1.5",
-	"license": "Unlicense",
-	"author": "Cary Clark",
-	"authorEmail": "cclark2@gmail.com",
-	"manualUrl": "https://github.com/cclark2a/SchmickleWorks/blob/v1/README.md",
-	"sourceUrl": "https://github.com/cclark2a/SchmickleWorks/tree/v1",
-	"modules": [
-		{
-			"slug": "NoteTaker",
-			"name": "NoteTaker",
-			"tags": ["Sequencer","Polyphonic","MIDI","Quad"]
-		}
-	]
+  "slug": "SchmickleWorks",
+  "name": "SchmickleWorks",
+  "version": "1.beta1.5",
+  "license": "Unlicense",
+  "author": "Cary Clark",
+  "authorEmail": "cclark2@gmail.com",
+  "manualUrl": "https://github.com/cclark2a/SchmickleWorks/blob/v1/README.md",
+  "sourceUrl": "https://github.com/cclark2a/SchmickleWorks/tree/v1",
+  "modules": [
+    {
+      "slug": "NoteTaker",
+      "name": "NoteTaker",
+      "tags": [
+        "Sequencer",
+        "Polyphonic",
+        "MIDI",
+        "Quad"
+      ]
+    },
+    {
+      "slug": "Super8",
+      "name": "Super8",
+      "description": "Four channel expander for NoteTaker",
+      "tags": [
+        "Sequencer",
+        "Polyphonic",
+        "MIDI",
+        "Quad",
+        "Expander"
+      ]
+    }
+  ]
 }

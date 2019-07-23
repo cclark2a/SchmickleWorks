@@ -118,7 +118,6 @@ void NoteTakerWidget::fromJson(json_t* root) {
     clipboard.fromJsonUncompressed(json_object_get(root, "clipboardUncompressed"));
     clipboard.fromJsonCompressed(json_object_get(root, "clipboardCompressed"));
     // read back controls' state
-    display->range.fromJson(json_object_get(root, "display"));
     edit.fromJson(json_object_get(root, "edit"));
     cutButton->fromJson(json_object_get(root, "cutButton"));
     fileButton->fromJson(json_object_get(root, "fileButton"));
@@ -135,6 +134,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     // end of controls' state
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
     storage.fromJson(json_object_get(root, "storage"));
+    display->range.fromJson(json_object_get(root, "display"));
     // update display cache
     this->setWheelRange();
     this->invalidateAndPlay(Inval::load);

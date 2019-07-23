@@ -88,10 +88,38 @@ void NoteTaker::playSelection() {
     elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
     this->setPlayStart();
     int midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
-    this->advancePlayStart(midiTime, midiEndTime);
+    eosInterval = 0;
     const auto& storage = ntw()->storage;
-    repeat = this->isRunning() ? ntw()->slotButton->ledOn() ?
-            storage.playback[storage.selectStart].repeat : INT_MAX : 1;
+    bool runningWithSlots = this->isRunning() && ntw()->slotButton->ledOn();
+    if (runningWithSlots) {
+        const auto& slotPlay = storage.playback[storage.selectStart];
+        runningStage = slotPlay.stage;
+        repeat = slotPlay.repeat;
+        eosBase = 0;
+        switch (runningStage) {
+            case SlotPlay::Stage::step:
+                break;
+            case SlotPlay::Stage::beat:     // to do : rename, really midi tick
+                eosInterval = 1;
+                break;
+            case SlotPlay::Stage::quarterNote:
+                eosInterval = n.ppq;
+                break;
+            case SlotPlay::Stage::bar:
+                // interval set by advance play start
+                break;
+            case SlotPlay::Stage::song:
+                eosBase = midiEndTime;
+                break;
+            default:
+                _schmickled();
+        }
+    } else {
+        runningStage = SlotPlay::Stage::song;
+        eosBase = midiEndTime;
+        repeat = this->isRunning() ? INT_MAX : 1;
+    }
+    this->advancePlayStart(midiTime, midiEndTime);
 }
 
 // since this runs on a high frequency thread, avoid state except to play notes
@@ -173,21 +201,26 @@ void NoteTaker::process(const ProcessArgs &args) {
         midiClockOut += n.ppq;
         clockPulse.trigger();
     }
+    auto& storage = ntw()->storage;
+    if (eosBase < midiTime) {   // move slot ending condition so it is always equal to or ahead
+        eosBase = midiTime;
+        if (eosInterval) {
+            eosBase += eosInterval - midiTime % eosInterval;
+        }
+    }
     this->setOutputsVoiceCount();
     this->setExpiredGatesLow(midiTime);
     bool slotOn = ntw()->slotButton->ledOn();
-    auto& storage = ntw()->storage;
-    // if eos input is high, set bit to look for slot ending condition
-    if (eosTrigger.process(inputs[EOS_INPUT].getVoltage())) {
+    // if eos input is high, end song on slot ending condition
+    if (eosTrigger.process(inputs[EOS_INPUT].getVoltage()) && INT_MAX != eosBase) {
         repeat = 1;
-        midiEndTime = n.notes[playStart].cache->endStageTime;
+        midiEndTime = eosBase;
         // to do : turn on slot button if off
-        storage.slotEndTrigger = true;
     }
     if (!this->advancePlayStart(midiTime, midiEndTime)) {
         playStart = 0;
         if (running && slotOn) {
-            storage.slotEndTrigger = false;
+            eosBase = INT_MAX;  // ignore additional triggers until next slot is staged
             if (repeat-- <= 1) {
                 auto& selectStart = storage.selectStart;
                 if (selectStart + 1 >= storage.playback.size()) {
@@ -209,7 +242,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             ntw()->display->range.resetXAxisOffset();
             this->resetRun();
             eosPulse.trigger();
-            this->advancePlayStart(0, midiEndTime);
+            this->advancePlayStart(0, INT_MAX);
         }
         if (!running) {
             this->setExpiredGatesLow(INT_MAX);
@@ -244,6 +277,12 @@ void NoteTaker::process(const ProcessArgs &args) {
             voice.gateLow = note.slur() ? INT_MAX : 
                     note.startTime + slot->channels[note.channel].sustain(note.duration);
             voice.noteEnd = endTime;
+            if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
+                    && rightExpander.module && rightExpander.module->model == modelSuper8) {
+                Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+                message->gate[note.channel - CV_OUTPUTS] = DEFAULT_GATE_HIGH_VOLTAGE;
+                message->gateVoice[note.channel - CV_OUTPUTS] = voiceIndex;
+            }
             if (note.channel < CV_OUTPUTS) {
                 if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
                         note.channel, voice.gateLow, voice.noteEnd, voice.note - &n.notes.front(),
@@ -255,19 +294,30 @@ void NoteTaker::process(const ProcessArgs &args) {
             sStart = std::min(sStart, start);
         }
         // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
-        if (note.channel < CV_OUTPUTS) {
+        if (note.channel < EXPANSION_OUTPUTS) {
             float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
             auto verticalWheel = ntw()->verticalWheel;
             if (mainWidget->runningWithButtonsOff()) {
                 bias += inputs[V_OCT_INPUT].getVoltage();
                 bias += ((int) verticalWheel->getValue() - 60) / 12.f;
             }
-            if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
-                note.channel, bias,
-                inputs[V_OCT_INPUT].getVoltage(), verticalWheel->getValue(),
-                note.pitch() / 12.f, bias + note.pitch() / 12.f,
-                outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
-            outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
+            if (rightExpander.module && rightExpander.module->model == modelSuper8) {
+                Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+                if (note.channel >= CV_OUTPUTS) {
+                    message->cv[note.channel - CV_OUTPUTS] = bias + note.pitch() / 12.f;
+                    message->cvVoice[note.channel - CV_OUTPUTS] = voiceIndex;
+                }
+                message->velocity[note.channel] = note.onVelocity();
+                message->velocityVoice[note.channel] = voiceIndex;
+            }
+            if (note.channel < CV_OUTPUTS) {
+                if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
+                    note.channel, bias,
+                    inputs[V_OCT_INPUT].getVoltage(), verticalWheel->getValue(),
+                    note.pitch() / 12.f, bias + note.pitch() / 12.f,
+                    outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
+                outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
+            }
         }
     } while (true);
     if (running) {
@@ -277,6 +327,9 @@ void NoteTaker::process(const ProcessArgs &args) {
         if (INT_MAX != sStart && n.selectStart != sStart) {
             (void) this->setSelectStart(sStart);
         }
+    }
+    if (rightExpander.module && rightExpander.module->model == modelSuper8) {
+        rightExpander.module->leftExpander.messageFlipRequested = true;
     }
 }
 
@@ -324,6 +377,12 @@ void NoteTaker::setOutputsVoiceCount() {
     for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
         outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
         outputs[GATE1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
+    }
+    if (rightExpander.module && modelSuper8 == rightExpander.module->model) {
+        Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+        for (unsigned chan = 0; chan < EXPANSION_OUTPUTS; ++chan) {
+            message->channels[chan] = channels[chan].voiceCount;
+        }
     }
 }
 

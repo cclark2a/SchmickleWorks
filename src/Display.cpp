@@ -87,6 +87,138 @@ const char* downBeamNoteSymbols[] = { "h", "h", "h.", "h", "h.", "h", "h.", "h",
 const char* restSymbols[] =         { "o", "p", "p,", "q", "q,", "r", "r,", "s", "s,", "t", "t,",
                                            "u", "u,", "v", "v,", "w", "w,", "x", "x,", "y" };
 
+const char* gmInstrumentPatchMap[] = {
+    "Acoustic Grand Piano",
+    "Bright Acoustic Piano",
+    "Electric Grand Piano",
+    "Honky-tonk Piano",
+    "Electric Piano 1 (Rhodes Piano)",
+    "Electric Piano 2 (Chorused Piano)",
+    "Harpsichord",
+    "Clavinet",
+    "Celesta",
+    "Glockenspiel",
+    "Music Box",
+    "Vibraphone",
+    "Marimba",
+    "Xylophone",
+    "Tubular Bells",
+    "Dulcimer (Santur)",
+    "Drawbar Organ (Hammond)",
+    "Percussive Organ",
+    "Rock Organ",
+    "Church Organ",
+    "Reed Organ",
+    "Accordion (French)",
+    "Harmonica",
+    "Tango Accordion (Band neon)",
+    "Acoustic Guitar (nylon)",
+    "Acoustic Guitar (steel)",
+    "Electric Guitar (jazz)",
+    "Electric Guitar (clean)",
+    "Electric Guitar (muted)",
+    "Overdriven Guitar",
+    "Distortion Guitar",
+    "Guitar harmonics",
+    "Acoustic Bass",
+    "Electric Bass (fingered)",
+    "Electric Bass (picked)",
+    "Fretless Bass",
+    "Slap Bass 1",
+    "Slap Bass 2",
+    "Synth Bass 1",
+    "Synth Bass 2",
+    "Violin",
+    "Viola",
+    "Cello",
+    "Contrabass",
+    "Tremolo Strings",
+    "Pizzicato Strings",
+    "Orchestral Harp",
+    "Timpani",
+    "String Ensemble 1 (strings)",
+    "String Ensemble 2 (slow strings)",
+    "SynthStrings 1",
+    "SynthStrings 2",
+    "Choir Aahs",
+    "Voice Oohs",
+    "Synth Voice",
+    "Orchestra Hit",
+    "Trumpet",
+    "Trombone",
+    "Tuba",
+    "Muted Trumpet",
+    "French Horn",
+    "Brass Section",
+    "SynthBrass 1",
+    "SynthBrass 2",
+
+    "Soprano Sax",  // 65
+    "Alto Sax",
+    "Tenor Sax",
+    "Baritone Sax",
+    "Oboe",
+    "English Horn",
+    "Bassoon",
+    "Clarinet",
+    "Piccolo",
+    "Flute",
+    "Recorder",
+    "Pan Flute",
+    "Blown Bottle",
+    "Shakuhachi",
+    "Whistle",
+    "Ocarina",
+    "Lead 1 (square wave)",
+    "Lead 2 (sawtooth wave)",
+    "Lead 3 (calliope)",
+    "Lead 4 (chiffer)",
+    "Lead 5 (charang)",
+    "Lead 6 (voice solo)",
+    "Lead 7 (fifths)",
+    "Lead 8 (bass + lead)",
+    "Pad 1 (new age Fantasia)",
+    "Pad 2 (warm)",
+    "Pad 3 (polysynth)",
+    "Pad 4 (choir space voice)",
+    "Pad 5 (bowed glass)",
+    "Pad 6 (metallic pro)",
+    "Pad 7 (halo)",
+    "Pad 8 (sweep)",
+    "FX 1 (rain)",
+    "FX 2 (soundtrack)",
+    "FX 3 (crystal)",
+    "FX 4 (atmosphere)",
+    "FX 5 (brightness)",
+    "FX 6 (goblins)",
+    "FX 7 (echoes, drops)",
+    "FX 8 (sci-fi, star theme)",
+    "Sitar",
+    "Banjo",
+    "Shamisen",
+    "Koto",
+    "Kalimba",
+    "Bag pipe",
+    "Fiddle",
+    "Shanai",
+    "Tinkle Bell",
+    "Agogo",
+    "Steel Drums",
+    "Woodblock",
+    "Taiko Drum",
+    "Melodic Tom",
+    "Synth Drum",
+    "Reverse Cymbal",
+    "Guitar Fret Noise",
+    "Breath Noise",
+    "Seashore",
+    "Bird Tweet",
+    "Telephone Ring",
+    "Helicopter",
+    "Applause",
+    "Gunshot",
+};
+
 DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw) {
     mainWidget = _ntw;
     fb = new FramebufferWidget();
@@ -1035,7 +1167,25 @@ void NoteTakerDisplay::drawPartControl() const {
     nvgFill(vg);
     nvgFontFaceId(vg, ntw->textFont());
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
-    for (int index = -1; index < (int) CV_OUTPUTS; ++index) {
+    if (part >= 0) {
+        auto& channel = ntw->nt()->slot->channels[part];
+        nvgFontSize(vg, 13);
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7f));
+        if (!channel.sequenceName.empty()) {
+            nvgText(vg, 0.5f * box.size.x, box.size.y - 54,
+                    channel.sequenceName.c_str(), nullptr);
+        }
+        if (!channel.instrumentName.empty()) {
+            nvgText(vg, 0.5f * box.size.x, box.size.y - 48,
+                    channel.instrumentName.c_str(), nullptr);
+        }
+        if (channel.gmInstrument) {
+            nvgText(vg, 0.5f * box.size.x, box.size.y - 42,
+                    GMInstrumentName(channel.gmInstrument), nullptr);
+        }
+    }
+    int outputCount = ntw->nt() ? ntw->nt()->outputCount() : CV_OUTPUTS;
+    for (int index = -1; index < outputCount; ++index) {
         nvgBeginPath(vg);
         nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 15,
                 boxWidth, boxHeight);
@@ -1115,7 +1265,8 @@ void NoteTakerDisplay::drawTie(unsigned start, unsigned char alpha) const {
     this->setBeamPos(start, index, &bp);
     if (PositionType::right != notes[index].tiePosition
             && PositionType::mid != notes[index].tiePosition) {
-                if (ntw()->debugVerbose) DEBUG("** missing tie end %s", notes[start].note->debugString().c_str());
+                // to do : reenable this to debug : disable for now because it outputs continuously
+                if (false && ntw()->debugVerbose) DEBUG("** missing tie end %s", notes[start].note->debugString().c_str());
             }
     SetNoteColor(state.vg, chan, alpha);
     this->drawArc(bp, start, index);
@@ -1427,6 +1578,11 @@ void NoteTakerDisplay::drawVerticalLabel(const char* label, bool enabled,
     nvgText(vg, textX, textY, label, NULL);
 }
 
+const char* NoteTakerDisplay::GMInstrumentName(unsigned index) {
+    SCHMICKLE(index < sizeof(gmInstrumentPatchMap) / sizeof(gmInstrumentPatchMap[0]));
+    return gmInstrumentPatchMap[index];
+}
+
 void NoteTakerDisplay::invalidateCache() {
     this->ntw()->storage.invalidate();
     this->fb()->dirty = true;
@@ -1543,7 +1699,9 @@ void NoteTakerDisplay::setUpAccidentals(BarPosition& bar) {
     // prepare accidental, key, bar state prior to drawing
     // to do : could optimize this to skip notes except for bar prior to displayStart
     const auto& n = *this->notes();
-    for (unsigned index = 0; index < range.displayStart; ++index) {
+    const auto& cache = this->cache()->notes;
+    unsigned noteStart = cache[range.displayStart].note - &n.notes.front();
+    for (unsigned index = 0; index < noteStart; ++index) {
         const DisplayNote& note = n.notes[index];
         switch (note.type) {
             case NOTE_ON: {

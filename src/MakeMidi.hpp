@@ -42,6 +42,14 @@ struct NoteTakerMakeMidi {
         } while ((shift -= 8) >= 0);
     }
 
+    void add_channel_prefix(unsigned chan) {
+        add_size8(0);
+        add_one(midiMetaEvent);
+        add_one(0x20);
+        add_one(0x01);
+        add_one(chan);
+    }
+
     void add_size16(int size) {
         SCHMICKLE(size <= 0xffff);
         add_bits(16, size);
@@ -69,6 +77,13 @@ struct NoteTakerMakeMidi {
                break;
            }
            buffer >>= 8;
+        }
+    }
+
+    void add_string(std::string str) {
+        add_size8(str.length());
+        for (char c : str) {
+            add_one(c);
         }
     }
 
