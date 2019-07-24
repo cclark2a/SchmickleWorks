@@ -19,7 +19,6 @@ struct WheelBuffer : Widget {
 };
 
 struct NoteTakerWheel : app::SliderKnob {
-    NoteTakerWidget* mainWidget;
     Vec gearSize;  // reversed for vertical wheel since it is drawn rotated
     float lastRealValue = INT_MAX;  // manually maintained
     int lastValue = INT_MAX;
@@ -144,11 +143,7 @@ struct HorizontalWheel : NoteTakerWheel {
     }
 
     // all = -1, 0 to CV_OUTPUTS - 1, all = CV_OUTPUTS
-    int part() const {
-        float fslot = this->getValue() + .5;
-        return fslot < 0 ? -1 : (int) fslot;
-    }
-
+    int part() const;
     void onDragMove(const event::DragMove& e) override;
 
     void setDenominator(const DisplayNote& );

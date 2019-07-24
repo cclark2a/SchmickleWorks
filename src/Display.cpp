@@ -219,6 +219,24 @@ const char* gmInstrumentPatchMap[] = {
     "Gunshot",
 };
 
+struct Color {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t a;
+};
+
+const Color channelColors[] = {
+    {0x00, 0x00, 0x00, 0xFF},    // ch 1
+    {0x95, 0x00, 0x00, 0xFF},    // ch 2 (was 0xBF0000FF)
+    {0x23, 0x23, 0x8C, 0xFF},    // ch 3 (was 0x00007FFF)
+    {0x00, 0x64, 0x00, 0xFF},    // ch 4 (was 0x007F00FF)
+    {0xDC, 0x78, 0x00, 0xFF},    // ch 5
+    {0x00, 0x70, 0x95, 0xFF},    // ch 6
+    {0x50, 0x23, 0x39, 0xFF},    // ch 7
+    {0xCE, 0xC8, 0x00, 0xFF},    // ch 8
+};
+
 DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw) {
     mainWidget = _ntw;
     fb = new FramebufferWidget();
@@ -1131,22 +1149,26 @@ void NoteTakerDisplay::drawFileControl() {
     SCHMICKLE((unsigned) slot < ntw->storage.size());
     const std::string& name = ntw->storage.slots[slot].filename;
     if (!name.empty()) {
-        float bounds[4];
-        auto vg = state.vg;
-        nvgFontFaceId(vg, ntw->textFont());
-        nvgFontSize(vg, 10);
-        nvgTextAlign(vg, NVG_ALIGN_CENTER);
-        nvgTextBounds(vg, box.size.x / 2, box.size.y - 2, name.c_str(), nullptr, bounds);
-        nvgBeginPath(vg);
-        nvgRect(vg, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1]);
-        nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, 0x7F));
-        nvgFill(vg);
-        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-        nvgText(vg, box.size.x / 2, box.size.y - 2, name.c_str(), NULL);
+        this->drawName(name);
     }
 }
 
-void NoteTakerDisplay::drawPartControl() const {
+void NoteTakerDisplay::drawName(std::string name) const {
+    float bounds[4];
+    auto vg = state.vg;
+    nvgFontSize(vg, 10);
+    nvgFontFaceId(vg, ntw()->textFont());
+    nvgTextAlign(vg, NVG_ALIGN_CENTER);
+    nvgTextBounds(vg, box.size.x / 2, box.size.y - 2, name.c_str(), nullptr, bounds);
+    nvgBeginPath(vg);
+    nvgRect(vg, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1]);
+    nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, 0xBF));
+    nvgFill(vg);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
+    nvgText(vg, box.size.x / 2, box.size.y - 2, name.c_str(), NULL);
+}
+
+void NoteTakerDisplay::drawPartControl() {
     auto ntw = this->ntw();
     auto horizontalWheel = ntw->horizontalWheel;
     int part = horizontalWheel->part();
@@ -1161,68 +1183,58 @@ void NoteTakerDisplay::drawPartControl() const {
     const float boxHeight = 15;
     auto vg = state.vg;
     nvgBeginPath(vg);
-//    nvgRect(vg, 40, box.size.y - boxHeight - 25, boxWidth * 4, 10);
-//    nvgRect(vg, 40, box.size.y - 15, boxWidth * 4, 10);
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7f));
+    nvgRect(vg, 60 - boxWidth, box.size.y - boxHeight - 15, boxWidth * 5, boxHeight);
+    nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, 0xBf));
     nvgFill(vg);
     nvgFontFaceId(vg, ntw->textFont());
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
+    nvgFontSize(vg, 13);
     if (part >= 0) {
         auto& channel = ntw->nt()->slot->channels[part];
-        nvgFontSize(vg, 13);
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7f));
-        if (!channel.sequenceName.empty()) {
-            nvgText(vg, 0.5f * box.size.x, box.size.y - 54,
-                    channel.sequenceName.c_str(), nullptr);
+        std::string s(channel.sequenceName);
+        if (!channel.instrumentName.empty() && !s.empty()) {
+            s += " / ";
         }
-        if (!channel.instrumentName.empty()) {
-            nvgText(vg, 0.5f * box.size.x, box.size.y - 48,
-                    channel.instrumentName.c_str(), nullptr);
+        s += channel.instrumentName;
+        if (!s.empty()) {
+            s += " / ";
         }
-        if (channel.gmInstrument) {
-            nvgText(vg, 0.5f * box.size.x, box.size.y - 42,
-                    GMInstrumentName(channel.gmInstrument), nullptr);
-        }
+        s += GMInstrumentName(channel.gmInstrument);
+        this->drawName(s);
     }
+    DisplayControl control(this, state.vg);
     int outputCount = ntw->nt() ? ntw->nt()->outputCount() : CV_OUTPUTS;
-    for (int index = -1; index < outputCount; ++index) {
+    control.autoDrift(std::min((float) outputCount, horizontalWheel->getValue()),
+            state.callInterval);
+    int firstVisible = xControlOffset >= 0 ? xControlOffset - 1 : -1;
+    int lastVisible = std::min(outputCount - 1, (int) (xControlOffset + 4));
+    control.drawStart();
+    for (int index = firstVisible; index <= lastVisible; ++index) {
+        nvgSave(vg);
+        nvgTranslate(vg, 60 + (index - xControlOffset) * boxWidth, box.size.y - boxHeight - 15);
         nvgBeginPath(vg);
-        nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 15,
-                boxWidth, boxHeight);
-        bool chanLocked = ~ntw->selectChannels & (1 << index);
-        if (index >= 0 && chanLocked) {
-            nvgRect(vg, 60 + index * boxWidth, box.size.y - boxHeight - 25,
-                   boxWidth, 10);            
-        }
-        if (index >= 0 && !chanLocked) {
-            nvgRect(vg, 60 + index * boxWidth, box.size.y - 15,
-                   boxWidth, 10);            
-        }
+        nvgRect(vg, 0, 0, boxWidth, boxHeight);
         SetPartColor(vg, index, part);
         nvgFill(vg);
-        nvgBeginPath(vg);
-        nvgCircle(vg, 60 + (index + 0.5f) * boxWidth,
-            box.size.y - boxHeight / 2 - 15, 7);
-        nvgFill(vg);
+        if (index >= 0 && ~ntw->selectChannels & (1 << index)) {
+            nvgFontFaceId(vg, ntw->musicFont());
+            nvgFontSize(vg, 34);
+            nvgText(vg, boxWidth - 2, boxHeight, "}", nullptr);
+            nvgFontFaceId(vg, ntw->textFont());
+        } else {
+            nvgBeginPath(vg);
+            nvgCircle(vg, 0.5f * boxWidth, boxHeight / 2, 7);
+            nvgFill(vg);
+        }
         const char num[2] = { (char) ('1' + index), '\0' };
         nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xbf));
         const char* str = index < 0 ? "all" : num;
-        nvgFontSize(vg, 13);
-        nvgText(vg, 60 + (index + 0.5f) * boxWidth, box.size.y - 18,
-                str, nullptr);
-        if (0 <= index) {
-            nvgSave(vg);
-            nvgScissor(vg, 60 + index * boxWidth, box.size.y - boxHeight - 25, boxWidth,
-                    boxHeight + 20);
-            nvgFontSize(vg, 9);
-            nvgFillColor(vg, chanLocked ? nvgRGBA(0xff, 0xff, 0xff, 0xbf) : nvgRGBA(0, 0, 0, 0xbf));
-            nvgText(vg, 40 + boxWidth * 3, box.size.y - boxHeight - 18,
-                                                            "l    o    c    k    e    d", nullptr);
-            nvgFillColor(vg, !chanLocked ? nvgRGBA(0xff, 0xff, 0xff, 0xbf) : nvgRGBA(0, 0, 0, 0xbf));
-            nvgText(vg, 40 + boxWidth * 3, box.size.y - 7, "e   d   i   t   a   b   l   e", nullptr);
-            nvgRestore(vg);
-        }
+        nvgFontSize(vg, 16);
+        nvgText(vg, 0.5f * boxWidth, boxHeight - 3, str, nullptr);
+        nvgRestore(vg);
     }
+    control.drawEnd();
 }
 
 // to do : share code with draw beam ?
@@ -1420,6 +1432,7 @@ void NoteTakerDisplay::drawSustainControl() const {
 
 void NoteTakerDisplay::drawTempo(int xPos, int tempo, unsigned char alpha) {
     auto vg = state.vg;
+    nvgTextAlign(vg, NVG_ALIGN_LEFT);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, alpha));
     nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, 16);
@@ -1693,6 +1706,32 @@ void NoteTakerDisplay::setKeySignature(int key) {
     pitchMap = key >= 0 ? sharpMap : flatMap;
     accidentals.fill(NO_ACCIDENTAL);
     this->applyKeySignature();
+}
+
+void NoteTakerDisplay::SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha) {
+    SCHMICKLE(chan < sizeof(channelColors) / sizeof(channelColors[0]));
+    const Color& c = channelColors[chan];
+    NVGcolor color = nvgRGBA(c.r, c.g, c.b, alpha);
+    nvgFillColor(vg, color);
+    nvgStrokeColor(vg, color);
+}
+
+void NoteTakerDisplay::SetPartColor(NVGcontext* vg, int index, int part) {
+    SCHMICKLE(index < (int) (sizeof(channelColors) / sizeof(channelColors[0])));
+    const Color& c = channelColors[std::max(0, index)];
+    nvgFillColor(vg, nvgRGBA(c.r, c.g, c.b, index == part ? 0xaf : 0x6f));
+}
+
+// to do : show multiple parts in selection color (stripes?)
+void NoteTakerDisplay::SetSelectColor(NVGcontext* vg, unsigned chan) {
+    unsigned index = 0;
+    SCHMICKLE(chan);
+    while (!((1 << index) & chan)) {
+        ++index;
+    }
+    SCHMICKLE(index < sizeof(channelColors) / sizeof(channelColors[0]));
+    const Color& c = channelColors[index];
+    nvgFillColor(vg, nvgRGBA(c.r, c.g, c.b, ALL_CHANNELS == chan ? 0x3f : 0x1f));
 }
 
 void NoteTakerDisplay::setUpAccidentals(BarPosition& bar) {

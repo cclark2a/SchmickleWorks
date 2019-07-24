@@ -230,7 +230,6 @@ void NoteTakerWidget::addButton(const Vec& size, NoteTakerButton* button) {
 
 void NoteTakerWidget::addWheel(const Vec& size, NoteTakerWheel* wheel) {
     wheel->box.size = size;
-    wheel->mainWidget = this;
     params.push_back(wheel);
     WheelBuffer* buffer = new WheelBuffer(wheel);
     this->addChild(buffer);

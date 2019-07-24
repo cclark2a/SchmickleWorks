@@ -505,24 +505,30 @@ bool NoteTakerParseMidi::parseMidi() {
        otherwise, assign to the next unused channel, and reuse channels without notes
      */
     uint8_t reassign[CHANNEL_COUNT];
+    unsigned use = 0;
     memset(reassign, 0xFF, sizeof(reassign));
+    reassign[10] = 10;
+    reassign[11] = 11;
+    for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
+        if (10 == chan || 11 == chan || !channelUsed[chan]) {
+            continue;
+        }
+        if (DEBUG_VERBOSE) DEBUG("map %u to %u", chan, use);
+        channels[use] = channels[chan];
+        channels[chan].reset();
+        reassign[chan] = use++;
+        if (10 == use) {
+            use = 12;
+        }
+    }
+    int counts[CHANNEL_COUNT] = {};
     for (auto& note : parsedNotes) {
         unsigned chan = note.channel;
-        if (NOTE_ON == note.type && chan >= EXPANSION_OUTPUTS && 10 != chan && 11 != chan) {
+        if (NOTE_ON == note.type) {
             // map to unused channel, if any
-            if (0xFF == reassign[chan]) {
-                reassign[chan] = 0xFE;      // assume we won't find a free channel
-                for (unsigned index = 0; index < EXPANSION_OUTPUTS; ++index) {
-                    if (!channelUsed[index]) {
-                        channelUsed[index] = true;
-                        reassign[chan] = index;
-                        break;
-                    }
-                }
-            }
-            if (reassign[chan] < EXPANSION_OUTPUTS) {
-                note.channel = reassign[chan];
-            }
+            SCHMICKLE(0xFF != reassign[chan]);
+            note.channel = reassign[chan];
+            counts[note.channel]++;
         }
         if (NOTE_ON == note.type || TRACK_END == note.type) {
             int duration = note.startTime - lastNoteEnd;
@@ -532,6 +538,11 @@ bool NoteTakerParseMidi::parseMidi() {
         }
         withRests.push_back(note);
         lastNoteEnd = std::max(lastNoteEnd, note.endTime());
+    }
+    for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+        if (counts[index]) {
+            DEBUG("[%u] note count %d", index, counts[index]);
+        }
     }
     int lastTime = -1;
     for (const auto& note : withRests) {

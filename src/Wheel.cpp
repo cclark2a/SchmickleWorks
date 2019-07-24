@@ -205,6 +205,12 @@ void HorizontalWheel::setDenominator(const DisplayNote& note) {
     this->setValue(note.denominator());
 }
 
+int HorizontalWheel::part() const {
+    int outputCount = ntw()->nt() ? ntw()->nt()->outputCount() : CV_OUTPUTS;
+    float fslot = this->getValue() + .5;
+    return fslot < 0 ? -1 : std::min(outputCount, (int) fslot);
+}
+
 void VerticalWheel::onDragMove(const event::DragMove& e) {
     Knob::onDragMove(e);
     auto ntw = this->getAncestorOfType<NoteTakerWidget>();

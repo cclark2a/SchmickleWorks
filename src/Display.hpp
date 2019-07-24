@@ -168,9 +168,10 @@ struct NoteTakerDisplay : Widget {
     void drawFreeNote(const DisplayNote& note, NoteCache* noteCache, int xPos,
             unsigned char alpha);
     void drawKeySignature(unsigned index);
+    void drawName(std::string ) const;
     void drawNote(Accidental , const NoteCache&, unsigned char alpha, int size) const;
     void drawNotes(BarPosition& bar);
-    void drawPartControl() const;
+    void drawPartControl();
     void drawSelectionRect();
     void drawSlotControl();
     void drawSlur(unsigned start, unsigned char alpha) const;
@@ -223,23 +224,9 @@ struct NoteTakerDisplay : Widget {
     }
 
     void scroll();
-
-    static void SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha) {
-        NVGcolor color = nvgRGBA((1 == chan) * 0xBf, (3 == chan) * 0x7f, (2 == chan) * 0x7f, alpha);
-        nvgFillColor(vg, color);
-        nvgStrokeColor(vg, color);
-    }
-
-    static void SetPartColor(NVGcontext* vg, int index, int part) {
-        nvgFillColor(vg, nvgRGBA((1 == index) * 0xBf, (3 == index) * 0x7f,
-                (2 == index) * 0x7f, index == part ? 0xaf : 0x6f));
-    }
-
-    static void SetSelectColor(NVGcontext* vg, unsigned chan) {
-        nvgFillColor(vg, nvgRGBA((2 == chan) * 0xBf, (8 == chan) * 0x7f,
-                (4 == chan) * 0x7f, ALL_CHANNELS == chan ? 0x3f : 0x1f));
-    }
-
+    static void SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha);
+    static void SetPartColor(NVGcontext* vg, int index, int part);
+    static void SetSelectColor(NVGcontext* vg, unsigned chan);
     void setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const;
     void setKeySignature(int key);
     void setUpAccidentals(BarPosition& bar);

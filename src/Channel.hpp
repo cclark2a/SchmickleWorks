@@ -63,7 +63,10 @@ struct NoteTakerChannel {
     }
 
     void reset() {
-    //    DEBUG("channel reset");
+        if (DEBUG_VERBOSE) DEBUG("channel reset");
+        sequenceName = "";
+        instrumentName = "";
+        gmInstrument = 0;
         releaseMax = DefaultLimit(Limit::releaseMax);
         releaseMin = DefaultLimit(Limit::releaseMin);
         sustainMin = DefaultLimit(Limit::sustainMin);
@@ -123,7 +126,7 @@ struct NoteTakerChannel {
         if (!instrumentName.empty()) {
             json_object_set_new(root, "instrumentName", json_string(instrumentName.c_str()));
         }
-        if (1 != gmInstrument) {
+        if (0 != gmInstrument) {
             json_object_set_new(root, "gmInstrument", json_integer(gmInstrument));
         }
         if (DefaultLimit(Limit::releaseMax) != releaseMax) {
