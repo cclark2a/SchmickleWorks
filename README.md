@@ -103,19 +103,17 @@ a performance. The Playback button allows choosing the slot order triggered by t
 
 ## Sustain / Release
 
-Sustain / Release ![](images/sustainreleasebutton.PNG) maps the note duration to the GATE output.
+Sustain / Release ![](images/sustainrelease.PNG) maps the note duration to the GATE output.
 The Horizontal Wheel selects the duration of the Sustain or Release cycle. The Vertical Wheel selects
 whether to edit the maximum Sustain, minimum Sustain, minimum Release, or maximum Release.
 
 ![](images/sustainreleasedisplay.PNG)
 
 Sustain is the duration of the GATE output held high proportional to the note duration. Minimum
-Sustain is the shortest time GATE output is held high. Maximum Sustain is the longest time GATE output
-is held high.
+Sustain is the shortest time GATE output is held high. Maximum Sustain is the longest time GATE output is held high.
 
 Release is the duration of the GATE output held low proportional to the note duration. Minimum
-Release is the shortest time GATE output is held low. Maximum Release is the longest time GATE output
-is held low.
+Release is the shortest time GATE output is held low. Maximum Release is the longest time GATE output is held low.
 
 If NoteTaker GATE output triggers an ADSR, the Minimum Release setting guarantees the duration of
 GATE output held low to make room for ADSR release phase. 
@@ -130,8 +128,70 @@ Each part has its own Sustain / Release setting.
 ## Add Time Signature
 
 Add Time Signature ![](images/timesignaturebutton.PNG) adds a time signature after the current
-selection. 
+selection. A time signature counts the number of beats per measure, and the duration of the beat,
+for notes going forward.
 
+Adding a time signature starts a new measure, even if the prior measure does not have enough notes
+to satisfy its time signature.
+
+When Note Select is off (edit), the Horizontal Wheel changes the Time Signature value. The 
+Vertical Wheel chooses the numerator or denominator.
+
+![](images/timesignaturedisplay.PNG)
+
+The upper number may be set from one to 99 beats per measure. The lower number may be set to:
+- ![](images/one.PNG) One whole note ![](images/whole.PNG) equals one beat.
+- ![](images/two.PNG) One half note ![](images/half.PNG) equals one beat.
+- ![](images/four.PNG) One quarter note ![](images/quarter.PNG) equals one beat.
+- ![](images/eight.PNG) One eighth note ![](images/8th.PNG) equals one beat.
+- ![](images/sixteen.PNG) One sixteenth note ![](images/16th.PNG) equals one beat.
+- ![](images/thirtytwo.PNG) One thirty-second note ![](images/32nd.PNG) equals one beat.
+- ![](images/sixtyfour.PNG) One sixty-fourth note ![](images/64th.PNG) equals one beat.
+
+Adding a time signature is useful when it is desirable to move from one slot to the next
+exactly at the end of a measure, or at the end of a beat.
+
+## Add Key Signature
+
+Add Key Signature ![](images/keysignaturebutton.PNG) adds a key signature after the current
+selection. A key signature indicates the number of sharps or flats preset for notes going
+forward.
+
+![](images/keysignaturedisplay.PNG)
+
+Adding a key signature starts a new measure, even if the prior measure does not have enough notes
+to satisfy its time signature.
+
+When Note Select is off (edit), the Vertical Wheel modifies the key by one sharp or one flat at
+a time.
+
+Adding a key signature only affects the displayed notes; it has no impact on editing or playback.
+Changing key signature does not change the pitch of existing notes; the display adds accidentals
+as needed to keep playback the same.
+
+## Add Tempo
+
+Add Tempo ![](images/tempobutton.PNG) adds a tempo change after the current selection.
+A tempo change sets the number of beats per second for the notes going forward.
+
+![](images/tempodisplay.PNG)
+
+Adding a tempo change starts a new measure, even if the prior measure does not have enough notes
+to satisfy its time signature.
+
+When Note Select is off (edit), the Horizontal Wheel modifies the number of beats per second.
+Tempo may be set from three beats / second, up to 5367 beats / second. (No reason for these limits;
+subject to change before NoteTaker release.)
+
+to do
+
+## Tie / Slur / Triplet
+
+to do
+
+## Slot Editor
+
+to do
 
 # Import MIDI
 
