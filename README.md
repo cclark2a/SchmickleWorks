@@ -140,24 +140,24 @@ Vertical Wheel chooses the numerator or denominator.
 ![](images/timesignaturedisplay.PNG)
 
 The upper number may be set from one to 99 beats per measure. The lower number may be set to:
-- ![](images/one.PNG) One whole note ![](images/whole.PNG) equals one beat.
-- ![](images/two.PNG) One half note ![](images/half.PNG) equals one beat.
-- ![](images/four.PNG) One quarter note ![](images/quarter.PNG) equals one beat.
-- ![](images/eight.PNG) One eighth note ![](images/8th.PNG) equals one beat.
-- ![](images/sixteen.PNG) One sixteenth note ![](images/16th.PNG) equals one beat.
-- ![](images/thirtytwo.PNG) One thirty-second note ![](images/32nd.PNG) equals one beat.
-- ![](images/sixtyfour.PNG) One sixty-fourth note ![](images/64th.PNG) equals one beat.
+- ![](images/one.png) One whole note ![](images/whole.png) equals one beat.
+- ![](images/two.png) One half note ![](images/half.png) equals one beat.
+- ![](images/four.png) One quarter note ![](images/quarter.png) equals one beat.
+- ![](images/eight.png) One eighth note ![](images/8th.png) equals one beat.
+- ![](images/sixteen.png) One sixteenth note ![](images/16th.png) equals one beat.
+- ![](images/thirtytwo.png) One thirty-second note ![](images/32nd.png) equals one beat.
+- ![](images/sixtyfour.png) One sixty-fourth note ![](images/64th.png) equals one beat.
 
 Adding a time signature is useful when it is desirable to move from one slot to the next
 exactly at the end of a measure, or at the end of a beat.
 
 ## Add Key Signature
 
-Add Key Signature ![](images/keysignaturebutton.PNG) adds a key signature after the current
+Add Key Signature ![](images/keysignaturebutton.png) adds a key signature after the current
 selection. A key signature indicates the number of sharps or flats preset for notes going
 forward.
 
-![](images/keysignaturedisplay.PNG)
+![](images/keysignaturedisplay.png)
 
 Adding a key signature starts a new measure, even if the prior measure does not have enough notes
 to satisfy its time signature.
@@ -171,10 +171,10 @@ as needed to keep playback the same.
 
 ## Add Tempo
 
-Add Tempo ![](images/tempobutton.PNG) adds a tempo change after the current selection.
+Add Tempo ![](images/tempobutton.png) adds a tempo change after the current selection.
 A tempo change sets the number of beats per second for the notes going forward.
 
-![](images/tempodisplay.PNG)
+![](images/tempodisplay.png)
 
 Adding a tempo change starts a new measure, even if the prior measure does not have enough notes
 to satisfy its time signature.
