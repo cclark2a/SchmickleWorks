@@ -1135,7 +1135,7 @@ void NoteTakerDisplay::drawFileControl() {
     this->drawVerticalLabel("save", true, downSelected, box.size.y - 50);
     this->drawVerticalControl();
     // draw horizontal control
-    float fSlot = horizontalWheel->getValue();
+    float fSlot = std::min((float) (ntw->storage.size() - 1), horizontalWheel->getValue());
     int slot = (int) (fSlot + .5);
     control.autoDrift(fSlot, state.callInterval);
     unsigned firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
