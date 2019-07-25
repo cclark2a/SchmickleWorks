@@ -87,7 +87,7 @@ vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
     vector<unsigned> result;
     for (unsigned index = selectStart; index < selectEnd; ++index) {
         auto& note = notes[index];
-        if (note.isSelectable(selectChannels)) {
+        if (note.isSelectable(selectChannels) && NOTE_ON == note.type) {
             if (atStart && result.size() && notes[result[0]].startTime != note.startTime) {
                 break;
             }

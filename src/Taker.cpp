@@ -92,7 +92,8 @@ void NoteTaker::playSelection() {
     const auto& storage = ntw()->storage;
     bool runningWithSlots = this->isRunning() && ntw()->slotButton->ledOn();
     if (runningWithSlots) {
-        const auto& slotPlay = storage.playback[storage.selectStart];
+        int index = std::max(0, (int) storage.selectStart - ntw()->selectButton->editStart());
+        const auto& slotPlay = storage.playback[index];
         runningStage = slotPlay.stage;
         repeat = slotPlay.repeat;
         eosBase = 0;

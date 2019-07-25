@@ -153,7 +153,7 @@ exactly at the end of a measure, or at the end of a beat.
 
 ## Add Key Signature
 
-Add Key Signature ![](images/keysignaturebutton.png) adds a key signature after the current
+Add Key Signature ![](images/keysignaturebutton.PNG) adds a key signature after the current
 selection. A key signature indicates the number of sharps or flats preset for notes going
 forward.
 
@@ -183,15 +183,120 @@ When Note Select is off (edit), the Horizontal Wheel modifies the number of beat
 Tempo may be set from three beats / second, up to 5367 beats / second. (No reason for these limits;
 subject to change before NoteTaker release.)
 
-to do
+Tempo may also be modified at run time, internally by moving the Horizontal Wheel, or externally
+by pulsing the Clock input. The resulting tempo multiplies the score tempo by the internal and
+external tempos.
 
 ## Tie / Slur / Triplet
 
-to do
+Tie / Slur / Triplet ![](images/tripletbutton.png) allows altering the selection to include ties,
+slurs, and triplets. Ties make two notes of the same pitch equivalent to one note with the sum of the notes' durations. Slurs prevent the GATE output from going high at the end of the first notes'
+durations. Triplets change the duration so that three notes fit into the duration of two notes.
+
+![](images/tripletdisplay.png)
+
+Ties and slurs share the same notation; an arc connects a pair of notes. If the notes have the
+same pitch it is a tie; if notes have different pitches, it is a slur. Both ties and slurs suppress
+the second note's GATE output.
+
+![](images/tiesslurs.png)  (Bug prevents creating this illustration.)
+
+Triplets play three notes (or notes with a total duration divisible by three) in the space of two.
+A triplet formed by two notes, where one is twice the duration of the other, forms a rhythm
+commonly called swing.
+
+![](images/triplets.png)
+
+The Horizontal Wheel selects whether the notes are augmented by ties, slurs, or triplets.
+(To do: allow selection to have ties and triplets.)
 
 ## Slot Editor
 
-to do
+Slot Editor ![](images/slotbutton.png) allows organizing the 12 saved slots into a larger
+performance. Each slot contains a set of notes, a repeat count, and an ending condition.
+When the repeat count is exhausted or the ending condition is met, the run time moves to the
+next slot, or stops running if it is on the last slot.
+
+![](images/slotdisplay.png)
+
+In the illustration above, the performance plays Slot 1 once, Slot 2 twice, and Slot 1 again
+indefinitely. The quarter note is Slot 1 indicates that a trigger in EOS In will advance it to
+Slot 2 on a quarter note boundary. The lightning bolt in Slot 2 indicates that a trigger in EOS In
+will advance it to the third entry, which plays the notes in Slot 1 a second time. The measure
+end icon is the third slot indicates that a trigger in EOS will stop the performance at the end of
+the song.
+
+The slots may be edited using the same interface as notes. Slots may be added, cut, and edited.
+One set of slots is autosaved, or saved in one patch. (More description to come.)
+
+# Run
+
+Run ![](images/runbuttonoff.png) begins playing notes at the current selection.
+The icons on the edit buttons change to number 1 through 12. Pressing the edit button
+instantly switches to the corresponding slot. The notes in each slot are repeated indefinitely.
+
+![](images/rundisplay.png)
+
+While running, the Horizontal Wheel augments the tempo, speeding up or slowing down the
+performance. The Vertical Wheel augments the pitch, transposing the performance one half step
+at a time.
+
+(More description to come.)
+
+# Wheels
+
+The effect and range of each wheel varies depending of the setting of the Editor and Run buttons,
+but in general, the Horizontal Wheel changes the time and the Vertical Wheel changes the pitch.
+
+Parameter tooltips (in the View menu) describe the wheels effect in the current context.
+(More description to come.)
+
+# Ports
+
+## CV 1, 2, 3, 4
+
+Each CV port outputs -5V to ~5.6V, representing MIDI pitch values from 0 to 127. C4 (middle C)
+outputs 0V. CV ports continue to output the last voltage even after the note duration is over.
+CV ports are polyphonic, and output 1 to 16 voices.
+
+## GATE 1, 2, 3, 4
+
+Each GATE port outputs 0V if held low or 10V is held high. GATE ports return to low when Run
+is off. Editing notes trigger CV and GATE outputs to provide feedback for the current edit.
+
+## V/Oct
+
+V/Oct permits adding an offset to the CV port outputs. The V/Oct is not quantized.
+
+## Reset
+
+Reset immediately moves the selection to the start. Playback continues to run.
+
+## Clock In
+
+A pulse to clock advances the song by one beat. Fractional beat notes are interpolated to sound
+between clock pulses.
+
+## Clock Out
+
+A pulse is generated as playback advances to the next beat.
+
+## EOS In
+
+EOS In (End of Song, or End of Slot) advances to the next slot, if one is present in the Slot Editor.
+
+## EOS Out
+
+A pulse is generated as playback reaches the end of a slot. The pulse is generated on every play
+through, independent of the Slot repeat count.
+
+# Expansion
+
+The Super8 expansion adds CV ports 5 - 8, GATE ports 5 - 8, and VELOCITY ports 1 - 8.
+Super8 must be docked to the right side of NoteTaker.
+(More description to come.)
+
+![](images/super8.png)
 
 # Import MIDI
 
