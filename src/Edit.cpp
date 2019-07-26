@@ -347,30 +347,32 @@ void NoteTakerWidget::updateHorizontal() {
                 int index = NoteDurations::FromMidi(startDiff, n.ppq);
                 note->startTime = startTime + NoteDurations::ToMidi(index + wheelChange, n.ppq);
             }
-            if (base.isNoteOrRest() && base.isSelectable(selectChannels)) {
-                int oldDurationIndex = NoteDurations::FromMidi(base.duration, n.ppq);
-                int oldDuration = note->duration;
-                note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
-                if (edit.voice) {
-                    n.setDuration(note);
-                } else {
-                    int change = (note->startTime - oldStart) + (note->duration - oldDuration);
-                    if (change > 0) {
-                        SCHMICKLE(insertedTime >= 0);
-                        insertedTime = std::max(insertedTime, change);
-                    } else if (change < 0) {
-                        SCHMICKLE(insertedTime <= 0);
-                        insertedTime = std::min(insertedTime, change);
+            if (base.isSelectable(selectChannels)) {
+                if (base.isNoteOrRest()) {
+                    int oldDurationIndex = NoteDurations::FromMidi(base.duration, n.ppq);
+                    int oldDuration = note->duration;
+                    note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
+                    if (edit.voice) {
+                        n.setDuration(note);
+                    } else {
+                        int change = (note->startTime - oldStart) + (note->duration - oldDuration);
+                        if (change > 0) {
+                            SCHMICKLE(insertedTime >= 0);
+                            insertedTime = std::max(insertedTime, change);
+                        } else if (change < 0) {
+                            SCHMICKLE(insertedTime <= 0);
+                            insertedTime = std::min(insertedTime, change);
+                        }
                     }
                 }
+                newEnd = std::max(newEnd, note->endTime());
             }
-            newEnd = std::max(newEnd, note->endTime());
         }
         if (!edit.voice) {
             if (debugVerbose) DEBUG("insertedTime %d", insertedTime);
-            // to do : if select end start time is less than new end, do not start notes earlier
-            // need the existing overlap
-            // if insert time < 0, 
+            // to do : if selected end overlaps next unselected note, the unselected notes are not
+            // slid over to account for the overlap. However, if increasing the selected duration
+            // slides the following note, the overlap is lost when making the duration smaller
             bool first = true;
             for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
                 auto& note = n.notes[index];
