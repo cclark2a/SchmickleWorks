@@ -9,6 +9,7 @@
 bool NoteTakerParseMidi::parseMidi() {
     if (debugVerbose) DEBUG("parseMidi start");
     vector<DisplayNote> parsedNotes;
+    array<NoteTakerChannel, CHANNEL_COUNT> parsedChannels;
     if (midi.size() < 14) {
         DEBUG("MIDI file too small size=%llu", midi.size());
         return false;
@@ -211,7 +212,7 @@ bool NoteTakerParseMidi::parseMidi() {
                     displayNote.data[0] = *iter++;
                     if (DEBUG_VERBOSE) DEBUG("program change [chan %d] %s", displayNote.channel,
                             NoteTakerDisplay::GMInstrumentName(displayNote.data[0]));
-                    channels[displayNote.channel].gmInstrument = displayNote.data[0];
+                    parsedChannels[displayNote.channel].gmInstrument = displayNote.data[0];
                 break;
                 case CHANNEL_PRESSURE:
                     if (!midi_check7bits(iter, "channel pressure", midiTime)) {
@@ -308,9 +309,9 @@ bool NoteTakerParseMidi::parseMidi() {
                                     std::string text((char*) &midi.front() + displayNote.data[2],
                                             displayNote.data[1]);
                                     if (0x03 == displayNote.data[0]) {
-                                        channels[displayNote.channel].sequenceName = text;
+                                        parsedChannels[displayNote.channel].sequenceName = text;
                                     } else if (0x04 == displayNote.data[0]) {
-                                        channels[displayNote.channel].instrumentName = text;
+                                        parsedChannels[displayNote.channel].instrumentName = text;
                                     } 
                                     if (DEBUG_VERBOSE) {
                                         static const char* textType[] = { "text event",
@@ -446,7 +447,7 @@ bool NoteTakerParseMidi::parseMidi() {
             if (CONTROL_CHANGE == displayNote.type && 0 == displayNote.startTime &&
                     midiReleaseMax <= displayNote.data[0] && displayNote.data[0] <= midiSustainMax &&
                     (unsigned) displayNote.data[1] < NoteDurations::Count()) {
-                channels[lowNibble].setLimit(
+                parsedChannels[lowNibble].setLimit(
                         (NoteTakerChannel::Limit) (displayNote.data[0] - midiReleaseMax),
                         NoteDurations::ToMidi(displayNote.data[1], ppq));
                 continue;
@@ -514,8 +515,8 @@ bool NoteTakerParseMidi::parseMidi() {
             continue;
         }
         if (DEBUG_VERBOSE) DEBUG("map %u to %u", chan, use);
-        channels[use] = channels[chan];
-        channels[chan].reset();
+        parsedChannels[use] = parsedChannels[chan];
+        parsedChannels[chan].reset();
         reassign[chan] = use++;
         if (10 == use) {
             use = 12;
@@ -565,6 +566,7 @@ bool NoteTakerParseMidi::parseMidi() {
     if (ntPpq) {
         *ntPpq = ppq;
     }
+    channels.swap(parsedChannels);
     if (debugVerbose && ntPpq) DEBUG("ntPpq %d", *ntPpq);
     return true;
 }

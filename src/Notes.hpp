@@ -27,6 +27,19 @@ struct Notes {
     // static void HighestOnly(vector<DisplayNote>& );
     unsigned horizontalCount(unsigned selectChannels) const;
     bool isEmpty(unsigned selectChannels) const;
+
+    int nextStart(unsigned selectChannels) const {
+        int result = notes.back().startTime;
+        for (unsigned index = selectEnd; index < notes.size(); ++index) {
+            auto& note = notes[index];
+            if (note.isSelectable(selectChannels)) {
+                result = note.startTime;
+                break;
+            }
+        }
+        return result;
+    }
+
     int noteCount(unsigned selectChannels) const;
     int noteTimes(unsigned selectChannels) const;
     static bool PitchCollision(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,

@@ -85,6 +85,9 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto& n = this->n();
 #if 1 // def DEBUGGING_STORAGE // not normally defined
     for (auto& entry : storage.slots) {
+        if (entry.directory.empty() && entry.filename.empty() && entry.n.notes.size() < 2) {
+            continue;
+        }
         DEBUG("[%u] %s%s notes:%d", &entry - &storage.slots.front(),
                 entry.directory.c_str(), entry.filename.c_str(), entry.n.notes.size());
     }
@@ -103,6 +106,10 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
         DEBUG("clipboard");
         NoteTaker::DebugDump(clipboard.notes);
         for (const auto& chan : slot->channels) {
+            NoteTakerChannel _default;
+            if (chan.isDefault()) {
+                continue;
+            }
             DEBUG("[%d] %s", &chan - &slot->channels.front(), chan.debugString().c_str());
         }
     }
@@ -317,10 +324,19 @@ void Notes::validate() const {
 }
 
 std::string NoteTakerChannel::debugString() const {
-    std::string s;    
-    s =   "relMax " + std::to_string(releaseMax);
+    std::string s;
+    if (!sequenceName.empty()) {
+        s = " seq " + sequenceName;
+    }
+    if (!instrumentName.empty()) {
+        s += " inst " + instrumentName;
+    }
+    if (gmInstrument) {
+        s += " gm " + std::to_string(gmInstrument);
+    }
+    s += " relMax " + std::to_string(releaseMax);
     s += " relMin " + std::to_string(releaseMin);
     s += " susMin " + std::to_string(sustainMin);
     s += " susMax " + std::to_string(sustainMax);
-    return s;
+    return s.substr(1);
 }

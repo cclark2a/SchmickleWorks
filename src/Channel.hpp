@@ -58,6 +58,12 @@ struct NoteTakerChannel {
         return 0;
     }
 
+    bool isDefault() const {
+        return sequenceName.empty() && instrumentName.empty() && !gmInstrument
+                && isDefault(Limit::releaseMax) && isDefault(Limit::releaseMin)
+                && isDefault(Limit::sustainMin) && isDefault(Limit::sustainMax);
+    }
+
     bool isDefault(Limit limit) const {
         return this->getLimit(limit) == DefaultLimit(limit);
     }
