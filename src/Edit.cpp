@@ -196,7 +196,7 @@ void NoteTakerWidget::setWheelRange() {
     if (debugVerbose) DEBUG("setWheelRange %s %s", 
             horizontalWheel->debugString().c_str(),
             verticalWheel->debugString().c_str());
-    displayBuffer->fb->dirty = true;
+    displayBuffer->redraw();
 }
 
 void NoteTakerWidget::updateHorizontal() {
@@ -204,7 +204,9 @@ void NoteTakerWidget::updateHorizontal() {
     if (runButton->ledOn()) {
         return;
     }
-    displayBuffer->fb->dirty |= this->menuButtonOn();
+    if (this->menuButtonOn()) {
+        displayBuffer->redraw();
+    }
     if (fileButton->ledOn()) {
         return;
     }
@@ -309,7 +311,7 @@ void NoteTakerWidget::updateHorizontal() {
     DisplayNote& oneNote = n.notes[n.selectStart];
     if (selectOne && MIDI_TEMPO == oneNote.type) {
         oneNote.setTempo(nt()->wheelToTempo(horizontalWheel->getValue()) * 500000);
-        displayBuffer->fb->dirty = true;
+        displayBuffer->redraw();
         return;
     }
     if (!horizontalWheel->hasChanged()) {
@@ -499,7 +501,9 @@ void NoteTakerWidget::updateVertical() {
     if (runButton->ledOn()) {
         return;
     }
-    displayBuffer->fb->dirty |= this->menuButtonOn();
+    if (this->menuButtonOn()) {
+        displayBuffer->redraw();
+    }
     if (!verticalWheel->hasChanged()) {
         return;
     }

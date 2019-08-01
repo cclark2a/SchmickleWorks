@@ -9,12 +9,12 @@ BarPosition::BarPosition(bool dbug)
     priorBars = 0;
     duration = INT_MAX;
     midiEnd = INT_MAX;
-    tsStart = INT_MAX;
+    tsStart = 0;
 }
 
 void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
     bool hasDuration = INT_MAX != duration;
-    int barCount = hasDuration ? (noteCache.vStartTime - tsStart) / duration + priorBars : 0;
+    int barCount = (noteCache.vStartTime - tsStart) / duration + priorBars;
     pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
     if (false && debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d",
             barCount, pos[barCount].xMin, noteCache.xPosition);
@@ -26,17 +26,24 @@ void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
             barCount, pos[barCount].xMax, noteCache.xPosition, cacheWidth);
 }
 
-int BarPosition::notesTied(const DisplayNote& note, int ppq) {
-    if (INT_MAX == duration) {
-        leader = note.duration;
-        return NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
+int BarPosition::noteRegular(const DisplayNote& note, int ppq, bool* twoThirds) {
+    int result = NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
+    if (1 == result || !NoteDurations::TripletPart(note.duration, ppq)) {
+        return result;
     }
+    *twoThirds = true;
+    return NoteTakerDisplay::TiedCount(duration, note.duration * 3 / 2, ppq);
+}
+
+int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
+    *twoThirds = false;
     int inTsStartTime = note.startTime - tsStart;
     int startBar = inTsStartTime / duration;
     int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
     int endBar = inTsEndTime / duration;
     if (startBar == endBar) {
-        return 1;
+        leader = note.duration;
+        return this->noteRegular(note, ppq, twoThirds);
     }
     // note.startTime needs be relative to last bar start, not zero
     leader = (startBar + 1) * duration - inTsStartTime;
@@ -246,6 +253,8 @@ void CacheBuilder::cacheStaff() {
 }
 
 // only mark triplets if notes are the right duration and collectively a multiple of three
+// to do : if too few notes are of the right duration, they (probably) need to be drawn as ties --
+// 2/3rds of 1/4 note is 1/6 (.167) which could be 1/8 + 1/32 (.156)
 void CacheBuilder::cacheTuplets(const Notes& n) {
     array<unsigned, CHANNEL_COUNT> tripStarts;
     tripStarts.fill(INT_MAX);
@@ -398,7 +407,8 @@ void CacheBuilder::setDurations(const Notes& n) {
             continue;
         }
         uint8_t pitchPosition = NOTE_ON == note.type ? pitchMap[note.pitch()].position : 0;
-        int notesTied = bar.notesTied(note, n.ppq);
+        // if note is 2/3rds of a regular duration, it may be part of a third; defer tie in case
+        int notesTied = bar.notesTied(note, n.ppq, &cacheEntry.twoThirds);
         if (1 == notesTied) {
             cacheEntry.vDuration = note.duration;
             cacheEntry.endsOnBeat = (bool) (note.endTime() % n.ppq);
@@ -525,8 +535,7 @@ void CacheBuilder::updateXPosition(const Notes& n) {
         if (noteCache.note->isSignature()) {
             bar.setPriorBars(noteCache);
         }
-        int bars = bar.priorBars + (INT_MAX == bar.duration ? 0 :
-                (noteCache.vStartTime - bar.tsStart) / bar.duration);
+        int bars = bar.priorBars + ((noteCache.vStartTime - bar.tsStart) / bar.duration);
         int stdStart = NoteDurations::InStd(noteCache.vStartTime, n.ppq);
         noteCache.xPosition = (int) std::ceil((stdStart + bars * BAR_WIDTH)
                 * xAxisScale + pos);
@@ -569,8 +578,8 @@ void CacheBuilder::updateXPosition(const Notes& n) {
                     float xOff = drawWidth - NoteDurations::InStd(noteCache.vDuration, n.ppq)
                             * xAxisScale;
                     this->trackPos(posAdjust, xOff, noteCache.vEndTime());
-                    if (debugVerbose) DEBUG("%d track_pos xOff %g cache start %d dur %d",
-                            &noteCache - &cache->notes.front(),
+                    if (debugVerbose) DEBUG("%d track_pos drawWidth %g xOff %g cache start %d dur %d",
+                            &noteCache - &cache->notes.front(), drawWidth,
                             xOff, noteCache.vStartTime, noteCache.vDuration);
                 } break;
             case KEY_SIGNATURE:

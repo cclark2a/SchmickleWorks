@@ -240,7 +240,7 @@ const Color channelColors[] = {
 DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _ntw) {
     mainWidget = _ntw;
     fb = new FramebufferWidget();
-    fb->dirty = true;
+    this->redraw();
     this->addChild(fb);
     auto display = new NoteTakerDisplay(pos, size, fb, _ntw);
     fb->addChild(display);
@@ -268,7 +268,10 @@ void DisplayControl::autoDrift(float value, float frameTime, int visCells) {
             xOff = floorf(xOff);
         }
     }
-    display->fb()->dirty = display->xControlOffset != xOff;
+    if (display->xControlOffset != xOff) {
+        display->redraw();
+    }
+    if (DEBUG_VERBOSE) DEBUG("autodrift");
     display->xControlOffset = xOff;
 }
 
@@ -389,21 +392,25 @@ DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicF
     if (debugVerbose) DEBUG("DisplayState fb %p", fb);
 }
 
-DisplayRange::DisplayRange(const DisplayState& ds, float boxWidth)
+DisplayRange::DisplayRange(DisplayState& ds, float boxWidth)
     : state(ds)
     , bw(boxWidth)
     , debugVerbose(DEBUG_VERBOSE) {
         if (debugVerbose) DEBUG("DisplayRange bw %g xAxisOffset %g", bw, xAxisOffset);
 }
 
-void DisplayRange::scroll(NVGcontext* vg) {
-    nvgTranslate(vg, -xAxisOffset - dynamicXOffsetTimer, 0);
-    if (!dynamicXOffsetStep) {
-        return;
+void DisplayRange::scroll() {
+    static float last = 0;
+    float offset = -xAxisOffset - dynamicXOffsetTimer;
+    nvgTranslate(state.vg, offset, 0);
+    if (offset != last || dynamicXOffsetStep) {
+        state.redraw();
     }
-    dynamicXOffsetTimer += dynamicXOffsetStep;
-    if ((dynamicXOffsetTimer < 0) == (dynamicXOffsetStep < 0)) {
+    last = offset;
+    if (!dynamicXOffsetStep || ((dynamicXOffsetTimer < 0) == (dynamicXOffsetStep < 0))) {
         dynamicXOffsetTimer = dynamicXOffsetStep = 0;
+    } else {
+        dynamicXOffsetTimer += dynamicXOffsetStep;
     }
 }
 
@@ -579,7 +586,6 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         stagedSlot = nullptr;
     }
     auto cache = &slot->cache;
-    SCHMICKLE(state.fb == this->fb());
     if (slot->invalid) {
         CacheBuilder builder(state, cache);
         builder.updateXPosition(n);
@@ -596,7 +602,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     if (ntw->nt() && ntw->runUnitTest) { // to do : remove this from shipping code
         UnitTest(ntw, TestType::encode);
         ntw->runUnitTest = false;
-        this->fb()->dirty = true;
+        this->redraw();
         return;
     }
 #endif
@@ -617,9 +623,9 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     nvgFill(vg);
     this->drawStaffLines();
     nvgSave(vg);
-    this->scroll();
+    range.scroll();
     this->drawClefs();
-    if (!ntw->menuButtonOn()) {
+    if (!ntw->menuButtonOn() || ntw->tieButton->ledOn()) {
         this->drawSelectionRect();
     }
     BarPosition bar(ntw->debugVerbose);
@@ -996,6 +1002,7 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
     }
 }
 
+// to do : figutre out why selection doesn't draw if triplet editor is on
 void NoteTakerDisplay::drawSelectionRect() {
     // draw selection rect
     auto ntw = this->ntw();
@@ -1053,6 +1060,7 @@ void NoteTakerDisplay::drawSelectionRect() {
         width = endCache->xPosition - (endCache->accidentalSpace ? 8 : 0) - xStart;
     }
     nvgBeginPath(vg);
+    if (DEBUG_VERBOSE) DEBUG("xStart %d yTop %d width %d yHeight %d", xStart, yTop, width, yHeight);
     nvgRect(vg, xStart, yTop, width, yHeight);
     SetSelectColor(vg, channel);
     nvgFill(vg);
@@ -1096,12 +1104,16 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
             dynamicTempoTimer = nt->realSeconds + fadeDuration;
             horizontalWheel->lastRealValue = horizontalWheel->getValue();
         }
-        this->fb()->dirty = (dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
-                || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255);
+        if ((dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
+                || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255)) {
+            this->redraw();
+        }
         dynamicTempoAlpha = std::max(0, (int) (255 * (dynamicTempoTimer - nt->realSeconds) / fadeDuration));
         dynamicPitchAlpha = std::max(0, (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration));
-        this->fb()->dirty |= (dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
-                || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255);
+        if ((dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
+                || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255)) {
+            this->redraw();
+        }
     }
     auto vg = state.vg;
     if (dynamicPitchAlpha > 0) {
@@ -1123,7 +1135,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicTempoAlpha));
         nvgFill(vg);
         this->drawTempo(2, stdMSecsPerQuarterNote, dynamicTempoAlpha);
-        this->fb()->dirty = true;
+        this->redraw();
     }
 }
 
@@ -1479,7 +1491,9 @@ void NoteTakerDisplay::drawTieControl() {
     float fSlot = horizontalWheel->getValue();
     int slot = (int) (fSlot + .5);
     if (!ntw->horizontalWheel->inUse) {
-        this->fb()->dirty |= fSlot != slot;
+        if (fSlot != slot) {
+            this->redraw();
+        }
         if (fSlot < slot) {
             horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
         } else if (fSlot > slot) {
@@ -1598,7 +1612,7 @@ const char* NoteTakerDisplay::GMInstrumentName(unsigned index) {
 
 void NoteTakerDisplay::invalidateCache() {
     this->ntw()->storage.invalidate();
-    this->fb()->dirty = true;
+    this->redraw();
 }
 
 const Notes* NoteTakerDisplay::notes() {
@@ -1643,21 +1657,16 @@ void NoteTakerDisplay::recenterVerticalWheel() {
         auto ntw = this->ntw();
         auto verticalWheel = ntw->verticalWheel;
         float val = verticalWheel->getValue();
-        const float autoLoadSaveWheelSpeed = .2f;
+        const float autoLoadSaveWheelSpeed = 70 * state.callInterval * .2f;
         verticalWheel->setValue(verticalWheel->getValue()
                 + (val > 5 ? -autoLoadSaveWheelSpeed : +autoLoadSaveWheelSpeed));
         if (5 - autoLoadSaveWheelSpeed < val && val < 5 + autoLoadSaveWheelSpeed) {
             upSelected = false;
             downSelected = false;
         } else {
-            this->fb()->dirty = true;
+            this->redraw();
         }
     }
-}
-
-void NoteTakerDisplay::scroll() {
-    range.scroll(state.vg);
-    this->fb()->dirty = true;
 }
 
 // used by beams and tuplets

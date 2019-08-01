@@ -23,6 +23,15 @@ struct StaffNote {
 extern const StaffNote sharpMap[];
 extern const StaffNote flatMap[];
 
+static void debugCaptureRedraw(FramebufferWidget* fb) {
+    if (DEBUG_VERBOSE) {
+        DEBUG("redraw");
+    }
+    if (fb) {
+        fb->dirty = true;
+    }
+}
+
 struct DisplayBuffer : Widget {
     NoteTakerWidget* mainWidget = nullptr;
     FramebufferWidget* fb = nullptr;
@@ -31,6 +40,10 @@ struct DisplayBuffer : Widget {
 
     NoteTakerWidget* ntw() {
          return mainWidget;
+    }
+
+    void redraw() {
+        debugCaptureRedraw(fb);
     }
 };
 
@@ -44,10 +57,14 @@ struct DisplayState {
     const bool debugVerbose;
 
     DisplayState(float xAxisScale, FramebufferWidget* , int musicFont );
+
+    void redraw() {
+        debugCaptureRedraw(fb);
+    }
 };
 
 struct DisplayRange {
-    const DisplayState& state;
+    DisplayState& state;
     float xAxisOffset = 0;
     float xAxisScale = 0.25;
     float dynamicXOffsetTimer = 0;
@@ -60,7 +77,7 @@ struct DisplayRange {
     bool invalid = true;
     const bool debugVerbose;
 
-    DisplayRange(const DisplayState& , float boxWidth);
+    DisplayRange(DisplayState& , float boxWidth);
 
     void fromJson(json_t* root) {
         displayStart = json_integer_value(json_object_get(root, "displayStart"));
@@ -71,12 +88,8 @@ struct DisplayRange {
     }
 
     void invalidate() {
-        if (debugVerbose) DEBUG("invalidate state.fb %p dirty %d", state.fb,
-                state.fb ? state.fb->dirty : false);
         invalid = true;
-        if (state.fb) {
-            state.fb->dirty = true;
-        }
+        state.redraw();
     }
 
     void reset() {
@@ -90,7 +103,7 @@ struct DisplayRange {
         dynamicXOffsetStep = 0;
     }
 
-    void scroll(NVGcontext* vg);
+    void scroll();
     void setRange(const Notes& );
 
     json_t *toJson() const {
@@ -184,10 +197,6 @@ struct NoteTakerDisplay : Widget {
     void drawVerticalControl() const;
     void drawVerticalLabel(const char* label, bool enabled, bool selected, float y) const;
 
-    FramebufferWidget* fb() {
-        return dynamic_cast<FramebufferWidget*>(parent);
-    }
-
     static const char* GMInstrumentName(unsigned index);
 
     void invalidateCache();
@@ -208,6 +217,11 @@ struct NoteTakerDisplay : Widget {
 
     void recenterVerticalWheel();
 
+    void redraw() {
+        FramebufferWidget* fb = dynamic_cast<FramebufferWidget*>(parent);
+        debugCaptureRedraw(fb);
+    }
+
     void reset() {
         xControlOffset = 0;
         dynamicPitchAlpha = 0;
@@ -223,7 +237,6 @@ struct NoteTakerDisplay : Widget {
         range.resetXAxisOffset();
     }
 
-    void scroll();
     static void SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha);
     static void SetPartColor(NVGcontext* vg, int index, int part);
     static void SetSelectColor(NVGcontext* vg, unsigned chan);

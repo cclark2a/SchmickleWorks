@@ -6,7 +6,7 @@
 #include "Wheel.hpp"
 #include "Widget.hpp"
 
-// to do : to run headless, allow mainWidget and ntw() to be nullptr
+// to do : to run headless, allow mainWidget and ntw() to be nullptr?
 
 NoteTaker::NoteTaker()
     : debugVerbose(DEBUG_VERBOSE) {
@@ -26,8 +26,7 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         auto horizontalWheel = ntw()->horizontalWheel;
         float tempoRatio = this->wheelToTempo(horizontalWheel->getValue());
         if (lastRatio != tempoRatio) {
-            auto display = ntw()->displayBuffer;
-            display->fb->dirty = true;
+            ntw()->displayBuffer->redraw();
             lastRatio = tempoRatio;
         }
         deltaTime *= tempoRatio;
@@ -426,7 +425,7 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
         n.selectStart = 0;
         n.selectEnd = 1;
         display->range.setRange(n);
-        displayBuffer->fb->dirty = true;
+        displayBuffer->redraw();
         if (debugVerbose) DEBUG("setSelect set empty");
         return;
     }
@@ -440,7 +439,8 @@ void NoteTaker::setSelect(unsigned start, unsigned end) {
     if (debugVerbose) DEBUG("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
     n.selectStart = start;
     n.selectEnd = end;
-    displayBuffer->fb->dirty = true;
+    displayBuffer->redraw();
+    if (debugVerbose) DEBUG("setSelect set");
 }
 
 bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {

@@ -290,7 +290,7 @@ bool Notes::transposeSpan(vector<DisplayNote>& span) const {
         }
         // collect existing notes on this channel at this time
         vector<const DisplayNote*> overlaps;
-        newPitch = (newPitch < 0 ? note.pitch() : newPitch) + 3;
+        newPitch = note.pitch() + 3;
         bool collision = Notes::PitchCollision(notes, note, newPitch, &overlaps);
         collision |= Notes::PitchCollision(transposed, note, newPitch, &overlaps);  // collect new notes in span 
         while (collision && ++newPitch <= 127) {  // transpose up to free slot

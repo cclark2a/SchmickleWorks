@@ -191,7 +191,8 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) const {
 
 void NoteTakerWheel::onDragEnd(const event::DragEnd& ) {
 //    inUse = false;
-    ntw()->displayBuffer->fb->dirty = true;
+    ntw()->displayBuffer->redraw();
+    if (DEBUG_VERBOSE) DEBUG("wheel on drag end");
 }
 
 void HorizontalWheel::onDragMove(const event::DragMove& e) {

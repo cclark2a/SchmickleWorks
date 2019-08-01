@@ -197,6 +197,11 @@ void FileButton::draw(const DrawArgs& args) {
     nvgText(vg, 5 + af, 41 - af, ":", NULL);
 }
 
+
+// to do : change graphic on insert button to show what pressing the button will do
+// distinguish : add one note after / add multiple notes after / add one note above / 
+//               add multiple notes above
+// also change tooltips to describe this in words
 void InsertButton::draw(const DrawArgs& args) {
     const int af = animationFrame;
     EditButton::draw(args);
@@ -358,7 +363,13 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
                     DEBUG("clipboard to span (%u notes)", span.size());
         }
     }
-    bool insertInPlace = !slotOn && ntw->selectButton->editEnd();
+    // insertInPlace mode disabled for now, for several reasons
+    // it allows duplicating (a top note of) a phrase and transposing it, but the 'top note' part is buggy
+    // the result is a non-continuous selection -- currently that isn't supported
+    // it's an idea that is not uniformly supported: i.e., one can't copy and paste the top note of a phrase
+    // or copy from one part to another 
+    // as mentioned, highest only is buggy and without it it would be odd to copy and transpose whole chords
+    bool insertInPlace = false && !slotOn && ntw->selectButton->editEnd();
     unsigned insertSize = slotOn ? pspan.size() : span.size();
     int shiftTime = 0;
     if (insertInPlace) {
@@ -563,6 +574,8 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     DEBUG("onDragEnd end af %d ledOn %d", animationFrame, ledOn());
 }
 
+// to do : change drawn graphic to show the mode? edit / insert / select ?
+//         (not crazy about this idea)
 void SelectButton::draw(const DrawArgs& args) {
     const int af = animationFrame;
     EditLEDButton::draw(args);

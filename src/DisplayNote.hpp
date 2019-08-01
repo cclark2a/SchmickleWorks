@@ -290,6 +290,7 @@ struct NoteCache {
     bool endsOnBeat = false; // for beams
     bool stemUp = false;
     bool staff = false;  // set if note owns staff; for flags, tuplets, beaming, slurs, ties
+    bool twoThirds = false; // set as hint that note may be triplet part
 
     NoteCache(const DisplayNote* n)
          : note(n)

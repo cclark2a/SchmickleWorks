@@ -62,8 +62,9 @@ struct BarPosition {
         }
     }
 
-    int notesTied(const DisplayNote& note, int ppq);
-    int resetSignatureStart(const DisplayNote& note, float barWidth);
+    int noteRegular(const DisplayNote& , int ppq, bool* twoThirds);
+    int notesTied(const DisplayNote& , int ppq, bool* twoThirds);
+    int resetSignatureStart(const DisplayNote& , float barWidth);
 
     void setMidiEnd(const NoteCache& noteCache) {
         if (INT_MAX != duration) {
