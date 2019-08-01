@@ -411,6 +411,8 @@ void CacheBuilder::setDurations(const Notes& n) {
         int notesTied = bar.notesTied(note, n.ppq, &cacheEntry.twoThirds);
         if (1 == notesTied) {
             cacheEntry.vDuration = note.duration;
+            if (DEBUG_VERBOSE) DEBUG("setDurations vDur %d note %s", cacheEntry.vDuration,
+                    note.debugString().c_str());
             cacheEntry.endsOnBeat = (bool) (note.endTime() % n.ppq);
             if (NOTE_ON == note.type) {
                 cacheEntry.accidentalSpace = true;
@@ -539,8 +541,8 @@ void CacheBuilder::updateXPosition(const Notes& n) {
         int stdStart = NoteDurations::InStd(noteCache.vStartTime, n.ppq);
         noteCache.xPosition = (int) std::ceil((stdStart + bars * BAR_WIDTH)
                 * xAxisScale + pos);
-        if (debugVerbose) DEBUG("vStartTime %d n.ppq %d bars %d xAxisScale %g xPos %d",
-                noteCache.vStartTime, n.ppq, bars, xAxisScale, noteCache.xPosition);
+        if (debugVerbose) DEBUG("vStartTime %d n.ppq %d bars %d xPos %d",
+                noteCache.vStartTime, n.ppq, bars, noteCache.xPosition);
         if (noteCache.accidentalSpace) {
             noteCache.xPosition += 8;  // space for possible accidental
         } else if (NOTE_ON == noteCache.note->type) {  // if another note at same time allows for

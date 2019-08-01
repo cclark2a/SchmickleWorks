@@ -828,9 +828,10 @@ void NoteTakerDisplay::drawFreeNote(const DisplayNote& note, NoteCache* noteCach
     noteCache->note = &note;
     noteCache->xPosition = xPos;
     noteCache->yPosition = YPos(pitch.position);
-    noteCache->setDuration(n.ppq);
+    noteCache->vDuration = n.ppq;
     noteCache->stemUp = true;
     noteCache->staff = true;
+    noteCache->setDurationSymbol(n.ppq);
     this->drawNote((Accidental) pitchMap[note.pitch()].accidental, *noteCache, alpha, 24);
 }
             

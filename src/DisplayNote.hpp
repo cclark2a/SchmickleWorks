@@ -304,19 +304,12 @@ struct NoteCache {
                 || (vDuration == rhs.vDuration && yPosition < rhs.yPosition)));
     }
 
-    void setDuration(int ppq)  {
-        vDuration = note->duration;
-        if (PositionType::none != tupletPosition) {
-            vDuration = vDuration * 3 / 2;  // to do : just support triplets for now
-        }
-        symbol = (uint8_t) NoteDurations::FromMidi(vDuration, ppq);
-    }
-
     void setDurationSymbol(int ppq)  {
+        int dur = vDuration;
         if (PositionType::none != tupletPosition) {
-            vDuration = vDuration * 3 / 2;  // to do : just support triplets for now
+            dur = dur * 3 / 2;  // to do : just support triplets for now
         }
-        symbol = (uint8_t) NoteDurations::FromMidi(vDuration, ppq);
+        symbol = (uint8_t) NoteDurations::FromMidi(dur, ppq);
     }
 
     int vEndTime() const {
