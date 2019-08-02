@@ -275,14 +275,52 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
     return std::to_string(wheel->getValue());
 }
 
-// to do : show pitch as note name
+// show pitch as note name
+// to do : some of the states that return empty strings could return more with some effort...
 std::string VerticalWheelToolTip::getDisplayValueString() {
     if (!wheel) {
         return "!uninitialized";
     }
+    int value = (int) wheel->getValue();
+    // to do : set state in set vertical wheel range and use that state here?
     auto ntw = wheel->ntw();
-    if (ntw->slotButton->ledOn()) {
-        
+    if (ntw->runButton->ledOn()) {  // show pitch as : transpose C4 to C4
+        // to do : detect if key is flat and choose flats?
+        return "C4 to " + Notes::SharpName(value);
     }
-    return std::to_string(wheel->getValue());
+    if (ntw->fileButton->ledOn() || ntw->partButton->ledOn()) {
+        return "";
+    }
+    if (ntw->slotButton->ledOn()) {
+        return "";
+    }
+    if (ntw->sustainButton->ledOn()) {
+        return "";
+    }
+    if (ntw->tieButton->ledOn()) {
+        return "";
+    }
+    auto& n = ntw->n();
+    if (n.isEmpty(ntw->selectChannels)) {
+        return "";
+    }
+    const DisplayNote* note = &n.notes[n.selectStart];
+    if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
+        switch (note->type) {
+            case KEY_SIGNATURE:
+                return Notes::KeyName(value);
+            case TIME_SIGNATURE:
+                return "";
+            case MIDI_TEMPO:
+                return "";
+            default:
+                _schmickled(); // incomplete
+        }
+    }
+    if (!ntw->selectButton->ledOn()) {
+        return Notes::SharpName(value);
+    } else {
+        return "";
+    }
+    return std::to_string(value);
 }

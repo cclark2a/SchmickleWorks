@@ -112,7 +112,6 @@ bool NoteTakerParseMidi::parseMidi() {
                 }
                 defaultChannel = trackCount;
             }
-            displayNote.selected = false;
             if (NOTE_ON == displayNote.type || NOTE_OFF == displayNote.type) {
                 if (!midi_check7bits(iter, "pitch", midiTime)) {
                     return false;

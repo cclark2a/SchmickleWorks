@@ -154,7 +154,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
                 verticalWheel->setValue(0);
                 return;
             case MIDI_TEMPO:
-                // nothing to do : tempo is note affected by vertical wheel
+                // nothing to do : tempo is not affected by vertical wheel
                 return;
             default:
                 _schmickled(); // incomplete

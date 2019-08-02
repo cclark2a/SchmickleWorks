@@ -59,7 +59,7 @@ bool DisplayNote::isValid() const {
             }
         break;
         case KEY_SIGNATURE:
-            if (-7 > data[0] || data[0] > 7) {
+            if (0 > data[0] || data[0] > 14) {
                 DEBUG("invalid key %d\n", data[0]);
                 return false;
             }

@@ -40,11 +40,10 @@ struct DisplayNote {
     NoteCache* cache = nullptr;
     int startTime;          // MIDI time (e.g. stdTimePerQuarterNote: 1/4 note == 96)
     int duration;           // MIDI time
-    int data[4] = { 0, 0, 0, 0}; // type-specific values
+    int data[4] = { 0, 0, 0, 0}; // type-specific values / to do : make unsigned, can't serialize <0
     uint8_t channel;        // set to 0 if type doesn't have channel
-    uint8_t voice = -1;    // poly voice assigned to note
+    uint8_t voice = -1;     // poly voice assigned to note
     DisplayType type;
-    bool selected = false;  // set if channel intersects selectChannels prior to channel edit
 
     DisplayNote(DisplayType t, int start = 0, int dur = 0, uint8_t chan = 0)
         : startTime(start)
@@ -75,7 +74,8 @@ struct DisplayNote {
     }
 
     bool operator<(const DisplayNote& rhs) const {
-        return startTime < rhs.startTime;
+        return startTime < rhs.startTime
+            || (startTime == rhs.startTime && duration < rhs.duration);
     }
 
     void setChannel(uint8_t c) {
@@ -106,11 +106,11 @@ struct DisplayNote {
 
     int key() const {
         assertValid(KEY_SIGNATURE);
-        return data[0];
+        return data[0] - 7;
     }
 
     void setKey(int k) {
-        data[0] = k;
+        data[0] = k + 7;
         assertValid(KEY_SIGNATURE);
     }
 

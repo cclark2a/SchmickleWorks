@@ -5,7 +5,59 @@
 #include "ParseMidi.hpp"
 #include "Storage.hpp"
 
-void Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
+#define f_and_n(n) #n "\xE2" "\x99" "\xAD", #n  // flat followed by natural   (e.g., "Db", "D")
+const char* flatNames[] = 
+    { "C", f_and_n(D), f_and_n(E), "F", f_and_n(G), f_and_n(A), f_and_n(B) };
+#undef f_and_n
+
+#define n_and_s(n) #n, #n "\xE2" "\x99" "\xAF"  // natural followed by sharp  (e.g., "C", "C#")
+const char* sharpNames[] =
+    { n_and_s(C), n_and_s(D), "E", n_and_s(F), n_and_s(G), n_and_s(A), "B" };
+#undef n_and_s
+
+#define utf8_flat "\xE2" "\x99" "\xAD"
+#define utf8_sharp "\xE2" "\x99" "\xAF"
+const char* keyNames[] = { 
+    "C" utf8_flat  " major / A" utf8_flat  " minor",
+    "G" utf8_flat  " major / E" utf8_flat  " minor",
+    "D" utf8_flat  " major / B" utf8_flat  " minor",
+    "A" utf8_flat  " major / F"            " minor",
+    "E" utf8_flat  " major / C"            " minor",
+    "B" utf8_flat  " major / G"            " minor",
+    "F"            " major / D"            " minor",
+    "C"            " major / A"            " minor",
+    "G"            " major / E"            " minor",
+    "D"            " major / B"            " minor",
+    "A"            " major / F" utf8_sharp " minor",
+    "E"            " major / C" utf8_sharp " minor",
+    "B"            " major / G" utf8_sharp " minor",
+    "F" utf8_sharp " major / D" utf8_sharp " minor",
+    "C" utf8_sharp " major / A" utf8_sharp " minor",
+        };  // 7 flats
+
+#undef utf8_flat
+#undef utf8_sharp
+
+std::string Notes::FlatName(unsigned midiPitch) {
+    SCHMICKLE(midiPitch < 128);
+    unsigned note = midiPitch % 12;
+    int octave = (int) midiPitch / 12;
+    return std::string(flatNames[note] + std::to_string(octave - 1));
+}
+
+std::string Notes::KeyName(int key) {
+    SCHMICKLE(-8 < key && key < 8);
+    return std::string(keyNames[key + 7]);
+}
+
+std::string Notes::SharpName(unsigned midiPitch) {
+    SCHMICKLE(midiPitch < 128);
+    unsigned note = midiPitch % 12;
+    int octave = (int) midiPitch / 12;
+    return std::string(sharpNames[note] + std::to_string(octave - 1));
+}
+
+bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
     array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;
     NoteTakerParseMidi midiParser(storage, notes, ppq, dummyChannels);
     vector<uint8_t>::const_iterator iter = midiParser.midi.begin();
@@ -18,41 +70,36 @@ void Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* not
         if (!midiParser.midi_size8(iter, &delta) || delta < 0) {
             DEBUG("invalid midi time");
             midiParser.debug_out(iter, lastSuccess);
-            return;
+            return false;
         }
         note.startTime += delta;
         if (!midiParser.midi_size8(iter, &note.duration) || note.duration < 0) {
             DEBUG("invalid duration");
             midiParser.debug_out(iter, lastSuccess);
-            return;
+            return false;
         }
         for (unsigned index = 0; index < 4; ++index) {
             if (!midiParser.midi_size8(iter, &note.data[index])) {
                 DEBUG("invalid data %u", index);
                 midiParser.debug_out(iter, lastSuccess);
-                return;
+                return false;
             }
         }
         if (iter + 1 >= midiParser.midi.end()) {
             DEBUG("unexpected eof");
-            return;
+            return false;
         }
         uint8_t byte = *iter++;
         note.type = (DisplayType) (byte >> 4);
         note.channel = byte & 0x0F;
         if (iter >= midiParser.midi.end()) {
             DEBUG("unexpected eof 2");
-            return;
+            return false;
         }
-        if (*iter != !!*iter) {
-            DEBUG("invalid selected");
-            midiParser.debug_out(iter, lastSuccess);
-            return;
-        }
-        note.selected = *iter++;
         notes->push_back(note);
         lastSuccess = attempt;
     } while (iter != midiParser.midi.end());
+    return Notes::Validate(*notes, false);
 }
 
 void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
@@ -63,15 +110,15 @@ void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
     }
 }
 
-void Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* ppq) {
+bool Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* ppq) {
     if (!jNotes) {
-        return;
+        return false;
     }
     const char* encodedString = json_string_value(jNotes);
     vector<char> encoded(encodedString, encodedString + strlen(encodedString));
     vector<uint8_t> midi;
     NoteTakerSlot::Decode(encoded, &midi);
-    Deserialize(midi, notes, ppq);    
+    return Deserialize(midi, notes, ppq);    
 }
 
 void Notes::FromJsonUncompressed(json_t* jNotes, vector<DisplayNote>* notes) {
@@ -257,7 +304,6 @@ void Notes::Serialize(const vector<DisplayNote>& notes, vector<uint8_t>& storage
         uint8_t chan = note.isNoteOrRest() ? note.channel : 0;
         uint8_t byte = (note.type << 4) + chan;
         midiMaker.add_one(byte);
-        midiMaker.add_one(note.selected);
     }
 }
 

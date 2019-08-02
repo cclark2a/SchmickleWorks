@@ -83,7 +83,10 @@ struct DisplayBevel : Widget {
 };
 
 void Clipboard::fromJsonCompressed(json_t* root) {
-    Notes::FromJsonCompressed(root, &notes, nullptr);
+    if (!Notes::FromJsonCompressed(root, &notes, nullptr)) {
+        Notes empty;
+        notes = empty.notes;
+    }
 }
 
 void Clipboard::fromJsonUncompressed(json_t* root) {

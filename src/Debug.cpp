@@ -220,7 +220,11 @@ void NoteTaker::DebugDumpRawMidi(const vector<uint8_t>& v) {
     DEBUG("%s", s.c_str());
 }
 
-void Notes::validate() const {
+bool Notes::validate(bool assertOnFailure) const {
+    return Notes::Validate(notes, assertOnFailure);
+}
+
+bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure) {
     int time = 0;
     array<vector<const DisplayNote*>, CHANNEL_COUNT> channelTimes;
     bool sawHeader = false;
@@ -318,9 +322,10 @@ void Notes::validate() const {
         DEBUG("missing trailer");
         malformed = true;
     }
-    if (malformed) {
+    if (assertOnFailure && malformed) {
         _schmickled();
     }
+    return !malformed;
 }
 
 std::string NoteTakerChannel::debugString() const {

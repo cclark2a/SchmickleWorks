@@ -18,15 +18,17 @@ struct Notes {
         notes.emplace_back(TRACK_END);
     }
 
-    static void Deserialize(const vector<uint8_t>& , vector<DisplayNote>* , int* ppq);
+    static bool Deserialize(const vector<uint8_t>& , vector<DisplayNote>* , int* ppq);
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
+    static std::string FlatName(unsigned midiPitch);
     void fromJson(json_t* root);
-    static void FromJsonCompressed(json_t* , vector<DisplayNote>* , int* ppq);
+    static bool FromJsonCompressed(json_t* , vector<DisplayNote>* , int* ppq);
     static void FromJsonUncompressed(json_t* , vector<DisplayNote>* );
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     // static void HighestOnly(vector<DisplayNote>& );
     unsigned horizontalCount(unsigned selectChannels) const;
     bool isEmpty(unsigned selectChannels) const;
+    static std::string KeyName(int key);
 
     int nextStart(unsigned selectChannels) const {
         int result = notes.back().startTime;
@@ -45,6 +47,7 @@ struct Notes {
     static bool PitchCollision(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,
             vector<const DisplayNote*>* overlaps);
     bool pitchCollision(const DisplayNote& , int newPitch) const;
+    static std::string SharpName(unsigned midiPitch);
 
     unsigned selectEndPos(unsigned select) const {
         const DisplayNote& first = notes[select];
@@ -66,7 +69,8 @@ struct Notes {
     json_t* toJson() const;
     static void ToJsonCompressed(const vector<DisplayNote>& , json_t* , std::string );
     static void ToJsonUncompressed(const vector<DisplayNote>& , json_t* , std::string );
-    void validate() const;
+    bool validate(bool assertOnFailure = true) const;
+    static bool Validate(const vector<DisplayNote>& notes, bool assertOnFailure = true);
     int xPosAtEndEnd(const DisplayState& ) const;
     int xPosAtEndStart() const;
     int xPosAtStartEnd() const;

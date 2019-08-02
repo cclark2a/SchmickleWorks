@@ -85,10 +85,21 @@ json_t* SlotArray::toJson() const {
 
 void Notes::fromJson(json_t* root) {
     FromJsonUncompressed(json_object_get(root, "notesUncompressed"), &notes);
-    FromJsonCompressed(json_object_get(root, "notesCompressed"), &notes, &ppq); // overrides if both present
+    // compressed overrides if both present
+    if (!FromJsonCompressed(json_object_get(root, "notesCompressed"), &notes, &ppq)) {
+        Notes empty;
+        notes = empty.notes;
+    }
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
+    if (selectStart >= notes.size()) {
+        selectStart = 0;
+    }
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
+    if (selectEnd <= selectStart) {
+        selectEnd = selectStart + 1;
+    }
     ppq = json_integer_value(json_object_get(root, "ppq"));
+    // to do : add ppq validate
 }
 
 void NoteTaker::dataFromJson(json_t* root) {
