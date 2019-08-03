@@ -85,14 +85,14 @@ bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* not
                 return false;
             }
         }
-        if (iter + 1 >= midiParser.midi.end()) {
+        if (iter >= midiParser.midi.end()) {
             DEBUG("unexpected eof");
             return false;
         }
         uint8_t byte = *iter++;
         note.type = (DisplayType) (byte >> 4);
         note.channel = byte & 0x0F;
-        if (iter >= midiParser.midi.end()) {
+        if (iter > midiParser.midi.end()) {
             DEBUG("unexpected eof 2");
             return false;
         }

@@ -281,6 +281,7 @@ static void Expected(NoteTakerWidget* n) {
 
 static void TestEncode() {
     Notes n;
+    n.notes.clear();
     int start = 0;
     for (auto type : { MIDI_HEADER, KEY_SIGNATURE, TIME_SIGNATURE, MIDI_TEMPO, NOTE_ON,
             REST_TYPE, TRACK_END }) {
@@ -300,7 +301,7 @@ static void TestEncode() {
         DEBUG("n.notes %s", results.back().c_str());
     }
     vector<uint8_t> midi;
-    n.Serialize(n.notes, midi);
+    Notes::Serialize(n.notes, midi);
     DEBUG("raw midi");
     NoteTaker::DebugDumpRawMidi(midi);
     vector<char> encoded;
@@ -314,12 +315,13 @@ static void TestEncode() {
     DEBUG("raw midi2");
     NoteTaker::DebugDumpRawMidi(midi);
     Notes n2;
-    n2.Deserialize(midi, &n2.notes, &n2.ppq);   
+    bool result = Notes::Deserialize(midi, &n2.notes, &n2.ppq);
     vector<std::string> results2;
     for (const auto& note : n2.notes) {
         results2.push_back(note.debugString());
         DEBUG("n2.notes %s", results2.back().c_str());
     }
+    SCHMICKLE(result);
     SCHMICKLE(results == results2);
 }
 

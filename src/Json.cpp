@@ -90,13 +90,16 @@ void Notes::fromJson(json_t* root) {
         Notes empty;
         notes = empty.notes;
     }
+    SCHMICKLE(notes.size() >= 2);
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    if (selectStart >= notes.size()) {
+    if (0 > selectStart || selectStart + 1 >= notes.size()) {
         selectStart = 0;
     }
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     if (selectEnd <= selectStart) {
         selectEnd = selectStart + 1;
+    } else if (selectEnd >= notes.size()) {
+        selectEnd = notes.size() - 1;
     }
     ppq = json_integer_value(json_object_get(root, "ppq"));
     // to do : add ppq validate
@@ -172,11 +175,13 @@ void SlotArray::fromJson(json_t* root) {
         playbackSize = playback.size();
     }
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    if (selectStart >= playbackSize) {
+    if (0 > selectStart || selectStart >= playbackSize) {
         selectStart = 0;
     }
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     if (selectEnd <= selectStart) {
         selectEnd = selectStart + 1;
+    } else if (selectEnd > playbackSize) {
+        selectEnd = playbackSize;
     }
 }

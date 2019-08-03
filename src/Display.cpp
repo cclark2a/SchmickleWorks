@@ -835,6 +835,7 @@ void NoteTakerDisplay::drawFreeNote(const DisplayNote& note, NoteCache* noteCach
     this->drawNote((Accidental) pitchMap[note.pitch()].accidental, *noteCache, alpha, 24);
 }
             
+// to do : when key signature is selected and is c major, show dark gray natural sign
 void NoteTakerDisplay::drawKeySignature(unsigned index) {
     const auto& noteCache = this->cache()->notes[index];
     int xPos = noteCache.xPosition;

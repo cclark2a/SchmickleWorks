@@ -51,6 +51,9 @@ struct DisplayNote {
         , channel(chan)
         , type(t) {
         switch (type) {
+            case KEY_SIGNATURE:
+                this->setKey(0);
+                break;
             case NOTE_ON:
                 this->setOnVelocity(stdKeyPressure);
                 this->setOffVelocity(stdKeyPressure);
@@ -165,6 +168,10 @@ struct DisplayNote {
         assertValid(TIME_SIGNATURE);
     }
 
+    // to do : have a way to set this for user created key signatures?
+    // if it is possible to distinguish user created from file read, then wheel tool tip
+    // could show only major or minor is appropriate ...
+    // another thought : double wheel range and let each key signature have major / minor choices
     int minor() const {
         assertValid(KEY_SIGNATURE);
         return data[1];
