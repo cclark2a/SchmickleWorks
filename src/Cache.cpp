@@ -18,7 +18,7 @@ void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
     pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
     if (false && debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d",
             barCount, pos[barCount].xMin, noteCache.xPosition);
-    // note the adds duration less one to round up
+    // note the 'add duration less one' to round up
     barCount = hasDuration ? 
             (noteCache.vEndTime() - tsStart + duration - 1) / duration + priorBars : 1;  // rounds up
     pos[barCount].xMax = std::max(pos[barCount].xMax, noteCache.xPosition + cacheWidth);
@@ -26,24 +26,27 @@ void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
             barCount, pos[barCount].xMax, noteCache.xPosition, cacheWidth);
 }
 
-int BarPosition::noteRegular(const DisplayNote& note, int ppq, bool* twoThirds) {
+int BarPosition::noteRegular(const DisplayNote& note, int ppq, bool twoThirds) {
     int result = NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
-    if (1 == result || !NoteDurations::TripletPart(note.duration, ppq)) {
+    if (DEBUG_VERBOSE) DEBUG("noteRegular result %d twoThirds %d note %s", result, twoThirds,
+            note.debugString().c_str());
+    if (1 == result || !twoThirds) {
         return result;
     }
-    *twoThirds = true;
     return NoteTakerDisplay::TiedCount(duration, note.duration * 3 / 2, ppq);
 }
 
 int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
-    *twoThirds = false;
+    *twoThirds = NoteDurations::TripletPart(note.duration, ppq);
     int inTsStartTime = note.startTime - tsStart;
     int startBar = inTsStartTime / duration;
     int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
     int endBar = inTsEndTime / duration;
+    if (DEBUG_VERBOSE) DEBUG("notesTied inTsStartTime %d startBar %d inTsEndTime %d endBar %d",
+            inTsStartTime, startBar, inTsEndTime, endBar);
     if (startBar == endBar) {
         leader = note.duration;
-        return this->noteRegular(note, ppq, twoThirds);
+        return this->noteRegular(note, ppq, *twoThirds);
     }
     // note.startTime needs be relative to last bar start, not zero
     leader = (startBar + 1) * duration - inTsStartTime;
@@ -391,6 +394,7 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
 void CacheBuilder::setDurations(const Notes& n) {
     const StaffNote* pitchMap = sharpMap;
     BarPosition bar(debugVerbose);
+    if (DEBUG_VERBOSE) DEBUG("setDurations %u ", n.notes.size());
     for (unsigned index = 0; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
         cache->notes.emplace_back(&note);
@@ -408,8 +412,10 @@ void CacheBuilder::setDurations(const Notes& n) {
         }
         uint8_t pitchPosition = NOTE_ON == note.type ? pitchMap[note.pitch()].position : 0;
         // if note is 2/3rds of a regular duration, it may be part of a third; defer tie in case
-        int notesTied = bar.notesTied(note, n.ppq, &cacheEntry.twoThirds);
+        bool twoThirds = false;
+        int notesTied = bar.notesTied(note, n.ppq, &twoThirds);
         if (1 == notesTied) {
+            cacheEntry.twoThirds = twoThirds;
             cacheEntry.vDuration = note.duration;
             if (DEBUG_VERBOSE) DEBUG("setDurations vDur %d note %s", cacheEntry.vDuration,
                     note.debugString().c_str());
@@ -424,23 +430,24 @@ void CacheBuilder::setDurations(const Notes& n) {
             int duration = bar.leader;
             int remaining = note.duration - bar.leader;
             int tieTime = note.startTime;
+            if (debugVerbose) DEBUG("duration %d remaining %d tieTime %d added %s",
+                    duration, remaining, tieTime, note.debugString().c_str());
             bool accidentalSpace = NOTE_ON == note.type;
             cache->notes.pop_back();
             do {
                 do {
-                    if (debugVerbose) DEBUG("add tie to %s", note.debugString().c_str());
                     cache->notes.emplace_back(&note);
                     NoteCache& tiePart = cache->notes.back();
+                    tiePart.twoThirds = twoThirds;
                     tiePart.vStartTime = tieTime;
                     tiePart.tiePosition = accidentalSpace ? PositionType::left : PositionType::mid;
-                    tiePart.vDuration = NoteDurations::LtOrEq(duration, n.ppq);
-                    auto inStd = NoteDurations::InStd(duration, n.ppq);
-                    if (debugVerbose) 
-                            DEBUG("InStd %u FromMidi %u FromStd %u LtOrEq %d duration %d",
-                            inStd,
-                            NoteDurations::FromMidi(duration, n.ppq),
-                            NoteDurations::FromStd(duration),
-                            tiePart.vDuration, duration);
+                    // if in a triplet, scale up by 3/2, look up note, scale result by 2/3
+                    tiePart.vDuration = NoteDurations::LtOrEq(duration, n.ppq, twoThirds);
+                    if (debugVerbose) {
+                        DEBUG("vStart %d vDuration %d duration %d [%d] cache [%d] note",
+                                tiePart.vStartTime, tiePart.vDuration, duration,
+                                &tiePart - &cache->notes.front(), tiePart.note - &n.notes.front());
+                    }
                     tieTime += tiePart.vDuration;
                     tiePart.endsOnBeat = (bool) (tieTime % n.ppq);
                     tiePart.accidentalSpace = accidentalSpace;
@@ -468,18 +475,26 @@ void CacheBuilder::setDurations(const Notes& n) {
     }
     cache->notes.shrink_to_fit();
     // sort, shrink, vector push back may move cache locations, so set them up last
-    DisplayNote* last = nullptr;
-    for (auto& entry : cache->notes) {
-        if (last == entry.note) {
-            continue;
-        }
-        last = const_cast<DisplayNote*>(entry.note);
-        last->cache = &entry;
+    // walk backwards to put point note at first cache entry if note has more than one
+    for (auto riter = cache->notes.rbegin(); riter != cache->notes.rend(); ++riter) {
+        const_cast<DisplayNote*>(riter->note)->cache = &*riter;
     }
     // check to see if things moved
     SCHMICKLE(n.notes.front().cache == &cache->notes.front());
     SCHMICKLE(cache->notes.front().note == &n.notes.front());
-    if (debugVerbose) DEBUG("finished setCacheDuration");
+    if (debugVerbose) DEBUG("finished set durations");
+    if (debugVerbose) {
+        int index = 0;
+        for (const auto& note : n.notes) {
+            DEBUG("[%d] note %s cache [%d]", index++, note.debugString().c_str(),
+                    note.cache - &cache->notes.front());
+        }
+        index = 0;
+        for (const auto& note : cache->notes) {
+            DEBUG("[%d] cache %s note [%d]", index++, note.debugString().c_str(),
+                    note.note - &n.notes.front());
+        }
+    }
 }
 
 void CacheBuilder::trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime) {

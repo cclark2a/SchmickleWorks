@@ -168,13 +168,14 @@ struct DisplayNote {
         assertValid(TIME_SIGNATURE);
     }
 
-    // to do : have a way to set this for user created key signatures?
-    // if it is possible to distinguish user created from file read, then wheel tool tip
-    // could show only major or minor is appropriate ...
-    // another thought : double wheel range and let each key signature have major / minor choices
     int minor() const {
         assertValid(KEY_SIGNATURE);
         return data[1];
+    }
+
+    void setMinor(int d) {
+        data[1] = d;
+        assertValid(KEY_SIGNATURE);
     }
 
     int onVelocity() const {
@@ -280,7 +281,7 @@ enum class PositionType : uint8_t {
 // to do : set up end stage time for slot/stage end
 struct NoteCache {
     const DisplayNote* note;  // needed because with tied notes, cache entries are > than notes
-    int xPosition;
+    int xPosition = 0;
     float yPosition = 0;
     int vStartTime;  // visible start time, for multi part note alignment
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
@@ -310,6 +311,8 @@ struct NoteCache {
                 || (vStartTime == rhs.vStartTime && (vDuration < rhs.vDuration
                 || (vDuration == rhs.vDuration && yPosition < rhs.yPosition)));
     }
+
+    std::string debugString() const;
 
     void setDurationSymbol(int ppq)  {
         int dur = vDuration;

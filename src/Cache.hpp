@@ -62,7 +62,7 @@ struct BarPosition {
         }
     }
 
-    int noteRegular(const DisplayNote& , int ppq, bool* twoThirds);
+    int noteRegular(const DisplayNote& , int ppq, bool twoThirds);
     int notesTied(const DisplayNote& , int ppq, bool* twoThirds);
     int resetSignatureStart(const DisplayNote& , float barWidth);
 

@@ -32,6 +32,52 @@ std::string InvalDebugStr(Inval inval) {
     return debugStrs[(int) inval];
 }
 
+std::string PosAsStr(PositionType pType) {
+    return PositionType::left == pType  ? "L" : PositionType::mid == pType ? "M" : "R";
+}
+
+std::string TrimmedFloat(float f) {
+    std::string str = std::to_string(f);
+    str.erase(str.find_last_not_of('0') + 1, std::string::npos);
+    str.erase(str.find_last_not_of('.') + 1, std::string::npos);
+    return str;
+}
+
+std::string NoteCache::debugString() const {
+    std::string s;
+    s += "[" + TrimmedFloat(xPosition) + ", " + TrimmedFloat(yPosition) + "] ";
+    s += "vS:" + std::to_string(vStartTime) + " vD:" + std::to_string(vDuration);
+    s += " ";
+    if (PositionType::none != beamPosition) {
+        s += "b" + PosAsStr(beamPosition) + std::to_string(beamCount) + " ";
+    }
+    if (beamCount) {
+        s += std::to_string(beamCount) + " ";
+    }
+    if (channel) {
+        s += std::to_string(channel) + " ";
+    }
+    if (PositionType::none != slurPosition) {
+        s += "s" + PosAsStr(slurPosition) + " ";
+    }
+    if (PositionType::none != tiePosition) {
+        s += "t" + PosAsStr(tiePosition) + " ";
+    }
+    if (PositionType::none != tupletPosition) {
+        s += "3" + PosAsStr(tupletPosition) + " ";
+    }
+    if (tupletId) {
+        s += std::to_string(tupletId) + " ";
+    }
+    if (pitchPosition) {
+        s += std::to_string(pitchPosition) + " ";
+    }
+    s += std::to_string(symbol) +  (accidentalSpace ? "#" : "")
+            + (endsOnBeat ? "b" : "") + (stemUp ? "u" : "d") + (staff ? "s" : "") 
+            + (twoThirds ? "2" : "");
+    return s;
+}
+
 std::string DisplayNote::debugString() const {
     std::string s = std::to_string(startTime) + " " + typeNames[type].name
             + " [" +  std::to_string(channel);
@@ -134,17 +180,6 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     }
 }
 
-std::string PosAsStr(PositionType pType) {
-    return PositionType::left == pType  ? "L" : PositionType::mid == pType ? "M" : "R";
-}
-
-std::string TrimmedFloat(float f) {
-    std::string str = std::to_string(f);
-    str.erase(str.find_last_not_of('0') + 1, std::string::npos);
-    str.erase(str.find_last_not_of('.') + 1, std::string::npos);
-    return str;
-}
-
 void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCache>* cache,
         unsigned selectStart, unsigned selectEnd) {
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
@@ -165,26 +200,8 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
                     DEBUG("%s", s.c_str());
                     s = "";
                 }
-                s += std::to_string(index);
-                s += " [" + TrimmedFloat(c.xPosition) + ", " + TrimmedFloat(c.yPosition) + "] ";
-                s += "vS:" + std::to_string(c.vStartTime) + " vD:" + std::to_string(c.vDuration);
-                s += " ";
-                if (PositionType::none != c.slurPosition) {
-                    s += "s" + PosAsStr(c.slurPosition) + " ";
-                }
-                if (PositionType::none != c.beamPosition) {
-                    s += "b" + PosAsStr(c.beamPosition) + std::to_string(c.beamCount) + " ";
-                }
-                if (PositionType::none != c.tiePosition) {
-                    s += "t" + PosAsStr(c.tiePosition) + " ";
-                }
-                if (PositionType::none != c.tupletPosition) {
-                    s += "3" + PosAsStr(c.tupletPosition) + " ";
-                }
-                s += std::to_string(c.symbol) +  (c.accidentalSpace ? "#" : "")
-                        + (c.endsOnBeat ? "b" : "") + (c.stemUp ? "u " : "d ");
-                ++cIndex;
-            } while (cIndex < cache->size() && (*cache)[cIndex].note == &note);
+                s += std::to_string(index) + " " + c.debugString();
+            } while (++cIndex < cache->size() && (*cache)[cIndex].note == &note);
         }
         s += note.debugString();
         if (INT_MAX != selectEnd && &note == &notes[selectEnd - 1]) {

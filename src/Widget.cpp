@@ -113,6 +113,9 @@ void Clipboard::toJsonCompressed(json_t* root) const {
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
     : editButtonSize(Vec(22, 43))
     , debugVerbose(DEBUG_VERBOSE) {
+#if DEBUG_VERBOSE
+    NoteDurations::Validate();
+#endif
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));

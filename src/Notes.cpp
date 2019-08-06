@@ -18,25 +18,48 @@ const char* sharpNames[] =
 #define utf8_flat "\xE2" "\x99" "\xAD"
 #define utf8_sharp "\xE2" "\x99" "\xAF"
 const char* keyNames[] = { 
-    "C" utf8_flat  " major / A" utf8_flat  " minor",
-    "G" utf8_flat  " major / E" utf8_flat  " minor",
-    "D" utf8_flat  " major / B" utf8_flat  " minor",
-    "A" utf8_flat  " major / F"            " minor",
-    "E" utf8_flat  " major / C"            " minor",
-    "B" utf8_flat  " major / G"            " minor",
-    "F"            " major / D"            " minor",
-    "C"            " major / A"            " minor",
-    "G"            " major / E"            " minor",
-    "D"            " major / B"            " minor",
-    "A"            " major / F" utf8_sharp " minor",
-    "E"            " major / C" utf8_sharp " minor",
-    "B"            " major / G" utf8_sharp " minor",
-    "F" utf8_sharp " major / D" utf8_sharp " minor",
-    "C" utf8_sharp " major / A" utf8_sharp " minor",
+    "C" utf8_flat  " major", "A" utf8_flat  " minor",
+    "G" utf8_flat  " major", "E" utf8_flat  " minor",
+    "D" utf8_flat  " major", "B" utf8_flat  " minor",
+    "A" utf8_flat  " major", "F"            " minor",
+    "E" utf8_flat  " major", "C"            " minor",
+    "B" utf8_flat  " major", "G"            " minor",
+    "F"            " major", "D"            " minor",
+    "C"            " major", "A"            " minor",
+    "G"            " major", "E"            " minor",
+    "D"            " major", "B"            " minor",
+    "A"            " major", "F" utf8_sharp " minor",
+    "E"            " major", "C" utf8_sharp " minor",
+    "B"            " major", "G" utf8_sharp " minor",
+    "F" utf8_sharp " major", "D" utf8_sharp " minor",
+    "C" utf8_sharp " major", "A" utf8_sharp " minor",
         };  // 7 flats
 
 #undef utf8_flat
 #undef utf8_sharp
+
+const char* durationNames[] = {
+    "128th",
+    "64th",
+    "three 128ths",
+    "32nd",
+    "three 64ths",
+    "16th",
+    "three 32nds",
+    "8th",
+    "three 16ths",
+    "quarter",
+    "three 8ths",
+    "half",
+    "three quarters",
+    "whole",
+    "one and a half",
+    "two",
+    "three",
+    "four",
+    "six",
+    "eight"
+};
 
 std::string Notes::FlatName(unsigned midiPitch) {
     SCHMICKLE(midiPitch < 128);
@@ -45,9 +68,10 @@ std::string Notes::FlatName(unsigned midiPitch) {
     return std::string(flatNames[note] + std::to_string(octave - 1));
 }
 
-std::string Notes::KeyName(int key) {
+std::string Notes::KeyName(int key, int minor) {
     SCHMICKLE(-8 < key && key < 8);
-    return std::string(keyNames[key + 7]);
+    SCHMICKLE(0 == minor || 1 == minor);
+    return std::string(keyNames[(key + 7) * 2 + minor]);
 }
 
 std::string Notes::SharpName(unsigned midiPitch) {
@@ -55,6 +79,25 @@ std::string Notes::SharpName(unsigned midiPitch) {
     unsigned note = midiPitch % 12;
     int octave = (int) midiPitch / 12;
     return std::string(sharpNames[note] + std::to_string(octave - 1));
+}
+
+std::string Notes::TSDenom(const DisplayNote* note, int ppq) {
+    return "one " + TSUnit(note, 1, ppq) + " per beat";
+}
+
+std::string Notes::TSNumer(const DisplayNote* note, int ppq) {
+    int numer = note->numerator();
+    return std::to_string(numer) + " " + TSUnit(note, numer, ppq) + " per measure";
+}
+
+std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
+    unsigned index = 13 - note->denominator() * 2;
+    std::string result = durationNames[index];
+    result += " note";
+    if (1 != count) {
+        result += "s";
+    }
+    return result;
 }
 
 bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {

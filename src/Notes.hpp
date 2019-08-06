@@ -28,7 +28,7 @@ struct Notes {
     // static void HighestOnly(vector<DisplayNote>& );
     unsigned horizontalCount(unsigned selectChannels) const;
     bool isEmpty(unsigned selectChannels) const;
-    static std::string KeyName(int key);
+    static std::string KeyName(int key, int minor);
 
     int nextStart(unsigned selectChannels) const {
         int result = notes.back().startTime;
@@ -64,7 +64,9 @@ struct Notes {
     static void Serialize(const vector<DisplayNote>& , vector<uint8_t>& );
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
-
+    static std::string TSDenom(const DisplayNote* , int ppq);
+    static std::string TSNumer(const DisplayNote* , int ppq);
+    static std::string TSUnit(const DisplayNote* , int count, int ppq);
     bool transposeSpan(vector<DisplayNote>& span) const;
     json_t* toJson() const;
     static void ToJsonCompressed(const vector<DisplayNote>& , json_t* , std::string );

@@ -2,7 +2,7 @@
 #include <array>
 
 // actual midi times are computed from midi header ppq
-static constexpr const std::array<int, 20> noteDurations = {
+const std::array<int, 20> noteDurations = {
        3, //        128th note
        6, //         64th
        9, // dotted  64th
@@ -19,13 +19,37 @@ static constexpr const std::array<int, 20> noteDurations = {
      384, //        whole note
      576, // dotted whole
      768, //        double whole
-    1052, //        triple whole (dotted double whole)
+    1152, //        triple whole (dotted double whole)
     1536, //     quadruple whole
     2304, //      sextuple whole (dotted quadruple whole)
     3072, //       octuple whole
 };
 
-static constexpr const std::array<int, 20> beams = {
+const std::array<int, 20> tripletDurations = {
+       2, //        128th note
+       4, //         64th
+       6, // dotted  64th
+       8, //         32nd
+      12, // dotted  32nd
+      16, //         16th
+      24, // dotted  16th
+      32, //          8th
+      48, // dotted   8th
+      64, //        quarter note
+      96, // dotted quarter     
+     128, //        half
+     192, // dotted half
+     256, //        whole note
+     384, // dotted whole
+     512, //        double whole
+     768, //        triple whole (dotted double whole)
+    1024, //     quadruple whole
+    1536, //      sextuple whole (dotted quadruple whole)
+    2048, //       octuple whole
+};
+
+// number of beams on staves connecting notes of a given duration
+const std::array<int, 20> beams = {
     5,  4,  4,  3,  3,
     2,  2,  1,  1,  0,
     0,  0,  0,  0,  0,
@@ -34,12 +58,6 @@ static constexpr const std::array<int, 20> beams = {
 
 int NoteDurations::Beams(unsigned index) {
     return beams[index];
-}
-
-// this doesn't return the closest, but returns equal or smaller
-// so that parts of tied notes are not larger than the total
-int NoteDurations::LtOrEq(int midi, int ppq) {
-    return ToMidi(FromMidi(midi, ppq), ppq);
 }
 
 unsigned NoteDurations::Count() {
@@ -55,8 +73,36 @@ unsigned NoteDurations::FromStd(int duration) {
     return iter == noteDurations.end() ? 0 : iter - noteDurations.begin();
 }
 
+unsigned NoteDurations::FromTripletMidi(int midi, int ppq) {
+    return FromTripletStd(InStd(midi, ppq));
+}
+
+unsigned NoteDurations::FromTripletStd(int duration) {
+    auto iter = std::lower_bound(tripletDurations.begin(), tripletDurations.end(), duration);
+    return iter == tripletDurations.end() ? 0 : iter - tripletDurations.begin();
+}
+
+int NoteDurations::InMidi(int std, int ppq) {
+    return std * ppq / stdTimePerQuarterNote;
+}
+
+int NoteDurations::InStd(int midi, int ppq) {
+    return midi * stdTimePerQuarterNote / ppq;
+}
+
+// this doesn't return the closest, but returns equal or smaller
+// so that parts of tied notes are not larger than the total
+int NoteDurations::LtOrEq(int midi, int ppq, bool twoThirds) {
+    return twoThirds ? ToTripletMidi(FromTripletMidi(midi, ppq), ppq) :
+        ToMidi(FromMidi(midi, ppq), ppq);
+}
+
 int NoteDurations::SmallestMidi(int ppq) {
     return InMidi(ToStd(0), ppq);
+}
+
+int NoteDurations::SmallestTripletMidi(int ppq) {
+    return InMidi(ToTripletStd(0), ppq);
 }
 
 int NoteDurations::ToMidi(unsigned index, int ppq) {
@@ -67,8 +113,39 @@ int NoteDurations::ToStd(unsigned index) {
     return noteDurations[index];
 }
 
+int NoteDurations::ToTripletMidi(unsigned index, int ppq) {
+    return InMidi(ToTripletStd(index), ppq);
+}
+
+int NoteDurations::ToTripletStd(unsigned index) {
+    return tripletDurations[index];
+}
+
 bool NoteDurations::TripletPart(int midi, int ppq) {
     int inStd = InStd(midi, ppq);
     SCHMICKLE(inStd);
     return !(inStd & (inStd - 1));  // true if only top bit is set
+}
+
+static void validate_array(const std::array<int, 20>& durations, int unit) {
+    SCHMICKLE(durations[0] == unit);
+    unit += unit;
+    bool alternate = true;
+    for (unsigned index = 1; index < durations.size(); ++index) {
+        if (DEBUG_VERBOSE && durations[index] != unit) {
+            DEBUG("durations[%d] != %d", durations[index], unit);
+        }
+        SCHMICKLE(durations[index] == unit);
+        if ((alternate ^= true)) {
+            unit += unit / 3;   // dotted to whole
+        } else {
+            unit += unit / 2;   // whole to dotted
+        }
+    }
+}
+
+void NoteDurations::Validate() {
+    // make sure const tables are typo-free
+    validate_array(noteDurations, 3);
+    validate_array(tripletDurations, 2);
 }

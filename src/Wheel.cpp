@@ -226,15 +226,17 @@ WheelBuffer::WheelBuffer(NoteTakerWheel* wheel) {
 }
 
 // to do : show duration as name
+// to do : some of the states that return empty strings could return more with some effort...
 std::string HorizontalWheelToolTip::getDisplayValueString() {
     if (!wheel) {
         return "!uninitialized";
     }
     auto ntw = wheel->ntw();
     int value = (int) this->getValue();
+    int vertical = (int) ntw->verticalWheel->getValue();
     if (ntw->slotButton->ledOn()) {
         if (ntw->selectButton->isOff()) {
-            switch ((int) ntw->verticalWheel->getValue()) {
+            switch (vertical) {
                 case 2:  // repeat
                     return value <= 1 ? std::string("no repeat") : "repeat "
                             + std::to_string(value) + " times";
@@ -270,6 +272,23 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                     }
                 } break;
             }
+        }
+    }
+    auto& n = ntw->n();
+    if (n.isEmpty(ntw->selectChannels)) {
+        return "";
+    }
+    const DisplayNote* note = &n.notes[n.selectStart];
+    if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
+        switch (note->type) {
+            case KEY_SIGNATURE:
+                return Notes::KeyName(note->key(), value);
+            case TIME_SIGNATURE:
+                return vertical ? Notes::TSNumer(note, n.ppq) : Notes::TSDenom(note, n.ppq);
+            case MIDI_TEMPO:
+                return "";
+            default:
+                _schmickled(); // incomplete
         }
     }
     return std::to_string(wheel->getValue());
@@ -308,9 +327,9 @@ std::string VerticalWheelToolTip::getDisplayValueString() {
     if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
         switch (note->type) {
             case KEY_SIGNATURE:
-                return Notes::KeyName(value);
+                return Notes::KeyName(value, note->minor());
             case TIME_SIGNATURE:
-                return "";
+                return value ? "beats per measure" : "duration of beat";
             case MIDI_TEMPO:
                 return "";
             default:

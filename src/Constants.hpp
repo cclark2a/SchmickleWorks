@@ -59,23 +59,22 @@ constexpr unsigned EXPANSION_OUTPUTS = 8;
 
 struct NoteDurations {
     static int Beams(unsigned index);
-    static int LtOrEq(int midi, int ppq);
     static unsigned Count();
     static unsigned FromMidi(int midi, int ppq);
     static unsigned FromStd(int duration);
-        
-    static int InMidi(int std, int ppq) {
-        return std * ppq / stdTimePerQuarterNote;
-    }
-
-    static int InStd(int midi, int ppq) {
-        return midi * stdTimePerQuarterNote / ppq;
-    }
-
+    static unsigned FromTripletMidi(int midi, int ppq);
+    static unsigned FromTripletStd(int duration);
+    static int InMidi(int std, int ppq);
+    static int InStd(int midi, int ppq);
+    static int LtOrEq(int midi, int ppq, bool triplet = false);
     static int SmallestMidi(int ppq);
+    static int SmallestTripletMidi(int ppq);
     static int ToMidi(unsigned index, int ppq);
     static int ToStd(unsigned index);
+    static int ToTripletMidi(unsigned index, int ppq);
+    static int ToTripletStd(unsigned index);
     static bool TripletPart(int midi, int ppq);
+    static void Validate();
 };
 
  static inline unsigned gcd(unsigned one, unsigned two) {

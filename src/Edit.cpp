@@ -63,10 +63,11 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
             switch (note->type) {
                 case TIME_SIGNATURE:
-                    horizontalWheel->setDenominator(*note);
+                    horizontalWheel->setDenominator(*note); // sets limits, value
                     return;
                 case KEY_SIGNATURE:
-                    // nothing to do : horizontal wheel doesn't affect key signature
+                    horizontalWheel->setLimits(0, 1.999f);
+                    horizontalWheel->setValue(note->minor());
                     return;
                 case MIDI_TEMPO: {
                     horizontalWheel->setLimits(0, NoteDurations::Count() - 0.001f);
@@ -111,7 +112,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
 
 void NoteTakerWidget::setVerticalWheelRange() {
     if (runButton->ledOn()) {
-        verticalWheel->setLimits(0, 127);    // v/oct transpose (5 octaves up, down)
+        verticalWheel->setLimits(0, 127.999f);    // v/oct transpose (5 octaves up, down)
         verticalWheel->setValue(60);
         return;
     }
@@ -146,7 +147,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
     if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
         switch (note->type) {
             case KEY_SIGNATURE:
-                verticalWheel->setLimits(-7, 7);
+                verticalWheel->setLimits(-7.999f, 7.999f);
                 verticalWheel->setValue(note->key());
                 return;
             case TIME_SIGNATURE:
@@ -163,7 +164,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
     SCHMICKLE(edit.base.size());
     if (!selectButton->ledOn()) {
         if (edit.verticalNote) {
-            verticalWheel->setLimits(0, 127);  // range for midi pitch
+            verticalWheel->setLimits(0, 127.999f);  // range for midi pitch
             verticalWheel->setValue(edit.verticalValue);
         }
     } else {
@@ -324,6 +325,11 @@ void NoteTakerWidget::updateHorizontal() {
         } else {
             oneNote.setDenominator(wheelValue);
         }
+        this->invalidateAndPlay(Inval::change);
+        return;
+    }
+    if (selectOne && KEY_SIGNATURE == oneNote.type) {
+        oneNote.setMinor(wheelValue);
         this->invalidateAndPlay(Inval::change);
         return;
     }
