@@ -92,7 +92,7 @@ void Notes::fromJson(json_t* root) {
     }
     SCHMICKLE(notes.size() >= 2);
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    if (0 > selectStart || selectStart + 1 >= notes.size()) {
+    if (selectStart + 1 >= notes.size()) {
         selectStart = 0;
     }
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
@@ -175,7 +175,7 @@ void SlotArray::fromJson(json_t* root) {
         playbackSize = playback.size();
     }
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    if (0 > selectStart || selectStart >= playbackSize) {
+    if (selectStart >= playbackSize) {
         selectStart = 0;
     }
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));

@@ -60,9 +60,14 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
         if (debugVerbose) DEBUG("note %s", note.debugString().c_str());
     }
     SCHMICKLE(trailer < duration);
-    int result = NoteTakerDisplay::TiedCount(duration, leader, ppq);
+    if (debugVerbose) DEBUG("notesTied leader %d trailer %d duration %d endBar %d startBar %d",
+            leader, trailer, duration, endBar, startBar);
+    int result = 0;
+    if (leader >= NoteDurations::SmallestMidi(ppq)) {
+        NoteTakerDisplay::TiedCount(duration, leader, ppq);
+    }
     result += endBar - startBar - 1;  // # of bars with whole notes
-    if (trailer) {
+    if (trailer >= NoteDurations::SmallestMidi(ppq)) {
         result += NoteTakerDisplay::TiedCount(duration, trailer, ppq);
     }
     return result;
@@ -522,7 +527,9 @@ void CacheBuilder::updateXPosition(const Notes& n) {
         this->cacheTuplets(n);
     }
     for (auto& noteCache : cache->notes) {
-        noteCache.setDurationSymbol(n.ppq);
+        if (noteCache.note->isNoteOrRest()) {
+            noteCache.setDurationSymbol(n.ppq);
+        }
     }
     this->cacheBeams();
     float pos = 0;

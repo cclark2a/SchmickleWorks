@@ -68,9 +68,16 @@ unsigned NoteDurations::FromMidi(int midi, int ppq) {
     return FromStd(InStd(midi, ppq));
 }
 
+static unsigned from_std(const std::array<int, 20>& durations, int duration) {
+    if (durations[0] > duration) {
+        DEBUG("!");
+    }
+    SCHMICKLE(durations[0] <= duration);
+    return std::upper_bound(durations.begin(), durations.end(), duration) - durations.begin() - 1;
+}
+
 unsigned NoteDurations::FromStd(int duration) {
-    auto iter = std::lower_bound(noteDurations.begin(), noteDurations.end(), duration);
-    return iter == noteDurations.end() ? 0 : iter - noteDurations.begin();
+    return from_std(noteDurations, duration);
 }
 
 unsigned NoteDurations::FromTripletMidi(int midi, int ppq) {
@@ -78,8 +85,7 @@ unsigned NoteDurations::FromTripletMidi(int midi, int ppq) {
 }
 
 unsigned NoteDurations::FromTripletStd(int duration) {
-    auto iter = std::lower_bound(tripletDurations.begin(), tripletDurations.end(), duration);
-    return iter == tripletDurations.end() ? 0 : iter - tripletDurations.begin();
+    return from_std(tripletDurations, duration);
 }
 
 int NoteDurations::InMidi(int std, int ppq) {

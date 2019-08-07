@@ -568,7 +568,13 @@ const DisplayCache* NoteTakerDisplay::cache() const {
 }
 
 float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
-    float bounds[4];
+    if (!noteCache.note->isNoteOrRest()) {
+        if (TRACK_END == noteCache.note->type) {
+            return 0;
+        }
+        return (&noteCache)[1].xPosition - noteCache.xPosition;
+    }
+    float bounds[4]; 
     auto& symbols = REST_TYPE == noteCache.note->type ? restSymbols :
             PositionType::none != noteCache.beamPosition || !noteCache.staff ?
             noteCache.stemUp ? upBeamNoteSymbols : downBeamNoteSymbols :
