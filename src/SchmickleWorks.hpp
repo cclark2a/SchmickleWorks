@@ -46,13 +46,9 @@ extern Model* modelSuper8;
 #endif
 
 struct Super8Data {
-    float cv[4] = {};
-    float gate[4] = {};
-    float velocity[8] = {};
-    unsigned cvVoice[4] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX };
-    unsigned gateVoice[4] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX };
-    unsigned velocityVoice[8] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX,
-                                  INT_MAX, INT_MAX, INT_MAX, INT_MAX };
+    float cv[4][16] = {};
+    float gate[4][16] = {};
+    float velocity[8][16] = {};
     unsigned channels[8] = {};
 };
 

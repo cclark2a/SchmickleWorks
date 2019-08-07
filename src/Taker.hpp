@@ -295,8 +295,9 @@ struct NoteTaker : Module {
         static array<int, CHANNEL_COUNT> debugCount {-1, -1, -1, -1};
         static int debugMidiTime = -1;
     #endif
-        bool hasExpander = rightExpander.module
-                && modelSuper8 == rightExpander.module->model;
+        bool hasExpander = rightExpander.module && modelSuper8 == rightExpander.module->model;
+        Super8Data* message = hasExpander ?
+                (Super8Data*) rightExpander.module->leftExpander.producerMessage : nullptr;
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto& c = channels[channel];
             for (unsigned index = 0; index < c.voiceCount; ++index) {
@@ -310,10 +311,7 @@ struct NoteTaker : Module {
                         outputs[GATE1_OUTPUT + channel].setVoltage(0, index);
                         DEBUG("set expired low [%u / %u]", channel, index);
                     } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
-                        Super8Data* message
-                                = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-                        message->gate[channel - CV_OUTPUTS] = 0;
-                        message->gateVoice[channel - CV_OUTPUTS] = index;
+                        message->gate[channel - CV_OUTPUTS][index] = 0;
                     }
                 }
                 if (voice.noteEnd < midiTime) {
@@ -392,12 +390,10 @@ struct NoteTaker : Module {
             }
         }
         if (rightExpander.module && modelSuper8 == rightExpander.module->model) {
+            Super8Data* message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
             for (unsigned index = 0; index < EXPANSION_OUTPUTS - CV_OUTPUTS; ++index) {
                 for (unsigned inner = 0; inner < channels[CV_OUTPUTS + index].voiceCount; ++inner) {
-                    Super8Data* message
-                            = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-                    message->gate[index] = 0;
-                    message->gateVoice[index] = inner;
+                    message->gate[index][inner] = 0;
                 }
             }
         }

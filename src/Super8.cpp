@@ -63,22 +63,19 @@ struct Super8 : Module {
 		if (leftExpander.module && leftExpander.module->model == modelNoteTaker) {
 			Super8Data* message = (Super8Data*) leftExpander.consumerMessage;
 			for (unsigned index = 0; index < 4; index++) {
-                outputs[CV5_OUTPUT + index].setChannels(CV_OUTPUTS + message->channels[index]);
-                if (INT_MAX != message->cvVoice[index]) {
-				    outputs[CV5_OUTPUT + index].setVoltage(message->cv[index],
-                            message->cvVoice[index]);
-                }
-                outputs[GATE5_OUTPUT + index].setChannels(CV_OUTPUTS + message->channels[index]);
-                if (INT_MAX != message->gateVoice[index]) {
-				    outputs[GATE5_OUTPUT + index].setVoltage(message->gate[index],
-                            message->gateVoice[index]);
+                unsigned voiceCount = message->channels[CV_OUTPUTS + index];
+                outputs[CV5_OUTPUT + index].setChannels(voiceCount);
+                outputs[GATE5_OUTPUT + index].setChannels(voiceCount);
+                for (unsigned voice = 0; voice < voiceCount; ++voice) {
+                    outputs[CV5_OUTPUT + index].setVoltage(message->cv[index][voice], voice);
+				    outputs[GATE5_OUTPUT + index].setVoltage(message->gate[index][voice], voice);
                 }
 			}
 			for (unsigned index = 0; index < 8; index++) {
-                outputs[VELOCITY1_OUTPUT + index].setChannels(message->channels[index]);
-                if (INT_MAX != message->velocityVoice[index]) {
-				    outputs[VELOCITY1_OUTPUT + index].setVoltage(message->velocity[index],
-                            message->velocityVoice[index]);
+                unsigned voiceCount = message->channels[index];
+                outputs[VELOCITY1_OUTPUT + index].setChannels(voiceCount);
+                for (unsigned voice = 0; voice < voiceCount; ++voice) {
+				    outputs[VELOCITY1_OUTPUT + index].setVoltage(message->velocity[index][voice], voice);
                 }
             }
 		}

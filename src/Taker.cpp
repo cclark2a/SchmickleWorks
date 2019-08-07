@@ -280,8 +280,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
                     && rightExpander.module && rightExpander.module->model == modelSuper8) {
                 Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-                message->gate[note.channel - CV_OUTPUTS] = DEFAULT_GATE_HIGH_VOLTAGE;
-                message->gateVoice[note.channel - CV_OUTPUTS] = voiceIndex;
+                message->gate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
             }
             if (note.channel < CV_OUTPUTS) {
                 if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
@@ -304,11 +303,9 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (rightExpander.module && rightExpander.module->model == modelSuper8) {
                 Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
                 if (note.channel >= CV_OUTPUTS) {
-                    message->cv[note.channel - CV_OUTPUTS] = bias + note.pitch() / 12.f;
-                    message->cvVoice[note.channel - CV_OUTPUTS] = voiceIndex;
+                    message->cv[note.channel - CV_OUTPUTS][voiceIndex] = bias + note.pitch() / 12.f;
                 }
-                message->velocity[note.channel] = note.onVelocity();
-                message->velocityVoice[note.channel] = voiceIndex;
+                message->velocity[note.channel][voiceIndex] = note.onVelocity();
             }
             if (note.channel < CV_OUTPUTS) {
                 if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
