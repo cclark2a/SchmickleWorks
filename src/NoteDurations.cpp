@@ -25,6 +25,8 @@ const std::array<int, 20> noteDurations = {
     3072, //       octuple whole
 };
 
+// if triplet durations included 1 == 256th note, then triplets that span bars could always be
+// represented. to do ??
 const std::array<int, 20> tripletDurations = {
        2, //        128th note
        4, //         64th
@@ -103,12 +105,8 @@ int NoteDurations::LtOrEq(int midi, int ppq, bool twoThirds) {
         ToMidi(FromMidi(midi, ppq), ppq);
 }
 
-int NoteDurations::SmallestMidi(int ppq) {
-    return InMidi(ToStd(0), ppq);
-}
-
-int NoteDurations::SmallestTripletMidi(int ppq) {
-    return InMidi(ToTripletStd(0), ppq);
+int NoteDurations::Smallest(int ppq, bool twoThirds) {
+    return InMidi(twoThirds ? ToTripletStd(0) : ToStd(0), ppq);
 }
 
 int NoteDurations::ToMidi(unsigned index, int ppq) {

@@ -63,12 +63,11 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
     if (debugVerbose) DEBUG("notesTied leader %d trailer %d duration %d endBar %d startBar %d",
             leader, trailer, duration, endBar, startBar);
     int result = 0;
-    if (leader >= 
-    NoteDurations::SmallestMidi(ppq)) {
+    if (leader >= NoteDurations::Smallest(ppq)) {
         result += NoteTakerDisplay::TiedCount(duration, leader, ppq);
     }
     result += endBar - startBar - 1;  // # of bars with whole notes
-    if (trailer >= NoteDurations::SmallestMidi(ppq)) {
+    if (trailer >= NoteDurations::Smallest(ppq)) {
         result += NoteTakerDisplay::TiedCount(duration, trailer, ppq);
     }
     return result;
@@ -464,7 +463,7 @@ void CacheBuilder::setDurations(const Notes& n) {
                         tiePart.yPosition = NoteTakerDisplay::YPos(pitchPosition);
                         tiePart.stemUp = NoteTakerDisplay::StemUp(pitchPosition);
                     }
-                } while (duration >= NoteDurations::ToMidi(0, n.ppq));
+                } while (duration >= NoteDurations::Smallest(n.ppq, twoThirds));
                 tieTime += std::max(0, duration);   // if some fraction couldn't be represented...
                 duration = std::min(bar.duration, remaining);
                 if (!duration) {

@@ -133,7 +133,8 @@ bool NoteTakerParseMidi::parseMidi() {
                         noteOn = &(&parsedNotes.front())[noteOnIndex];
                         if (noteOn->duration < 0) {
                             noteOn->duration =
-                                    std::max(NoteDurations::SmallestMidi(ppq), midiTime - noteOn->startTime);
+                                    std::max(NoteDurations::Smallest(ppq),
+                                    midiTime - noteOn->startTime);
                             noteOn->setOffVelocity(displayNote.onVelocity());
                             if (DEBUG_NOTE_OFF) DEBUG("assign vel %s", noteOn->debugString().c_str());
                         } else {

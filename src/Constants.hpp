@@ -67,8 +67,7 @@ struct NoteDurations {
     static int InMidi(int std, int ppq);
     static int InStd(int midi, int ppq);
     static int LtOrEq(int midi, int ppq, bool triplet = false);
-    static int SmallestMidi(int ppq);
-    static int SmallestTripletMidi(int ppq);
+    static int Smallest(int ppq, bool triplet = false);
     static int ToMidi(unsigned index, int ppq);
     static int ToStd(unsigned index);
     static int ToTripletMidi(unsigned index, int ppq);
