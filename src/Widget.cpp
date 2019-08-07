@@ -351,6 +351,14 @@ void NoteTakerWidget::appendContextMenu(Menu *menu) {
     saveItem->rightText = RIGHT_ARROW;
     saveItem->widget = this;
     menu->addChild(saveItem);
+    // to do : add Marc Boule's reset options, approximately:
+    /* Restart when run is -> turned off
+                              turned on
+                              both
+                              neither
+       Send EOS pulse when restart
+       Output EOS high when not running
+     */
 }
 
 // to do : once clipboard is set, don't reset unless:
