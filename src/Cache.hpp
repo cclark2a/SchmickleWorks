@@ -49,9 +49,8 @@ struct BarPosition {
     int midiEnd;        // used to restart accidentals at start of bar
     // set by notes tied
     int leader;         // duration of note part before first bar
-    const bool debugVerbose;
 
-    BarPosition(bool debug);
+    BarPosition();
 
     void addPos(const NoteCache& , float cacheWidth);
 
@@ -104,7 +103,6 @@ struct CacheBuilder {
     const DisplayState& state;
     DisplayCache* cache;
     int ppq;
-    const bool debugVerbose;
     
     CacheBuilder(const DisplayState& , DisplayCache* , int ppq);
 

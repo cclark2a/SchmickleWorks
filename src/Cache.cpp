@@ -3,8 +3,7 @@
 #include "Notes.hpp"
 #include "Widget.hpp"
 
-BarPosition::BarPosition(bool dbug)
-    : debugVerbose(dbug) {
+BarPosition::BarPosition() {
     pos.clear();
     priorBars = 0;
     duration = INT_MAX;
@@ -32,7 +31,7 @@ int BarPosition::count(const NoteCache& noteCache) const {
 
 int BarPosition::noteRegular(const DisplayNote& note, int ppq, bool twoThirds) {
     int result = NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
-    if (DEBUG_VERBOSE) DEBUG("noteRegular result %d twoThirds %d note %s", result, twoThirds,
+    if (debugVerbose) DEBUG("noteRegular result %d twoThirds %d note %s", result, twoThirds,
             note.debugString().c_str());
     if (1 == result || !twoThirds) {
         return result;
@@ -46,7 +45,7 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
     int startBar = inTsStartTime / duration;
     int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
     int endBar = inTsEndTime / duration;
-    if (DEBUG_VERBOSE) DEBUG("notesTied inTsStartTime %d startBar %d inTsEndTime %d endBar %d",
+    if (debugVerbose) DEBUG("notesTied inTsStartTime %d startBar %d inTsEndTime %d endBar %d",
             inTsStartTime, startBar, inTsEndTime, endBar);
     if (startBar == endBar) {
         leader = note.duration;
@@ -92,8 +91,7 @@ int BarPosition::resetSignatureStart(const DisplayNote& note, float barWidth) {
 CacheBuilder::CacheBuilder(const DisplayState& sd, DisplayCache* c, int _ppq) 
     : state(sd)
     , cache(c)
-    , ppq(_ppq)
-    , debugVerbose(sd.debugVerbose) {
+    , ppq(_ppq) {
 }
 
 // if note cache is in new measure, close previous beam if any and start a new one
@@ -120,7 +118,7 @@ void CacheBuilder::cacheBeams() {
         }
 
         if (!noteCache.staff) {
-            if (DEBUG_VERBOSE) DEBUG("cacheBeams no staff %s note %s",
+            if (debugVerbose) DEBUG("cacheBeams no staff %s note %s",
                     noteCache.debugString().c_str(), 
                     noteCache.note->debugString().c_str());
             continue;
@@ -144,14 +142,14 @@ void CacheBuilder::cacheBeams() {
                 checkForStart = false;
             }
         } 
-        if (DEBUG_VERBOSE) DEBUG("cacheBeams checkForStart %d noteCache.vDuration %d ppq %d",
+        if (debugVerbose) DEBUG("cacheBeams checkForStart %d noteCache.vDuration %d ppq %d",
                 checkForStart, noteCache.vDuration, ppq);
         if (checkForStart && noteCache.vDuration < ppq) {
             // to do : if 4:4 time, allow beaming up to half note ?
             beamStart = cacheIndex;
             noteCache.beamPosition = PositionType::left;
             startBar = noteCache.bar;
-            if (DEBUG_VERBOSE) DEBUG("cacheBeams beamStart %s", noteCache.debugString().c_str());
+            if (debugVerbose) DEBUG("cacheBeams beamStart %s", noteCache.debugString().c_str());
         }
         if (INT_MAX != beamStart || PositionType::right == noteCache.beamPosition) {
             noteCache.beamCount = NoteDurations::Beams(noteCache.twoThirds ?
@@ -416,8 +414,8 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
 // to do : use cache notes' bar count instead of recomputing the bar count
 void CacheBuilder::setDurations(const Notes& n) {
     const StaffNote* pitchMap = sharpMap;
-    BarPosition bar(debugVerbose);
-    if (DEBUG_VERBOSE) DEBUG("setDurations %u ", n.notes.size());
+    BarPosition bar;
+    if (debugVerbose) DEBUG("setDurations %u ", n.notes.size());
     for (unsigned index = 0; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
         cache->notes.emplace_back(&note);
@@ -441,7 +439,7 @@ void CacheBuilder::setDurations(const Notes& n) {
         if (1 == notesTied) {
             cacheEntry.twoThirds = twoThirds;
             cacheEntry.vDuration = note.duration;
-            if (DEBUG_VERBOSE) DEBUG("setDurations vDur %d note %s", cacheEntry.vDuration,
+            if (debugVerbose) DEBUG("setDurations vDur %d note %s", cacheEntry.vDuration,
                     note.debugString().c_str());
             cacheEntry.endsOnBeat = (bool) (note.endTime() % ppq);
             if (NOTE_ON == note.type) {
@@ -556,7 +554,7 @@ void CacheBuilder::updateXPosition(const Notes& n) {
     float pos = 0;
     std::list<PosAdjust> posAdjust;
     cache->leadingTempo = false;
-    BarPosition bar(debugVerbose);
+    BarPosition bar;
     for (auto& noteCache : cache->notes) {
         PosAdjust nextAdjust = { 0, 0 };
         for (auto& adjust : posAdjust) {

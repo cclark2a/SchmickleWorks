@@ -110,7 +110,6 @@ struct NoteTaker : Module {
     SlotPlay::Stage runningStage;
     unsigned stagedSlot = INT_MAX;
     bool invalidVoiceCount = false;
-    const bool debugVerbose;          // enable this in note taker widget include
 
     NoteTaker();
 

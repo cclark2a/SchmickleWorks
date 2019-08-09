@@ -69,7 +69,7 @@ struct NoteTakerChannel {
     }
 
     void reset() {
-        if (DEBUG_VERBOSE) DEBUG("channel reset");
+        if (debugVerbose) DEBUG("channel reset");
         sequenceName = "";
         instrumentName = "";
         gmInstrument = 0;

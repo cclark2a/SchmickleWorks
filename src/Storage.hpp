@@ -61,12 +61,10 @@ struct SlotArray {
     unsigned selectStart = 0; // current selection in playback vector
     unsigned selectEnd = 1;
     bool saveZero = false;   // set if single was at left-most position
-    const bool debugVerbose;
 
     void fromJson(json_t* root);
 
-    SlotArray()
-    : debugVerbose(DEBUG_VERBOSE) {
+    SlotArray() {
         playback.emplace_back();
     }
 

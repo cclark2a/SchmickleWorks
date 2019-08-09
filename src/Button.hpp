@@ -563,7 +563,7 @@ struct SlotButton : EditLEDButton {
     // to do : removeq after debugging
     void onTurnOff() override {
         EditLEDButton::onTurnOff();
-        if (DEBUG_VERBOSE) DEBUG("slot button off");
+        if (debugVerbose) DEBUG("slot button off");
     }
 };
 

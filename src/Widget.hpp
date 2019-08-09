@@ -54,7 +54,6 @@ struct NoteTakerWidget : ModuleWidget {
     const Vec editButtonSize;
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
     bool clipboardInvalid = true;
-    const bool debugVerbose;
 #if RUN_UNIT_TEST
     bool runUnitTest = true;  // to do : ship with this disabled
     bool unitTestRunning = false;

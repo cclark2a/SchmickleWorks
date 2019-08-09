@@ -111,11 +111,10 @@ void Clipboard::toJsonCompressed(json_t* root) const {
 // NoteTakerWidget instead, 
 // make sure things like loading midi don't happen if module is null
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
-    : editButtonSize(Vec(22, 43))
-    , debugVerbose(DEBUG_VERBOSE) {
-#if DEBUG_VERBOSE
-    NoteDurations::Validate();
-#endif
+    : editButtonSize(Vec(22, 43)) {
+    if (debugVerbose) {
+        NoteDurations::Validate();
+    }
     this->setModule(module);
     this->setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/NoteTaker.svg")));
     _musicFont = APP->window->loadFont(asset::plugin(pluginInstance, "res/MusiSync3.ttf"));
@@ -339,19 +338,25 @@ struct NoteTakerSaveItem : MenuItem {
 	}
 };
 
+struct NoteTakerDebugVerboseItem : MenuItem {
+
+	void onAction(const event::Action& e) override {
+        debugVerbose ^= true;
+	}
+};
+
 void NoteTakerWidget::appendContextMenu(Menu *menu) {
     menu->addChild(new MenuEntry);
-    NoteTakerLoadItem *loadItem = new NoteTakerLoadItem;
-    loadItem->text = "Load MIDI";
-    loadItem->rightText = RIGHT_ARROW;
+    auto loadItem = createMenuItem<NoteTakerLoadItem>("Load MIDI", RIGHT_ARROW);
     loadItem->widget = this;
     menu->addChild(loadItem);
-    NoteTakerSaveItem *saveItem = new NoteTakerSaveItem;
-    saveItem->text = "Save as MIDI";
-    saveItem->rightText = RIGHT_ARROW;
+    auto saveItem = createMenuItem<NoteTakerSaveItem>("Save as MIDI", RIGHT_ARROW);
     saveItem->widget = this;
     menu->addChild(saveItem);
-    // to do : add Marc Boule's reset options, approximately:
+    menu->addChild(new MenuSeparator);
+    menu->addChild(createMenuItem<NoteTakerDebugVerboseItem>("Verbose debugging",
+            CHECKMARK(debugVerbose)));
+;    // to do : add Marc Boule's reset options, approximately:
     /* Restart when run is -> turned off
                               turned on
                               both
@@ -858,7 +863,7 @@ void NoteTakerWidget::setSlot(unsigned index) {
     auto nt = this->nt();
     auto slot = &storage.slots[index];
     if (nt) {
-        if (DEBUG_VERBOSE) DEBUG("process setSlot %u", index);
+        if (debugVerbose) DEBUG("process setSlot %u", index);
         nt->slot = slot;
     }
     display->stagedSlot = slot;

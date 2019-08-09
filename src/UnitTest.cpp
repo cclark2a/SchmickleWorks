@@ -13,7 +13,7 @@ static void Press(NoteTakerWidget* n, ParamWidget* ms) {
     ms->onDragStart(evs);
     event::DragEnd evd;
     ms->onDragEnd(evd);
-    if (n->debugVerbose) n->debugDump();
+    if (debugVerbose) n->debugDump();
 }
 
 static void WheelUp(NoteTakerWidget* n, float value) {

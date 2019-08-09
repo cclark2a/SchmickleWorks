@@ -257,7 +257,7 @@ void NoteTakerWidget::updateHorizontal() {
         #endif
             storage.selectEnd = storage.selectStart + 1;
             static unsigned debugStart = INT_MAX;
-            if (DEBUG_VERBOSE && debugStart != storage.selectStart) {
+            if (debugVerbose && debugStart != storage.selectStart) {
                 DEBUG("updateHorizontal %u", storage.selectStart);
                 debugStart = storage.selectStart;
             }
@@ -356,38 +356,38 @@ void NoteTakerWidget::updateHorizontal() {
             auto* note = &n.notes[index];
             int startDiff = test.startTime - startTime;
             if (startDiff) {
-                if (DEBUG_VERBOSE) DEBUG("old note start %s", note->debugString().c_str());
+                if (debugVerbose) DEBUG("old note start %s", note->debugString().c_str());
                 if (wheelChange) {
                     int index = NoteDurations::FromMidi(startDiff, n.ppq);
                     note->startTime = startTime + NoteDurations::ToMidi(index + wheelChange, n.ppq);
                 } else {
                     note->startTime = test.startTime;
                 }
-                if (DEBUG_VERBOSE) DEBUG("new note start %s", note->debugString().c_str());
+                if (debugVerbose) DEBUG("new note start %s", note->debugString().c_str());
             }
             if (test.isNoteOrRest()) {
-                if (DEBUG_VERBOSE) DEBUG("old note duration %s", note->debugString().c_str());
+                if (debugVerbose) DEBUG("old note duration %s", note->debugString().c_str());
                 if (wheelChange) {
                     int oldDurationIndex = NoteDurations::FromMidi(test.duration, n.ppq);
                     note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
                 } else {
                     note->duration = test.duration;
                 }
-                if (DEBUG_VERBOSE) DEBUG("new note duration %s", note->debugString().c_str());
+                if (debugVerbose) DEBUG("new note duration %s", note->debugString().c_str());
                 if (edit.voice) {
                     n.setDuration(note);
                 } else if (test.endTime() > edit.selectMaxEnd) {
                     overlaps.emplace_back(std::pair<int, int>(test.endTime(), note->endTime()));
-                    if (DEBUG_VERBOSE) DEBUG("add overlap base %d note %d",
+                    if (debugVerbose) DEBUG("add overlap base %d note %d",
                             test.endTime(), note->endTime());
                 }
             }
             if (test.endTime() <= edit.nextStart) {
-                if (DEBUG_VERBOSE) DEBUG("selectMaxEnd %d note end time %d", selectMaxEnd,
+                if (debugVerbose) DEBUG("selectMaxEnd %d note end time %d", selectMaxEnd,
                         note->endTime());
                 selectMaxEnd = std::max(selectMaxEnd, note->endTime());
             }
-            if (DEBUG_VERBOSE) DEBUG("maxEnd %d note end time %d", maxEnd, note->endTime());
+            if (debugVerbose) DEBUG("maxEnd %d note end time %d", maxEnd, note->endTime());
             maxEnd = std::max(maxEnd, note->endTime());
         }
         overlaps.emplace_back(std::pair<int, int>(edit.selectMaxEnd, selectMaxEnd));
@@ -398,7 +398,7 @@ void NoteTakerWidget::updateHorizontal() {
             });
             auto* overPtr = &overlaps.front();
             int insertedTime = overPtr->second - overPtr->first;
-            if (DEBUG_VERBOSE) DEBUG("insertedTime %d", insertedTime);
+            if (debugVerbose) DEBUG("insertedTime %d", insertedTime);
             for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
                 const auto& base = edit.base[index];
                 auto* note = &n.notes[index];
@@ -410,13 +410,13 @@ void NoteTakerWidget::updateHorizontal() {
                         }
                         overPtr = overTest;
                         insertedTime = std::max(insertedTime, overPtr->second - overPtr->first);
-                        if (DEBUG_VERBOSE) DEBUG("over insertedTime %d", insertedTime);
+                        if (debugVerbose) DEBUG("over insertedTime %d", insertedTime);
                     }
-                    if (DEBUG_VERBOSE) DEBUG("old post start %s", note->debugString().c_str());
+                    if (debugVerbose) DEBUG("old post start %s", note->debugString().c_str());
                     note->startTime = base.startTime + insertedTime;
-                    if (DEBUG_VERBOSE) DEBUG("new post start %s", note->debugString().c_str());
+                    if (debugVerbose) DEBUG("new post start %s", note->debugString().c_str());
                 }
-                if (DEBUG_VERBOSE) DEBUG("post maxEnd %d note end time %d", maxEnd, note->endTime());
+                if (debugVerbose) DEBUG("post maxEnd %d note end time %d", maxEnd, note->endTime());
                 maxEnd = std::max(maxEnd, note->endTime());
             }
         }

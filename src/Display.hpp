@@ -24,7 +24,7 @@ extern const StaffNote sharpMap[];
 extern const StaffNote flatMap[];
 
 static void debugCaptureRedraw(FramebufferWidget* fb) {
-    if (DEBUG_VERBOSE) {
+    if (debugVerbose) {
         DEBUG("redraw");
     }
     if (fb) {
@@ -54,7 +54,6 @@ struct DisplayState {
     const float xAxisScale;
     float callInterval = 1 / 70.f;
     const int musicFont;
-    const bool debugVerbose;
 
     DisplayState(float xAxisScale, FramebufferWidget* , int musicFont );
 
@@ -75,7 +74,6 @@ struct DisplayRange {
     unsigned oldStart = 0;
     unsigned oldEnd = 0;
     bool invalid = true;
-    const bool debugVerbose;
 
     DisplayRange(DisplayState& , float boxWidth);
 

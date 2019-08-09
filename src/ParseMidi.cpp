@@ -182,7 +182,7 @@ bool NoteTakerParseMidi::parseMidi() {
                         }
                         displayNote.data[i] = *iter++;
                     }
-                    if (DEBUG_VERBOSE) DEBUG("key pressure [chan %d] %d %d", displayNote.channel,
+                    if (debugVerbose) DEBUG("key pressure [chan %d] %d %d", displayNote.channel,
                             displayNote.data[0], displayNote.data[1]);
                 break;
                 case CONTROL_CHANGE:
@@ -192,7 +192,7 @@ bool NoteTakerParseMidi::parseMidi() {
                         }
                         displayNote.data[i] = *iter++;
                     }
-                    if (DEBUG_VERBOSE) DEBUG("control change [chan %d] %d %d", displayNote.channel,
+                    if (debugVerbose) DEBUG("control change [chan %d] %d %d", displayNote.channel,
                             displayNote.data[0], displayNote.data[1]);
                 break;
                 case PITCH_WHEEL:
@@ -202,7 +202,7 @@ bool NoteTakerParseMidi::parseMidi() {
                         }
                         displayNote.data[i] = *iter++;
                     }
-                    if (DEBUG_VERBOSE) DEBUG("pitch wheel [chan %d] %d %d", displayNote.channel,
+                    if (debugVerbose) DEBUG("pitch wheel [chan %d] %d %d", displayNote.channel,
                             displayNote.data[0], displayNote.data[1]);
                 break;
                 case PROGRAM_CHANGE:
@@ -210,7 +210,7 @@ bool NoteTakerParseMidi::parseMidi() {
                         return false;
                     }
                     displayNote.data[0] = *iter++;
-                    if (DEBUG_VERBOSE) DEBUG("program change [chan %d] %s", displayNote.channel,
+                    if (debugVerbose) DEBUG("program change [chan %d] %s", displayNote.channel,
                             NoteTakerDisplay::GMInstrumentName(displayNote.data[0]));
                     parsedChannels[displayNote.channel].gmInstrument = displayNote.data[0];
                 break;
@@ -219,7 +219,7 @@ bool NoteTakerParseMidi::parseMidi() {
                         return false;
                     }
                     displayNote.data[0] = *iter++;
-                    if (DEBUG_VERBOSE) DEBUG("channel pressure [chan %d] %d", displayNote.channel,
+                    if (debugVerbose) DEBUG("channel pressure [chan %d] %d", displayNote.channel,
                             displayNote.data[0]);
                 break;
                 case MIDI_SYSTEM:
@@ -313,7 +313,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                     } else if (0x04 == displayNote.data[0]) {
                                         parsedChannels[displayNote.channel].instrumentName = text;
                                     } 
-                                    if (DEBUG_VERBOSE) {
+                                    if (debugVerbose) {
                                         static const char* textType[] = { "text event",
                                                 "copyright notice", "sequence/track name",
                                                 "instrument name", "lyric", "marker",
@@ -484,7 +484,7 @@ bool NoteTakerParseMidi::parseMidi() {
             if (!last[index]) {
                 continue;
             }
-            if (DEBUG_VERBOSE) DEBUG("channel used %d", index);
+            if (debugVerbose) DEBUG("channel used %d", index);
             channelUsed[index] = true;
         }
     } while (iter != midi.end());
@@ -514,7 +514,7 @@ bool NoteTakerParseMidi::parseMidi() {
         if (10 == chan || 11 == chan || !channelUsed[chan]) {
             continue;
         }
-        if (DEBUG_VERBOSE) DEBUG("map %u to %u", chan, use);
+        if (debugVerbose) DEBUG("map %u to %u", chan, use);
         parsedChannels[use] = parsedChannels[chan];
         parsedChannels[chan].reset();
         reassign[chan] = use++;

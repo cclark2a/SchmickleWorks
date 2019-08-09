@@ -271,7 +271,7 @@ void DisplayControl::autoDrift(float value, float frameTime, int visCells) {
     if (display->xControlOffset != xOff) {
         display->redraw();
     }
-    if (DEBUG_VERBOSE) DEBUG("autodrift");
+    if (debugVerbose) DEBUG("autodrift");
     display->xControlOffset = xOff;
 }
 
@@ -387,15 +387,13 @@ void DisplayControl::drawStart() const {
 DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicFnt)
     : fb(frameBuffer)
     , xAxisScale(xas)
-    , musicFont(musicFnt)
-    , debugVerbose(DEBUG_VERBOSE) {
+    , musicFont(musicFnt){
     if (debugVerbose) DEBUG("DisplayState fb %p", fb);
 }
 
 DisplayRange::DisplayRange(DisplayState& ds, float boxWidth)
     : state(ds)
-    , bw(boxWidth)
-    , debugVerbose(DEBUG_VERBOSE) {
+    , bw(boxWidth) {
         if (debugVerbose) DEBUG("DisplayRange bw %g xAxisOffset %g", bw, xAxisOffset);
 }
 
@@ -634,7 +632,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     if (!ntw->menuButtonOn() || ntw->tieButton->ledOn()) {
         this->drawSelectionRect();
     }
-    BarPosition bar(ntw->debugVerbose);
+    BarPosition bar;
     this->setUpAccidentals(bar);
     this->drawNotes(bar);
     this->drawBars(bar);
@@ -736,7 +734,7 @@ void NoteTakerDisplay::drawBars(const BarPosition& bar) {
             continue;
         }
         this->drawBarAt(p.second.useMax ? p.second.xMax : (p.second.xMin + p.second.xMax) / 2);
-        if (false && ntw()->debugVerbose) DEBUG("[%d] drawBars min %g max %g useMax %d",
+        if (false && debugVerbose) DEBUG("[%d] drawBars min %g max %g useMax %d",
                 p.first, p.second.xMin, p.second.xMax, p.second.useMax);
     }
 }
@@ -782,7 +780,7 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
             ;
         }
         if (index == notes.size()) {
-            if (ntw()->debugVerbose) DEBUG("drawBeam found unbalanced beam");
+            if (debugVerbose) DEBUG("drawBeam found unbalanced beam");
             _schmickled();
             return;
         }
@@ -1004,7 +1002,7 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
             case TRACK_END:
             break;
             default:
-                if (ntw->debugVerbose) DEBUG("to do: add type %d\n", note.type);
+                if (debugVerbose) DEBUG("to do: add type %d\n", note.type);
                 _schmickled(); // incomplete
         }
     }
@@ -1068,7 +1066,7 @@ void NoteTakerDisplay::drawSelectionRect() {
         width = endCache->xPosition - (endCache->accidentalSpace ? 8 : 0) - xStart;
     }
     nvgBeginPath(vg);
-    if (DEBUG_VERBOSE) DEBUG("xStart %d yTop %d width %d yHeight %d", xStart, yTop, width, yHeight);
+    if (debugVerbose) DEBUG("xStart %d yTop %d width %d yHeight %d", xStart, yTop, width, yHeight);
     nvgRect(vg, xStart, yTop, width, yHeight);
     SetSelectColor(vg, channel);
     nvgFill(vg);
@@ -1276,7 +1274,7 @@ void NoteTakerDisplay::drawSlur(unsigned start, unsigned char alpha) const {
             break;
         }
         if (PositionType::mid != notes[index].slurPosition) {
-            if (DEBUG_VERBOSE) DEBUG("malformed slur");
+            if (debugVerbose) DEBUG("malformed slur");
             return;
         }
     }
@@ -1298,7 +1296,7 @@ void NoteTakerDisplay::drawTie(unsigned start, unsigned char alpha) const {
     if (PositionType::right != notes[index].tiePosition
             && PositionType::mid != notes[index].tiePosition) {
                 // to do : reenable this to debug : disable for now because it outputs continuously
-                if (false && ntw()->debugVerbose) DEBUG("** missing tie end %s", notes[start].note->debugString().c_str());
+                if (false && debugVerbose) DEBUG("** missing tie end %s", notes[start].note->debugString().c_str());
             }
     SetNoteColor(state.vg, chan, alpha);
     this->drawArc(bp, start, index);
@@ -1536,7 +1534,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
         SCHMICKLE(PositionType::mid == noteCache.tupletPosition);
     }
     if (PositionType::right != notes[index].tupletPosition) {
-        if (DEBUG_VERBOSE) DEBUG("malformed tuplet");
+        if (debugVerbose) DEBUG("malformed tuplet");
         return;
     }
     auto vg = state.vg;

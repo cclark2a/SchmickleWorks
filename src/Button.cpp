@@ -10,7 +10,7 @@ void AdderButton::onDragEndPreamble(const event::DragEnd& e) {
     // insertLoc, shiftTime set by caller
     shiftLoc = insertLoc + 1;
     startTime = nt->n().notes[insertLoc].startTime;
-    if (nt->debugVerbose) DEBUG("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
+    if (debugVerbose) DEBUG("insertLoc %u shiftLoc %u startTime %d", insertLoc, shiftLoc, startTime);
 }
 
 void AdderButton::onDragEnd(const event::DragEnd& e) {
@@ -329,9 +329,9 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     auto& n = nt->n();
     ntw->clipboardInvalid = true;
     ntw->turnOffLEDButtons(nullptr, true);  // turn off pitch, file, sustain, etc but not slot
-    if (nt->debugVerbose) DEBUG("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
+    if (debugVerbose) DEBUG("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
     bool slotOn = ntw->slotButton->ledOn();
-    if (nt->debugVerbose) DEBUG("insertTime %d clipboard size %u", insertTime,
+    if (debugVerbose) DEBUG("insertTime %d clipboard size %u", insertTime,
             slotOn ? ntw->clipboard.playback.size() : ntw->clipboard.notes.size());
     vector<SlotPlay> pspan;
     if (State::middleCShift != state) {
@@ -341,7 +341,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         // select set to extend (end):
         //   Insert loc is select start; existing notes are not shifted, insert is transposed
         if (state != State::clipboardInPlace && state != State::clipboardShift) {
-            if (nt->debugVerbose) DEBUG(!n.selectStart ? "left of first note" :
+            if (debugVerbose) DEBUG(!n.selectStart ? "left of first note" :
                     "duplicate selection");
             ntw->clipboard.clear(slotOn);
             ntw->setClipboardLight();
@@ -359,7 +359,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             if (slotOn) {
                 pspan = ntw->clipboard.playback;
             }
-            if (nt->debugVerbose) slotOn ? DEBUG("clipboard to pspan (%u slots)", pspan.size()) :
+            if (debugVerbose) slotOn ? DEBUG("clipboard to pspan (%u slots)", pspan.size()) :
                     DEBUG("clipboard to span (%u notes)", span.size());
         }
     }
@@ -395,14 +395,14 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             shiftTime = (lastEndTime - insertTime)
                     + (NoteTaker::LastEndTime(span) - span.front().startTime);
             int availableTime = nextStart - insertTime;
-            if (nt->debugVerbose) DEBUG("shift time %d available %d", shiftTime, availableTime);
+            if (debugVerbose) DEBUG("shift time %d available %d", shiftTime, availableTime);
             shiftTime = std::max(0, shiftTime - availableTime);
         }
-        if (nt->debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u"
+        if (debugVerbose) DEBUG("insertLoc=%u insertSize=%u shiftTime=%d selectStart=%u"
                 " selectEnd=%u",
                 insertLoc, insertSize, shiftTime, slotOn ? ntw->storage.selectStart : n.selectStart,
                 slotOn ? ntw->storage.selectEnd : n.selectEnd);
-        if (nt->debugVerbose) ntw->debugDump(false, true);
+        if (debugVerbose) ntw->debugDump(false, true);
     }
     ntw->selectButton->setOff();
     ntw->insertFinal(shiftTime, insertLoc, insertSize);
@@ -512,7 +512,7 @@ void PartButton::onDragEnd(const event::DragEnd& e) {
         ntw->clipboardInvalid = true;
         ntw->copySelectableNotes();
     }
-    if (ntw->debugVerbose) DEBUG("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
+    if (debugVerbose) DEBUG("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
             this->ledOn(), ntw->horizontalWheel->part(), ntw->selectChannels, ntw->unlockedChannel());
     ntw->turnOffLEDButtons(this);
     ntw->setWheelRange();  // range is larger
@@ -540,7 +540,7 @@ void RestButton::onDragEnd(const event::DragEnd& e) {
     if (!ntw->selectButton->editStart()) {
         event::DragEnd e;
         ntw->cutButton->onDragEnd(e);
-        if (ntw->debugVerbose) ntw->debugDump();
+        if (debugVerbose) ntw->debugDump();
     }
     insertLoc = nt->atMidiTime(n.notes[n.selectEnd].startTime);
     onDragEndPreamble(e);
@@ -603,7 +603,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
     } else if (this->isSingle()) {
         SCHMICKLE(this->ledOn());
         if (slotOn) {
-            if (DEBUG_VERBOSE) DEBUG("isSingle pre storage saveZero=%d s=%d e=%d", storage.saveZero,
+            if (debugVerbose) DEBUG("isSingle pre storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.selectStart, storage.selectEnd);
             if (storage.saveZero) {
                 storage.selectStart = 0;
@@ -611,7 +611,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
                 storage.selectStart += 1;
             }
             storage.selectEnd = storage.selectStart + 1; 
-            if (DEBUG_VERBOSE) DEBUG("isSingle post storage saveZero=%d s=%d e=%d", storage.saveZero,
+            if (debugVerbose) DEBUG("isSingle post storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.selectStart, storage.selectEnd);
         } else {
             nt->invalidVoiceCount |= ntw->edit.voice;
@@ -623,14 +623,14 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         SCHMICKLE(this->isExtend());
         SCHMICKLE(this->ledOn());
         if (slotOn) {
-            if (DEBUG_VERBOSE) DEBUG("isExtend pre storage saveZero=%d s=%d e=%d", storage.saveZero,
+            if (debugVerbose) DEBUG("isExtend pre storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.selectStart, storage.selectEnd);
             storage.saveZero = !storage.selectStart;
             if (storage.selectStart) {
                 --storage.selectStart;
             }
             storage.selectEnd = storage.selectStart + 1;
-            if (DEBUG_VERBOSE) DEBUG("isExtend post storage saveZero=%d s=%d e=%d", storage.saveZero,
+            if (debugVerbose) DEBUG("isExtend post storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.selectStart, storage.selectEnd);
         } else {
             nt->invalidVoiceCount |= ntw->edit.voice;

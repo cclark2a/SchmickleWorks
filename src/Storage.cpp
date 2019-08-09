@@ -105,7 +105,7 @@ void NoteTakerSlot::writeToMidi() const {
     FILE* dest = fopen(destPath.c_str(), "wb");
     size_t wrote = fwrite((const char*) &midi.front(), 1, midi.size(), dest);
     fclose(dest);
-    if (n.debugVerbose) {
+    if (debugVerbose) {
         DEBUG("%s wrote %u requested to write %d", destPath.c_str(), wrote, midi.size());
     }
 }

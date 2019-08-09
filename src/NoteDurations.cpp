@@ -136,7 +136,7 @@ static void validate_array(const std::array<int, 20>& durations, int unit) {
     unit += unit;
     bool alternate = true;
     for (unsigned index = 1; index < durations.size(); ++index) {
-        if (DEBUG_VERBOSE && durations[index] != unit) {
+        if (debugVerbose && durations[index] != unit) {
             DEBUG("durations[%d] != %d", durations[index], unit);
         }
         SCHMICKLE(durations[index] == unit);

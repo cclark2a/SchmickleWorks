@@ -104,7 +104,7 @@ struct NoteTakerEdit {
                 }
             }
         }
-        if (DEBUG_VERBOSE) DEBUG("edit init nextStart %d selectMaxEnd %d", nextStart, selectMaxEnd);
+        if (debugVerbose) DEBUG("edit init nextStart %d selectMaxEnd %d", nextStart, selectMaxEnd);
     }
 
     json_t *toJson() const {

@@ -8,8 +8,7 @@
 
 // to do : to run headless, allow mainWidget and ntw() to be nullptr?
 
-NoteTaker::NoteTaker()
-    : debugVerbose(DEBUG_VERBOSE) {
+NoteTaker::NoteTaker() {
     this->config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 }
 
@@ -135,7 +134,7 @@ void NoteTaker::process(const ProcessArgs &args) {
 #endif
 // to do : defer switch until criteria (e.g., end of bar) is met
     if (INT_MAX != stagedSlot) {
-        if (DEBUG_VERBOSE) DEBUG("process stagedSlot %u", stagedSlot);
+        if (debugVerbose) DEBUG("process stagedSlot %u", stagedSlot);
         ntw()->setSlot(stagedSlot);
         stagedSlot = INT_MAX;
         ntw()->invalidateAndPlay(Inval::load);
@@ -390,9 +389,9 @@ void NoteTaker::setPlayStart() {
     auto& n = this->n();
     playStart = ntw()->edit.voice ? n.selectStart : 0;
     unsigned lastNote = (this->isRunning() ? n.notes.size() : n.selectEnd) - 1;
-    if (DEBUG_VERBOSE) DEBUG("setPlayStart lastNote %u", lastNote);
+    if (debugVerbose) DEBUG("setPlayStart lastNote %u", lastNote);
     midiEndTime = n.notes[lastNote].endTime();
-    if (DEBUG_VERBOSE) DEBUG("setPlayStart midiEndTime %d", midiEndTime);
+    if (debugVerbose) DEBUG("setPlayStart midiEndTime %d", midiEndTime);
 }
 
 void NoteTaker::setScoreEmpty() {
