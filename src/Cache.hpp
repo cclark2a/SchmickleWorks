@@ -62,6 +62,7 @@ struct BarPosition {
         }
     }
 
+    int count(const NoteCache& noteCache) const;
     int noteRegular(const DisplayNote& , int ppq, bool twoThirds);
     int notesTied(const DisplayNote& , int ppq, bool* twoThirds);
     int resetSignatureStart(const DisplayNote& , float barWidth);
@@ -101,11 +102,11 @@ struct PosAdjust {
 
 struct CacheBuilder {
     const DisplayState& state;
-    DisplayCache* cache = nullptr;
-    int ppq = 0;
+    DisplayCache* cache;
+    int ppq;
     const bool debugVerbose;
     
-    CacheBuilder(const DisplayState& , DisplayCache* );
+    CacheBuilder(const DisplayState& , DisplayCache* , int ppq);
 
     void cacheBeams();
     void cacheSlurs();

@@ -14,7 +14,7 @@ BarPosition::BarPosition(bool dbug)
 
 void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
     bool hasDuration = INT_MAX != duration;
-    int barCount = (noteCache.vStartTime - tsStart) / duration + priorBars;
+    int barCount = this->count(noteCache);
     pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
     if (false && debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d",
             barCount, pos[barCount].xMin, noteCache.xPosition);
@@ -24,6 +24,10 @@ void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
     pos[barCount].xMax = std::max(pos[barCount].xMax, noteCache.xPosition + cacheWidth);
     if (false && debugVerbose) DEBUG("addPos [%d] xMax %g xPos %d width %g",
             barCount, pos[barCount].xMax, noteCache.xPosition, cacheWidth);
+}
+
+int BarPosition::count(const NoteCache& noteCache) const {
+    return (noteCache.vStartTime - tsStart) / duration + priorBars;
 }
 
 int BarPosition::noteRegular(const DisplayNote& note, int ppq, bool twoThirds) {
@@ -77,8 +81,7 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
 int BarPosition::resetSignatureStart(const DisplayNote& note, float barWidth) {
     int result = 0;
     if (INT_MAX != duration) {
-        result = (note.startTime - tsStart + duration - 1)  // round up
-                / duration * barWidth;
+        result = (note.startTime - tsStart + duration - 1) / duration * barWidth; // round up
     } else if (tsStart < note.startTime) {
         result = barWidth;
     }
@@ -86,19 +89,23 @@ int BarPosition::resetSignatureStart(const DisplayNote& note, float barWidth) {
     return result;
 }
 
-CacheBuilder::CacheBuilder(const DisplayState& sd, DisplayCache* c) 
+CacheBuilder::CacheBuilder(const DisplayState& sd, DisplayCache* c, int _ppq) 
     : state(sd)
     , cache(c)
+    , ppq(_ppq)
     , debugVerbose(sd.debugVerbose) {
 }
 
+// if note cache is in new measure, close previous beam if any and start a new one
 void CacheBuilder::cacheBeams() {
     array<unsigned, CHANNEL_COUNT> beamStarts;
     beamStarts.fill(INT_MAX);
     vector<NoteCache>& notes = cache->notes;
+    int startBar = -1;
     for (unsigned cacheIndex = 0; cacheIndex < notes.size(); ++cacheIndex) {
         NoteCache& noteCache = notes[cacheIndex];
-        if (NOTE_ON != noteCache.note->type) {
+        const DisplayNote& note = *noteCache.note;
+        if (NOTE_ON != note.type) {
             for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
                 if (255 != noteCache.channel && chan != noteCache.channel) {
                     continue;
@@ -111,16 +118,20 @@ void CacheBuilder::cacheBeams() {
             }
             continue;
         }
+
         if (!noteCache.staff) {
+            if (DEBUG_VERBOSE) DEBUG("cacheBeams no staff %s note %s",
+                    noteCache.debugString().c_str(), 
+                    noteCache.note->debugString().c_str());
             continue;
         }
         unsigned& beamStart = beamStarts[noteCache.channel];
         bool checkForStart = true;
         if (INT_MAX != beamStart) {
-            bool stemsMatch = notes[beamStart].stemUp == noteCache.stemUp &&
-                    (notes[beamStart].pitchPosition <= MIDDLE_C)
+            bool stemsMatch = notes[beamStart].stemUp == noteCache.stemUp
+                    && (notes[beamStart].pitchPosition <= MIDDLE_C)
                     == (noteCache.pitchPosition <= MIDDLE_C);
-            if (!stemsMatch || noteCache.vDuration >= ppq) {
+            if (!stemsMatch || noteCache.vDuration >= ppq || startBar != noteCache.bar) {
                 this->closeBeam(beamStart, cacheIndex);
                 beamStart = INT_MAX;
             } else {
@@ -133,20 +144,26 @@ void CacheBuilder::cacheBeams() {
                 checkForStart = false;
             }
         } 
+        if (DEBUG_VERBOSE) DEBUG("cacheBeams checkForStart %d noteCache.vDuration %d ppq %d",
+                checkForStart, noteCache.vDuration, ppq);
         if (checkForStart && noteCache.vDuration < ppq) {
             // to do : if 4:4 time, allow beaming up to half note ?
             beamStart = cacheIndex;
             noteCache.beamPosition = PositionType::left;
+            startBar = noteCache.bar;
+            if (DEBUG_VERBOSE) DEBUG("cacheBeams beamStart %s", noteCache.debugString().c_str());
         }
         if (INT_MAX != beamStart || PositionType::right == noteCache.beamPosition) {
-            noteCache.beamCount = NoteDurations::Beams(
+            noteCache.beamCount = NoteDurations::Beams(noteCache.twoThirds ?
+                    NoteDurations::FromTripletMidi(noteCache.vDuration, ppq) : 
                     NoteDurations::FromMidi(noteCache.vDuration, ppq));
         }
     }
     for (auto beamStart : beamStarts) {
         if (INT_MAX != beamStart) {
             this->closeBeam(beamStart, notes.size());
-            if (debugVerbose) DEBUG("beam unmatched %s", notes[beamStart].note->debugString().c_str());
+            if (debugVerbose) DEBUG("cacheBeams beam unmatched %s",
+                    notes[beamStart].note->debugString().c_str());
         }
     }
 }
@@ -396,6 +413,7 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
 
 
 // compute ties first, so we know how many notes to draw
+// to do : use cache notes' bar count instead of recomputing the bar count
 void CacheBuilder::setDurations(const Notes& n) {
     const StaffNote* pitchMap = sharpMap;
     BarPosition bar(debugVerbose);
@@ -404,9 +422,10 @@ void CacheBuilder::setDurations(const Notes& n) {
         const DisplayNote& note = n.notes[index];
         cache->notes.emplace_back(&note);
         NoteCache& cacheEntry = cache->notes.back();
+        cacheEntry.bar = bar.count(cacheEntry);
         if (!note.isNoteOrRest()) {
             if (TIME_SIGNATURE == note.type) {
-                bar.setSignature(note, n.ppq);
+                bar.setSignature(note, ppq);
             } else if (note.isSignature()) {
                 bar.tsStart = note.startTime;
                 if (KEY_SIGNATURE == note.type) {
@@ -418,13 +437,13 @@ void CacheBuilder::setDurations(const Notes& n) {
         uint8_t pitchPosition = NOTE_ON == note.type ? pitchMap[note.pitch()].position : 0;
         // if note is 2/3rds of a regular duration, it may be part of a third; defer tie in case
         bool twoThirds = false;
-        int notesTied = bar.notesTied(note, n.ppq, &twoThirds);
+        int notesTied = bar.notesTied(note, ppq, &twoThirds);
         if (1 == notesTied) {
             cacheEntry.twoThirds = twoThirds;
             cacheEntry.vDuration = note.duration;
             if (DEBUG_VERBOSE) DEBUG("setDurations vDur %d note %s", cacheEntry.vDuration,
                     note.debugString().c_str());
-            cacheEntry.endsOnBeat = (bool) (note.endTime() % n.ppq);
+            cacheEntry.endsOnBeat = (bool) (note.endTime() % ppq);
             if (NOTE_ON == note.type) {
                 cacheEntry.accidentalSpace = true;
                 cacheEntry.pitchPosition = pitchPosition;
@@ -445,16 +464,17 @@ void CacheBuilder::setDurations(const Notes& n) {
                     NoteCache& tiePart = cache->notes.back();
                     tiePart.twoThirds = twoThirds;
                     tiePart.vStartTime = tieTime;
+                    tiePart.bar = bar.count(tiePart);
                     tiePart.tiePosition = accidentalSpace ? PositionType::left : PositionType::mid;
                     // if in a triplet, scale up by 3/2, look up note, scale result by 2/3
-                    tiePart.vDuration = NoteDurations::LtOrEq(duration, n.ppq, twoThirds);
+                    tiePart.vDuration = NoteDurations::LtOrEq(duration, ppq, twoThirds);
                     if (debugVerbose) {
                         DEBUG("vStart %d vDuration %d duration %d [%d] cache [%d] note",
                                 tiePart.vStartTime, tiePart.vDuration, duration,
                                 &tiePart - &cache->notes.front(), tiePart.note - &n.notes.front());
                     }
                     tieTime += tiePart.vDuration;
-                    tiePart.endsOnBeat = (bool) (tieTime % n.ppq);
+                    tiePart.endsOnBeat = (bool) (tieTime % ppq);
                     tiePart.accidentalSpace = accidentalSpace;
                     accidentalSpace = false;
                     duration -= tiePart.vDuration;
@@ -463,7 +483,7 @@ void CacheBuilder::setDurations(const Notes& n) {
                         tiePart.yPosition = NoteTakerDisplay::YPos(pitchPosition);
                         tiePart.stemUp = NoteTakerDisplay::StemUp(pitchPosition);
                     }
-                } while (duration >= NoteDurations::Smallest(n.ppq, twoThirds));
+                } while (duration >= NoteDurations::Smallest(ppq, twoThirds));
                 tieTime += std::max(0, duration);   // if some fraction couldn't be represented...
                 duration = std::min(bar.duration, remaining);
                 if (!duration) {

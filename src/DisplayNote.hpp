@@ -285,6 +285,7 @@ struct NoteCache {
     float yPosition = 0;
     int vStartTime;  // visible start time, for multi part note alignment
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
+    int bar = 0;
     PositionType beamPosition = PositionType::none;
     uint8_t beamCount = 0;
     uint8_t channel;

@@ -593,7 +593,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     }
     auto cache = &slot->cache;
     if (slot->invalid) {
-        CacheBuilder builder(state, cache);
+        CacheBuilder builder(state, cache, n.ppq);
         builder.updateXPosition(n);
         slot->invalid = false;
         range.invalid = true;

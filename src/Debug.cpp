@@ -47,7 +47,7 @@ std::string NoteCache::debugString() const {
     std::string s;
     s += "[" + TrimmedFloat(xPosition) + ", " + TrimmedFloat(yPosition) + "] ";
     s += "vS:" + std::to_string(vStartTime) + " vD:" + std::to_string(vDuration);
-    s += " ";
+    s += " M" + std::to_string(bar) + " ";
     if (PositionType::none != beamPosition) {
         s += "b" + PosAsStr(beamPosition) + std::to_string(beamCount) + " ";
     }
@@ -73,7 +73,7 @@ std::string NoteCache::debugString() const {
         s += std::to_string(pitchPosition) + " ";
     }
     s += std::to_string(symbol) +  (accidentalSpace ? "#" : "")
-            + (endsOnBeat ? "b" : "") + (stemUp ? "u" : "d") + (staff ? "s" : "") 
+            + (endsOnBeat ? "B" : "") + (stemUp ? "u" : "d") + (staff ? "s" : "") 
             + (twoThirds ? "2" : "");
     return s;
 }
