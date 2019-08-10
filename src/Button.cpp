@@ -35,6 +35,36 @@ ButtonBuffer::ButtonBuffer(NoteTakerButton* button) {
     fb->addChild(button);
 }
 
+template<class TButton>
+std::string ButtonToolTip<TButton>::getDisplayValueString() {
+    if (!button) {
+        return "!uninitialized";
+    }
+    if (editLabel.empty()) {
+        editLabel = label;
+    }
+    if (button->ntw()->runButton->ledOn()) {
+        label = "Play";
+        return button->runningTooltip();
+    } else {
+        label = editLabel;
+    }
+    return "";
+}
+
+template struct ButtonToolTip<CutButton>;
+template struct ButtonToolTip<FileButton>;
+template struct ButtonToolTip<InsertButton>;
+template struct ButtonToolTip<KeyButton>;
+template struct ButtonToolTip<PartButton>;
+template struct ButtonToolTip<RestButton>;
+template struct ButtonToolTip<SelectButton>;
+template struct ButtonToolTip<SustainButton>;
+template struct ButtonToolTip<SlotButton>;
+template struct ButtonToolTip<TempoButton>;
+template struct ButtonToolTip<TieButton>;
+template struct ButtonToolTip<TimeButton>;
+
 void CutButton::draw(const DrawArgs& args) {
     const int af = animationFrame;
     EditButton::draw(args);
@@ -569,6 +599,7 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
         ntw->disableEmptyButtons();
         dynamicRunAlpha = 0;
     }
+
     dynamicRunTimer = nt->realSeconds + fadeDuration;
     ntw->setWheelRange();
     DEBUG("onDragEnd end af %d ledOn %d", animationFrame, ledOn());

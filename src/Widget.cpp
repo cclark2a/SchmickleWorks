@@ -180,26 +180,20 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     Vec runButtonSize = Vec(24, 24);
     this->addButton(runButtonSize, (runButton = 
             createParam<RunButton>(Vec(200, 172), module, NoteTaker::RUN_BUTTON)));
-    this->addButton<SelectButton>(&selectButton, NoteTaker::EXTEND_BUTTON);
-    this->addButton<InsertButton>(&insertButton, NoteTaker::INSERT_BUTTON);
-    if (insertButton->paramQuantity) {
-        ((InsertButtonToolTip*) insertButton->paramQuantity)->button = insertButton;
-    }
-    this->addButton<CutButton>(&cutButton, NoteTaker::CUT_BUTTON);
-    if (cutButton->paramQuantity) {
-        ((CutButtonToolTip*) cutButton->paramQuantity)->button = cutButton;
-    }
-    this->addButton<RestButton>(&restButton, NoteTaker::REST_BUTTON);
-    this->addButton<PartButton>(&partButton, NoteTaker::PART_BUTTON);
-    this->addButton<FileButton>(&fileButton, NoteTaker::FILE_BUTTON);
-    this->addButton<SustainButton>(&sustainButton, NoteTaker::SUSTAIN_BUTTON);
-    this->addButton<TimeButton>(&timeButton, NoteTaker::TIME_BUTTON);
-    this->addButton<KeyButton>(&keyButton, NoteTaker::KEY_BUTTON);
-    this->addButton<TieButton>(&tieButton, NoteTaker::TIE_BUTTON);
-    this->addButton<SlotButton>(&slotButton, NoteTaker::SLOT_BUTTON);
-    this->addButton<TempoButton>(&tempoButton, NoteTaker::TEMPO_BUTTON);
+    this->addButton<SelectButton, SelectButtonToolTip>(&selectButton, NoteTaker::EXTEND_BUTTON);
+    this->addButton<InsertButton, InsertButtonToolTip>(&insertButton, NoteTaker::INSERT_BUTTON);
+    this->addButton<CutButton, CutButtonToolTip>(&cutButton, NoteTaker::CUT_BUTTON);
+    this->addButton<RestButton, RestButtonToolTip>(&restButton, NoteTaker::REST_BUTTON);
+    this->addButton<PartButton, PartButtonToolTip>(&partButton, NoteTaker::PART_BUTTON);
+    this->addButton<FileButton, FileButtonToolTip>(&fileButton, NoteTaker::FILE_BUTTON);
+    this->addButton<SustainButton, SustainButtonToolTip>(&sustainButton, NoteTaker::SUSTAIN_BUTTON);
+    this->addButton<TimeButton, TimeButtonToolTip>(&timeButton, NoteTaker::TIME_BUTTON);
+    this->addButton<KeyButton, KeyButtonToolTip>(&keyButton, NoteTaker::KEY_BUTTON);
+    this->addButton<TieButton, TieButtonToolTip>(&tieButton, NoteTaker::TIE_BUTTON);
+    this->addButton<SlotButton, SlotButtonToolTip>(&slotButton, NoteTaker::SLOT_BUTTON);
+    this->addButton<TempoButton, TempoButtonToolTip>(&tempoButton, NoteTaker::TEMPO_BUTTON);
     // debug button is hidden to the right of tempo
-    addButton(editButtonSize, (dumpButton = 
+    this->addButton(editButtonSize, (dumpButton = 
             createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
     if (module) {
         module->onReset();
@@ -215,7 +209,8 @@ NoteTakerSlot* NoteTakerWidget::activeSlot() {
     return this->nt()->slot;
 }
 
-template<class TButton> void NoteTakerWidget::addButton(TButton** butPtr, int id) {
+template<class TButton, class TButtonToolTip> 
+void NoteTakerWidget::addButton(TButton** butPtr, int id) {
     unsigned slot = (unsigned) id;
     SCHMICKLE(slot > 0);
     --slot;
@@ -224,6 +219,10 @@ template<class TButton> void NoteTakerWidget::addButton(TButton** butPtr, int id
     *butPtr = button;
     this->addButton(editButtonSize, button);
     button->slotNumber = slot;
+    if (button->paramQuantity) {
+        ((TButtonToolTip*) button->paramQuantity)->button = button;
+    }
+
 }
 
 void NoteTakerWidget::addButton(const Vec& size, NoteTakerButton* button) {

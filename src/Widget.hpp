@@ -45,11 +45,11 @@ struct NoteTakerWidget : ModuleWidget {
     RestButton* restButton = nullptr;
     RunButton* runButton = nullptr;
     SelectButton* selectButton = nullptr;
+    SlotButton* slotButton = nullptr;
     SustainButton* sustainButton = nullptr;
     TempoButton* tempoButton = nullptr;
     TieButton* tieButton = nullptr;
     TimeButton* timeButton = nullptr;
-    SlotButton* slotButton = nullptr;
     VerticalWheel* verticalWheel = nullptr;
     const Vec editButtonSize;
     unsigned selectChannels = ALL_CHANNELS; // bit set for each active channel (all by default)
@@ -61,7 +61,7 @@ struct NoteTakerWidget : ModuleWidget {
 
     NoteTakerWidget(NoteTaker* module);
     NoteTakerSlot* activeSlot();  // slot selected by wheel if file button active; or module slot
-    template<class TButton> void addButton(TButton** , int paramId );
+    template<class TButton, class TButtonToolTip> void addButton(TButton** , int paramId );
     void addButton(const Vec& size, NoteTakerButton* );
     void addWheel(const Vec& size, NoteTakerWheel* );
     void appendContextMenu(Menu *menu) override;
