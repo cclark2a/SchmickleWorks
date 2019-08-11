@@ -248,6 +248,21 @@ void NoteTaker::process(const ProcessArgs &args) {
         }
         return;
     }
+    // if connected, set up all super eight outputs to last state before overwriting with new state
+    if (rightExpander.module && rightExpander.module->model == modelSuper8) {
+        Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+        for (unsigned chan = 0; chan < EXPANSION_OUTPUTS; ++chan) {
+            message->channels[chan] = channels[chan].voiceCount;
+            const auto& vIn = channels[chan].voices;
+            for (unsigned voice = 0; voice < VOICE_COUNT; ++voice) {
+                if (chan >= CV_OUTPUTS) {
+                    message->gate[chan - CV_OUTPUTS][voice] = vIn[voice].gate;
+                    message->cv[chan - CV_OUTPUTS][voice] = vIn[voice].cv;
+                }
+                message->velocity[chan][voice] = vIn[voice].velocity;
+            }
+        }
+    }
     unsigned start = playStart - 1;
     unsigned sStart = INT_MAX;
     do {
@@ -279,6 +294,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
                     && rightExpander.module && rightExpander.module->model == modelSuper8) {
                 Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+                channels[note.channel].voices[voiceIndex].gate = DEFAULT_GATE_HIGH_VOLTAGE;
                 message->gate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
             }
             if (note.channel < CV_OUTPUTS) {
@@ -302,9 +318,13 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (rightExpander.module && rightExpander.module->model == modelSuper8) {
                 Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
                 if (note.channel >= CV_OUTPUTS) {
-                    message->cv[note.channel - CV_OUTPUTS][voiceIndex] = bias + note.pitch() / 12.f;
+                    float newCV = bias + note.pitch() / 12.f;
+                    channels[note.channel].voices[voiceIndex].cv = newCV;
+                    message->cv[note.channel - CV_OUTPUTS][voiceIndex] = newCV;
                 }
-                message->velocity[note.channel][voiceIndex] = note.onVelocity();
+                float velocity = note.onVelocity();
+                channels[note.channel].voices[voiceIndex].velocity = velocity;
+                message->velocity[note.channel][voiceIndex] = velocity;
             }
             if (note.channel < CV_OUTPUTS) {
                 if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
@@ -373,12 +393,6 @@ void NoteTaker::setOutputsVoiceCount() {
     for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
         outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
         outputs[GATE1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
-    }
-    if (rightExpander.module && modelSuper8 == rightExpander.module->model) {
-        Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-        for (unsigned chan = 0; chan < EXPANSION_OUTPUTS; ++chan) {
-            message->channels[chan] = channels[chan].voiceCount;
-        }
     }
 }
 

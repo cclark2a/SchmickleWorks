@@ -100,6 +100,12 @@ std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
     return result;
 }
 
+std::string Notes::Name(const DisplayNote* note) {
+    unsigned index = NoteDurations::FromStd(note->duration);
+    SCHMICKLE(index < sizeof(durationNames) / sizeof(durationNames[0]));
+    return durationNames[index];
+}
+
 bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
     array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;
     NoteTakerParseMidi midiParser(storage, notes, ppq, dummyChannels);

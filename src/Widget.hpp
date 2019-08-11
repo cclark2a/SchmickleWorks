@@ -18,7 +18,16 @@ struct Clipboard {
     vector<SlotPlay> playback;
 
     void clear(bool slotOn) {
-        slotOn ? playback.clear() : notes.clear();
+        slotOn ? resetSlots() : resetNotes();
+    }
+
+    void resetNotes() {
+        notes.clear();
+    }
+
+    void resetSlots() {
+        playback.clear();
+        playback.emplace_back();
     }
 
     void fromJsonCompressed(json_t*);
@@ -71,6 +80,7 @@ struct NoteTakerWidget : ModuleWidget {
     void copyToSlot(unsigned );
     void debugDump(bool validatable = true, bool inWheel = false) const;
     void disableEmptyButtons() const;
+    void draw(const DrawArgs &args) override;
     void enableButtons() const;
     void enableInsertSignature(unsigned loc);
     bool extractClipboard(vector<DisplayNote>* span = nullptr) const;
@@ -138,6 +148,7 @@ struct NoteTakerWidget : ModuleWidget {
     void setVerticalWheelRange();
     void setWheelRange();
     void shiftNotes(unsigned start, int diff);
+    void step() override;
     json_t* toJson() override;
     void turnOffLEDButtons(const NoteTakerButton* exceptFor = nullptr, bool exceptSlot = false);
 

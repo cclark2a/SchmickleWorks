@@ -72,9 +72,8 @@ unsigned NoteDurations::FromMidi(int midi, int ppq) {
 
 static unsigned from_std(const std::array<int, 20>& durations, int duration) {
     if (durations[0] > duration) {
-        DEBUG("!");
+        return 0;
     }
-    SCHMICKLE(durations[0] <= duration);
     return std::upper_bound(durations.begin(), durations.end(), duration) - durations.begin() - 1;
 }
 

@@ -24,9 +24,6 @@ extern const StaffNote sharpMap[];
 extern const StaffNote flatMap[];
 
 static void debugCaptureRedraw(FramebufferWidget* fb) {
-    if (debugVerbose) {
-        DEBUG("redraw");
-    }
     if (fb) {
         fb->dirty = true;
     }
@@ -253,7 +250,7 @@ struct NoteTakerDisplay : Widget {
         do {
             duration -= NoteDurations::LtOrEq(std::min(barDuration, duration), ppq);
             ++count;
-        } while (duration > NoteDurations::ToMidi(0, ppq));
+        } while (duration >= NoteDurations::ToMidi(0, ppq));
         return count;
     }
 

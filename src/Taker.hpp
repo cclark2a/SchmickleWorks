@@ -20,6 +20,10 @@ struct Voice {
     double realStart = 0;   // real time when note started (used to recycle voice)
     int gateLow = 0;        // midi time when gate goes low (start + sustain)
     int noteEnd = 0;        // midi time when note expires (start + duration)
+    // for super eight, also record last state of cv / gate/ velocity
+    float cv = 0;
+    float gate = 0;
+    float velocity = 0;
 
     std::string debugString(const DisplayNote* base) const;
 };
@@ -295,8 +299,6 @@ struct NoteTaker : Module {
         static int debugMidiTime = -1;
     #endif
         bool hasExpander = rightExpander.module && modelSuper8 == rightExpander.module->model;
-        Super8Data* message = hasExpander ?
-                (Super8Data*) rightExpander.module->leftExpander.producerMessage : nullptr;
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto& c = channels[channel];
             for (unsigned index = 0; index < c.voiceCount; ++index) {
@@ -310,7 +312,7 @@ struct NoteTaker : Module {
                         outputs[GATE1_OUTPUT + channel].setVoltage(0, index);
                         DEBUG("set expired low [%u / %u]", channel, index);
                     } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
-                        message->gate[channel - CV_OUTPUTS][index] = 0;
+                        channels[channel].voices[index].gate = 0;
                     }
                 }
                 if (voice.noteEnd < midiTime) {
@@ -389,10 +391,9 @@ struct NoteTaker : Module {
             }
         }
         if (rightExpander.module && modelSuper8 == rightExpander.module->model) {
-            Super8Data* message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-            for (unsigned index = 0; index < EXPANSION_OUTPUTS - CV_OUTPUTS; ++index) {
-                for (unsigned inner = 0; inner < channels[CV_OUTPUTS + index].voiceCount; ++inner) {
-                    message->gate[index][inner] = 0;
+            for (unsigned index = CV_OUTPUTS; index < EXPANSION_OUTPUTS; ++index) {
+                for (unsigned inner = 0; inner < channels[index].voiceCount; ++inner) {
+                    channels[index].voices[inner].gate = 0;
                 }
             }
         }

@@ -472,6 +472,15 @@ void KeyButton::draw(const DrawArgs& args) {
 }
 
 void NoteTakerButton::draw(const DrawArgs& args) {
+    if (false && debugVerbose) {
+        float t[6];
+        nvgCurrentTransform(args.vg, t);
+        if (memcmp(lastTransform, t, sizeof(lastTransform))) {
+            DEBUG("notetakerbutton xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
+            memcpy(lastTransform, t, sizeof(lastTransform));
+            this->fb()->dirty = true;
+        }
+    } 
     const int af = animationFrame;
     auto ntw = this->ntw();
     auto nt = ntw->nt();

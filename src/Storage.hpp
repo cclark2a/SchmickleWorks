@@ -62,11 +62,13 @@ struct SlotArray {
     unsigned selectEnd = 1;
     bool saveZero = false;   // set if single was at left-most position
 
-    void fromJson(json_t* root);
 
     SlotArray() {
         playback.emplace_back();
     }
+
+    static void FromJson(json_t* root, vector<SlotPlay>* playback);
+    void fromJson(json_t* root);
 
     void invalidate() {
         slots[selectStart].invalid = true;

@@ -291,6 +291,9 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                 _schmickled(); // incomplete
         }
     }
+    if (n.selectStart + 1 == n.selectEnd && note->isNoteOrRest()) {
+        return Notes::Name(note);
+    }
     return std::to_string(wheel->getValue());
 }
 

@@ -155,6 +155,23 @@ void NoteTakerWidget::fromJson(json_t* root) {
     this->setClipboardLight();
 }
 
+
+void SlotArray::FromJson(json_t* root, vector<SlotPlay>* playback) {
+    json_t* _playback = json_object_get(root, "playback");
+    size_t playbackSize = json_array_size(_playback);
+    if (playbackSize) {
+        playback->resize(playbackSize);
+        size_t index;
+        json_t* value;
+        json_array_foreach(_playback, index, value) {
+            (*playback)[index].fromJson(value);
+        }
+    } else {
+        playback->emplace_back();
+        playbackSize = playback->size();
+    }
+}
+
 // to do : for all json reading, validate inputs, and make illegal values legal
 void SlotArray::fromJson(json_t* root) {
     json_t* _slots = json_object_get(root, "slots");
@@ -163,25 +180,15 @@ void SlotArray::fromJson(json_t* root) {
     json_array_foreach(_slots, index, value) {
         slots[index].fromJson(value);
     }
-    json_t* _playback = json_object_get(root, "playback");
-    size_t playbackSize = json_array_size(_playback);
-    if (playbackSize) {
-        playback.resize(playbackSize);
-        json_array_foreach(_playback, index, value) {
-            playback[index].fromJson(value);
-        }
-    } else {
-        playback.emplace_back();
-        playbackSize = playback.size();
-    }
+    SlotArray::FromJson(root, &playback);
     selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    if (selectStart >= playbackSize) {
+    if (selectStart >= playback.size()) {
         selectStart = 0;
     }
     selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
     if (selectEnd <= selectStart) {
         selectEnd = selectStart + 1;
-    } else if (selectEnd > playbackSize) {
-        selectEnd = playbackSize;
+    } else if (selectEnd > playback.size()) {
+        selectEnd = playback.size();
     }
 }

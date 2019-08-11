@@ -83,10 +83,12 @@ struct DisplayBevel : Widget {
 };
 
 void Clipboard::fromJsonCompressed(json_t* root) {
-    if (!Notes::FromJsonCompressed(root, &notes, nullptr)) {
-        Notes empty;
-        notes = empty.notes;
+    if (!Notes::FromJsonCompressed(root, &notes, nullptr) || (notes.size()
+            && (MIDI_HEADER == notes.front().type || TRACK_END == notes.back().type))) {
+        this->resetNotes();
     }
+
+    SlotArray::FromJson(root, &playback);
 }
 
 void Clipboard::fromJsonUncompressed(json_t* root) {
@@ -403,6 +405,11 @@ void NoteTakerWidget::copySelectableNotes() {
     auto& n = this->n();
     for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
         auto note = n.notes[index];
+        if (MIDI_HEADER == note.type) {
+            continue;
+        }
+
+        SCHMICKLE(TRACK_END != note.type);
         if (note.isSelectable(selectChannels)) {
             note.cache = nullptr;
             clipboard.notes.push_back(std::move(note));
@@ -873,6 +880,32 @@ void NoteTakerWidget::shiftNotes(unsigned start, int diff) {
     if (debugVerbose) DEBUG("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
     NoteTaker::ShiftNotes(n.notes, start, diff, selectChannels);
     NoteTaker::Sort(n.notes);
+}
+
+void NoteTakerWidget::draw(const DrawArgs &args) {
+    float t[6];
+    static float lastTransform[6];
+    nvgCurrentTransform(args.vg, t);
+    if (memcmp(lastTransform, t, sizeof(lastTransform))) {
+        DEBUG("widget draw xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
+        display->redraw();
+        selectButton->fb()->dirty = true;
+        memcpy(lastTransform, t, sizeof(t));
+    }
+    ModuleWidget::draw(args);
+}
+
+void NoteTakerWidget::step() {
+    float t[6];
+    static float lastTransform[6];
+    nvgCurrentTransform(APP->window->vg, t);
+    if (memcmp(lastTransform, t, sizeof(lastTransform))) {
+        DEBUG("widget step xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
+        display->redraw();
+        selectButton->fb()->dirty = true;
+        memcpy(lastTransform, t, sizeof(t));
+    }
+    ModuleWidget::step();
 }
 
 // never turns off select button, since it cannot be turned off if score is empty,

@@ -583,6 +583,17 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
 
 void NoteTakerDisplay::draw(const DrawArgs& args) {
     auto ntw = this->ntw();
+    if (false && debugVerbose) {
+        static float last[6] = {};
+        float t[6];
+        nvgCurrentTransform(args.vg, t);
+        if (memcmp(last, t, sizeof(last))) {
+            DEBUG("draw xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
+            memcpy(last, t, sizeof(last));
+            this->redraw();
+            ntw->selectButton->fb()->dirty = true;
+        }
+    } 
     const auto& n = *this->notes();
     auto vg = state.vg = args.vg;
     if (stagedSlot) {

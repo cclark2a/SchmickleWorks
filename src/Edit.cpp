@@ -399,7 +399,11 @@ void NoteTakerWidget::updateHorizontal() {
             auto* overPtr = &overlaps.front();
             int insertedTime = overPtr->second - overPtr->first;
             if (debugVerbose) DEBUG("insertedTime %d", insertedTime);
-            for (unsigned index = n.selectEnd; index < n.notes.size(); ++index) {
+            // note subtract one skips track end
+            const unsigned last = n.notes.size() - 1;
+            SCHMICKLE(TRACK_END == edit.base[last].type);
+            SCHMICKLE(TRACK_END == n.notes[last].type);
+            for (unsigned index = n.selectEnd; index < last; ++index) {
                 const auto& base = edit.base[index];
                 auto* note = &n.notes[index];
                 if (base.isSelectable(selectChannels)) {

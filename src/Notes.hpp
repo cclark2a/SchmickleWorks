@@ -63,6 +63,7 @@ struct Notes {
     static void Serialize(const vector<DisplayNote>& , vector<uint8_t>& );
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
+    static std::string Name(const DisplayNote* );
     static std::string TSDenom(const DisplayNote* , int ppq);
     static std::string TSNumer(const DisplayNote* , int ppq);
     static std::string TSUnit(const DisplayNote* , int count, int ppq);

@@ -18,6 +18,7 @@ struct ButtonBuffer : Widget {
 };
 
 struct NoteTakerButton : Switch {
+    float lastTransform[6] = {};
     unsigned slotNumber = INT_MAX;
     int animationFrame = 0;
 
