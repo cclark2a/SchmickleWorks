@@ -20,14 +20,17 @@ struct Notes {
     static bool Deserialize(const vector<uint8_t>& , vector<DisplayNote>* , int* ppq);
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
     static std::string FlatName(unsigned midiPitch);
+    static std::string FullName(int duration);
     void fromJson(json_t* root);
     static bool FromJsonCompressed(json_t* , vector<DisplayNote>* , int* ppq);
     static void FromJsonUncompressed(json_t* , vector<DisplayNote>* );
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     // static void HighestOnly(vector<DisplayNote>& );
+    bool hasTie(unsigned selectChannels) const;
     unsigned horizontalCount(unsigned selectChannels) const;
     bool isEmpty(unsigned selectChannels) const;
     static std::string KeyName(int key, int minor);
+    static std::string Name(const DisplayNote* );
 
     int nextStart(unsigned selectChannels) const {
         int result = notes.back().startTime;
@@ -63,7 +66,6 @@ struct Notes {
     static void Serialize(const vector<DisplayNote>& , vector<uint8_t>& );
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
-    static std::string Name(const DisplayNote* );
     static std::string TSDenom(const DisplayNote* , int ppq);
     static std::string TSNumer(const DisplayNote* , int ppq);
     static std::string TSUnit(const DisplayNote* , int count, int ppq);

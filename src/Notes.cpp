@@ -38,27 +38,32 @@ const char* keyNames[] = {
 #undef utf8_flat
 #undef utf8_sharp
 
-const char* durationNames[] = {
-    "128th",
-    "64th",
-    "three 128ths",
-    "32nd",
-    "three 64ths",
-    "16th",
-    "three 32nds",
-    "8th",
-    "three 16ths",
-    "quarter",
-    "three 8ths",
-    "half",
-    "three quarters",
-    "whole",
-    "one and a half",
-    "two",
-    "three",
-    "four",
-    "six",
-    "eight"
+struct DurationName {
+    const char* prefix;
+    const char* body;
+};
+
+const DurationName durationNames[] = {
+    {"one ", "128th"},
+    {"one ", "64th"},
+    {"",  "three 128ths"},
+    {"one ", "32nd"},
+    {"",  "three 64ths"},
+    {"one ", "16th"},
+    {"",  "three 32nds"},
+    {"one ", "8th"},
+    {"",  "three 16ths"},
+    {"one ", "quarter"},
+    {"",  "three 8ths"},
+    {"one ", "half"},
+    {"",  "three quarters"},
+    {"one ", "whole"},
+    {"",  "one and a half whole"},
+    {"",  "two whole"},
+    {"",  "three whole"},
+    {"",  "four whole"},
+    {"",  "six whole"},
+    {"",  "eight whole"}
 };
 
 std::string Notes::FlatName(unsigned midiPitch) {
@@ -68,10 +73,23 @@ std::string Notes::FlatName(unsigned midiPitch) {
     return std::string(flatNames[note] + std::to_string(octave - 1));
 }
 
+std::string Notes::FullName(int duration) {
+    unsigned index = NoteDurations::FromStd(duration);
+    SCHMICKLE(index < sizeof(durationNames) / sizeof(durationNames[0]));
+    return std::string(durationNames[index].prefix) + durationNames[index].body;
+}
+
 std::string Notes::KeyName(int key, int minor) {
-    SCHMICKLE(-8 < key && key < 8);
-    SCHMICKLE(0 == minor || 1 == minor);
+    if (debugVerbose) DEBUG("KeyName key %d minor %d", key, minor); // to do : debug why sometimes out of ranage
+    key = std::max(-7, std::min(7, key));
+    minor = std::max(0, std::min(1, minor));
     return std::string(keyNames[(key + 7) * 2 + minor]);
+}
+
+std::string Notes::Name(const DisplayNote* note) {
+    unsigned index = NoteDurations::FromStd(note->duration);
+    SCHMICKLE(index < sizeof(durationNames) / sizeof(durationNames[0]));
+    return durationNames[index].body;
 }
 
 std::string Notes::SharpName(unsigned midiPitch) {
@@ -92,18 +110,12 @@ std::string Notes::TSNumer(const DisplayNote* note, int ppq) {
 
 std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
     unsigned index = 13 - note->denominator() * 2;
-    std::string result = durationNames[index];
+    std::string result = durationNames[index].body;
     result += " note";
     if (1 != count) {
         result += "s";
     }
     return result;
-}
-
-std::string Notes::Name(const DisplayNote* note) {
-    unsigned index = NoteDurations::FromStd(note->duration);
-    SCHMICKLE(index < sizeof(durationNames) / sizeof(durationNames[0]));
-    return durationNames[index];
 }
 
 bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
@@ -194,6 +206,27 @@ vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
         return notes[lhs].pitch() < notes[rhs].pitch();
     });
     return result;
+}
+
+// returns true if selection has consecutive rests or same pitched notes on same channel
+// to do : disallows ties if there's a tempo change between notes. Should it?
+bool Notes::hasTie(unsigned selectChannels) const {
+    std::array<const DisplayNote*, CHANNEL_COUNT> last;
+    last.fill(nullptr);
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        auto& note = notes[index];
+        if (!note.isNoteOrRest()) {
+            last.fill(nullptr);
+            continue;
+        }
+        auto lastOne = last[note.channel];
+        if (lastOne && lastOne->type == note.type && lastOne->endTime() >= note.startTime
+                && (REST_TYPE == lastOne->type || lastOne->pitch() == note.pitch())) {
+            return true;
+        }
+        last[note.channel] = &note;
+    }
+    return false;
 }
 
 // not sure what I was thinking (also, this doesn't work)

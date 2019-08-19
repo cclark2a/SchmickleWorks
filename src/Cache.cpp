@@ -539,6 +539,10 @@ void CacheBuilder::updateXPosition(const Notes& n) {
     cache->notes.clear();
     cache->notes.reserve(n.notes.size());
     this->setDurations(n);  // adds cache per tied note part, sets its duration and note index
+    // to do : If a pair of notes landed at the same place at the same time, but have different
+    //         pitches, flip the notes' accidentals to move them to different staff fines.
+    //       : Next, figure out how many horizontal positions are required to show non-overlapping
+    //         notes.
     this->cacheStaff();  // set staff flag if note owns shared staff
     SCHMICKLE(n.notes.front().cache == &cache->notes.front());
     SCHMICKLE(cache->notes.front().note == &n.notes.front());

@@ -35,7 +35,7 @@ struct NoteTakerEdit {
     unsigned originalStart; // sel start / end before voice select
     unsigned originalEnd;
     Wheel wheel;
-    bool voice;                 // true if current or last edit selects one voice from channel
+    bool voice;             // true if current or last edit selects one voice from channel
 
 
     NoteTakerEdit() {
@@ -46,13 +46,16 @@ struct NoteTakerEdit {
     void clear() {
         base.clear();
         voices.clear();
-        horizontalNote = verticalNote = nullptr;
-        horizontalValue = verticalValue = INT_MAX;
+        this->clearNotes();
         originalStart = originalEnd = selectMaxEnd = nextStart = 0;
         wheel = Wheel::none;
         // leave voice alone
     }
 
+    void clearNotes() {
+        horizontalNote = verticalNote = nullptr;
+        horizontalValue = verticalValue = INT_MAX;
+    }
     void fromJson(json_t* root) {
         voice = json_boolean_value(json_object_get(root, "voice"));
     }
@@ -84,6 +87,7 @@ struct NoteTakerEdit {
     void init(const Notes& n, unsigned selectChannels) {
         base = n.notes;  // see note above: more copying than required most of the time
         nextStart = n.nextStart(selectChannels);
+        this->clearNotes();
         for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
             const auto& test = base[index];
             if (!test.isSelectable(selectChannels)) {
@@ -98,9 +102,13 @@ struct NoteTakerEdit {
             if (!horizontalNote && test.isNoteOrRest()) {
                 horizontalNote = &test;
                 horizontalValue = NoteDurations::FromMidi(test.duration, n.ppq);
+                if (debugVerbose) DEBUG("edit init %s", test.debugString().c_str());
                 if (NOTE_ON == test.type) {
                     verticalNote = &test;
                     verticalValue = test.pitch();
+                } else {
+                    verticalNote = nullptr;
+                    verticalValue = INT_MAX;
                 }
             }
         }

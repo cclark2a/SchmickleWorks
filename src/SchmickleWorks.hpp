@@ -53,6 +53,14 @@ struct Super8Data {
     unsigned channels[8] = {};
 };
 
+template<class TWidget>
+struct WidgetToolTip : ParamQuantity {
+    TWidget* widget = nullptr;
+    std::string defaultLabel;
+
+    std::string getDisplayValueString() override;
+};
+
 // to do : create a compile time option to omit debugging code?
 #define SCHMICKLE(x) _schmickle(x, #x)
 

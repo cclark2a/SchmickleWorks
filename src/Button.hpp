@@ -276,23 +276,15 @@ struct CutButton : EditButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
-template<class TButton>
-struct ButtonToolTip : ParamQuantity {
-    TButton* button = nullptr;
-    std::string editLabel;
-
-    std::string getDisplayValueString() override;
-};
-
-struct CutButtonToolTip : ButtonToolTip<CutButton> {
+struct CutButtonToolTip : WidgetToolTip<CutButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<CutButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<CutButton>::getDisplayValueString();
         if (!result.empty()) {
             return result;
         }
-        button->getState();
-        switch (button->state) {
+        widget->getState();
+        switch (widget->state) {
             case CutButton::State::unknown: return "!unknown";
             case CutButton::State::running: return "(Running)";
             case CutButton::State::cutAll: return "All";
@@ -317,10 +309,10 @@ struct FileButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
 };
 
-struct FileButtonToolTip : ButtonToolTip<FileButton> {
+struct FileButtonToolTip : WidgetToolTip<FileButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<FileButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<FileButton>::getDisplayValueString();
         return result.empty() ? "or Save" : result;
     }
 };
@@ -352,15 +344,15 @@ struct InsertButton : EditButton {
 };
 
 // to do : determine how much will be inserted
-struct InsertButtonToolTip : ButtonToolTip<InsertButton> {
+struct InsertButtonToolTip : WidgetToolTip<InsertButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<InsertButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<InsertButton>::getDisplayValueString();
         if (!result.empty()) {
             return result;
         }
-        button->getState();
-        switch (button->state) {
+        widget->getState();
+        switch (widget->state) {
             case InsertButton::State::unknown: return "!unknown";
             case InsertButton::State::running: return "(Running)";
             case InsertButton::State::middleCInPlace: return "Middle C (in place)";
@@ -382,10 +374,10 @@ struct KeyButton : AdderButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
-struct KeyButtonToolTip : ButtonToolTip<KeyButton> {
+struct KeyButtonToolTip : WidgetToolTip<KeyButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<KeyButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<KeyButton>::getDisplayValueString();
         return result.empty() ? "Key Signature" : result;
     }
 };
@@ -403,10 +395,10 @@ struct PartButton : EditLEDButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
-struct PartButtonToolTip : ButtonToolTip<PartButton> {
+struct PartButtonToolTip : WidgetToolTip<PartButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<PartButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<PartButton>::getDisplayValueString();
         return result.empty() ? "to Edit" : result;
     }
 };
@@ -419,10 +411,10 @@ struct RestButton : AdderButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
-struct RestButtonToolTip : ButtonToolTip<RestButton> {
+struct RestButtonToolTip : WidgetToolTip<RestButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<RestButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<RestButton>::getDisplayValueString();
         return result.empty() ? "Rest" : result;
     }
 };
@@ -559,10 +551,10 @@ struct SelectButton : EditLEDButton {
     }
 };
 
-struct SelectButtonToolTip : ButtonToolTip<SelectButton> {
+struct SelectButtonToolTip : WidgetToolTip<SelectButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<SelectButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<SelectButton>::getDisplayValueString();
         if (!result.empty()) {
             return result;
         }
@@ -586,18 +578,12 @@ struct SlotButton : EditLEDButton {
     };
 
     void draw(const DrawArgs& ) override;
-
-    // to do : removeq after debugging
-    void onTurnOff() override {
-        EditLEDButton::onTurnOff();
-        if (debugVerbose) DEBUG("slot button off");
-    }
 };
 
-struct SlotButtonToolTip : ButtonToolTip<SlotButton> {
+struct SlotButtonToolTip : WidgetToolTip<SlotButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<SlotButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<SlotButton>::getDisplayValueString();
         return result.empty() ? "Playback Order" : result;
     }
 };
@@ -606,10 +592,10 @@ struct SustainButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
 };
 
-struct SustainButtonToolTip : ButtonToolTip<SustainButton> {
+struct SustainButtonToolTip : WidgetToolTip<SustainButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<SustainButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<SustainButton>::getDisplayValueString();
         return result.empty() ? "Sustain / Release" : result;
     }
 };
@@ -619,10 +605,10 @@ struct TempoButton : AdderButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
-struct TempoButtonToolTip : ButtonToolTip<TempoButton> {
+struct TempoButtonToolTip : WidgetToolTip<TempoButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<TempoButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<TempoButton>::getDisplayValueString();
         return result.empty() ? "Tempo Change" : result;
     }
 };
@@ -632,6 +618,7 @@ struct TieButton : EditLEDButton {
         slur,
         normal,
         tuplet,
+        both,
     };
 
     State state = State::normal;
@@ -639,10 +626,10 @@ struct TieButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
 };
 
-struct TieButtonToolTip : ButtonToolTip<TieButton> {
+struct TieButtonToolTip : WidgetToolTip<TieButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<TieButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<TieButton>::getDisplayValueString();
         return result.empty() ? "Slur / Tie / Tuplet" : result;
     }
 };
@@ -652,10 +639,10 @@ struct TimeButton : AdderButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
-struct TimeButtonToolTip : ButtonToolTip<TimeButton> {
+struct TimeButtonToolTip : WidgetToolTip<TimeButton> {
 
     std::string getDisplayValueString() override {
-        std::string result = ButtonToolTip<TimeButton>::getDisplayValueString();
+        std::string result = WidgetToolTip<TimeButton>::getDisplayValueString();
         return result.empty() ? "Time Signature" : result;
     }
 };

@@ -151,6 +151,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     display->range.fromJson(json_object_get(root, "display"));
     // update display cache
     this->setWheelRange();
+    displayBuffer->redraw();
     this->invalidateAndPlay(Inval::load);
     this->setClipboardLight();
 }

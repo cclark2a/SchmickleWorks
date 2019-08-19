@@ -156,7 +156,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     addWheel(hWheelSize, (horizontalWheel = createParam<HorizontalWheel>(
             hWheelPos, module, NoteTaker::HORIZONTAL_WHEEL)));
     if (horizontalWheel->paramQuantity) {
-        ((HorizontalWheelToolTip*) horizontalWheel->paramQuantity)->wheel = horizontalWheel;
+        ((HorizontalWheelToolTip*) horizontalWheel->paramQuantity)->widget = horizontalWheel;
     }
     // vertical wheel is horizontal wheel (+x) rotated ccw (-y); value and limits are negated
     Vec vWheelPos = Vec(RACK_GRID_WIDTH * 13.5f, RACK_GRID_WIDTH * 6.5f - 50);
@@ -164,7 +164,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     addWheel(vWheelSize, (verticalWheel = createParam<VerticalWheel>(
             vWheelPos, module, NoteTaker::VERTICAL_WHEEL)));
     if (verticalWheel->paramQuantity) {
-        ((VerticalWheelToolTip*) verticalWheel->paramQuantity)->wheel = verticalWheel;
+        ((VerticalWheelToolTip*) verticalWheel->paramQuantity)->widget = verticalWheel;
     }
     addInput(createInput<PJ301MPort>(Vec(140, 306), module, NoteTaker::V_OCT_INPUT));
     addInput(createInput<PJ301MPort>(Vec(172, 306), module, NoteTaker::CLOCK_INPUT));
@@ -222,7 +222,7 @@ void NoteTakerWidget::addButton(TButton** butPtr, int id) {
     this->addButton(editButtonSize, button);
     button->slotNumber = slot;
     if (button->paramQuantity) {
-        ((TButtonToolTip*) button->paramQuantity)->button = button;
+        ((TButtonToolTip*) button->paramQuantity)->widget = button;
     }
 
 }
@@ -526,7 +526,9 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
     }
     display->range.displayEnd = 0;  // force recompute of display end
     if (debugVerbose) DEBUG("insert final");
-    this->setWheelRange();  // range is larger
+    // range is larger
+    this->setWheelRange();
+    displayBuffer->redraw();
     if (!slotOn) {
         this->invalidateAndPlay(Inval::note);
     }
@@ -557,6 +559,26 @@ void NoteTakerWidget::invalidateAndPlay(Inval inval) {
     } else if (Inval::cut != inval) {
         nt->playSelection();
     }
+}
+
+bool NoteTakerWidget::isSlur() const {
+    auto& n = this->n();
+    for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
+        if (n.notes[index].slur()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool NoteTakerWidget::isTriplet() const {
+    auto& n = this->n();
+    for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
+        if (NoteDurations::TripletPart(n.notes[index].duration, n.ppq)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void NoteTakerWidget::loadScore() {
@@ -820,6 +842,7 @@ bool NoteTakerWidget::resetControls() {
     horizontalWheel->reset();
     verticalWheel->reset();
     this->setWheelRange();
+    displayBuffer->redraw();
     display->reset();
     return true;
 }
@@ -862,6 +885,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
     display->range.displayEnd = 0;  // force recompute of display end
     nt()->setSelect(0, 1);
     this->setWheelRange();
+    displayBuffer->redraw();
 }
 
 

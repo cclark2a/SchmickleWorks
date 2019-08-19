@@ -1,6 +1,9 @@
 #include "plugin.hpp"
 #include "SchmickleWorks.hpp"
 
+// to do : add fun feature:
+//         set color of notes and outs to match color of cable connected to v/o out, per channel
+
 struct Super8 : Module {
 	enum ParamIds {
 		NUM_PARAMS

@@ -23,7 +23,6 @@ struct NoteTakerWheel : app::SliderKnob {
     float lastRealValue = INT_MAX;  // manually maintained
     int lastValue = INT_MAX;
     int shadow;
-//    bool inUse = false;
 
     NoteTakerWheel() {
     }
@@ -149,9 +148,7 @@ struct HorizontalWheel : NoteTakerWheel {
     void setDenominator(const DisplayNote& );
 };
 
-struct HorizontalWheelToolTip : ParamQuantity {
-    HorizontalWheel* wheel = nullptr;
-
+struct HorizontalWheelToolTip : WidgetToolTip<HorizontalWheel> {
     std::string getDisplayValueString() override;
 };
 
@@ -177,9 +174,7 @@ struct VerticalWheel : NoteTakerWheel {
     void onDragMove(const event::DragMove& e) override;
 };
 
-struct VerticalWheelToolTip : ParamQuantity {
-    VerticalWheel* wheel = nullptr;
-
+struct VerticalWheelToolTip : WidgetToolTip<VerticalWheel> {
     std::string getDisplayValueString() override;
 };
 

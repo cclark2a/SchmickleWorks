@@ -88,6 +88,8 @@ struct NoteTakerWidget : ModuleWidget {
     unsigned getSlot() const;  // index of module slot, not influenced by file button or wheel
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
     void invalidateAndPlay(Inval inval);
+    bool isSlur() const;
+    bool isTriplet() const;
     void loadScore();
     void makeNormal();
     void makeSlur();
@@ -142,6 +144,7 @@ struct NoteTakerWidget : ModuleWidget {
     void resetState();
     bool runningWithButtonsOff() const;
     void setClipboardLight();
+    void setHorizontalNoteLimits();
     void setHorizontalWheelRange();
     void setSelectableScoreEmpty();
     void setSlot(unsigned index);

@@ -26,6 +26,7 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     nt->setSelect(insertLoc, insertLoc + 1);
     ntw->turnOffLEDButtons();
     ntw->setWheelRange();  // range is larger
+    ntw->displayBuffer->redraw();
 }
 
 ButtonBuffer::ButtonBuffer(NoteTakerButton* button) {
@@ -36,34 +37,34 @@ ButtonBuffer::ButtonBuffer(NoteTakerButton* button) {
 }
 
 template<class TButton>
-std::string ButtonToolTip<TButton>::getDisplayValueString() {
-    if (!button) {
+std::string WidgetToolTip<TButton>::getDisplayValueString() {
+    if (!widget) {
         return "!uninitialized";
     }
-    if (editLabel.empty()) {
-        editLabel = label;
+    if (defaultLabel.empty()) {
+        defaultLabel = label;
     }
-    if (button->ntw()->runButton->ledOn()) {
+    if (widget->ntw()->runButton->ledOn()) {
         label = "Play";
-        return button->runningTooltip();
+        return widget->runningTooltip();
     } else {
-        label = editLabel;
+        label = defaultLabel;
     }
     return "";
 }
 
-template struct ButtonToolTip<CutButton>;
-template struct ButtonToolTip<FileButton>;
-template struct ButtonToolTip<InsertButton>;
-template struct ButtonToolTip<KeyButton>;
-template struct ButtonToolTip<PartButton>;
-template struct ButtonToolTip<RestButton>;
-template struct ButtonToolTip<SelectButton>;
-template struct ButtonToolTip<SustainButton>;
-template struct ButtonToolTip<SlotButton>;
-template struct ButtonToolTip<TempoButton>;
-template struct ButtonToolTip<TieButton>;
-template struct ButtonToolTip<TimeButton>;
+template struct WidgetToolTip<CutButton>;
+template struct WidgetToolTip<FileButton>;
+template struct WidgetToolTip<InsertButton>;
+template struct WidgetToolTip<KeyButton>;
+template struct WidgetToolTip<PartButton>;
+template struct WidgetToolTip<RestButton>;
+template struct WidgetToolTip<SelectButton>;
+template struct WidgetToolTip<SustainButton>;
+template struct WidgetToolTip<SlotButton>;
+template struct WidgetToolTip<TempoButton>;
+template struct WidgetToolTip<TieButton>;
+template struct WidgetToolTip<TimeButton>;
 
 void CutButton::draw(const DrawArgs& args) {
     const int af = animationFrame;
@@ -122,6 +123,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         nt->setSelectStart(nt->atMidiTime(0));
         ntw->selectButton->setSingle();
         ntw->setWheelRange();
+        ntw->displayBuffer->redraw();
         return;
     }
     if (State::cutPart == state) {
@@ -132,6 +134,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         ntw->setSelectableScoreEmpty();
         nt->setSelectStart(nt->atMidiTime(0));
         ntw->setWheelRange();
+        ntw->displayBuffer->redraw();
         return;
     }
     bool slotOn = ntw->slotButton->ledOn();
@@ -186,7 +189,9 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         nt->setSelect(previous, previous < start ? start : previous + 1);
     }
     ntw->selectButton->setSingle();
-    ntw->setWheelRange();  // range is smaller
+    // range is smaller
+    ntw->setWheelRange();
+    ntw->displayBuffer->redraw();
 }
 
 // hidden
@@ -214,6 +219,7 @@ void EditLEDButton::onDragEnd(const event::DragEnd& e) {
     NoteTakerButton::onDragEnd(e);
     ntw->turnOffLEDButtons(this);
     ntw->setWheelRange();
+    ntw->displayBuffer->redraw();
 }
 
 void FileButton::draw(const DrawArgs& args) {
@@ -403,9 +409,8 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     unsigned insertSize = slotOn ? pspan.size() : span.size();
     int shiftTime = 0;
     if (insertInPlace) {
-#if 0 // not sure what I was thinking -- already have a way to add single notes to chord
-        Notes::HighestOnly(span);  // if edit end, remove all but highest note of chord            
-#endif
+// not sure what I was thinking -- already have a way to add single notes to chord
+        //  Notes::HighestOnly(span);  // if edit end, remove all but highest note of chord            
         if (!n.transposeSpan(span)) {
             DEBUG("** failed to transpose span");
             return;
@@ -554,7 +559,9 @@ void PartButton::onDragEnd(const event::DragEnd& e) {
     if (debugVerbose) DEBUG("part button onDragEnd ledOn %d part %d selectChannels %d unlocked %u",
             this->ledOn(), ntw->horizontalWheel->part(), ntw->selectChannels, ntw->unlockedChannel());
     ntw->turnOffLEDButtons(this);
-    ntw->setWheelRange();  // range is larger
+    // range is larger
+    ntw->setWheelRange();
+    ntw->displayBuffer->redraw();
 }
 
 void RestButton::draw(const DrawArgs& args) {
@@ -611,6 +618,7 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
 
     dynamicRunTimer = nt->realSeconds + fadeDuration;
     ntw->setWheelRange();
+    ntw->displayBuffer->redraw();
     DEBUG("onDragEnd end af %d ledOn %d", animationFrame, ledOn());
 }
 
@@ -693,7 +701,9 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
     }
     ntw->setClipboardLight();
     ntw->turnOffLEDButtons(this, true);
-    ntw->setWheelRange();  // if state is single, set to horz from -1 to size
+    // if state is single, set to horz from -1 to size
+    ntw->setWheelRange();
+    ntw->displayBuffer->redraw();
 }
 
 // currently not called by anyone

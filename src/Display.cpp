@@ -268,10 +268,11 @@ void DisplayControl::autoDrift(float value, float frameTime, int visCells) {
             xOff = floorf(xOff);
         }
     }
-    if (display->xControlOffset != xOff) {
-        display->redraw();
+    if (display->xControlOffset == xOff) {
+        return;
     }
-    if (debugVerbose) DEBUG("autodrift");
+    if (debugVerbose) DEBUG("autodrift old %g new %g", display->xControlOffset, xOff);
+    display->redraw();
     display->xControlOffset = xOff;
 }
 
@@ -292,6 +293,26 @@ void DisplayControl::drawActive(unsigned start, unsigned end) const {
     nvgStroke(vg);
 }
 
+void DisplayControl::drawEdgeGradient(unsigned position, unsigned firstVisible,
+        unsigned lastVisible) const {
+    if (firstVisible == position && display->xControlOffset > .5) {  // to do : offscreen with transparency ?
+        NVGpaint paint = nvgLinearGradient(vg, boxWidth / 2, 0, boxWidth, 0,
+                nvgRGBA(0xFF, 0xFF, 0xFF, 0), nvgRGBA(0xFF, 0xFF, 0xFF, 0xFF));
+        nvgBeginPath(vg);
+        nvgRect(vg, boxWidth / 2, 0, boxWidth / 2, boxWidth);
+        nvgFillPaint(vg, paint);
+        nvgFill(vg);
+    } else if (lastVisible - 1 == position
+            && display->xControlOffset + 4.5 < (float) display->ntw()->storage.size()) {
+        NVGpaint paint = nvgLinearGradient(vg, 0, 0, boxWidth / 2, 0,
+                nvgRGBA(0xFF, 0xFF, 0xFF, 0xFF), nvgRGBA(0xFF, 0xFF, 0xFF, 0));
+        nvgBeginPath(vg);
+        nvgRect(vg, 0, 0, boxWidth / 2, boxWidth);
+        nvgFillPaint(vg, paint);
+        nvgFill(vg);
+    }
+}
+
 void DisplayControl::drawEmpty() const {
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, boxWidth, boxWidth);
@@ -308,8 +329,7 @@ void DisplayControl::drawEnd() const {
     nvgRestore(vg);
 }
 
-void DisplayControl::drawNote(SlotPlay::Stage stage) const {
-    const char stages[] = " ^tH[\\]";
+void DisplayControl::drawNoteCommon() const {
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, boxWidth, boxWidth);
     nvgStrokeWidth(vg, 1);
@@ -320,7 +340,6 @@ void DisplayControl::drawNote(SlotPlay::Stage stage) const {
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-    nvgText(vg, boxWidth / 2, boxWidth - 7, &stages[(int) stage], &stages[(int) stage] + 1);
 }
 
 void DisplayControl::drawNumber(const char* prefix, unsigned index) const {
@@ -351,7 +370,7 @@ void DisplayControl::drawSlot(unsigned position, unsigned slotIndex, unsigned re
     if (slotIndex >= ntw->storage.size() || ntw->storage.slots[slotIndex].n.isEmpty(ALL_CHANNELS)) {
         this->drawEmpty();
     } else {
-        this->drawNote(stage);
+        this->drawSlotNote(stage);
     }
     this->drawNumber("", slotIndex + 1);
     if (repeat > 1) {
@@ -360,28 +379,30 @@ void DisplayControl::drawSlot(unsigned position, unsigned slotIndex, unsigned re
         this->drawNumber("x", 99 == repeat ? INT_MAX : repeat);
         nvgRestore(vg);
     }
-    if (firstVisible == position && display->xControlOffset > .5) {  // to do : offscreen with transparency ?
-        NVGpaint paint = nvgLinearGradient(vg, boxWidth / 2, 0, boxWidth, 0,
-                nvgRGBA(0xFF, 0xFF, 0xFF, 0), nvgRGBA(0xFF, 0xFF, 0xFF, 0xFF));
-        nvgBeginPath(vg);
-        nvgRect(vg, boxWidth / 2, 0, boxWidth / 2, boxWidth);
-        nvgFillPaint(vg, paint);
-        nvgFill(vg);
-    } else if (lastVisible - 1 == position
-            && display->xControlOffset + 4.5 < (float) ntw->storage.size()) {
-        NVGpaint paint = nvgLinearGradient(vg, 0, 0, boxWidth / 2, 0,
-                nvgRGBA(0xFF, 0xFF, 0xFF, 0xFF), nvgRGBA(0xFF, 0xFF, 0xFF, 0));
-        nvgBeginPath(vg);
-        nvgRect(vg, 0, 0, boxWidth / 2, boxWidth);
-        nvgFillPaint(vg, paint);
-        nvgFill(vg);
-    }
+    this->drawEdgeGradient(position, firstVisible, lastVisible);
     nvgRestore(vg);
+}
+
+void DisplayControl::drawSlotNote(SlotPlay::Stage stage) const {
+    this->drawNoteCommon();
+    const char stages[] = " ^tH[\\]";
+    nvgText(vg, boxWidth / 2, boxWidth - 7, &stages[(int) stage], &stages[(int) stage] + 1);
 }
 
 void DisplayControl::drawStart() const {
     nvgSave(vg);
     nvgScissor(vg, 40 - boxWidth / 2, display->box.size.y - boxWidth - 5, boxWidth * 5, boxWidth);
+}
+
+void DisplayControl::drawTie(unsigned position, unsigned index) const {
+    nvgSave(vg);
+    nvgTranslate(vg, 40 + (position - display->xControlOffset) * boxWidth,
+            display->box.size.y - boxWidth - 5);
+    this->drawNoteCommon();
+    const char labels[] = {'{', 'H', '>', '?'};  // to do: replace last with triplet + tie
+    nvgText(vg, boxWidth / 2, boxWidth - 7, &labels[index], &labels[index] + 1);
+    this->drawEdgeGradient(position, 0, 2);
+    nvgRestore(vg);
 }
 
 DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicFnt)
@@ -875,13 +896,14 @@ void NoteTakerDisplay::drawKeySignature(unsigned index) {
         accKeys = trebleFlatKeys;
         bassKeys = bassFlatKeys;
     } else {    
-        if (dynamicSelectAlpha > 0) {
+        if (dynamicCNaturalAlpha > 0) {
             auto nt = ntw()->nt();
-            dynamicSelectAlpha = std::min(255, (int) (255 * (dynamicSelectTimer - nt->realSeconds)
-                    / fadeDuration));
-            nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicSelectAlpha));
+            dynamicCNaturalAlpha = std::max(0, std::min(255, 
+                    (int) (255 * (dynamicCNaturalTimer - nt->realSeconds) / fadeDuration)));
+            nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicCNaturalAlpha));
             nvgText(vg, xPos, 32 * 3 - 48, "%", NULL);
             nvgText(vg, xPos, 46 * 3 - 48, "%", NULL);
+            this->redraw();
         }
         return;
     }
@@ -1019,7 +1041,6 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
     }
 }
 
-// to do : figutre out why selection doesn't draw if triplet editor is on
 void NoteTakerDisplay::drawSelectionRect() {
     // draw selection rect
     auto ntw = this->ntw();
@@ -1077,7 +1098,7 @@ void NoteTakerDisplay::drawSelectionRect() {
         width = endCache->xPosition - (endCache->accidentalSpace ? 8 : 0) - xStart;
     }
     nvgBeginPath(vg);
-    if (debugVerbose) DEBUG("xStart %d yTop %d width %d yHeight %d", xStart, yTop, width, yHeight);
+    if (0 && debugVerbose) DEBUG("xStart %d yTop %d width %d yHeight %d", xStart, yTop, width, yHeight);
     nvgRect(vg, xStart, yTop, width, yHeight);
     SetSelectColor(vg, channel);
     nvgFill(vg);
@@ -1171,7 +1192,8 @@ void NoteTakerDisplay::drawFileControl() {
     unsigned lastVisible = std::min(ntw->storage.size() - 1, (unsigned) (xControlOffset + 5));
     control.drawStart();
     for (unsigned index = firstVisible; index <= lastVisible; ++index) {
-        control.drawSlot(index, index, 0, SlotPlay::Stage::quarterNote, firstVisible, lastVisible);
+        control.drawSlot(index, index, 0, SlotPlay::Stage::quarterNote, firstVisible,
+                lastVisible);
     }
     control.drawEnd();
     control.drawActive(slot, slot + 1);
@@ -1353,14 +1375,14 @@ void NoteTakerDisplay::drawSustainControl() const {
     nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x7f));
     nvgFill(vg);
     auto ntw = this->ntw();
-    int select = (int) ntw->verticalWheel->getValue();
+    auto select = (NoteTakerChannel::Limit) ntw->verticalWheel->getValue();
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
     nvgBeginPath(vg);
     nvgMoveTo(vg, box.size.x - 30, 30);
     nvgLineTo(vg, box.size.x - 30, 20);
     nvgLineTo(vg, box.size.x - 15, 20);
     nvgLineTo(vg, box.size.x - 15, 30);
-    nvgStrokeWidth(vg, 1 + (3 == select));
+    nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::sustainMax == select));
     nvgStroke(vg);
     nvgBeginPath(vg);
     float yOff = (box.size.y - 40) / 3;
@@ -1368,18 +1390,18 @@ void NoteTakerDisplay::drawSustainControl() const {
     nvgLineTo(vg, box.size.x - 30, 20 + yOff);
     nvgLineTo(vg, box.size.x - 25, 20 + yOff);
     nvgLineTo(vg, box.size.x - 25, 30 + yOff);
-    nvgStrokeWidth(vg, 1 + (2 == select));
+    nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::sustainMin == select));
     nvgStroke(vg);
     nvgBeginPath(vg);
     yOff = (box.size.y - 40) * 2 / 3;
     nvgMoveTo(vg, box.size.x - 30, 20 + yOff);
     nvgQuadTo(vg, box.size.x - 28, 30 + yOff, box.size.x - 22, 30 + yOff);
-    nvgStrokeWidth(vg, 1 + (1 == select));
+    nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::releaseMin == select));
     nvgStroke(vg);
     nvgBeginPath(vg);
     nvgMoveTo(vg, box.size.x - 30, box.size.y - 30);
     nvgQuadTo(vg, box.size.x - 24, box.size.y - 20, box.size.x - 15, box.size.y - 20);
-    nvgStrokeWidth(vg, 1 + (0 == select));
+    nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::releaseMax == select));
     nvgStroke(vg);
     this->drawVerticalControl();
     // draw horizontal control
@@ -1410,50 +1432,50 @@ void NoteTakerDisplay::drawSustainControl() const {
     nvgMoveTo(vg, 40, box.size.y - 5);
     nvgLineTo(vg, 40, box.size.y - 20);
     nvgLineTo(vg, 40 + susMin, box.size.y - 20);
-    nvgStrokeWidth(vg, 1 + (2 <= select));
+    nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::sustainMin <= select));
     nvgStroke(vg);
     nvgBeginPath(vg);
     nvgMoveTo(vg, 40 + susMin, box.size.y - 20);
     nvgLineTo(vg, 40 + susMin, box.size.y - 5);
-    nvgStrokeWidth(vg, 1 + (2 == select));
+    nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::sustainMin == select));
     nvgStroke(vg);
     if (susMax) {
         nvgBeginPath(vg);
         nvgMoveTo(vg, 40 + susMin, box.size.y - 20);
         nvgLineTo(vg, 40 + susMin + susMax, box.size.y - 20);
         nvgLineTo(vg, 40 + susMin + susMax, box.size.y - 5);
-        nvgStrokeWidth(vg, 1 + (3 == select));
+        nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::sustainMax == select));
         nvgStroke(vg);
     }
     int xPos = 40 + susMin + susMax;
     nvgBeginPath(vg);
     nvgMoveTo(vg, xPos, box.size.y - 20);
     nvgQuadTo(vg, xPos + relMin / 4, box.size.y - 5, xPos + relMin, box.size.y - 5);
-    nvgStrokeWidth(vg, 1 + (1 == select));
+    nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::releaseMin == select));
     nvgStroke(vg);
     if (relMax) {
         nvgBeginPath(vg);
         nvgMoveTo(vg, xPos, box.size.y - 20);
         int rel = relMin + relMax;
         nvgQuadTo(vg, xPos + rel / 2, box.size.y - 5, xPos + rel, box.size.y - 5);
-        nvgStrokeWidth(vg, 1 + (0 == select));
+        nvgStrokeWidth(vg, 1 + (NoteTakerChannel::Limit::releaseMax == select));
         nvgStroke(vg);
     }
     nvgFontFaceId(vg, ntw->musicFont());
     nvgFontSize(vg, 24);
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 2 == select ? 0xFF : 0x7f));
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::sustainMin == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
             NoteDurations::FromMidi(channel.sustainMin, nt->slot->n.ppq)], nullptr);
     if (susMax) {
-        nvgFillColor(vg, nvgRGBA(0, 0, 0, 3 == select ? 0xFF : 0x7f));
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::sustainMax == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin, box.size.y - 18, downFlagNoteSymbols[
                 NoteDurations::FromMidi(channel.sustainMax, nt->slot->n.ppq)], nullptr);
     }
-    nvgFillColor(vg, nvgRGBA(0, 0, 0, 1 == select ? 0xFF : 0x7f));
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::releaseMin == select ? 0xFF : 0x7f));
     nvgText(vg, 42 + susMin + susMax, box.size.y - 18, downFlagNoteSymbols[
             NoteDurations::FromMidi(channel.releaseMin, nt->slot->n.ppq)], nullptr);
     if (relMax) {
-        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0 == select ? 0xFF : 0x7f));
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::releaseMax == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin + susMax + relMin, box.size.y - 18, downFlagNoteSymbols[
                 NoteDurations::FromMidi(channel.releaseMax, nt->slot->n.ppq)], nullptr);
     }
@@ -1473,57 +1495,21 @@ void NoteTakerDisplay::drawTempo(int xPos, int tempo, unsigned char alpha) {
     nvgText(vg, xPos + 7, 10, tempoStr.c_str(), nullptr);
 }
 
-// to do : maybe objectify this and share common code for display controls
+// to do : for all scrolling controls -- if user turns off button in middle of scroll, 
+//         make sure timers are canceled, scrolling state is set to nearest integer, etc.
 void NoteTakerDisplay::drawTieControl() {
-    const char labels[] = {'{', 'H', '>'};
-    const float boxWidth = 20;
-    const float boxSpace = 25;
-    const float leftEdge = (box.size.x - boxWidth * sizeof(labels)
-            - (boxSpace - boxWidth) * (sizeof(labels) - 1)) / 2;
-    auto vg = state.vg;
-    nvgBeginPath(vg);
-    nvgRect(vg, leftEdge - 5, box.size.y - boxWidth - 10, 
-            boxWidth * sizeof(labels) + (boxSpace - boxWidth) * (sizeof(labels) - 1), boxWidth + 20);
-    nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x7f));
-    nvgFill(vg);
-    nvgSave(vg);
-    nvgTranslate(vg, leftEdge, box.size.y - boxSpace);
-    for (auto ch : labels) {
-        nvgBeginPath(vg);
-        nvgRect(vg, 0, 0, boxWidth, boxWidth);
-        nvgStrokeWidth(vg, 1);
-        nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-        nvgStroke(vg);
-        nvgFontFaceId(vg, ntw()->musicFont());
-        nvgFontSize(vg, 16);
-        nvgTextAlign(vg, NVG_ALIGN_CENTER);
-        nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7F));
-        nvgText(vg, boxWidth / 2, boxWidth - 3, &ch, &ch + 1);
-        nvgTranslate(vg, boxSpace, 0);
-    }
-    nvgRestore(vg);
+    DisplayControl control(this, state.vg);
     auto ntw = this->ntw();
     auto horizontalWheel = ntw->horizontalWheel;
-#if false
-    float fSlot = horizontalWheel->getValue();
-    int slot = (int) (fSlot + .5);
-    if (!ntw->horizontalWheel->inUse) {
-        if (fSlot != slot) {
-            this->redraw();
-        }
-        if (fSlot < slot) {
-            horizontalWheel->setValue(std::min((float) slot, fSlot + .02f));
-        } else if (fSlot > slot) {
-            horizontalWheel->setValue(std::max((float) slot, fSlot - .02f));
-        }
+    float selected = horizontalWheel->getValue();
+    int slot = (int) (selected + .5);
+    control.autoDrift(selected, state.callInterval);
+    control.drawStart();
+    for (int index = 0; index < 3; ++index) {
+        control.drawTie(index, (slot + index) % 4);
     }
-#endif
-    nvgBeginPath(vg);
-    nvgRect(vg, leftEdge + (horizontalWheel->getValue()) * boxSpace,
-            box.size.y - boxWidth - 5, boxWidth, boxWidth);
-    nvgStrokeWidth(vg, 3);
-    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
-    nvgStroke(vg);
+    control.drawEnd();
+    control.drawActive(slot, slot + 1);
 }
 
 // to do : share code with draw slur, draw beam ?

@@ -1,4 +1,5 @@
 #include "Display.hpp"
+#include "MakeMidi.hpp"
 #include "Taker.hpp"
 #include "Wheel.hpp"
 #include "Widget.hpp"
@@ -225,14 +226,88 @@ WheelBuffer::WheelBuffer(NoteTakerWheel* wheel) {
     fb->addChild(wheel);
 }
 
+template<class TWheel>
+std::string WidgetToolTip<TWheel>::getDisplayValueString() {
+    if (!widget) {
+        return "!uninitialized";
+    }
+    if (defaultLabel.empty()) {
+        defaultLabel = label;
+    }
+    auto ntw = widget->ntw();
+    if (ntw->sustainButton->ledOn()) {
+        label = "Gate";
+    } else if (ntw->slotButton->ledOn()) {
+        label = "Slot";
+    } else if (ntw->tieButton->ledOn()) {
+        label = "Note Group";
+    } else if (ntw->fileButton->ledOn()) {
+        label = "Slot";
+    } else if (ntw->partButton->ledOn()) {
+        label = "Part";
+    } else if (ntw->selectButton->isSingle()) {
+        label = "Insert";
+    } else if (ntw->selectButton->isExtend()) {
+        label = "Extend";
+    } else {    // running, or off select button state
+        label = defaultLabel;
+    }
+    return "";
+}
+
+template struct WidgetToolTip<HorizontalWheel>;
+template struct WidgetToolTip<VerticalWheel>;
+
+static std::string leading_zero(int val, int digits) {
+    SCHMICKLE(2 == digits || 3 == digits);
+    int divisor = digits == 2 ? 10 : 100;
+    SCHMICKLE(val < divisor * 10);
+    std::string result;
+    while (divisor) {
+        result += std::to_string(val / divisor);
+        val = val % divisor;
+        divisor /= 10;
+    }
+    return result;
+}
+
+static std::string midi_to_time_string(int duration, int ppq) {
+    float time = MidiToSeconds(duration, ppq);
+    int seconds = (int) time;
+    int minutes = seconds / 60;
+    seconds = seconds % 60;
+    int fraction = (int) (fmodf(time, 1) * 1000);
+    std::string result;
+    if (minutes > 99) {
+        minutes = 99;
+        seconds = 99;
+        fraction = 999;
+    }
+    return leading_zero(minutes, 2) + ":" + leading_zero(seconds, 2) + "."
+            + leading_zero(fraction, 3);
+}
+
 // to do : show duration as name
 // to do : some of the states that return empty strings could return more with some effort...
 std::string HorizontalWheelToolTip::getDisplayValueString() {
-    if (!wheel) {
-        return "!uninitialized";
+    std::string result = WidgetToolTip<HorizontalWheel>::getDisplayValueString();
+    if (!result.empty()) {
+        return result;
     }
-    auto ntw = wheel->ntw();
+    auto ntw = widget->ntw();
     int value = (int) this->getValue();
+    if (ntw->runButton->ledOn()) {
+        // to do : show tempo
+        return "";
+    }
+    if (ntw->fileButton->ledOn()) {
+        // to do : incomplete
+        return "";
+    }
+    if (ntw->partButton->ledOn()) {
+        // to do : incomplete
+        return "";
+    }
     int vertical = (int) ntw->verticalWheel->getValue();
     if (ntw->slotButton->ledOn()) {
         if (ntw->selectButton->isOff()) {
@@ -242,107 +317,187 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                             + std::to_string(value) + " times";
                 break;
                 case 1:  // slot
-                    return "slot " + std::to_string(value + 1);
+                    return std::to_string(value + 1);
                 break;
                 case 0: { // stage
-                    SlotPlay::Stage stage = std::max(SlotPlay::Stage::step, 
-                            std::min(SlotPlay::Stage::never, (SlotPlay::Stage) this->getValue()));
-                    switch(stage) {
+                    switch((SlotPlay::Stage) value) {
                         case SlotPlay::Stage::step:
                             return "end immediately";
-                            break;
                         case SlotPlay::Stage::beat:
                             return "end on beat";
-                            break;
                         case SlotPlay::Stage::quarterNote:
                             return "end on quarter note";
-                            break;
                         case SlotPlay::Stage::bar:
                             return "end on bar";
-                            break;
                         case SlotPlay::Stage::song:
                             return "end on song";
-                            break;
                         case SlotPlay::Stage::never:
                             return "end never";
-                            break;
                         default:
-                            DEBUG("unexpected stage %d", stage);
+                            DEBUG("unexpected slot stage %d", value);
                             _schmickled();
                     }
                 } break;
+                default:
+                    DEBUG("unexpected slot vertical %d", vertical);
+                    _schmickled();
             }
         }
     }
+    if (ntw->sustainButton->ledOn()) {
+        std::string prefix;
+        auto limit = (NoteTakerChannel::Limit) vertical;
+        switch (limit) {
+            case NoteTakerChannel::Limit::releaseMax:
+                prefix = "release no more than ";
+                break;
+            case NoteTakerChannel::Limit::releaseMin:
+                prefix = "release no less than ";
+                break;
+            case NoteTakerChannel::Limit::sustainMin:
+                prefix = "sustain to at least ";
+                break;
+            case NoteTakerChannel::Limit::sustainMax:
+                prefix = "sustain up to ";
+                break;
+            default:
+                DEBUG("unexpected sustain limit %d", vertical);
+                _schmickled();
+        }
+        int duration = ntw->nt()->slot->channels[ntw->unlockedChannel()].getLimit(limit);
+        return prefix + Notes::FullName(duration);
+    }
     auto& n = ntw->n();
+    if (ntw->tieButton->ledOn()) {
+        std::string slurString = n.hasTie(ntw->selectChannels) ? "tie" : "slur";
+        switch ((TieButton::State) value) {
+            case TieButton::State::slur:
+                return slurString;
+            case TieButton::State::normal:
+                return "no " + slurString + " or triplet";
+            case TieButton::State::tuplet:
+                return "triplet";
+            case TieButton::State::both:
+                return slurString + " and triplet";
+            default:
+                DEBUG("unexpected tie %d", value);
+                _schmickled();
+        }
+    }
     if (n.isEmpty(ntw->selectChannels)) {
         return "";
     }
     const DisplayNote* note = &n.notes[n.selectStart];
-    if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
-        switch (note->type) {
-            case KEY_SIGNATURE:
-                return Notes::KeyName(note->key(), value);
-            case TIME_SIGNATURE:
-                return vertical ? Notes::TSNumer(note, n.ppq) : Notes::TSDenom(note, n.ppq);
-            case MIDI_TEMPO:
-                return "";
-            default:
-                _schmickled(); // incomplete
+    if (ntw->selectButton->isOff()) {
+        if (n.selectStart + 1 == n.selectEnd) {
+            switch (note->type) {
+                case NOTE_ON:
+                case REST_TYPE:
+                    return Notes::Name(note);;
+                case KEY_SIGNATURE:
+                    return Notes::KeyName(note->key(), value);
+                case TIME_SIGNATURE:
+                    return vertical ? Notes::TSNumer(note, n.ppq) : Notes::TSDenom(note, n.ppq);
+                case MIDI_TEMPO:
+                    return "";  // to do : add tempo info
+                default:
+                    return "";  // nothing for midi header
+            }
         }
-    }
-    if (n.selectStart + 1 == n.selectEnd && note->isNoteOrRest()) {
+        // if multiple notes, and all same duration, return that
+        const int duration = note->duration;
+        if (duration) {
+            for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
+                if (duration != n.notes[index].duration) {
+                    return "(multiple note lengths)";
+                }
+            }
+        }
         return Notes::Name(note);
     }
-    return std::to_string(wheel->getValue());
+    // to do : show bar # ?
+    if (ntw->selectButton->isExtend()) {
+        result = midi_to_time_string(note->startTime, n.ppq) + " - ";
+        unsigned selEndPos = n.selectEndPos(n.selectEnd - 1);
+        auto endTime = n.notes[selEndPos].endTime();
+        result += midi_to_time_string(endTime, n.ppq);
+    } else {
+        auto endTime = n.notes[n.selectEnd].startTime;
+        result += midi_to_time_string(endTime, n.ppq);
+    }
+    return result;
 }
 
 // show pitch as note name
 // to do : some of the states that return empty strings could return more with some effort...
 std::string VerticalWheelToolTip::getDisplayValueString() {
-    if (!wheel) {
-        return "!uninitialized";
+    std::string result = WidgetToolTip<VerticalWheel>::getDisplayValueString();
+    if (!result.empty()) {
+        return result;
     }
-    int value = (int) wheel->getValue();
+    int value = (int) widget->getValue();
     // to do : set state in set vertical wheel range and use that state here?
-    auto ntw = wheel->ntw();
+    auto ntw = widget->ntw();
     if (ntw->runButton->ledOn()) {  // show pitch as : transpose C4 to C4
         // to do : detect if key is flat and choose flats?
         return "C4 to " + Notes::SharpName(value);
     }
-    if (ntw->fileButton->ledOn() || ntw->partButton->ledOn()) {
+    if (ntw->fileButton->ledOn()) {
+        // to do : incomplete
+        return "";
+    }
+    if (ntw->partButton->ledOn()) {
+        // to do : incomplete
         return "";
     }
     if (ntw->slotButton->ledOn()) {
+        // to do : incomplete
         return "";
     }
     if (ntw->sustainButton->ledOn()) {
-        return "";
+        switch ((NoteTakerChannel::Limit) value) {
+            case NoteTakerChannel::Limit::releaseMax:
+                return "maximum release";
+            case NoteTakerChannel::Limit::releaseMin:
+                return "minimum release";
+            case NoteTakerChannel::Limit::sustainMin:
+                return "minimum sustain";
+            case NoteTakerChannel::Limit::sustainMax:
+                return "maximum sustain";
+            default:
+                DEBUG("unexpected sustain limit %d", value);
+                _schmickled();
+        }
     }
     if (ntw->tieButton->ledOn()) {
-        return "";
+        return "(unused)";
     }
     auto& n = ntw->n();
     if (n.isEmpty(ntw->selectChannels)) {
         return "";
     }
     const DisplayNote* note = &n.notes[n.selectStart];
-    if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
+    if (NOTE_ON == note->type && ntw->selectButton->editStart() && !ntw->edit.voice) {
+        return "add to chord";        
+    }
+    if (n.selectStart + 1 == n.selectEnd) {
         switch (note->type) {
+            case NOTE_ON:
+                if (ntw->selectButton->editEnd() && ntw->edit.voice) {
+                    value = note->pitch();
+                }
+                return Notes::SharpName(value); // to do : use flat if preceded by flat key?
             case KEY_SIGNATURE:
                 return Notes::KeyName(value, note->minor());
             case TIME_SIGNATURE:
                 return value ? "beats per measure" : "duration of beat";
             case MIDI_TEMPO:
-                return "";
+                return "(unused)";
             default:
-                _schmickled(); // incomplete
+                return "(unused)"; // for rests, midi header
         }
+    } else if (ntw->selectButton->editEnd() && !ntw->edit.voice) {
+        return "select chord note";
     }
-    if (!ntw->selectButton->ledOn()) {
-        return Notes::SharpName(value);
-    } else {
-        return "";
-    }
-    return std::to_string(value);
+    return "transpose chord";  // for selected chords, phrases
 }

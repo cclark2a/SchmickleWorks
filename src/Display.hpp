@@ -122,13 +122,16 @@ struct DisplayControl {
     void autoDrift(float value, float frameTime, int visCells = 3);
     void drawActive(unsigned start, unsigned end) const;
     void drawActiveNarrow(unsigned slot) const;
+    void drawEdgeGradient(unsigned position, unsigned firstVisible, unsigned lastVisible) const;
     void drawEmpty() const;
     void drawEnd() const;
     void drawNumber(const char* prefix, unsigned index) const;
-    void drawNote(SlotPlay::Stage) const;
+    void drawNoteCommon() const;
     void drawSlot(unsigned position, unsigned slotIndex, unsigned repeat, SlotPlay::Stage ,
             unsigned firstVisible, unsigned lastVisible) const;
+    void drawSlotNote(SlotPlay::Stage) const;
     void drawStart() const;
+    void drawTie(unsigned position, unsigned index) const;
 };
 
 struct NoteTakerDisplay : Widget {
@@ -141,12 +144,12 @@ struct NoteTakerDisplay : Widget {
     DisplayState state;
     const StaffNote* pitchMap = nullptr;
     int dynamicPitchAlpha = 0;
-    int dynamicSelectAlpha = 0;
+    int dynamicCNaturalAlpha = 0;   // used to draw C natural to show 'invisible' key signatures
     int dynamicTempoAlpha = 0;
     const float fadeDuration = 1;
     float lastCall = 0;
     float dynamicPitchTimer = 0;
-    float dynamicSelectTimer = 0;
+    float dynamicCNaturalTimer = 0;
     float dynamicTempoTimer = 0;
     float xControlOffset = 0;
     int keySignature = 0;
