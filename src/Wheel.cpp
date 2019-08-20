@@ -237,18 +237,16 @@ std::string WidgetToolTip<TWheel>::getDisplayValueString() {
     auto ntw = widget->ntw();
     if (ntw->sustainButton->ledOn()) {
         label = "Gate";
-    } else if (ntw->slotButton->ledOn()) {
-        label = "Slot";
+    } else if (ntw->selectButton->isSingle()) {
+        label = "Insert";
+    } else if (ntw->selectButton->isExtend()){
+        label = "Select";
     } else if (ntw->tieButton->ledOn()) {
         label = "Note Group";
     } else if (ntw->fileButton->ledOn()) {
-        label = "Slot";
+        label = "Select";
     } else if (ntw->partButton->ledOn()) {
-        label = "Part";
-    } else if (ntw->selectButton->isSingle()) {
-        label = "Insert";
-    } else if (ntw->selectButton->isExtend()) {
-        label = "Extend";
+        label = "Select";
     } else {    // running, or off select button state
         label = defaultLabel;
     }
@@ -295,20 +293,25 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
         return result;
     }
     auto ntw = widget->ntw();
-    int value = (int) this->getValue();
     if (ntw->runButton->ledOn()) {
         // to do : show tempo
         return "";
     }
     if (ntw->fileButton->ledOn()) {
-        // to do : incomplete
-        return "";
+        unsigned roundedValue = (unsigned) (this->getValue() + .5);
+        SCHMICKLE(roundedValue < ntw->storage.size());
+        return "slot " + std::to_string(roundedValue + 1);
     }
     if (ntw->partButton->ledOn()) {
-        // to do : incomplete
-        return "";
+        int roundedValue = widget->part();
+        if (-1 == roundedValue) {
+            return "all CV/Gate outputs";
+        }
+        return "CV/Gate output " + std::to_string(roundedValue + 1);
     }
+    int value = (int) this->getValue();
     int vertical = (int) ntw->verticalWheel->getValue();
+    auto& n = ntw->n();
     if (ntw->slotButton->ledOn()) {
         if (ntw->selectButton->isOff()) {
             switch (vertical) {
@@ -342,7 +345,15 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                     DEBUG("unexpected slot vertical %d", vertical);
                     _schmickled();
             }
+        } 
+        bool extend = ntw->selectButton->isExtend();
+        result = std::to_string(ntw->storage.selectStart + (int) extend);
+        if (extend) {
+            result += " - " + std::to_string(ntw->storage.selectEnd);
+        } else if (!ntw->storage.selectStart) {
+            result = "before slot 1";
         }
+        return result;
     }
     if (ntw->sustainButton->ledOn()) {
         std::string prefix;
@@ -367,10 +378,10 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
         int duration = ntw->nt()->slot->channels[ntw->unlockedChannel()].getLimit(limit);
         return prefix + Notes::FullName(duration);
     }
-    auto& n = ntw->n();
     if (ntw->tieButton->ledOn()) {
+        auto roundedValue = (TieButton::State) (this->getValue() + .5);
         std::string slurString = n.hasTie(ntw->selectChannels) ? "tie" : "slur";
-        switch ((TieButton::State) value) {
+        switch (roundedValue) {
             case TieButton::State::slur:
                 return slurString;
             case TieButton::State::normal:
@@ -416,16 +427,16 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
         return Notes::Name(note);
     }
     // to do : show bar # ?
+    int endTime;
     if (ntw->selectButton->isExtend()) {
         result = midi_to_time_string(note->startTime, n.ppq) + " - ";
         unsigned selEndPos = n.selectEndPos(n.selectEnd - 1);
-        auto endTime = n.notes[selEndPos].endTime();
-        result += midi_to_time_string(endTime, n.ppq);
+        endTime = n.notes[selEndPos].endTime();
     } else {
-        auto endTime = n.notes[n.selectEnd].startTime;
-        result += midi_to_time_string(endTime, n.ppq);
+        result = "";
+        endTime = n.notes[n.selectEnd].startTime;
     }
-    return result;
+    return result + midi_to_time_string(endTime, n.ppq);
 }
 
 // show pitch as note name
