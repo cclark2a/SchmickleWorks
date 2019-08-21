@@ -4,6 +4,7 @@
 
 #include "Button.hpp"
 #include "Display.hpp"
+#include "ParseMidi.hpp"
 #include "Taker.hpp"
 #include "Wheel.hpp"
 #include "Widget.hpp"
@@ -276,7 +277,7 @@ static void Expected(NoteTakerWidget* n) {
     n->resetControls();
     n->fromJson(saveState);
     json_decref(saveState);
-    n->invalidateAndPlay(Inval::load);
+    n->nt()->invalidateAndPlay(Inval::load);
 }
 
 static void TestEncode() {
@@ -303,7 +304,7 @@ static void TestEncode() {
     vector<uint8_t> midi;
     Notes::Serialize(n.notes, midi);
     DEBUG("raw midi");
-    NoteTaker::DebugDumpRawMidi(midi);
+    NoteTakerParseMidi::DebugDumpRawMidi(midi);
     vector<char> encoded;
     NoteTakerSlot::Encode(midi, &encoded);
     encoded.push_back('\0'); // treat as string
@@ -313,7 +314,7 @@ static void TestEncode() {
     DEBUG("encoded2     %.*s", encoded2.size(), &encoded2.front());
     NoteTakerSlot::Decode(encoded2, &midi);
     DEBUG("raw midi2");
-    NoteTaker::DebugDumpRawMidi(midi);
+    NoteTakerParseMidi::DebugDumpRawMidi(midi);
     Notes n2;
     bool result = Notes::Deserialize(midi, &n2.notes, &n2.ppq);
     vector<std::string> results2;

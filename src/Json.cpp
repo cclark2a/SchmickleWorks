@@ -78,8 +78,8 @@ json_t* SlotArray::toJson() const {
         json_array_append_new(_playback, slotPlay.toJson());
     }
     json_object_set_new(root, "playback", _playback);
-    json_object_set_new(root, "selectStart", json_integer(selectStart));
-    json_object_set_new(root, "selectEnd", json_integer(selectEnd));
+    json_object_set_new(root, "slotStart", json_integer(slotStart));
+    json_object_set_new(root, "slotEnd", json_integer(slotEnd));
     return root;
 }
 
@@ -152,7 +152,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     // update display cache
     this->setWheelRange();
     displayBuffer->redraw();
-    this->invalidateAndPlay(Inval::load);
+    this->nt()->invalidateAndPlay(Inval::load);
     this->setClipboardLight();
 }
 
@@ -182,14 +182,14 @@ void SlotArray::fromJson(json_t* root) {
         slots[index].fromJson(value);
     }
     SlotArray::FromJson(root, &playback);
-    selectStart = json_integer_value(json_object_get(root, "selectStart"));
-    if (selectStart >= playback.size()) {
-        selectStart = 0;
+    slotStart = json_integer_value(json_object_get(root, "slotStart"));
+    if (slotStart >= playback.size()) {
+        slotStart = 0;
     }
-    selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
-    if (selectEnd <= selectStart) {
-        selectEnd = selectStart + 1;
-    } else if (selectEnd > playback.size()) {
-        selectEnd = playback.size();
+    slotEnd = json_integer_value(json_object_get(root, "slotEnd"));
+    if (slotEnd <= slotStart) {
+        slotEnd = slotStart + 1;
+    } else if (slotEnd > playback.size()) {
+        slotEnd = playback.size();
     }
 }

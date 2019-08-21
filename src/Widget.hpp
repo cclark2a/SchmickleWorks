@@ -87,7 +87,6 @@ struct NoteTakerWidget : ModuleWidget {
     void fromJson(json_t* rootJ) override;
     unsigned getSlot() const;  // index of module slot, not influenced by file button or wheel
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
-    void invalidateAndPlay(Inval inval);
     bool isSlur() const;
     bool isTriplet() const;
     void loadScore();
@@ -108,11 +107,18 @@ struct NoteTakerWidget : ModuleWidget {
     int nextStartTime(unsigned start) const;
     int noteToWheel(unsigned index, bool dbug = true) const;
     int noteToWheel(const DisplayNote& , bool dbug = true) const;
-    Notes& n();
-    const Notes& n() const;
+
+    const Notes& n() const {
+        return storage.current().n;
+    }
+
+    Notes& n() {
+        return storage.current().n;
+    }
+
     NoteTaker* nt();
     const NoteTaker* nt() const;
-    
+
     // ignore right-clicks on buttons
     // buttons are children of framebuffers, which are children of button buffers,
     // so need to look at great-grandchildren to get bounds
@@ -146,8 +152,11 @@ struct NoteTakerWidget : ModuleWidget {
     void setClipboardLight();
     void setHorizontalNoteLimits();
     void setHorizontalWheelRange();
+    void setScoreEmpty();
+    void setSelect(unsigned start, unsigned end);
     void setSelectableScoreEmpty();
-    void setSlot(unsigned index);
+    bool setSelectEnd(int wheelValue, unsigned end);
+    bool setSelectStart(unsigned start);
     void setVerticalWheelRange();
     void setWheelRange();
     void shiftNotes(unsigned start, int diff);

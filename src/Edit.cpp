@@ -54,16 +54,16 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     if (slotButton->ledOn()) {
         edit.init(storage);
         if (selectButton->isOff()) {
-            const auto& slotPlay = storage.playback[storage.selectStart];
+            const auto& slotPlay = storage.playback[storage.slotStart];
             horizontalWheel->setLimits(0, storage.size() - 1);
             horizontalWheel->setValue(slotPlay.index);
         } else if (selectButton->isSingle()) {
             horizontalWheel->setLimits(0, storage.playback.size());
-            horizontalWheel->setValue(storage.selectStart);
+            horizontalWheel->setValue(storage.slotStart);
         } else {
             SCHMICKLE(selectButton->isExtend());
             horizontalWheel->setLimits(0, storage.playback.size() - 1);
-            horizontalWheel->setValue(storage.selectStart);
+            horizontalWheel->setValue(storage.slotStart);
         }
         edit.horizontalValue = (int) horizontalWheel->getValue();
         return;
@@ -71,7 +71,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     if (sustainButton->ledOn()) {
         // use first unlocked channel as guide
         horizontalWheel->setLimits(0, NoteDurations::Count() - 1);
-        int sustainMinDuration = nt()->slot->channels[this->unlockedChannel()].sustainMin;
+        int sustainMinDuration = storage.current().channels[this->unlockedChannel()].sustainMin;
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, n().ppq));
         return;
     }
@@ -80,7 +80,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         bool trips = this->isTriplet();
         bool slur = this->isSlur();
         int index = trips ? 2 + slur : !slur;
-        horizontalWheel->setValue(index + 0.5f);
+        horizontalWheel->setValue(index);
         display->xControlOffset = (index + 3) % 4;
         if (debugVerbose) DEBUG("tieButton trips %d slur %d setHorz val %g xControlOffset %g",
                 trips, slur, index + 0.5f, display->xControlOffset);
@@ -220,6 +220,7 @@ void NoteTakerWidget::setWheelRange() {
 }
 
 void NoteTakerWidget::updateHorizontal() {
+    auto nt = this->nt();
     auto& n = this->n();
     if (runButton->ledOn()) {
         return;
@@ -237,7 +238,7 @@ void NoteTakerWidget::updateHorizontal() {
         // move selection in storage playback, or change slot #, repeat, stage
         int wheelValue = (int) horizontalWheel->getValue();
         if (selectButton->isOff()) {
-            for (unsigned index = storage.selectStart; index < storage.selectEnd; ++index) {
+            for (unsigned index = storage.slotStart; index < storage.slotEnd; ++index) {
                 // note that changes are relative to their original values
                 auto& orig = edit.pbase[index - edit.originalStart];
                 auto& slot = storage.playback[index];
@@ -251,8 +252,8 @@ void NoteTakerWidget::updateHorizontal() {
                         // change current slot in nt as well
                         slot.index = (int) orig.index + diff < 0 ? 0 :
                                 std::min(orig.index + diff, SLOT_COUNT - 1);
-                        if (storage.selectStart == index) {
-                            this->nt()->stageSlot(slot.index);
+                        if (storage.slotStart == index) {
+                            nt->stageSlot(slot.index);
                         }
                     break;
                     case SlotButton::Select::end:
@@ -266,24 +267,24 @@ void NoteTakerWidget::updateHorizontal() {
                 }
             }
         } else if (selectButton->isSingle()) {
-            storage.selectStart = wheelValue;
+            storage.slotStart = wheelValue;
         #if 0
-            if (storage.selectStart) {
-                storage.selectStart -= 1;
+            if (storage.slotStart) {
+                storage.slotStart -= 1;
             } else {
                 storage.saveZero = true;
             }
         #endif
-            storage.selectEnd = storage.selectStart + 1;
+            storage.slotEnd = storage.slotStart + 1;
             static unsigned debugStart = INT_MAX;
-            if (debugVerbose && debugStart != storage.selectStart) {
-                DEBUG("updateHorizontal %u", storage.selectStart);
-                debugStart = storage.selectStart;
+            if (debugVerbose && debugStart != storage.slotStart) {
+                DEBUG("updateHorizontal %u", storage.slotStart);
+                debugStart = storage.slotStart;
             }
         } else {
             SCHMICKLE(selectButton->isExtend());
-            storage.selectStart = std::min((unsigned) wheelValue, edit.originalStart);
-            storage.selectEnd = std::max((unsigned) wheelValue + 1, edit.originalStart + 1);
+            storage.slotStart = std::min((unsigned) wheelValue, edit.originalStart);
+            storage.slotEnd = std::max((unsigned) wheelValue + 1, edit.originalStart + 1);
         }
         return;
     }
@@ -293,7 +294,7 @@ void NoteTakerWidget::updateHorizontal() {
             if (!(selectChannels & (1 << index))) {
                 continue;
             }
-            NoteTakerChannel& channel = nt()->slot->channels[index];
+            NoteTakerChannel& channel = storage.current().channels[index];
             channel.setLimit((NoteTakerChannel::Limit) verticalWheel->getValue(),
                     NoteDurations::ToMidi(horizontalWheel->getValue(), n.ppq));
         }
@@ -331,7 +332,7 @@ void NoteTakerWidget::updateHorizontal() {
             break;
         }
         tieButton->state = next;
-        this->invalidateAndPlay(Inval::change);
+        nt->invalidateAndPlay(Inval::change);
         return;
     }
     if (n.isEmpty(selectChannels)) {
@@ -340,7 +341,7 @@ void NoteTakerWidget::updateHorizontal() {
     bool selectOne = !selectButton->ledOn() && n.selectStart + 1 == n.selectEnd;
     DisplayNote& oneNote = n.notes[n.selectStart];
     if (selectOne && MIDI_TEMPO == oneNote.type) {
-        oneNote.setTempo(nt()->wheelToTempo(horizontalWheel->getValue()) * 500000);
+        oneNote.setTempo(nt->wheelToTempo(horizontalWheel->getValue()) * 500000);
         displayBuffer->redraw();
         return;
     }
@@ -354,12 +355,12 @@ void NoteTakerWidget::updateHorizontal() {
         } else {
             oneNote.setDenominator(wheelValue);
         }
-        this->invalidateAndPlay(Inval::change);
+        nt->invalidateAndPlay(Inval::change);
         return;
     }
     if (selectOne && KEY_SIGNATURE == oneNote.type) {
         oneNote.setMinor(wheelValue);
-        this->invalidateAndPlay(Inval::change);
+        nt->invalidateAndPlay(Inval::change);
         return;
     }
     Inval inval = Inval::none;
@@ -457,7 +458,7 @@ void NoteTakerWidget::updateHorizontal() {
         SCHMICKLE(TRACK_END == n.notes.back().type);
         n.notes.back().startTime = maxEnd;
         inval = Inval::note;
-        NoteTaker::Sort(n.notes);
+        Notes::Sort(n.notes);
     } else {
         unsigned start, end;
         edit.voice = false;
@@ -472,30 +473,30 @@ void NoteTakerWidget::updateHorizontal() {
         } else {
             start = this->wheelToNote(wheelValue);
             selectButton->saveZero = selectButton->isSingle() && !start;
-            end = nt()->nextAfter(start, 1);
+            end = n.nextAfter(start, 1);
             if (debugVerbose) DEBUG("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         SCHMICKLE(start < end);
         if (start != n.selectStart || end != n.selectEnd) {
-            nt()->setSelect(start, end);
+            this->setSelect(start, end);
             edit.init(n, selectChannels);
             this->setVerticalWheelRange();
             inval = Inval::display;
             if (start + 1 == end) {
                 const auto& note = n.notes[start];
                 if (KEY_SIGNATURE == note.type && !note.key()) {
-                    display->dynamicCNaturalTimer = nt()->realSeconds + display->fadeDuration;
+                    display->dynamicCNaturalTimer = nt->realSeconds + display->fadeDuration;
                     display->dynamicCNaturalAlpha = 0xFF;
                 }
             }
         }
     }
     if (debugVerbose) n.validate(); // find buggy shifts sooner?
-    this->invalidateAndPlay(inval);
+    nt->invalidateAndPlay(inval);
 }
 
 void NoteTakerWidget::updateSlotVertical(SlotButton::Select select) {
-    SlotPlay& slot = storage.playback[storage.selectStart];
+    SlotPlay& slot = storage.playback[storage.slotStart];
     int slotParam = INT_MAX;
     int repMin = INT_MAX;
     int repMax = 0;
@@ -536,6 +537,7 @@ void NoteTakerWidget::updateSlotVertical(SlotButton::Select select) {
 }
 
 void NoteTakerWidget::updateVertical() {
+    auto nt = this->nt();
     auto& n = this->n();
     if (runButton->ledOn()) {
         return;
@@ -588,7 +590,7 @@ void NoteTakerWidget::updateVertical() {
     }
     if (sustainButton->ledOn()) {
         // use first unlocked channel as guide
-        NoteTakerChannel& channel = nt()->slot->channels[this->unlockedChannel()];
+        NoteTakerChannel& channel = storage.current().channels[this->unlockedChannel()];
         int sustainDuration = INT_MAX;
         switch ((NoteTakerChannel::Limit) wheelValue) {
             case NoteTakerChannel::Limit::sustainMax:
@@ -624,7 +626,7 @@ void NoteTakerWidget::updateVertical() {
                 case KEY_SIGNATURE:
                     if (n.selectStart + 1 == n.selectEnd) {
                         note.setKey(wheelValue);
-                        this->invalidateAndPlay(Inval::cut);
+                        nt->invalidateAndPlay(Inval::cut);
                         return;
                     }
                     break;
@@ -636,7 +638,7 @@ void NoteTakerWidget::updateVertical() {
                             horizontalWheel->setLimits(1, 99.99f);   // numer limit 0 to 99
                             horizontalWheel->setValue(note.numerator());
                         }
-                        this->invalidateAndPlay(Inval::cut);
+                        nt->invalidateAndPlay(Inval::cut);
                         return;
                     }
                     break;
@@ -665,7 +667,7 @@ void NoteTakerWidget::updateVertical() {
             }
         }
         if (playNotes) {
-            this->invalidateAndPlay(Inval::change);
+            nt->invalidateAndPlay(Inval::change);
         }
         return;
     } else if (selectButton->editEnd()) {
@@ -680,7 +682,7 @@ void NoteTakerWidget::updateVertical() {
             n.selectEnd = n.selectStart + 1;
             DEBUG("selStart %u / selEnd %u wheel %d", n.selectStart, n.selectEnd, wheelValue);
         }
-        this->invalidateAndPlay(Inval::display);
+        nt->invalidateAndPlay(Inval::display);
     } else {
         SCHMICKLE(selectButton->editStart());
         for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
@@ -710,10 +712,10 @@ void NoteTakerWidget::updateVertical() {
             n.selectEnd = n.selectStart + 1;
             n.notes.insert(n.notes.begin() + n.selectStart, iNote);
             edit.voice = true;
-            this->invalidateAndPlay(Inval::note);
+            nt->invalidateAndPlay(Inval::note);
         } else {
             n.notes[n.selectStart].setPitch(pitch);
-            this->invalidateAndPlay(Inval::change);
+            nt->invalidateAndPlay(Inval::change);
         }
     }
     if (debugVerbose) n.validate(); // find buggy shifts sooner?

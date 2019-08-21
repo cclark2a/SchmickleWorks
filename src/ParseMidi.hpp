@@ -14,10 +14,12 @@ struct NoteTakerParseMidi {
         , displayNotes(notes)
         , channels(chans)
         , ntPpq(ppq) {
-        if (debugVerbose) NoteTaker::DebugDumpRawMidi(m);
+        if (debugVerbose) DebugDumpRawMidi(m);
     }
 
     bool parseMidi();
+
+    static void DebugDumpRawMidi(const vector<uint8_t>& v);
 
     void debug_out(vector<uint8_t>::const_iterator& iter, int lastSuccess = 0) const {
         std::string s;

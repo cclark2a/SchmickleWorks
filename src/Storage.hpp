@@ -4,6 +4,16 @@
 #include "Channel.hpp"
 #include "Notes.hpp"
 
+// which cache elements are invalidated; whether to play the current selection
+enum class Inval {
+    none,
+    display,    // invalidates display range, plays note
+    cut,        // inval cache, range; does not play
+    change,     // pitch or duration change: inval display cache, range, plays note
+    note,       // insert note, inval voice, cache, range; plays note
+    load,       // inval voice, cache, range; does not play
+};
+
 struct SlotPlay {
     // switch slots on next ...
     enum class Stage {
@@ -58,8 +68,8 @@ struct NoteTakerSlot {
 struct SlotArray {
     array<NoteTakerSlot, SLOT_COUNT> slots;
     vector<SlotPlay> playback;
-    unsigned selectStart = 0; // current selection in playback vector
-    unsigned selectEnd = 1;
+    unsigned slotStart = 0; // current selection in playback vector
+    unsigned slotEnd = 1;
     bool saveZero = false;   // set if single was at left-most position
 
 
@@ -67,11 +77,19 @@ struct SlotArray {
         playback.emplace_back();
     }
 
+    const NoteTakerSlot& current() const {
+        return slots[slotStart];
+    }
+
+    NoteTakerSlot& current() {
+        return slots[slotStart];
+    }
+
     static void FromJson(json_t* root, vector<SlotPlay>* playback);
     void fromJson(json_t* root);
 
     void invalidate() {
-        slots[selectStart].invalid = true;
+        slots[slotStart].invalid = true;
     }
 
     void shiftSlots(unsigned start, unsigned end) {  // do a 'cut'

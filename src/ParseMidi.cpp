@@ -488,7 +488,7 @@ bool NoteTakerParseMidi::parseMidi() {
             channelUsed[index] = true;
         }
     } while (iter != midi.end());
-    NoteTaker::Sort(parsedNotes);
+    Notes::Sort(parsedNotes);
     if (trackEnd.startTime < 0) {
         trackEnd.startTime = midiTime;
     }

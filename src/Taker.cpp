@@ -50,34 +50,39 @@ int NoteTaker::externalTempo() {
     return tempo;
 }
 
-bool NoteTaker::insertContains(unsigned loc, DisplayType type) const {
-    unsigned before = loc;
-    const DisplayNote* note;
-    auto& n = this->n();
-    while (before) {
-        note = &n.notes[--before];
-        if (type == note->type) {
-            return true;
-        }
-        if (!note->isSignature()) {
-            break;
-        }
-    }
-    while (loc < n.notes.size()) {
-        note = &n.notes[loc];
-        if (type == note->type) {
-            return true;
-        }
-        if (!note->isSignature()) {
-            return false;
-        }
-        ++loc;
-    }
-    return false;
-}
-
 bool NoteTaker::isRunning() const {
     return ntw()->runButton->ledOn();
+}
+
+void NoteTaker::invalidateAndPlay(Inval inval) {
+    DEBUG("invalidateAndPlay %s", InvalDebugStr(inval).c_str());
+    if (Inval::none == inval) {
+        return;
+    }
+    auto display = this->ntw()->display;
+    display->invalidateRange();
+    if (Inval::display != inval) {
+        display->invalidateCache();
+        if (Inval::note == inval || Inval::load == inval) {
+            invalidVoiceCount = true;
+            DEBUG("invalidVoiceCount true");
+        }
+    }
+    if (Inval::load == inval) {
+        this->setVoiceCount();
+        this->setOutputsVoiceCount();
+
+    } else if (Inval::cut != inval) {
+        this->playSelection();
+    }
+}
+
+Notes& NoteTaker::n() {
+    return ntw()->storage.current().n;
+}
+
+const Notes& NoteTaker::n() const {
+    return ntw()->storage.current().n;
 }
 
 void NoteTaker::playSelection() {
@@ -90,7 +95,7 @@ void NoteTaker::playSelection() {
     const auto& storage = ntw()->storage;
     bool runningWithSlots = this->isRunning() && ntw()->slotButton->ledOn();
     if (runningWithSlots) {
-        int index = std::max(0, (int) storage.selectStart - ntw()->selectButton->editStart());
+        int index = std::max(0, (int) storage.slotStart - ntw()->selectButton->editStart());
         const auto& slotPlay = storage.playback[index];
         runningStage = slotPlay.stage;
         repeat = slotPlay.repeat;
@@ -133,11 +138,13 @@ void NoteTaker::process(const ProcessArgs &args) {
     }
 #endif
 // to do : defer switch until criteria (e.g., end of bar) is met
-    if (INT_MAX != stagedSlot) {
-        if (debugVerbose) DEBUG("process stagedSlot %u", stagedSlot);
-        ntw()->setSlot(stagedSlot);
-        stagedSlot = INT_MAX;
-        ntw()->invalidateAndPlay(Inval::load);
+    if (INT_MAX != stagedSlotStart) {
+        if (debugVerbose) DEBUG("process stagedSlotStart %u", stagedSlotStart);
+        ntw()->storage.slotStart = stagedSlotStart;
+        ntw()->storage.slotEnd = stagedSlotStart + 1;
+        ntw()->display->stagedSlot = &ntw()->storage.current();
+        stagedSlotStart = INT_MAX;
+        this->invalidateAndPlay(Inval::load);
         this->resetRun();
         ntw()->resetAndPlay();
     }
@@ -169,7 +176,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                 // to do : make bias common const (if it really is one)
                 const float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
                 int midiNote = (int) ((inputs[V_OCT_INPUT].getVoltage() - bias) * 12);
-                unsigned insertLoc = !n.noteCount(ntw()->selectChannels) ? this->atMidiTime(0) :
+                unsigned insertLoc = !n.noteCount(ntw()->selectChannels) ? n.atMidiTime(0) :
                         !n.selectStart ? mainWidget->wheelToNote(1) : n.selectEnd;
                 int startTime = n.notes[insertLoc].startTime;
                 DisplayNote note(NOTE_ON, startTime, duration, (uint8_t) mainWidget->unlockedChannel());
@@ -188,65 +195,65 @@ void NoteTaker::process(const ProcessArgs &args) {
     } else {
         clockCycle = 0;
     }
-    if (!playStart) {
-        return;
-    }
-    // read data from display notes to determine pitch
-    // note on event start changes cv and sets gate high
-    // note on event duration sets gate low
-    int midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
-    elapsedSeconds += args.sampleTime * this->beatsPerHalfSecond(localTempo);
-    if (midiTime >= midiClockOut) {
-        midiClockOut += n.ppq;
-        clockPulse.trigger();
-    }
+    bool playNotes = (bool) playStart;
+    int midiTime = 0;
     auto& storage = ntw()->storage;
-    if (eosBase < midiTime) {   // move slot ending condition so it is always equal to or ahead
-        eosBase = midiTime;
-        if (eosInterval) {
-            eosBase += eosInterval - midiTime % eosInterval;
+    if (playNotes) {
+        // read data from display notes to determine pitch
+        // note on event start changes cv and sets gate high
+        // note on event duration sets gate low
+        midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
+        elapsedSeconds += args.sampleTime * this->beatsPerHalfSecond(localTempo);
+        if (midiTime >= midiClockOut) {
+            midiClockOut += n.ppq;
+            clockPulse.trigger();
         }
-    }
-    this->setOutputsVoiceCount();
-    this->setExpiredGatesLow(midiTime);
-    bool slotOn = ntw()->slotButton->ledOn();
-    // if eos input is high, end song on slot ending condition
-    if (eosTrigger.process(inputs[EOS_INPUT].getVoltage()) && INT_MAX != eosBase) {
-        repeat = 1;
-        midiEndTime = eosBase;
-        // to do : turn on slot button if off
-    }
-    if (!this->advancePlayStart(midiTime, midiEndTime)) {
-        playStart = 0;
-        if (running && slotOn) {
-            eosBase = INT_MAX;  // ignore additional triggers until next slot is staged
-            if (repeat-- <= 1) {
-                auto& selectStart = storage.selectStart;
-                if (selectStart + 1 >= storage.playback.size()) {
-                    repeat = 1;
-                    running = false;
-                    selectStart = 0;
-                    storage.selectEnd = 1;
-                    // to do : turn run button off
-                } else {
-                    const SlotPlay& slotPlay = storage.playback[++selectStart];
-                    storage.selectEnd = selectStart + 1;
-                    repeat = slotPlay.repeat;
-                    this->stageSlot(slotPlay.index);
-//                    return;
-                }
+        if (eosBase < midiTime) {   // move slot ending condition so it is always equal to or ahead
+            eosBase = midiTime;
+            if (eosInterval) {
+                eosBase += eosInterval - midiTime % eosInterval;
             }
         }
-        if (running) {
-            ntw()->display->range.resetXAxisOffset();
-            this->resetRun();
-            eosPulse.trigger();
-            this->advancePlayStart(0, INT_MAX);
+        this->setOutputsVoiceCount();
+        this->setExpiredGatesLow(midiTime);
+        bool slotOn = ntw()->slotButton->ledOn();
+        // if eos input is high, end song on slot ending condition
+        if (eosTrigger.process(inputs[EOS_INPUT].getVoltage()) && INT_MAX != eosBase) {
+            repeat = 1;
+            midiEndTime = eosBase;
+            // to do : turn on slot button if off
         }
-        if (!running) {
-            this->setExpiredGatesLow(INT_MAX);
+        if (!this->advancePlayStart(midiTime, midiEndTime)) {
+            playStart = 0;
+            if (running && slotOn) {
+                eosBase = INT_MAX;  // ignore additional triggers until next slot is staged
+                if (repeat-- <= 1) {
+                    auto& selectStart = storage.slotStart;
+                    if (selectStart + 1 >= storage.playback.size()) {
+                        repeat = 1;
+                        running = false;
+                        selectStart = 0;
+                        storage.slotEnd = 1;
+                        // to do : turn run button off
+                    } else {
+                        const SlotPlay& slotPlay = storage.playback[++selectStart];
+                        storage.slotEnd = selectStart + 1;
+                        repeat = slotPlay.repeat;
+                        this->stageSlot(slotPlay.index);
+                    }
+                }
+            }
+            if (running) {
+                ntw()->display->range.resetXAxisOffset();
+                this->resetRun();
+                eosPulse.trigger();
+                this->advancePlayStart(0, INT_MAX);
+            }
+            if (!running) {
+                this->setExpiredGatesLow(INT_MAX);
+            }
+            playNotes = false;
         }
-        return;
     }
     // if connected, set up all super eight outputs to last state before overwriting with new state
     if (rightExpander.module && rightExpander.module->model == modelSuper8) {
@@ -256,6 +263,15 @@ void NoteTaker::process(const ProcessArgs &args) {
             const auto& vIn = channels[chan].voices;
             for (unsigned voice = 0; voice < VOICE_COUNT; ++voice) {
                 if (chan >= CV_OUTPUTS) {
+                    if (debugVerbose && 4 == chan && 0 == voice && !playNotes) {
+                        static float last = -1;
+                        static const float* lastAddr = nullptr;
+                        if (last != vIn[voice].gate || lastAddr != &vIn[voice].gate) {
+                            DEBUG("vIn[voice].gate %g %p", vIn[voice].gate, &vIn[voice].gate);
+                            last = vIn[voice].gate;
+                            lastAddr = &vIn[voice].gate;
+                        }
+                    }
                     message->gate[chan - CV_OUTPUTS][voice] = vIn[voice].gate;
                     message->cv[chan - CV_OUTPUTS][voice] = vIn[voice].cv;
                 }
@@ -263,88 +279,98 @@ void NoteTaker::process(const ProcessArgs &args) {
             }
         }
     }
-    unsigned start = playStart - 1;
-    unsigned sStart = INT_MAX;
-    do {
-        const auto& note = n.notes[++start];
-        if (note.startTime > midiTime) {
-            break;
-        }
-        if (NOTE_ON != note.type) {
-            continue;
-        }
-        int endTime = note.endTime();
-        if (endTime <= midiTime) {
-            continue;
-        }
-        auto& channelInfo = channels[note.channel];
-        SCHMICKLE((uint8_t) -1 != note.voice);
-        unsigned voiceIndex = note.voice;
-        auto& voice = channelInfo.voices[voiceIndex];
-        if (&note == voice.note) {
-            if (midiTime < voice.noteEnd) {
+    if (playNotes) {
+        unsigned start = playStart - 1;
+        unsigned sStart = INT_MAX;
+        do {
+            const auto& note = n.notes[++start];
+            if (note.startTime > midiTime) {
+                break;
+            }
+            if (NOTE_ON != note.type) {
                 continue;
             }
-        } else {
-            voice.note = &note;
-            voice.realStart = realSeconds;
-            voice.gateLow = note.slur() ? INT_MAX : 
-                    note.startTime + slot->channels[note.channel].sustain(note.duration);
-            voice.noteEnd = endTime;
-            if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
-                    && rightExpander.module && rightExpander.module->model == modelSuper8) {
-                Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-                channels[note.channel].voices[voiceIndex].gate = DEFAULT_GATE_HIGH_VOLTAGE;
-                message->gate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
+            int endTime = note.endTime();
+            if (endTime <= midiTime) {
+                continue;
             }
-            if (note.channel < CV_OUTPUTS) {
-                if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
-                        note.channel, voice.gateLow, voice.noteEnd, voice.note - &n.notes.front(),
-                        midiTime, outputs[GATE1_OUTPUT + note.channel].getVoltage(voiceIndex));
-                outputs[GATE1_OUTPUT + note.channel].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE, voiceIndex);
-            }
-        }
-        if (running) {
-            sStart = std::min(sStart, start);
-        }
-        // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
-        if (note.channel < EXPANSION_OUTPUTS) {
-            float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-            auto verticalWheel = ntw()->verticalWheel;
-            if (mainWidget->runningWithButtonsOff()) {
-                bias += inputs[V_OCT_INPUT].getVoltage();
-                bias += ((int) verticalWheel->getValue() - 60) / 12.f;
-            }
-            if (rightExpander.module && rightExpander.module->model == modelSuper8) {
-                Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-                if (note.channel >= CV_OUTPUTS) {
-                    float newCV = bias + note.pitch() / 12.f;
-                    channels[note.channel].voices[voiceIndex].cv = newCV;
-                    message->cv[note.channel - CV_OUTPUTS][voiceIndex] = newCV;
+            auto& channelInfo = channels[note.channel];
+            SCHMICKLE((uint8_t) -1 != note.voice);
+            unsigned voiceIndex = note.voice;
+            auto& voice = channelInfo.voices[voiceIndex];
+            if (&note == voice.note) {
+                if (midiTime < voice.noteEnd) {
+                    continue;
                 }
-                float velocity = note.onVelocity();
-                channels[note.channel].voices[voiceIndex].velocity = velocity;
-                message->velocity[note.channel][voiceIndex] = velocity;
+            } else {
+                voice.note = &note;
+                voice.realStart = realSeconds;
+                voice.gateLow = note.slur() ? INT_MAX : 
+                        note.startTime + storage.current().channels[note.channel].sustain(note.duration);
+                voice.noteEnd = endTime;
+                if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
+                        && rightExpander.module && rightExpander.module->model == modelSuper8) {
+                    Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+                    channels[note.channel].voices[voiceIndex].gate = DEFAULT_GATE_HIGH_VOLTAGE;
+                    message->gate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
+                }
+                if (note.channel < CV_OUTPUTS) {
+                    if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
+                            note.channel, voice.gateLow, voice.noteEnd, voice.note - &n.notes.front(),
+                            midiTime, outputs[GATE1_OUTPUT + note.channel].getVoltage(voiceIndex));
+                    outputs[GATE1_OUTPUT + note.channel].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE, voiceIndex);
+                }
             }
-            if (note.channel < CV_OUTPUTS) {
-                if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
-                    note.channel, bias,
-                    inputs[V_OCT_INPUT].getVoltage(), verticalWheel->getValue(),
-                    note.pitch() / 12.f, bias + note.pitch() / 12.f,
-                    outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
-                outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
+            if (running) {
+                sStart = std::min(sStart, start);
             }
-        }
-    } while (true);
-    if (running) {
-        // to do : don't write to same state in different threads
-        // not sure how to enforce this, but the gist is that here is only written to
-        // while running; everywhere else is only written to while not running
-        if (INT_MAX != sStart && n.selectStart != sStart) {
-            (void) this->setSelectStart(sStart);
+            // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
+            if (note.channel < EXPANSION_OUTPUTS) {
+                float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
+                auto verticalWheel = ntw()->verticalWheel;
+                if (mainWidget->runningWithButtonsOff()) {
+                    bias += inputs[V_OCT_INPUT].getVoltage();
+                    bias += ((int) verticalWheel->getValue() - 60) / 12.f;
+                }
+                if (rightExpander.module && rightExpander.module->model == modelSuper8) {
+                    Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+                    if (note.channel >= CV_OUTPUTS) {
+                        float newCV = bias + note.pitch() / 12.f;
+                        channels[note.channel].voices[voiceIndex].cv = newCV;
+                        message->cv[note.channel - CV_OUTPUTS][voiceIndex] = newCV;
+                    }
+                    float velocity = note.onVelocity();
+                    channels[note.channel].voices[voiceIndex].velocity = velocity;
+                    message->velocity[note.channel][voiceIndex] = velocity;
+                }
+                if (note.channel < CV_OUTPUTS) {
+                    if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
+                        note.channel, bias,
+                        inputs[V_OCT_INPUT].getVoltage(), verticalWheel->getValue(),
+                        note.pitch() / 12.f, bias + note.pitch() / 12.f,
+                        outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
+                    outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
+                }
+            }
+        } while (true);
+        if (running) {
+            // to do : don't write to same state in different threads
+            // not sure how to enforce this, but the gist is that here is only written to
+            // while running; everywhere else is only written to while not running
+            // to do : add 'stage select start' to display so that other thread sets display start later
+            if (INT_MAX != sStart && n.selectStart != sStart) {
+                (void) ntw()->setSelectStart(sStart);
+            }
         }
     }
     if (rightExpander.module && rightExpander.module->model == modelSuper8) {
+        if (debugVerbose && !playNotes) {
+            Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+            if (message->gate[0][0]) {
+                DEBUG("expected zero gate");
+                _schmickled();
+            }
+        }
         rightExpander.module->leftExpander.messageFlipRequested = true;
     }
 }
@@ -356,20 +382,21 @@ void NoteTaker::onReset() {
 
 void NoteTaker::resetState() {
     if (debugVerbose) DEBUG("notetaker reset");
+    auto ntw = this->ntw();
     auto& n = this->n();
     n.notes.clear();
-    for (auto& channel : slot->channels) {
+    for (auto& channel : ntw->storage.current().channels) {
         channel.reset();
     }
     for (auto& c : channels) {
         c.voiceCount = 0;
     }
     this->resetRun();
-    this->setScoreEmpty();
+    ntw->setScoreEmpty();
     n.selectStart = 0;
     n.selectEnd = 1;
-    mainWidget->resetState();
-    mainWidget->resetControls();
+    ntw->resetState();
+    ntw->resetControls();
 }
 
 void NoteTaker::resetRun() {
@@ -406,87 +433,6 @@ void NoteTaker::setPlayStart() {
     if (debugVerbose) DEBUG("setPlayStart lastNote %u", lastNote);
     midiEndTime = n.notes[lastNote].endTime();
     if (debugVerbose) DEBUG("setPlayStart midiEndTime %d", midiEndTime);
-}
-
-void NoteTaker::setScoreEmpty() {
-    vector<uint8_t> emptyMidi;
-    NoteTakerMakeMidi makeMidi;
-    makeMidi.createEmpty(emptyMidi);
-    if (debugVerbose) DebugDumpRawMidi(emptyMidi);
-    NoteTakerParseMidi emptyParser(emptyMidi, &slot->n.notes, nullptr, slot->channels);
-    bool success = emptyParser.parseMidi();
-    SCHMICKLE(success);
-    ntw()->invalidateAndPlay(Inval::cut);
-}
-
- //   to do
-    // think about whether : the whole selection fits on the screen
-    // the last note fits on the screen if increasing the end
-    // the first note fits on the screen if decreasing start
-        // scroll small selections to center?
-        // move larger selections the smallest amount?
-        // prefer to show start? end?
-        // while playing, scroll a 'page' at a time?
-void NoteTaker::setSelect(unsigned start, unsigned end) {
-    auto displayBuffer = ntw()->displayBuffer;
-    auto display = ntw()->display;
-    auto& n = this->n();
-    if (n.isEmpty(ntw()->selectChannels)) {
-        n.selectStart = 0;
-        n.selectEnd = 1;
-        display->range.setRange(n);
-        displayBuffer->redraw();
-        if (debugVerbose) DEBUG("setSelect set empty");
-        return;
-    }
-    SCHMICKLE(start < end);
-    SCHMICKLE(n.notes.size() >= 2);
-    SCHMICKLE(end <= n.notes.size() - 1);
-    display->range.setRange(n);
-    if (!this->isRunning()) {
-        mainWidget->enableInsertSignature(end);  // disable buttons that already have signatures in score
-    }
-    if (debugVerbose) DEBUG("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
-    n.selectStart = start;
-    n.selectEnd = end;
-    displayBuffer->redraw();
-    if (debugVerbose) DEBUG("setSelect set");
-}
-
-bool NoteTaker::setSelectEnd(int wheelValue, unsigned end) {
-    auto selectButton = ntw()->selectButton;
-    const auto& n = this->n();
-    DEBUG("setSelectEnd wheelValue=%d end=%u button->selStart=%u selectStart=%u selectEnd=%u", 
-            wheelValue, end, selectButton->selStart, n.selectStart, n.selectEnd);
-    bool changed = true;
-    if (end < selectButton->selStart) {
-        this->setSelect(end, selectButton->selStart);
-        DEBUG("setSelectEnd < s:%u e:%u", n.selectStart, n.selectEnd);
-    } else if (end == selectButton->selStart) {
-        unsigned start = selectButton->selStart;
-        SCHMICKLE(TRACK_END != n.notes[start].type);
-        unsigned end = mainWidget->wheelToNote(wheelValue + 1);
-        this->setSelect(start, end);
-        DEBUG("setSelectEnd == s:%u e:%u", n.selectStart, n.selectEnd);
-    } else if (end != n.selectEnd) {
-        this->setSelect(selectButton->selStart, end);
-        DEBUG("setSelectEnd > s:%u e:%u", n.selectStart, n.selectEnd);
-    } else {
-        changed = false;
-    }
-    SCHMICKLE(n.selectEnd != n.selectStart);
-    return changed;
-}
-
-bool NoteTaker::setSelectStart(unsigned start) {
-    const auto& n = this->n();
-    unsigned end = start;
-    do {
-        ++end;
-    } while (n.notes[start].startTime == n.notes[end].startTime && n.notes[start].isNoteOrRest()
-            && n.notes[end].isNoteOrRest());
-    this->setSelect(start, end);
-    return true;
 }
 
 // to do : output debug data to show what set voice count did
@@ -559,16 +505,13 @@ void NoteTaker::setVoiceCount() {
 }
 
 void NoteTaker::stageSlot(unsigned slotIndex) {
-    unsigned last = INT_MAX;
-    if (slot) {
-        last = slot - &this->ntw()->storage.slots.front();
-        SCHMICKLE(last < SLOT_COUNT);
-        if (slotIndex == last) {
-            return;
-        }
+    unsigned last = this->ntw()->getSlot();
+    SCHMICKLE(last < SLOT_COUNT);
+    if (slotIndex == last) {
+        return;
     }
     if (debugVerbose) DEBUG("stageSlot %u old %u", slotIndex, last);
-    stagedSlot = slotIndex;
+    stagedSlotStart = slotIndex;
 }
 
 float NoteTaker::wheelToTempo(float value) const {

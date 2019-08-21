@@ -1,6 +1,7 @@
 #include "Button.hpp"
 #include "Cache.hpp"
 #include "Display.hpp"
+#include "ParseMidi.hpp"
 #include "Taker.hpp"
 #include "Wheel.hpp"
 #include "Widget.hpp"
@@ -145,19 +146,17 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             n.selectStart, n.selectEnd, display->range.displayStart, display->range.displayEnd,
             selectChannels, 
             this->unlockedChannel(), nt() ? nt()->tempo : 0, n.ppq, edit.voice);
-    auto slot = nt() ? nt()->slot : nullptr;
-    if (slot) {
-        NoteTaker::DebugDump(n.notes, slot->invalid ? nullptr : &slot->cache.notes,
-                n.selectStart, n.selectEnd);
-        DEBUG("clipboard");
-        NoteTaker::DebugDump(clipboard.notes);
-        for (const auto& chan : slot->channels) {
-            NoteTakerChannel _default;
-            if (chan.isDefault()) {
-                continue;
-            }
-            DEBUG("[%d] %s", &chan - &slot->channels.front(), chan.debugString().c_str());
+    auto slot = storage.current();
+    NoteTaker::DebugDump(n.notes, slot.invalid ? nullptr : &slot.cache.notes,
+            n.selectStart, n.selectEnd);
+    DEBUG("clipboard");
+    NoteTaker::DebugDump(clipboard.notes);
+    for (const auto& chan : slot.channels) {
+        NoteTakerChannel _default;
+        if (chan.isDefault()) {
+            continue;
         }
+        DEBUG("[%d] %s", &chan - &slot.channels.front(), chan.debugString().c_str());
     }
     if (!inWheel && selectButton->ledOn() && !this->menuButtonOn() && !runButton->ledOn()) {
         std::string w2n;
@@ -211,7 +210,7 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
     }
 }
 
-void NoteTaker::DebugDumpRawMidi(const vector<uint8_t>& v) {
+void NoteTakerParseMidi::DebugDumpRawMidi(const vector<uint8_t>& v) {
     std::string s;
     unsigned line = v.size();
     for (unsigned i = 0; i < v.size(); ++i) {

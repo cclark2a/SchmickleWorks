@@ -138,7 +138,7 @@ struct NoteTakerDisplay : Widget {
     NoteTakerWidget* mainWidget = nullptr;
     NoteTakerSlot* slot = nullptr;
     NoteTakerSlot* stagedSlot = nullptr;
-    Notes* previewNotes = nullptr; // hardcoded set of notes for preview
+//    Notes* previewNotes = nullptr; // hardcoded set of notes for preview
     array<Accidental, 75> accidentals;  // marks when accidental was used in bar
     DisplayRange range;
     DisplayState state;

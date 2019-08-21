@@ -3,16 +3,6 @@
 #include "Notes.hpp"
 #include "Storage.hpp"
 
-// which cache elements are invalidated; whether to play the current selection
-enum class Inval {
-    none,
-    display,    // invalidates display range, plays note
-    cut,        // inval cache, range; does not play
-    change,     // pitch or duration change: inval display cache, range, plays note
-    note,       // insert note, inval voice, cache, range; plays note
-    load,       // inval voice, cache, range; does not play
-};
-
 // the wheel that was last used
 enum class Wheel {
     none,
@@ -61,8 +51,8 @@ struct NoteTakerEdit {
     }
 
     void init(const SlotArray& storage) {
-        originalStart = storage.selectStart;
-        originalEnd = storage.selectEnd;
+        originalStart = storage.slotStart;
+        originalEnd = storage.slotEnd;
         pbase.assign(storage.playback.begin() + originalStart,
                 storage.playback.begin() + originalEnd);
     }

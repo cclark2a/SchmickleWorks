@@ -629,6 +629,10 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         range.invalid = true;
     }
     if (range.invalid) {
+        if (debugVerbose && n.notes.front().cache != &cache->notes.front()) {
+            DEBUG("n.notes.front().cache %p", n.notes.front().cache);
+            DEBUG("&cache->notes.front() %p", &cache->notes.front());
+        }
         SCHMICKLE(n.notes.front().cache == &cache->notes.front());
         SCHMICKLE(cache->notes.front().note == &n.notes.front());
         range.updateRange(n, cache, ntw->selectButton->editStart());
@@ -1241,7 +1245,7 @@ void NoteTakerDisplay::drawPartControl() {
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     nvgFontSize(vg, 13);
     if (part >= 0) {
-        auto& channel = ntw->nt()->slot->channels[part];
+        auto& channel = ntw->storage.current().channels[part];
         nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x7f));
         std::string s(channel.sequenceName);
         if (!channel.instrumentName.empty() && !s.empty()) {
@@ -1348,7 +1352,7 @@ void NoteTakerDisplay::drawSlotControl() {
     }
     DisplayControl control(this, state.vg);
     float fSlot = selectButton->ledOn() ? ntw->horizontalWheel->getValue() :
-            (float) ntw->storage.selectStart;
+            (float) ntw->storage.slotStart;
     control.autoDrift(fSlot, state.callInterval, 3 + (int) selectButton->isSingle());
     unsigned firstVisible = xControlOffset >= 1 ? (unsigned) xControlOffset - 1 : 0;
     unsigned lastVisible = std::min((unsigned) ntw->storage.playback.size() - 1,
@@ -1361,9 +1365,9 @@ void NoteTakerDisplay::drawSlotControl() {
     }
     control.drawEnd();
     if (ntw->selectButton->isSingle()) {
-        control.drawActiveNarrow(ntw->storage.selectStart);
+        control.drawActiveNarrow(ntw->storage.slotStart);
     } else {
-        control.drawActive(ntw->storage.selectStart, ntw->storage.selectEnd);
+        control.drawActive(ntw->storage.slotStart, ntw->storage.slotEnd);
     }
 }
 
@@ -1406,8 +1410,7 @@ void NoteTakerDisplay::drawSustainControl() const {
     this->drawVerticalControl();
     // draw horizontal control
     nvgBeginPath(vg);
-    auto nt = ntw->nt();
-    const NoteTakerChannel& channel = nt->slot->channels[ntw->unlockedChannel()];
+    const NoteTakerChannel& channel = ntw->storage.current().channels[ntw->unlockedChannel()];
     int susMin = std::max(6, channel.sustainMin);
     int susMax = channel.sustainMin == channel.sustainMax ? 0
             : std::max(6, channel.sustainMax - channel.sustainMin);
@@ -1465,19 +1468,19 @@ void NoteTakerDisplay::drawSustainControl() const {
     nvgFontSize(vg, 24);
     nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::sustainMin == select ? 0xFF : 0x7f));
     nvgText(vg, 42, box.size.y - 18, downFlagNoteSymbols[
-            NoteDurations::FromMidi(channel.sustainMin, nt->slot->n.ppq)], nullptr);
+            NoteDurations::FromMidi(channel.sustainMin, ntw->storage.current().n.ppq)], nullptr);
     if (susMax) {
         nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::sustainMax == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin, box.size.y - 18, downFlagNoteSymbols[
-                NoteDurations::FromMidi(channel.sustainMax, nt->slot->n.ppq)], nullptr);
+                NoteDurations::FromMidi(channel.sustainMax, ntw->storage.current().n.ppq)], nullptr);
     }
     nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::releaseMin == select ? 0xFF : 0x7f));
     nvgText(vg, 42 + susMin + susMax, box.size.y - 18, downFlagNoteSymbols[
-            NoteDurations::FromMidi(channel.releaseMin, nt->slot->n.ppq)], nullptr);
+            NoteDurations::FromMidi(channel.releaseMin, ntw->storage.current().n.ppq)], nullptr);
     if (relMax) {
         nvgFillColor(vg, nvgRGBA(0, 0, 0, NoteTakerChannel::Limit::releaseMax == select ? 0xFF : 0x7f));
         nvgText(vg, 42 + susMin + susMax + relMin, box.size.y - 18, downFlagNoteSymbols[
-                NoteDurations::FromMidi(channel.releaseMax, nt->slot->n.ppq)], nullptr);
+                NoteDurations::FromMidi(channel.releaseMax, ntw->storage.current().n.ppq)], nullptr);
     }
 }
 
@@ -1619,10 +1622,8 @@ void NoteTakerDisplay::invalidateCache() {
 }
 
 const Notes* NoteTakerDisplay::notes() {
-    auto nt = ntw()->nt();
-    if (nt) {
-        return &nt->slot->n;
-    }
+    return &ntw()->storage.current().n;
+#if 0
     if (!previewNotes) {
         previewNotes = new Notes();
         previewNotes->notes.clear();
@@ -1653,6 +1654,7 @@ const Notes* NoteTakerDisplay::notes() {
     }
     // use a hardcoded set of notes for preview
     return previewNotes;
+#endif
 }
 
 void NoteTakerDisplay::recenterVerticalWheel() {

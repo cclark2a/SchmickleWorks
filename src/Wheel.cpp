@@ -271,7 +271,8 @@ static std::string leading_zero(int val, int digits) {
 
 static std::string midi_to_time_string(int duration, int ppq) {
     float time = MidiToSeconds(duration, ppq);
-    int seconds = (int) time;
+    time += 0.0005f;  // round
+    int seconds = (int) (time);
     int minutes = seconds / 60;
     seconds = seconds % 60;
     int fraction = (int) (fmodf(time, 1) * 1000);
@@ -347,10 +348,10 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
             }
         } 
         bool extend = ntw->selectButton->isExtend();
-        result = std::to_string(ntw->storage.selectStart + (int) extend);
+        result = std::to_string(ntw->storage.slotStart + (int) extend);
         if (extend) {
-            result += " - " + std::to_string(ntw->storage.selectEnd);
-        } else if (!ntw->storage.selectStart) {
+            result += " - " + std::to_string(ntw->storage.slotEnd);
+        } else if (!ntw->storage.slotStart) {
             result = "before slot 1";
         }
         return result;
@@ -375,8 +376,8 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                 DEBUG("unexpected sustain limit %d", vertical);
                 _schmickled();
         }
-        int duration = ntw->nt()->slot->channels[ntw->unlockedChannel()].getLimit(limit);
-        return prefix + Notes::FullName(duration);
+        int duration = ntw->storage.current().channels[ntw->unlockedChannel()].getLimit(limit);
+        return prefix + Notes::FullName(duration, n.ppq);
     }
     if (ntw->tieButton->ledOn()) {
         auto roundedValue = (TieButton::State) (this->getValue() + .5);
@@ -404,7 +405,7 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
             switch (note->type) {
                 case NOTE_ON:
                 case REST_TYPE:
-                    return Notes::Name(note);;
+                    return Notes::Name(note, n.ppq);
                 case KEY_SIGNATURE:
                     return Notes::KeyName(note->key(), value);
                 case TIME_SIGNATURE:
@@ -424,7 +425,7 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                 }
             }
         }
-        return Notes::Name(note);
+        return Notes::Name(note, n.ppq);
     }
     // to do : show bar # ?
     int endTime;

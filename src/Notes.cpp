@@ -43,7 +43,7 @@ struct DurationName {
     const char* body;
 };
 
-const DurationName durationNames[] = {
+const std::array<DurationName, 20> durationNames = {{
     {"one ", "128th"},
     {"one ", "64th"},
     {"",  "three 128ths"},
@@ -64,7 +64,7 @@ const DurationName durationNames[] = {
     {"",  "four whole"},
     {"",  "six whole"},
     {"",  "eight whole"}
-};
+}};
 
 std::string Notes::FlatName(unsigned midiPitch) {
     SCHMICKLE(midiPitch < 128);
@@ -73,9 +73,9 @@ std::string Notes::FlatName(unsigned midiPitch) {
     return std::string(flatNames[note] + std::to_string(octave - 1));
 }
 
-std::string Notes::FullName(int duration) {
-    unsigned index = NoteDurations::FromStd(duration);
-    SCHMICKLE(index < sizeof(durationNames) / sizeof(durationNames[0]));
+std::string Notes::FullName(int duration, int ppq) {
+    unsigned index = NoteDurations::FromMidi(duration, ppq);
+    SCHMICKLE(index < durationNames.size());
     return std::string(durationNames[index].prefix) + durationNames[index].body;
 }
 
@@ -86,9 +86,11 @@ std::string Notes::KeyName(int key, int minor) {
     return std::string(keyNames[(key + 7) * 2 + minor]);
 }
 
-std::string Notes::Name(const DisplayNote* note) {
-    unsigned index = NoteDurations::FromStd(note->duration);
-    SCHMICKLE(index < sizeof(durationNames) / sizeof(durationNames[0]));
+std::string Notes::Name(const DisplayNote* note, int ppq) {
+    unsigned index = NoteDurations::FromMidi(note->duration, ppq);
+    SCHMICKLE(index < durationNames.size());
+    if (false && debugVerbose) DEBUG("%s %s index %u name %s", __func__, note->debugString().c_str(), index,
+            durationNames[index].body);
     return durationNames[index].body;
 }
 

@@ -84,7 +84,6 @@ struct NoteTaker : Module {
     const unsigned UNASSIGNED_VOICE_INDEX = (unsigned) -1;
 
     NoteTakerWidget* mainWidget = nullptr;
-    NoteTakerSlot* slot = nullptr;
     // state saved into json
     // written by step:
     array<Voices, CHANNEL_COUNT> channels;
@@ -112,7 +111,7 @@ struct NoteTaker : Module {
     float resetHighTime = FLT_MAX;
     int midiClockOut = INT_MAX;
     SlotPlay::Stage runningStage;
-    unsigned stagedSlot = INT_MAX;
+    unsigned stagedSlotStart = INT_MAX;
     bool invalidVoiceCount = false;
 
     NoteTaker();
@@ -170,17 +169,6 @@ struct NoteTaker : Module {
         } while (true);
     }
 
-    unsigned atMidiTime(int midiTime) const {
-        for (unsigned index = 0; index < n().notes.size(); ++index) {
-            const DisplayNote& note = n().notes[index];
-            if (midiTime < note.startTime || TRACK_END == note.type
-                    || (note.isNoteOrRest() && midiTime == note.startTime)) {
-                return index;
-            }
-        }
-        return _schmickled();  // should have hit track end
-    }
-
     float beatsPerHalfSecond(int tempo) const;
     void dataFromJson(json_t* rootJ) override;
     json_t* dataToJson() override;
@@ -200,59 +188,13 @@ struct NoteTaker : Module {
 
     static void DebugDump(const vector<DisplayNote>& , const vector<NoteCache>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
-    static void DebugDumpRawMidi(const vector<uint8_t>& v);
 
     int externalTempo();
-    bool extractClipboard(vector<DisplayNote>* ) const;
-    bool insertContains(unsigned loc, DisplayType type) const;
+    void invalidateAndPlay(Inval inval);
     bool isRunning() const;
 
-    static int LastEndTime(const vector<DisplayNote>& notes) {
-        int result = 0;
-        for (auto& note : notes) {
-            result = std::max(result, note.endTime());
-        }
-        return result;
-    }
-
-    static void MapChannel(vector<DisplayNote>& notes, unsigned channel) {
-         for (auto& note : notes) {
-             if (note.isNoteOrRest()) {
-                note.channel = channel;
-             }
-        }    
-    }
-
-
-    Notes& n() {
-        return slot->n;
-    }
-    
-    const Notes& n() const {
-        return slot->n;
-    }
-
-    unsigned nextAfter(unsigned first, unsigned len) const {
-        SCHMICKLE(len);
-        unsigned start = first + len;
-        const auto& priorNote = n().notes[start - 1];
-        if (!priorNote.duration) {
-            return start;
-        }
-        int priorTime = priorNote.startTime;
-        int startTime = n().notes[start].startTime;
-        if (priorTime < startTime) {
-            return start;
-        }
-        for (unsigned index = start; index < n().notes.size(); ++index) {
-            const DisplayNote& note = n().notes[index];
-            if (note.isSignature() || note.startTime > startTime) {
-                return index;
-            }
-        }
-        _schmickled();
-        return INT_MAX;
-    }
+    Notes& n();
+    const Notes& n() const;
 
     NoteTakerWidget* ntw() {
         return mainWidget;
@@ -267,7 +209,6 @@ struct NoteTaker : Module {
     int outputCount() const {
         return rightExpander.module && modelSuper8 == rightExpander.module->model ?
                 EXPANSION_OUTPUTS : CV_OUTPUTS;
-
     }
 
     void playSelection();
@@ -324,53 +265,7 @@ struct NoteTaker : Module {
 
     void setOutputsVoiceCount();
     void setPlayStart();
-    void setScoreEmpty();
-    void setSelect(unsigned start, unsigned end);
-    bool setSelectEnd(int wheelValue, unsigned end);
-    bool setSelectStart(unsigned start);
     void setVoiceCount();
-
-    // shift track end only if another shifted note bumps it out
-    // If all notes are selected, shift signatures. Otherwise, leave them be.
-    static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff,
-            unsigned selectChannels = ALL_CHANNELS) {
-        bool sort = false;
-        int trackEndTime = 0;
-        bool hasTrackEnd = TRACK_END == notes.back().type;
-        if (hasTrackEnd) {
-            for (unsigned index = 0; index < start; ++index) {
-                trackEndTime = std::max(trackEndTime, notes[index].endTime());
-            }
-        }
-        for (unsigned index = start; index < notes.size(); ++index) {
-            DisplayNote& note = notes[index];
-            if ((note.isSignature() && ALL_CHANNELS == selectChannels)
-                    || note.isSelectable(selectChannels)) {
-                note.startTime += diff;
-            } else {
-                sort = true;
-            }
-            if (hasTrackEnd && TRACK_END != note.type) {
-                trackEndTime = std::max(trackEndTime, note.endTime());
-            }
-        }
-        if (hasTrackEnd) {
-            notes.back().startTime = trackEndTime;
-        }
-        if (sort) {
-            Sort(notes);
-        }
-   }
-
-    // don't use std::sort function; use insertion sort to minimize reordering
-    static void Sort(vector<DisplayNote>& notes, bool debugging = false) {
-        if (debugging) DEBUG("sort notes");
-        for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
-            auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
-            std::rotate(insertion_point, it, it + 1);
-        }
-    }
-
     void stageSlot(unsigned slot);
     float wheelToTempo(float value) const;
 
@@ -393,6 +288,9 @@ struct NoteTaker : Module {
         if (rightExpander.module && modelSuper8 == rightExpander.module->model) {
             for (unsigned index = CV_OUTPUTS; index < EXPANSION_OUTPUTS; ++index) {
                 for (unsigned inner = 0; inner < channels[index].voiceCount; ++inner) {
+                    if (debugVerbose && 4 == index && 0 == inner) {
+                        DEBUG("zero gate [4][0] %p", &channels[index].voices[inner].gate);
+                    }
                     channels[index].voices[inner].gate = 0;
                 }
             }
