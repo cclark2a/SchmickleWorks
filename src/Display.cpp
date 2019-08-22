@@ -628,6 +628,20 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         slot->invalid = false;
         range.invalid = true;
     }
+    SCHMICKLE(&slot->cache == cache);
+    if (debugVerbose) {
+        static const DisplayNote* lastNotes = nullptr;
+        static const NoteCache* lastCache = nullptr;
+        if (lastCache != n.notes.front().cache || lastNotes != cache->notes.front().note) {
+            DEBUG("slot %p notes %p cache %p ", slot, &n.notes.front(), slot->cache.notes.front());
+            DEBUG("%s n.notes.front().cache %p", __func__, n.notes.front().cache);
+            DEBUG("&cache->notes.front() %p", &cache->notes.front());
+            lastNotes = cache->notes.front().note;
+            lastCache = n.notes.front().cache;
+        } 
+    }
+    SCHMICKLE(n.notes.front().cache == &cache->notes.front());
+    SCHMICKLE(cache->notes.front().note == &n.notes.front());
     if (range.invalid) {
         if (debugVerbose && n.notes.front().cache != &cache->notes.front()) {
             DEBUG("n.notes.front().cache %p", n.notes.front().cache);
@@ -1365,7 +1379,7 @@ void NoteTakerDisplay::drawSlotControl() {
     }
     control.drawEnd();
     if (ntw->selectButton->isSingle()) {
-        control.drawActiveNarrow(ntw->storage.slotStart);
+        control.drawActiveNarrow(ntw->storage.startToWheel());
     } else {
         control.drawActive(ntw->storage.slotStart, ntw->storage.slotEnd);
     }

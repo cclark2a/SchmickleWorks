@@ -92,6 +92,11 @@ struct SlotArray {
         slots[slotStart].invalid = true;
     }
 
+    // to do : assert if select button is not set to insert ?
+    unsigned startToWheel() const {  // factors in whether selection is left of first slot
+        return slotStart + (int) !saveZero;
+    }
+
     void shiftSlots(unsigned start, unsigned end) {  // do a 'cut'
         SCHMICKLE(start || playback.size() != end);
         SCHMICKLE(start < end);
@@ -101,4 +106,11 @@ struct SlotArray {
     unsigned size() const { return slots.size(); }
     json_t* toJson() const;
     static std::string UserDirectory() { return asset::user("Schmickleworks/"); }
+
+    // to do : assert if select button is not set to insert ?
+    void setStartFromWheel(int wheelValue) {
+        slotStart = std::max(0, wheelValue - 1);
+        slotEnd = slotStart + 1;
+        saveZero = !wheelValue;
+    }
 };

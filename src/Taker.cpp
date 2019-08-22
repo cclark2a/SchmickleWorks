@@ -95,8 +95,7 @@ void NoteTaker::playSelection() {
     const auto& storage = ntw()->storage;
     bool runningWithSlots = this->isRunning() && ntw()->slotButton->ledOn();
     if (runningWithSlots) {
-        int index = std::max(0, (int) storage.slotStart - ntw()->selectButton->editStart());
-        const auto& slotPlay = storage.playback[index];
+        const auto& slotPlay = storage.playback[storage.slotStart];
         runningStage = slotPlay.stage;
         repeat = slotPlay.repeat;
         eosBase = 0;
@@ -127,6 +126,8 @@ void NoteTaker::playSelection() {
 }
 
 // since this runs on a high frequency thread, avoid state except to play notes
+// to do : while !running but notes are playing, disallow edits to notes and slots 
+//         (by ignoring button presses / wheel changes)
 void NoteTaker::process(const ProcessArgs &args) {
     realSeconds += args.sampleTime;
     outputs[CLOCK_OUTPUT].setVoltage(clockPulse.process(args.sampleTime) ? 10 : 0);
@@ -228,16 +229,14 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (running && slotOn) {
                 eosBase = INT_MAX;  // ignore additional triggers until next slot is staged
                 if (repeat-- <= 1) {
-                    auto& selectStart = storage.slotStart;
+                    unsigned selectStart = storage.slotStart;
                     if (selectStart + 1 >= storage.playback.size()) {
                         repeat = 1;
+                        this->stageSlot(0);
                         running = false;
-                        selectStart = 0;
-                        storage.slotEnd = 1;
                         // to do : turn run button off
                     } else {
-                        const SlotPlay& slotPlay = storage.playback[++selectStart];
-                        storage.slotEnd = selectStart + 1;
+                        const SlotPlay& slotPlay = storage.playback[selectStart + 1];
                         repeat = slotPlay.repeat;
                         this->stageSlot(slotPlay.index);
                     }

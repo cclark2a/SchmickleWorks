@@ -437,7 +437,7 @@ void NoteTakerWidget::disableEmptyButtons() const {
             (NoteTakerButton*) slotButton,      (NoteTakerButton*) tempoButton }) {
         unsigned slotNumber = button->slotNumber;
         if (storage.slots[slotNumber].n.isEmpty(ALL_CHANNELS)
-                || button->slotNumber == storage.slotStart) {
+                || slotNumber == storage.slotStart) {
             button->animationFrame = 1;
         }
         button->fb()->dirty = true;

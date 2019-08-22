@@ -146,7 +146,8 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             n.selectStart, n.selectEnd, display->range.displayStart, display->range.displayEnd,
             selectChannels, 
             this->unlockedChannel(), nt() ? nt()->tempo : 0, n.ppq, edit.voice);
-    auto slot = storage.current();
+    auto& slot = storage.current();
+    DEBUG("slot %p notes %p cache %p ", &slot, &n.notes.front(), slot.cache.notes.front());
     NoteTaker::DebugDump(n.notes, slot.invalid ? nullptr : &slot.cache.notes,
             n.selectStart, n.selectEnd);
     DEBUG("clipboard");
@@ -181,6 +182,8 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
 
 void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCache>* cache,
         unsigned selectStart, unsigned selectEnd) {
+    if (notes.size()) DEBUG("%s n.notes.front().cache %p", __func__, notes.front().cache);
+    if (cache) DEBUG("&cache->notes.front() %p", &cache->front());
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         SCHMICKLE(i == typeNames[i].type);
     }

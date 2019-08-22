@@ -72,7 +72,7 @@ json_t* SlotArray::toJson() const {
     for (auto& slot : slots) {
         json_array_append_new(_slots, slot.toJson());
     }
-    json_object_set_new(root, "slots", _slots);
+    json_object_set_new(root, "slots", _slots);  
     json_t* _playback = json_array();
     for (auto& slotPlay : playback) {
         json_array_append_new(_playback, slotPlay.toJson());
@@ -80,6 +80,7 @@ json_t* SlotArray::toJson() const {
     json_object_set_new(root, "playback", _playback);
     json_object_set_new(root, "slotStart", json_integer(slotStart));
     json_object_set_new(root, "slotEnd", json_integer(slotEnd));
+    json_object_set_new(root, "saveZero", json_integer((int) saveZero));
     return root;
 }
 
@@ -191,5 +192,9 @@ void SlotArray::fromJson(json_t* root) {
         slotEnd = slotStart + 1;
     } else if (slotEnd > playback.size()) {
         slotEnd = playback.size();
+    }
+    saveZero = (bool) json_integer_value(json_object_get(root, "saveZero"));
+    if (saveZero && slotStart) {
+        saveZero = false;
     }
 }

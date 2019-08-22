@@ -59,7 +59,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
             horizontalWheel->setValue(slotPlay.index);
         } else if (selectButton->isSingle()) {
             horizontalWheel->setLimits(0, storage.playback.size());
-            horizontalWheel->setValue(storage.slotStart);
+            horizontalWheel->setValue(storage.startToWheel());
         } else {
             SCHMICKLE(selectButton->isExtend());
             horizontalWheel->setLimits(0, storage.playback.size() - 1);
@@ -267,15 +267,7 @@ void NoteTakerWidget::updateHorizontal() {
                 }
             }
         } else if (selectButton->isSingle()) {
-            storage.slotStart = wheelValue;
-        #if 0
-            if (storage.slotStart) {
-                storage.slotStart -= 1;
-            } else {
-                storage.saveZero = true;
-            }
-        #endif
-            storage.slotEnd = storage.slotStart + 1;
+            storage.setStartFromWheel(wheelValue);
             static unsigned debugStart = INT_MAX;
             if (debugVerbose && debugStart != storage.slotStart) {
                 DEBUG("updateHorizontal %u", storage.slotStart);

@@ -321,6 +321,7 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                             + std::to_string(value) + " times";
                 break;
                 case 1:  // slot
+                // to do : shows 'Time Wheel : 1' ; think of something better
                     return std::to_string(value + 1);
                 break;
                 case 0: { // stage
@@ -347,12 +348,17 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
                     _schmickled();
             }
         } 
-        bool extend = ntw->selectButton->isExtend();
-        result = std::to_string(ntw->storage.slotStart + (int) extend);
-        if (extend) {
-            result += " - " + std::to_string(ntw->storage.slotEnd);
-        } else if (!ntw->storage.slotStart) {
+        result = std::to_string(ntw->storage.slotStart + 1);
+        if (ntw->selectButton->isExtend()) {
+            if (ntw->storage.slotStart + 1 < ntw->storage.slotEnd) {
+                result = "slots " + result + " - " + std::to_string(ntw->storage.slotEnd);
+            } else {
+                result = "slot " + result;
+            }
+        } else if (ntw->storage.saveZero) {
             result = "before slot 1";
+        } else {
+            result = "after slot " + result;
         }
         return result;
     }
@@ -463,7 +469,7 @@ std::string VerticalWheelToolTip::getDisplayValueString() {
         return "";
     }
     if (ntw->slotButton->ledOn()) {
-        // to do : incomplete
+        // to do : shows 'Pitch Wheel: ' think of something better
         return "";
     }
     if (ntw->sustainButton->ledOn()) {

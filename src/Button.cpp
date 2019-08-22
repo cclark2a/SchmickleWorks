@@ -151,11 +151,6 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         slotOn ? ntw->copySlots() : ntw->copyNotes();
     }
     if (slotOn) {
-        bool isSingle = ntw->selectButton->isSingle();
-        if (start && isSingle) {
-            --start;
-            --end;
-        }
         if (0 == start && ntw->storage.size() <= end) {
             ++start;    // always leave one slot
         }
@@ -163,6 +158,9 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
             return;
         }
         ntw->storage.shiftSlots(start, end);
+        if (ntw->storage.size() <= start) {
+            --start;    // move select to last remaining slot
+        }
         ntw->storage.slotStart = start;
         ntw->storage.slotEnd = start + 1;
     } else {
@@ -258,7 +256,7 @@ void InsertButton::getState() {
     auto selectButton = ntw->selectButton;
     bool useClipboard = selectButton->ledOn();
     if (ntw->slotButton->ledOn()) {
-        insertLoc = selectButton->editStart() ? ntw->storage.slotStart : ntw->storage.slotEnd;
+        insertLoc = selectButton->editStart() ? ntw->storage.startToWheel() : ntw->storage.slotEnd;
         state = useClipboard && !ntw->clipboard.playback.empty() ? State::clipboardShift :
                 State::dupShift;
         return;
@@ -378,14 +376,8 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             ntw->clipboard.clear(slotOn);
             ntw->setClipboardLight();
             if (slotOn) {
-                unsigned start = ntw->storage.slotStart;
-                unsigned end = ntw->storage.slotEnd;
-                if (ntw->selectButton->editStart() && start) {
-                    --start;
-                    --end;
-                }
-                pspan.assign(ntw->storage.playback.begin() + start,
-                        ntw->storage.playback.begin() + end);
+                pspan.assign(ntw->storage.playback.begin() + ntw->storage.slotStart,
+                        ntw->storage.playback.begin() + ntw->storage.slotEnd);
             }
         } else {
             if (slotOn) {
@@ -646,11 +638,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         if (slotOn) {
             if (debugVerbose) DEBUG("isSingle pre storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.slotStart, storage.slotEnd);
-            if (storage.saveZero) {
-                storage.slotStart = 0;
-            } else {
-                storage.slotStart += 1;
-            }
+            // to do : leave slot end alone, and only look at slot start in insertion mode?
             storage.slotEnd = storage.slotStart + 1; 
             if (debugVerbose) DEBUG("isSingle post storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.slotStart, storage.slotEnd);
@@ -665,13 +653,6 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         SCHMICKLE(this->ledOn());
         if (slotOn) {
             if (debugVerbose) DEBUG("isExtend pre storage saveZero=%d s=%d e=%d", storage.saveZero,
-                    storage.slotStart, storage.slotEnd);
-            storage.saveZero = !storage.slotStart;
-            if (storage.slotStart) {
-                --storage.slotStart;
-            }
-            storage.slotEnd = storage.slotStart + 1;
-            if (debugVerbose) DEBUG("isExtend post storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.slotStart, storage.slotEnd);
         } else {
             ntw->nt()->invalidVoiceCount |= ntw->edit.voice;
