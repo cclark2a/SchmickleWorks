@@ -28,6 +28,9 @@ struct Notes {
         return _schmickled();  // should have hit track end
     }
 
+    static void DebugDump(const vector<DisplayNote>& , unsigned start = 0,
+            unsigned end = INT_MAX, const vector<NoteCache>* xPos = nullptr,
+            unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static bool Deserialize(const vector<uint8_t>& , vector<DisplayNote>* , int* ppq);
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
     static std::string FlatName(unsigned midiPitch);

@@ -15,14 +15,18 @@ void BarPosition::addPos(const NoteCache& noteCache, float cacheWidth) {
     bool hasDuration = INT_MAX != duration;
     int barCount = this->count(noteCache);
     pos[barCount].xMin = std::min(pos[barCount].xMin, (float) noteCache.xPosition);
-    if (false && debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d",
+#if DEBUG_BAR_ADD_POS
+    if (debugVerbose) DEBUG("addPos [%d] xMin %g xPos %d",
             barCount, pos[barCount].xMin, noteCache.xPosition);
+#endif
     // note the 'add duration less one' to round up
     barCount = hasDuration ? 
             (noteCache.vEndTime() - tsStart + duration - 1) / duration + priorBars : 1;  // rounds up
     pos[barCount].xMax = std::max(pos[barCount].xMax, noteCache.xPosition + cacheWidth);
-    if (false && debugVerbose) DEBUG("addPos [%d] xMax %g xPos %d width %g",
+#if DEBUG_BAR_ADD_POS
+    if ( debugVerbose) DEBUG("addPos [%d] xMax %g xPos %d width %g",
             barCount, pos[barCount].xMax, noteCache.xPosition, cacheWidth);
+#endif
 }
 
 int BarPosition::count(const NoteCache& noteCache) const {
@@ -31,8 +35,10 @@ int BarPosition::count(const NoteCache& noteCache) const {
 
 int BarPosition::noteRegular(const DisplayNote& note, int ppq, bool twoThirds) {
     int result = NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
+#if DEBUG_BAR
     if (debugVerbose) DEBUG("noteRegular result %d twoThirds %d note %s", result, twoThirds,
             note.debugString().c_str());
+#endif
     if (1 == result || !twoThirds) {
         return result;
     }
@@ -45,8 +51,10 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
     int startBar = inTsStartTime / duration;
     int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
     int endBar = inTsEndTime / duration;
+#if DEBUG_BAR
     if (debugVerbose) DEBUG("notesTied inTsStartTime %d startBar %d inTsEndTime %d endBar %d",
             inTsStartTime, startBar, inTsEndTime, endBar);
+#endif
     if (startBar == endBar) {
         leader = note.duration;
         return this->noteRegular(note, ppq, *twoThirds);
@@ -57,14 +65,18 @@ int BarPosition::notesTied(const DisplayNote& note, int ppq, bool* twoThirds) {
     int trailer = inTsEndTime - endBar * duration;
     SCHMICKLE(0 <= trailer);
     if (trailer >= duration) {
+#if DEBUG_BAR
         if (debugVerbose) DEBUG("notesTied trailer %d duration %d inTsEndTime %d endBar %d inTsStartTime %d"
                 " startBar %d leader %d",
                 trailer, duration, inTsEndTime, endBar, inTsStartTime, startBar, leader);
         if (debugVerbose) DEBUG("note %s", note.debugString().c_str());
+#endif
     }
     SCHMICKLE(trailer < duration);
+#if DEBUG_BAR
     if (debugVerbose) DEBUG("notesTied leader %d trailer %d duration %d endBar %d startBar %d",
             leader, trailer, duration, endBar, startBar);
+#endif
     int result = 0;
     if (leader >= NoteDurations::Smallest(ppq)) {
         result += NoteTakerDisplay::TiedCount(duration, leader, ppq);
@@ -118,9 +130,11 @@ void CacheBuilder::cacheBeams() {
         }
 
         if (!noteCache.staff) {
+#if DEBUG_BEAM
             if (debugVerbose) DEBUG("cacheBeams no staff %s note %s",
                     noteCache.debugString().c_str(), 
                     noteCache.note->debugString().c_str());
+#endif
             continue;
         }
         unsigned& beamStart = beamStarts[noteCache.channel];
@@ -142,14 +156,18 @@ void CacheBuilder::cacheBeams() {
                 checkForStart = false;
             }
         } 
+#if DEBUG_BEAM
         if (debugVerbose) DEBUG("cacheBeams checkForStart %d noteCache.vDuration %d ppq %d",
                 checkForStart, noteCache.vDuration, ppq);
+#endif
         if (checkForStart && noteCache.vDuration < ppq) {
             // to do : if 4:4 time, allow beaming up to half note ?
             beamStart = cacheIndex;
             noteCache.beamPosition = PositionType::left;
             startBar = noteCache.bar;
+#if DEBUG_BEAM
             if (debugVerbose) DEBUG("cacheBeams beamStart %s", noteCache.debugString().c_str());
+#endif
         }
         if (INT_MAX != beamStart || PositionType::right == noteCache.beamPosition) {
             noteCache.beamCount = NoteDurations::Beams(noteCache.twoThirds ?
@@ -160,8 +178,10 @@ void CacheBuilder::cacheBeams() {
     for (auto beamStart : beamStarts) {
         if (INT_MAX != beamStart) {
             this->closeBeam(beamStart, notes.size());
+#if DEBUG_BEAM
             if (debugVerbose) DEBUG("cacheBeams beam unmatched %s",
                     notes[beamStart].note->debugString().c_str());
+#endif
         }
     }
 }
@@ -184,12 +204,16 @@ void CacheBuilder::cacheSlurs() {
         if (INT_MAX != slurStart) {
             if (!note->slur()) {
                 this->closeSlur(slurStart, cacheIndex);
+#if DEBUG_SLUR
                 if (debugVerbose) DEBUG("set slur close %s", notes[slurStart].note->debugString().c_str());
+#endif
                 slurStart = INT_MAX;
             } else {
                 noteCache.slurPosition = PositionType::mid;
                 checkForStart = false;
+#if DEBUG_SLUR
                 if (debugVerbose) DEBUG("set slur mid %s", note->debugString().c_str());
+#endif
             }
         }
         if (checkForStart && note->slur()) {
@@ -197,13 +221,17 @@ void CacheBuilder::cacheSlurs() {
             if (PositionType::none == noteCache.slurPosition) {
                 noteCache.slurPosition = PositionType::left;
             }
+#if DEBUG_SLUR
             if (debugVerbose) DEBUG("set slur left %s", note->debugString().c_str());
+#endif
         }
     }
     for (auto slurStart : slurStarts) {
         if (INT_MAX != slurStart) {
             this->closeSlur(slurStart, notes.size());
+#if DEBUG_SLUR
             if (debugVerbose) DEBUG("slur unmatched %s", notes[slurStart].note->debugString().c_str());
+#endif
         }
     }
 }
@@ -261,8 +289,10 @@ void CacheBuilder::cacheStaff() {
     // to do : remove or mark as debugging only
         if (MIDDLE_C < last->pitchPosition) {
             for (NoteCache* test = first; test < next; ++test) {
+#if DEBUG_STAFF
                 DEBUG("[%d] %d pitchPos %d stemUp %d staff %d", test->channel, test->vStartTime, 
                         test->pitchPosition, test->stemUp, test->staff);
+#endif
             }
         }
         SCHMICKLE(MIDDLE_C >= last->pitchPosition);
@@ -279,9 +309,9 @@ void CacheBuilder::cacheStaff() {
 // to do : if too few notes are of the right duration, they (probably) need to be drawn as ties --
 // 2/3rds of 1/4 note is 1/6 (.167) which could be 1/8 + 1/32 (.156)
 void CacheBuilder::cacheTuplets(const Notes& n) {
-    array<unsigned, CHANNEL_COUNT> tripStarts;
+    array<unsigned, CHANNEL_COUNT> tripStarts;  // first index in notes (not cache) of triplet
     tripStarts.fill(INT_MAX);
-    int tupletId = 1;
+    uint8_t tupletId = 0;
     for (unsigned index = 0; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
         if (!note.isNoteOrRest()) {
@@ -291,60 +321,105 @@ void CacheBuilder::cacheTuplets(const Notes& n) {
         if (!note.cache->staff) {
             continue;
         }
+        if (PositionType::none != note.cache->tupletPosition) {
+            continue;
+        }
         unsigned& tripStart = tripStarts[note.channel];
         if (INT_MAX != tripStart) {
             const DisplayNote& start = n.notes[tripStart];
             int totalDuration = note.endTime() - start.startTime;
-            if (totalDuration > n.ppq * 4) {
+            int tripDur = start.duration * 3;
+            int factor = totalDuration / tripDur;
                 // to do : use time signature to limit triplet to bar 
                 // for now, limit triplet to whole note
-                tripStart = INT_MAX;
-            } else {
-                int tripDur = start.duration * 3;
-                int factor = totalDuration / tripDur;
+            if ((totalDuration > n.ppq * 4)
                 // to do : take advantage of start time % 3 to note that remainder is 0/1/2
                 //         if the note is part of the 1st/2nd/3rd triplet
-                if (totalDuration * 2 == tripDur || factor * tripDur == totalDuration) {
-                    NoteCache* noteCache = start.cache;
-                    noteCache->tupletPosition = PositionType::left;
-                    noteCache->tupletId = tupletId;
-                    int chan = start.channel;
-                    NoteCache* last = note.cache;
-                    NoteCache* next = last;
-                    while (++next < &cache->notes.back()) {
-                        if (!next->staff) {
-                            continue;
-                        }
-                        if (chan != next->channel) {
-                            continue;
-                        }
-                        if (next->note != &note) {
-                            break;
-                        }
-                        last = next;
-                    }
-                    while (++noteCache < last) {
-                        if (!noteCache->staff) {
-                            continue;
-                        }
-                        if (chan == noteCache->channel) {
-                            noteCache->tupletPosition = PositionType::mid;
-                            noteCache->tupletId = tupletId;
-                        }
-                    }
-                    last->tupletPosition = PositionType::right;
-                    last->tupletId = tupletId;
-                    if (!++tupletId) {
-                        tupletId = 1;  // reserve zero to mean 'not part of a tuplet'
-                    }
-                    tripStart = INT_MAX;
+                    || (totalDuration * 2 != tripDur && factor * tripDur != totalDuration)) {
+                tripStart = INT_MAX;
+            } else {
+                NoteCache* noteCache = start.cache;
+                if (!++tupletId) {
+                    tupletId = 1;
                 }
-                continue;
+#if DEBUG_TRIPLET_DRAW
+                std::string dbg = "tripStart: " + std::to_string(tripStart)
+                        + " total: " + std::to_string(totalDuration)
+                        + " trip: " + std::to_string(tripDur)
+                        + " factor: " + std::to_string(factor)
+                        + " tupletId: " + std::to_string(tupletId)
+                        + " L" + std::to_string(noteCache - &this->cache->notes.front())
+                        DEBUG_TRIPLET_DRAW_DETAILS(noteCache);
+                if (PositionType::none != noteCache->tupletPosition) {
+                    auto noteStart = &n.notes.front();
+                    DEBUG("!!!left %s", dbg.c_str());
+                    DEBUG("noteCache->tupletPosition %s", 
+                            debugPositionType[(int) noteCache->tupletPosition]);
+                    Notes::DebugDump(n.notes, &start - noteStart - 10,
+                            noteCache->note - noteStart + 10, &cache->notes,
+                            &start - noteStart, noteCache->note - noteStart);
+                }
+#endif
+                SCHMICKLE(PositionType::none == noteCache->tupletPosition);
+                noteCache->tupletPosition = PositionType::left;
+                noteCache->tupletId = tupletId;
+                int chan = start.channel;
+                NoteCache* last = note.cache;
+                NoteCache* next = last;
+                while (++next < &cache->notes.back()) {
+                    if (!next->staff) {
+                        continue;
+                    }
+                    if (chan != next->channel) {
+                        continue;
+                    }
+                    if (next->note != &note) {
+                        break;
+                    }
+                    last = next;
+                }
+                while (++noteCache < last) {
+                    if (!noteCache->staff) {
+                        continue;
+                    }
+                    if (chan == noteCache->channel) {
+#if DEBUG_TRIPLET_DRAW
+                        if (PositionType::none != noteCache->tupletPosition) {
+                            auto noteStart = &n.notes.front();
+                            DEBUG("!!!mid %s", dbg.c_str());
+                            DEBUG("noteCache->tupletPosition %s", 
+                                    debugPositionType[(int) noteCache->tupletPosition]);
+                            Notes::DebugDump(n.notes, &start - noteStart - 10,
+                                    noteCache->note - noteStart + 10, &cache->notes,
+                                    &start - noteStart, noteCache->note - noteStart);
+                        }
+#endif
+                        SCHMICKLE(PositionType::none == noteCache->tupletPosition);
+                        noteCache->tupletPosition = PositionType::mid;
+                        noteCache->tupletId = tupletId;
+#if DEBUG_TRIPLET_DRAW
+                        dbg += " M" + std::to_string(noteCache - &this->cache->notes.front())
+                                DEBUG_TRIPLET_DRAW_DETAILS(noteCache);
+#endif
+                    }
+                }
+                SCHMICKLE(PositionType::none == last->tupletPosition);
+                last->tupletPosition = PositionType::right;
+                last->tupletId = tupletId;
+                tripStart = INT_MAX;
+#if DEBUG_TRIPLET_DRAW
+                dbg += " R" + std::to_string(last - &this->cache->notes.front())
+                        DEBUG_TRIPLET_DRAW_DETAILS(last);
+                DEBUG("%s", dbg.c_str());
+#endif
+                continue;  // don't reuse note as start of next triplet
             }
         }
         // to do : remove or mark as debugging only
         if (!NoteDurations::InStd(note.duration, n.ppq)) {
+#if DEBUG_TRIPLET_DRAW
             DEBUG("note !InStd %s ppq %d", note.debugString().c_str(), n.ppq);
+#endif
         }
         if (NoteDurations::TripletPart(note.duration, n.ppq)) {
             tripStart = index;
@@ -355,7 +430,7 @@ void CacheBuilder::cacheTuplets(const Notes& n) {
 void CacheBuilder::clearTuplet(unsigned index, unsigned limit) {
     vector<NoteCache>& notes = cache->notes;
     SCHMICKLE(PositionType::left == notes[index].tupletPosition);
-    const int tupletId = notes[index].tupletId;
+    const uint8_t tupletId = notes[index].tupletId;
     SCHMICKLE(tupletId);
     notes[index].tupletPosition = PositionType::none;
     while (++index < limit) {
@@ -385,7 +460,9 @@ void CacheBuilder::closeBeam(unsigned first, unsigned limit) {
         }
     }
     notes[last].beamPosition = last == first ? PositionType::none : PositionType::right;
+#if DEBUG_BEAM
     if (debugVerbose) DEBUG("close beam first %d last %d pos %u", first, last, notes[last].beamPosition);
+#endif
 }
 
 void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
@@ -406,7 +483,9 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
         }
     }
     notes[last].slurPosition = last == first ? PositionType::none : PositionType::right;
+#if DEBUG_SLUR
     if (debugVerbose) DEBUG("close slur first %d last %d pos %u", first, last, notes[last].slurPosition);
+#endif
 }
 
 
@@ -415,7 +494,9 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
 void CacheBuilder::setDurations(const Notes& n) {
     const StaffNote* pitchMap = sharpMap;
     BarPosition bar;
+#if DEBUG_DURATIONS
     if (debugVerbose) DEBUG("setDurations %u ", n.notes.size());
+#endif
     for (unsigned index = 0; index < n.notes.size(); ++index) {
         const DisplayNote& note = n.notes[index];
         cache->notes.emplace_back(&note);
@@ -439,8 +520,10 @@ void CacheBuilder::setDurations(const Notes& n) {
         if (1 == notesTied) {
             cacheEntry.twoThirds = twoThirds;
             cacheEntry.vDuration = note.duration;
+#if DEBUG_DURATIONS
             if (debugVerbose) DEBUG("setDurations vDur %d note %s", cacheEntry.vDuration,
                     note.debugString().c_str());
+#endif
             cacheEntry.endsOnBeat = (bool) (note.endTime() % ppq);
             if (NOTE_ON == note.type) {
                 cacheEntry.accidentalSpace = true;
@@ -452,8 +535,10 @@ void CacheBuilder::setDurations(const Notes& n) {
             int duration = bar.leader;
             int remaining = note.duration - bar.leader;
             int tieTime = note.startTime;
+#if DEBUG_DURATIONS
             if (debugVerbose) DEBUG("duration %d remaining %d tieTime %d added %s",
                     duration, remaining, tieTime, note.debugString().c_str());
+#endif
             bool accidentalSpace = NOTE_ON == note.type;
             cache->notes.pop_back();
             do {
@@ -466,11 +551,13 @@ void CacheBuilder::setDurations(const Notes& n) {
                     tiePart.tiePosition = accidentalSpace ? PositionType::left : PositionType::mid;
                     // if in a triplet, scale up by 3/2, look up note, scale result by 2/3
                     tiePart.vDuration = NoteDurations::LtOrEq(duration, ppq, twoThirds);
+#if DEBUG_DURATIONS
                     if (debugVerbose) {
                         DEBUG("vStart %d vDuration %d duration %d [%d] cache [%d] note",
                                 tiePart.vStartTime, tiePart.vDuration, duration,
                                 &tiePart - &cache->notes.front(), tiePart.note - &n.notes.front());
                     }
+#endif
                     tieTime += tiePart.vDuration;
                     tiePart.endsOnBeat = (bool) (tieTime % ppq);
                     tiePart.accidentalSpace = accidentalSpace;
@@ -506,6 +593,7 @@ void CacheBuilder::setDurations(const Notes& n) {
     // check to see if things moved
     SCHMICKLE(n.notes.front().cache == &cache->notes.front());
     SCHMICKLE(cache->notes.front().note == &n.notes.front());
+#if DEBUG_DURATIONS
     if (debugVerbose) DEBUG("finished set durations");
     if (debugVerbose) {
         int index = 0;
@@ -519,13 +607,16 @@ void CacheBuilder::setDurations(const Notes& n) {
                     note.note - &n.notes.front());
         }
     }
+#endif
 }
 
 void CacheBuilder::trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime) {
     if (xOff > 0) {
         PosAdjust adjust = { xOff, endTime };
         posAdjust.push_back(adjust);
+#if DEBUG_POS
         if (debugVerbose) DEBUG("xOff %g endTime %d", xOff, endTime);
+#endif
     }
 }
 
@@ -567,7 +658,9 @@ void CacheBuilder::updateXPosition(const Notes& n) {
             }
         }
         if (nextAdjust.x) {
+#if DEBUG_POS
             if (debugVerbose) DEBUG("posAdjust x %g time %d", nextAdjust.x, nextAdjust.time);
+#endif
             pos += nextAdjust.x;
             auto iter = posAdjust.begin();
             while (iter != posAdjust.end()) {
@@ -586,8 +679,10 @@ void CacheBuilder::updateXPosition(const Notes& n) {
         int stdStart = NoteDurations::InStd(noteCache.vStartTime, n.ppq);
         noteCache.xPosition = (int) std::ceil((stdStart + bars * BAR_WIDTH)
                 * xAxisScale + pos);
+#if DEBUG_POS
         if (debugVerbose) DEBUG("vStartTime %d n.ppq %d bars %d xPos %d",
                 noteCache.vStartTime, n.ppq, bars, noteCache.xPosition);
+#endif
         if (noteCache.accidentalSpace) {
             noteCache.xPosition += 8;  // space for possible accidental
         } else if (NOTE_ON == noteCache.note->type) {  // if another note at same time allows for
@@ -604,15 +699,19 @@ void CacheBuilder::updateXPosition(const Notes& n) {
                 }
             }
         }
+#if DEBUG_POS
         if (debugVerbose) DEBUG("%d [%d] stdStart %d bars %d pos %g accidental %d",
                 &noteCache - &cache->notes.front(),
                 noteCache.xPosition, stdStart, bars, pos, noteCache.accidentalSpace ? 8 : 0);
+#endif
         const DisplayNote& note = *noteCache.note;
         switch (note.type) {
             case MIDI_HEADER:
                 SCHMICKLE(!pos);
                 pos = CLEF_WIDTH * xAxisScale;
+#if DEBUG_POS
                 if (debugVerbose) DEBUG("header pos %g", pos);
+#endif
                 break;
             case NOTE_ON:
             case REST_TYPE: {
@@ -625,9 +724,11 @@ void CacheBuilder::updateXPosition(const Notes& n) {
                     float xOff = drawWidth - NoteDurations::InStd(noteCache.vDuration, n.ppq)
                             * xAxisScale;
                     this->trackPos(posAdjust, xOff, noteCache.vEndTime());
+#if DEBUG_POS
                     if (debugVerbose) DEBUG("%d track_pos drawWidth %g xOff %g cache start %d dur %d",
                             &noteCache - &cache->notes.front(), drawWidth,
                             xOff, noteCache.vStartTime, noteCache.vDuration);
+#endif
                 } break;
             case KEY_SIGNATURE:
                 pos += bar.resetSignatureStart(note, BAR_WIDTH * xAxisScale);
@@ -649,9 +750,11 @@ void CacheBuilder::updateXPosition(const Notes& n) {
                 pos += TEMPO_WIDTH * xAxisScale;
                 break;
             case TRACK_END:
+#if DEBUG_POS
                 if (debugVerbose) DEBUG("[%u] xPos %d start %d",
                         noteCache.note - &n.notes.front(),
                         noteCache.xPosition, note.stdStart(n.ppq));
+#endif
                 break;
             default:
                 // to do : incomplete

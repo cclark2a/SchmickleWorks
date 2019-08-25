@@ -408,7 +408,7 @@ bool NoteTakerParseMidi::parseMidi() {
                                 case midiKeySignature:
                                     displayNote.type = KEY_SIGNATURE;
                                     displayNote.duration = 0;
-                                    displayNote.data[0] = (signed char) *iter++;
+                                    displayNote.data[0] = 7 + (signed char) *iter++;
                                     displayNote.data[1] = *iter++;
                                     if (!displayNote.isValid()) {
                                         DEBUG("invalid %s 3", displayNote.debugString().c_str());
@@ -550,18 +550,18 @@ bool NoteTakerParseMidi::parseMidi() {
         // to do : shouldn't allow zero either, let it slide for now to debug 9.mid
         if (NOTE_ON == note.type && 0 >= note.duration) {
             DEBUG("non-positive note on duration %s", note.debugString().c_str());
-            if (0) NoteTaker::DebugDump(withRests);  // to do : abbreviate output?
+            if (0) Notes::DebugDump(withRests);  // to do : abbreviate output?
             return false;
         }
         if (note.startTime < lastTime) {
             DEBUG("notes out of time order %d lastTime %d note %s",
                     note.startTime, lastTime, note.debugString().c_str());
-            if (0) NoteTaker::DebugDump(withRests); // to do : abbreviate output?
+            if (0) Notes::DebugDump(withRests); // to do : abbreviate output?
             return false;
         }
         lastTime = note.startTime;
     }
-    if (debugVerbose) NoteTaker::DebugDump(withRests);
+    if (debugVerbose) Notes::DebugDump(withRests);
     displayNotes->swap(withRests);
     if (ntPpq) {
         *ntPpq = ppq;

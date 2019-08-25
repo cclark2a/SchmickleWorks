@@ -1529,15 +1529,35 @@ void NoteTakerDisplay::drawTieControl() {
     control.drawActive(slot, slot + 1);
 }
 
+void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
+    auto& cacheNotes = this->cache()->notes;
+    auto& notes = slot->n.notes;
+    unsigned start = cacheNotes[cacheStart].note - &notes.front();
+    unsigned end = cacheNotes[cacheEnd].note - &notes.front();
+    Notes::DebugDump(notes, start - 10, start + 10, &cacheNotes, start, end);
+}
+
 // to do : share code with draw slur, draw beam ?
 void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewBeam) const {
-    auto& notes = this->cache()->notes;
-    SCHMICKLE(PositionType::left == notes[start].tupletPosition);
-    int tupletId = notes[start].tupletId;
+    auto& cacheNotes = this->cache()->notes;
+#if DEBUG_TRIPLET_DRAW
+    auto& notes = ntw()->n().notes;
+#endif
+    auto& tupletLeft = cacheNotes[start];
+    const uint8_t tupletId = tupletLeft.tupletId;
+    if (DEBUG_TRIPLET_TEST && PositionType::left != tupletLeft.tupletPosition) {
+        DEBUG("PositionType::left != cache[%u].tupletPosition (%s) tupletId %d cache[%u]: %s"
+                " note[%u]: %s",
+                start, debugPositionType[(int) tupletLeft.tupletPosition], tupletId, start,
+                tupletLeft.debugString().c_str(), tupletLeft.note - &notes.front(),
+                tupletLeft.note->debugString().c_str());
+        debugDump(start, start + 1);
+    }
+    SCHMICKLE(PositionType::left == cacheNotes[start].tupletPosition);
     BeamPositions bp;
     unsigned index = start;
     while (++index < notes.size()) {
-        auto& noteCache = notes[index];
+        auto& noteCache = cacheNotes[index];
         if (tupletId != noteCache.tupletId) {
             continue;
         }
@@ -1545,12 +1565,26 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
             this->setBeamPos(start, index, &bp);
             break;
         }
+        if (DEBUG_TRIPLET_TEST && PositionType::mid != noteCache.tupletPosition) {
+            DEBUG("PositionType::mid != cache[%d].tupletPosition (%s) tupletId %d cache[%u]: %s"
+                    " note[%u]: %s",
+                    index, debugPositionType[(int) noteCache.tupletPosition], tupletId, index,
+                    noteCache.debugString().c_str(), noteCache.note - &notes.front(),
+                    noteCache.note->debugString().c_str());
+            debugDump(start, index);
+        }
         SCHMICKLE(PositionType::mid == noteCache.tupletPosition);
     }
-    if (PositionType::right != notes[index].tupletPosition) {
-        if (debugVerbose) DEBUG("malformed tuplet");
-        return;
+    auto& tupletRight = cacheNotes[index];
+    if (DEBUG_TRIPLET_TEST && PositionType::right != tupletRight.tupletPosition) {
+        DEBUG("PositionType::right != cache[%d].tupletPosition (%s) tupletId %d cache[%u]: %s"
+                " note[%u]: %s",
+                index, debugPositionType[(int) tupletRight.tupletPosition], tupletId, index,
+                tupletRight.debugString().c_str(), tupletRight.note - &notes.front(),
+                tupletRight.note->debugString().c_str());
+        debugDump(start, index);
     }
+    SCHMICKLE(PositionType::right == tupletRight.tupletPosition);
     auto vg = state.vg;
     SetNoteColor(vg, notes[index].channel, alpha);
     // draw '3' at center of notes above or below staff
@@ -1558,7 +1592,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     float centerX = (bp.sx + bp.ex) / 2;
-    bool stemUp = notes[start].stemUp;
+    bool stemUp = cacheNotes[start].stemUp;
     float yOffset = stemUp ? -1 : 7.5;
     nvgText(vg, centerX, bp.y + yOffset, "3", NULL);
     // to do : if !drew beam, draw square brackets on either side of '3'

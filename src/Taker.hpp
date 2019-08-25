@@ -186,9 +186,6 @@ struct NoteTaker : Module {
         }
     }
 
-    static void DebugDump(const vector<DisplayNote>& , const vector<NoteCache>* xPos = nullptr,
-            unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
-
     int externalTempo();
     void invalidateAndPlay(Inval inval);
     bool isRunning() const;

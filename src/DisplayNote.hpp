@@ -278,6 +278,8 @@ enum class PositionType : uint8_t {
     right,
 };
 
+extern const char* debugPositionType[];
+
 // to do : set up end stage time for slot/stage end
 struct NoteCache {
     const DisplayNote* note;  // needed because with tied notes, cache entries are > than notes

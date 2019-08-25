@@ -105,7 +105,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTakerSlot& slot, vector<uint8_
                 add_one(midiMetaEvent);
                 add_one(midiKeySignature);
                 add_one(2); // number of bytes of data to follow
-                add_one(n.key());
+                add_one(n.key());   // key may be negative, but should be OK to push unsigned byte
                 add_one(n.minor());
                 break;
             case TIME_SIGNATURE:

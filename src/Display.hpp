@@ -163,6 +163,7 @@ struct NoteTakerDisplay : Widget {
     void applyKeySignature();
     const DisplayCache* cache() const;
     static float CacheWidth(const NoteCache& , NVGcontext* );
+    void debugDump(unsigned start, unsigned end) const;
     void draw(const DrawArgs& ) override;
     void drawArc(const BeamPositions& bp, unsigned start, unsigned index) const;
     void drawBars(const BarPosition& bar);

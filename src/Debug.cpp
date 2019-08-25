@@ -148,10 +148,10 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             this->unlockedChannel(), nt() ? nt()->tempo : 0, n.ppq, edit.voice);
     auto& slot = storage.current();
     DEBUG("slot %p notes %p cache %p ", &slot, &n.notes.front(), slot.cache.notes.front());
-    NoteTaker::DebugDump(n.notes, slot.invalid ? nullptr : &slot.cache.notes,
+    Notes::DebugDump(n.notes, 0, INT_MAX, slot.invalid ? nullptr : &slot.cache.notes,
             n.selectStart, n.selectEnd);
     DEBUG("clipboard");
-    NoteTaker::DebugDump(clipboard.notes);
+    Notes::DebugDump(clipboard.notes);
     for (const auto& chan : slot.channels) {
         NoteTakerChannel _default;
         if (chan.isDefault()) {
@@ -180,15 +180,19 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     }
 }
 
-void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCache>* cache,
-        unsigned selectStart, unsigned selectEnd) {
+void Notes::DebugDump(const vector<DisplayNote>& notes, unsigned start, unsigned end,
+        const vector<NoteCache>* cache, unsigned selectStart, unsigned selectEnd) {
+    unsigned size = notes.size();
+    start = std::min(start, size - std::min(size, 20U));  // show at least 20 notes
+    end = std::min(size, std::max(start + 20, end));
     if (notes.size()) DEBUG("%s n.notes.front().cache %p", __func__, notes.front().cache);
     if (cache) DEBUG("&cache->notes.front() %p", &cache->front());
+    // to do : move this to some static assert or one time initialization function
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         SCHMICKLE(i == typeNames[i].type);
     }
     DEBUG("notes: %d", notes.size());
-    for (unsigned index = 0; index < notes.size(); ++index) {
+    for (unsigned index = start; index < end; ++index) {
         const DisplayNote& note = notes[index];
         std::string s;
         if (INT_MAX != selectStart && &note == &notes[selectStart]) {
@@ -205,7 +209,7 @@ void NoteTaker::DebugDump(const vector<DisplayNote>& notes, const vector<NoteCac
                 s += std::to_string(index) + " " + c.debugString();
             } while (++cIndex < cache->size() && (*cache)[cIndex].note == &note);
         }
-        s += note.debugString();
+        s += " " + note.debugString();
         if (INT_MAX != selectEnd && &note == &notes[selectEnd - 1]) {
             s += "> ";
         }
