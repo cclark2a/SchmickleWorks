@@ -596,8 +596,8 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
     float bounds[4]; 
     auto& symbols = REST_TYPE == noteCache.note->type ? restSymbols :
             PositionType::none != noteCache.beamPosition || !noteCache.staff ?
-            noteCache.stemUp ? upBeamNoteSymbols : downBeamNoteSymbols :
-            noteCache.stemUp ? upFlagNoteSymbols : downFlagNoteSymbols;
+            StemType::up == noteCache.stemDirection ? upBeamNoteSymbols : downBeamNoteSymbols :
+            StemType::up == noteCache.stemDirection ? upFlagNoteSymbols : downFlagNoteSymbols;
     nvgTextBounds(vg, 0, 0, symbols[noteCache.symbol], nullptr, bounds);
     return bounds[2];
 }
@@ -713,7 +713,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
 void NoteTakerDisplay::drawArc(const BeamPositions& bp, unsigned start, unsigned index) const {
     auto& notes = this->cache()->notes;
     float yOff = bp.slurOffset;
-    int midOff = (notes[start].stemUp ? 2 : -2);
+    int midOff = (StemType::up == notes[start].stemDirection ? 2 : -2);
     float xMid = (bp.sx + bp.ex) / 2;
     float yStart = notes[start].yPosition + yOff * 2;
     float yEnd = notes[index].yPosition + yOff * 2;
@@ -883,7 +883,7 @@ void NoteTakerDisplay::drawFreeNote(const DisplayNote& note, NoteCache* noteCach
     noteCache->xPosition = xPos;
     noteCache->yPosition = YPos(pitch.position);
     noteCache->vDuration = n.ppq;
-    noteCache->stemUp = true;
+    noteCache->stemDirection = StemType::up;
     noteCache->staff = true;
     noteCache->setDurationSymbol(n.ppq);
     this->drawNote((Accidental) pitchMap[note.pitch()].accidental, *noteCache, alpha, 24);
@@ -976,8 +976,8 @@ void NoteTakerDisplay::drawNote(Accidental accidental,
                 &accidents[accidental], &accidents[accidental + 1]);
     }
     auto& symbols = PositionType::none != noteCache.beamPosition || !noteCache.staff ?
-            noteCache.stemUp ? upBeamNoteSymbols : downBeamNoteSymbols :
-            noteCache.stemUp ? upFlagNoteSymbols : downFlagNoteSymbols; 
+            StemType::up == noteCache.stemDirection ? upBeamNoteSymbols : downBeamNoteSymbols :
+            StemType::up == noteCache.stemDirection ? upFlagNoteSymbols : downFlagNoteSymbols; 
     const char* noteStr = symbols[noteCache.symbol];
     nvgText(vg, xPos, yPos, noteStr, nullptr);
 }
@@ -1592,7 +1592,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     float centerX = (bp.sx + bp.ex) / 2;
-    bool stemUp = cacheNotes[start].stemUp;
+    bool stemUp = StemType::up == cacheNotes[start].stemDirection;
     float yOffset = stemUp ? -1 : 7.5;
     nvgText(vg, centerX, bp.y + yOffset, "3", NULL);
     // to do : if !drew beam, draw square brackets on either side of '3'
@@ -1742,7 +1742,7 @@ void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* 
         bp->beamMin = std::min((unsigned) noteCache.beamCount, bp->beamMin);
         lastMeasured = index;
     } while (++index <= last);
-    bool stemUp = notes[first].stemUp;
+    bool stemUp = StemType::up == notes[first].stemDirection;
     bp->xOffset = stemUp ? 6 : -0.25;
     bp->yOffset = stemUp ? 5 : -5;
     bp->sx = notes[first].xPosition + bp->xOffset;

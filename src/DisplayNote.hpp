@@ -278,6 +278,13 @@ enum class PositionType : uint8_t {
     right,
 };
 
+enum class StemType : int8_t {
+    unknown = -1,
+    down,
+    up,
+    either,
+};
+
 extern const char* debugPositionType[];
 
 // to do : set up end stage time for slot/stage end
@@ -297,9 +304,9 @@ struct NoteCache {
     uint8_t tupletId = 0;  // distinguish between multiple simultaneous triplets
     uint8_t symbol;
     uint8_t pitchPosition = 0;
+    StemType stemDirection = StemType::unknown;
     bool accidentalSpace = false;
     bool endsOnBeat = false; // for beams
-    bool stemUp = false;
     bool staff = false;  // set if note owns staff; for flags, tuplets, beaming, slurs, ties
     bool twoThirds = false; // set as hint that note may be triplet part
 
@@ -311,8 +318,7 @@ struct NoteCache {
 
     bool operator<(const NoteCache& rhs) const {
         return vStartTime < rhs.vStartTime
-                || (vStartTime == rhs.vStartTime && (vDuration < rhs.vDuration
-                || (vDuration == rhs.vDuration && yPosition < rhs.yPosition)));
+                || (vStartTime == rhs.vStartTime && note < rhs.note);
     }
 
     std::string debugString() const;

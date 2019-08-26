@@ -126,6 +126,10 @@ int NoteDurations::ToTripletStd(unsigned index) {
 
 bool NoteDurations::TripletPart(int midi, int ppq) {
     int inStd = InStd(midi, ppq);
+    if (!inStd) {
+        DEBUG("%s midi %d ppq %d inStd %d", __func__, midi, ppq, inStd);
+        return false;
+    }
     SCHMICKLE(inStd);
     return !(inStd & (inStd - 1));  // true if only top bit is set
 }

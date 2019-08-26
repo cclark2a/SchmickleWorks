@@ -32,8 +32,10 @@ constexpr uint8_t stdTimeSignature32ndNotesInQuarter = 0x08;
 
 // related to y positions on display staff
 constexpr uint8_t TREBLE_TOP = 29;  // smaller values need additional staff lines and/or 8/15va
+constexpr uint8_t TREBLE_MID = 33;
 constexpr uint8_t C_5 = 32;
 constexpr uint8_t MIDDLE_C = 39;
+constexpr uint8_t BASS_MID = 45;
 constexpr uint8_t C_3 = 46;
 constexpr uint8_t BASS_BOTTOM = 49; // larger values need additional staff lines and/or 8/15vb
 

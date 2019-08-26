@@ -140,7 +140,7 @@ void CacheBuilder::cacheBeams() {
         unsigned& beamStart = beamStarts[noteCache.channel];
         bool checkForStart = true;
         if (INT_MAX != beamStart) {
-            bool stemsMatch = notes[beamStart].stemUp == noteCache.stemUp
+            bool stemsMatch = notes[beamStart].stemDirection == noteCache.stemDirection
                     && (notes[beamStart].pitchPosition <= MIDDLE_C)
                     == (noteCache.pitchPosition <= MIDDLE_C);
             if (!stemsMatch || noteCache.vDuration >= ppq || startBar != noteCache.bar) {
@@ -236,71 +236,98 @@ void CacheBuilder::cacheSlurs() {
     }
 }
 
+static StemType stem_up(int pitch) {
+    if (pitch <= TREBLE_MID) {
+        return pitch == TREBLE_MID ? StemType::either : StemType::down;
+    }
+    if (pitch <= MIDDLE_C) {
+        return pitch == MIDDLE_C ? StemType::either : StemType::up;
+    }
+    if (pitch <= BASS_MID) {
+        return pitch == BASS_MID ? StemType::either : StemType::down;
+    }
+    return StemType::up;
+}
+
 // to do : add new code to horizontally shift notes with different durations?
 // to do : if quarter and eighth share staff, set stem up in different directions?
 // collect the notes with the same start time and duration
 // mark only one as the staff owner
 void CacheBuilder::cacheStaff() {
-    NoteCache* next = nullptr;
     vector<NoteCache>& notes = cache->notes;
-    for (NoteCache* last = &notes.front(); last <= &notes.back(); last = next) {
-        auto first = last;
-        next = last;
+    for (NoteCache* first = &notes.front(); first <= &notes.back(); ++first) {
+        if (StemType::unknown != first->stemDirection) {
+            continue;
+        }
+        if (NOTE_ON != first->note->type) {
+            continue;
+        }
+        first->staff = true;
+        auto next = first;
+        int duration = first->vDuration;
+        int firstPitch = first->pitchPosition;
+        bool hasMiddleC = MIDDLE_C == firstPitch;
+        bool firstTreble = firstPitch < MIDDLE_C;
+        bool firstBass = firstPitch > MIDDLE_C;
+        int highestTreble = firstTreble ? firstPitch : 255;
+        int lowestTreble = firstTreble || hasMiddleC ? firstPitch : 0;
+        int highestBass = firstBass ? firstPitch : 255;
+        int lowestBass = firstBass ? firstPitch : 0;
+        int trebleChord = firstPitch <= MIDDLE_C;
+        int bassChord = firstPitch >= MIDDLE_C;
         while (++next <= &notes.back()) {
-            if (NOTE_ON != first->note->type || NOTE_ON != next->note->type) {
+            if (StemType::unknown != next->stemDirection) {
+                continue;
+            }
+            if (NOTE_ON != next->note->type) {
                 break;
             }
             if (next->vStartTime != first->vStartTime) {
                 break;
             }
-            if (next->vDuration != first->vDuration) {
-                break;
+            if (duration != next->vDuration) {
+                continue;
             }
-            // to do : if notes are on the same or adjacent lines, slide one over
-            SCHMICKLE(last->pitchPosition <= next->pitchPosition);
-            // how far apart are the notes? if close, use one staff, align stem up
-            if (last->pitchPosition + 6 <= next->pitchPosition) {
-                break;
+            int nextPitch = next->pitchPosition;
+            hasMiddleC |= MIDDLE_C == nextPitch;
+            // to do : if pitch has already been encountered, could put both on one stem
+            //         if 3 or more, need more stems
+            if (nextPitch < MIDDLE_C) {
+                highestTreble = std::min(nextPitch, highestTreble);
             }
-            // but don't tie from below middle C to above middle C (score line 39)
-            if (MIDDLE_C > first->pitchPosition && MIDDLE_C < next->pitchPosition) {
-                break;
+            if (nextPitch <= MIDDLE_C) {
+                lowestTreble = std::max(nextPitch, lowestTreble);
+                ++trebleChord;
             }
-            last = next;
+            if (nextPitch > MIDDLE_C) {
+                highestBass = std::min(nextPitch, highestBass);
+                lowestBass = std::max(nextPitch, lowestBass);
+            }
+            bassChord += nextPitch >= MIDDLE_C;
         }
-        if (first + 1 == next) {
-            first->staff = true;
-            continue;
-        } 
-        last = first;
-        if (MIDDLE_C <= last->pitchPosition) {
-            if (MIDDLE_C == last->pitchPosition) {
-                last->stemUp = false;
-            }
-            bool stemUp = last->stemUp;
-            last->staff = stemUp;
-            next[-1].staff = !stemUp;
-            while (++last < next) {
-                last->stemUp = stemUp;
+        if (bassChord <= 1 && trebleChord <= 1) {
+            first->stemDirection = stem_up(first->pitchPosition);
+            // to do : more sophisticated tie breaker
+            if (StemType::either == first->stemDirection) {
+                first->stemDirection = StemType::down;
             }
             continue;
         }
-        last = next - 1;
-    // to do : remove or mark as debugging only
-        if (MIDDLE_C < last->pitchPosition) {
-            for (NoteCache* test = first; test < next; ++test) {
-#if DEBUG_STAFF
-                DEBUG("[%d] %d pitchPos %d stemUp %d staff %d", test->channel, test->vStartTime, 
-                        test->pitchPosition, test->stemUp, test->staff);
-#endif
+        // notehead furthest away from center of stave determines stem direction (BB p47)
+        StemType trebleStemDirection = (TREBLE_MID - highestTreble) >= (lowestTreble - TREBLE_MID) ?
+                StemType::down : StemType::up;
+        StemType bassStemDirection = (BASS_MID - highestBass) >= (lowestBass - BASS_MID) ?
+                StemType::down : StemType::up;
+        for (NoteCache* entry = first; entry < next; ++entry) {
+            if (StemType::unknown != next->stemDirection) {
+                continue;
             }
-        }
-        SCHMICKLE(MIDDLE_C >= last->pitchPosition);
-        bool stemUp = last->stemUp;
-        last->staff = !stemUp;
-        first->staff = stemUp;
-        while (--last >= first) {
-            last->stemUp = stemUp;
+            if (duration != next->vDuration) {
+                continue;
+            }
+            entry->stemDirection = entry->pitchPosition < MIDDLE_C
+                    || (entry->pitchPosition == MIDDLE_C && trebleChord > 1) ? trebleStemDirection :
+                    bassStemDirection;
         }
     }
 }
@@ -349,6 +376,7 @@ void CacheBuilder::cacheTuplets(const Notes& n) {
                         + " factor: " + std::to_string(factor)
                         + " tupletId: " + std::to_string(tupletId)
                         + " L" + std::to_string(noteCache - &this->cache->notes.front())
+                        + "/" + std::to_string(noteCache->note - &n.notes.front())
                         DEBUG_TRIPLET_DRAW_DETAILS(noteCache);
                 if (PositionType::none != noteCache->tupletPosition) {
                     auto noteStart = &n.notes.front();
@@ -399,6 +427,7 @@ void CacheBuilder::cacheTuplets(const Notes& n) {
                         noteCache->tupletId = tupletId;
 #if DEBUG_TRIPLET_DRAW
                         dbg += " M" + std::to_string(noteCache - &this->cache->notes.front())
+                                + "/" + std::to_string(noteCache->note - &n.notes.front())
                                 DEBUG_TRIPLET_DRAW_DETAILS(noteCache);
 #endif
                     }
@@ -409,6 +438,7 @@ void CacheBuilder::cacheTuplets(const Notes& n) {
                 tripStart = INT_MAX;
 #if DEBUG_TRIPLET_DRAW
                 dbg += " R" + std::to_string(last - &this->cache->notes.front())
+                        + "/" + std::to_string(last->note - &n.notes.front())
                         DEBUG_TRIPLET_DRAW_DETAILS(last);
                 DEBUG("%s", dbg.c_str());
 #endif
@@ -529,7 +559,6 @@ void CacheBuilder::setDurations(const Notes& n) {
                 cacheEntry.accidentalSpace = true;
                 cacheEntry.pitchPosition = pitchPosition;
                 cacheEntry.yPosition = NoteTakerDisplay::YPos(pitchPosition);
-                cacheEntry.stemUp = NoteTakerDisplay::StemUp(pitchPosition);
             }
         } else {
             int duration = bar.leader;
@@ -566,7 +595,6 @@ void CacheBuilder::setDurations(const Notes& n) {
                     if (NOTE_ON == note.type) {
                         tiePart.pitchPosition = pitchPosition;
                         tiePart.yPosition = NoteTakerDisplay::YPos(pitchPosition);
-                        tiePart.stemUp = NoteTakerDisplay::StemUp(pitchPosition);
                     }
                 } while (duration >= NoteDurations::Smallest(ppq, twoThirds));
                 tieTime += std::max(0, duration);   // if some fraction couldn't be represented...

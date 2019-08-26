@@ -37,6 +37,12 @@ std::string PosAsStr(PositionType pType) {
     return PositionType::left == pType  ? "L" : PositionType::mid == pType ? "M" : "R";
 }
 
+std::string StemAsStr(StemType sType) {
+    return StemType::unknown == sType ? "?" : StemType::up == sType ? "U" :
+            StemType::down == sType ? "D" : "!";
+
+}
+
 std::string TrimmedFloat(float f) {
     std::string str = std::to_string(f);
     str.erase(str.find_last_not_of('0') + 1, std::string::npos);
@@ -74,7 +80,7 @@ std::string NoteCache::debugString() const {
         s += std::to_string(pitchPosition) + " ";
     }
     s += std::to_string(symbol) +  (accidentalSpace ? "#" : "")
-            + (endsOnBeat ? "B" : "") + (stemUp ? "u" : "d") + (staff ? "s" : "") 
+            + (endsOnBeat ? "B" : "") + StemAsStr(stemDirection) + (staff ? "s" : "") 
             + (twoThirds ? "2" : "");
     return s;
 }
@@ -203,7 +209,7 @@ void Notes::DebugDump(const vector<DisplayNote>& notes, unsigned start, unsigned
             do {
                 const NoteCache& c = (*cache)[cIndex];
                 if ("" != s && "< " != s) {
-                    DEBUG("%s", s.c_str());
+                    DEBUG("%d/%s", cIndex, s.c_str());
                     s = "";
                 }
                 s += std::to_string(index) + " " + c.debugString();
@@ -212,6 +218,9 @@ void Notes::DebugDump(const vector<DisplayNote>& notes, unsigned start, unsigned
         s += " " + note.debugString();
         if (INT_MAX != selectEnd && &note == &notes[selectEnd - 1]) {
             s += "> ";
+        }
+        if (cache && note.cache) {
+            s = std::to_string(note.cache - &cache->front()) + "/" + s;
         }
         DEBUG("%s", s.c_str());
     }
