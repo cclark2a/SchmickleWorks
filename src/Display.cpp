@@ -447,7 +447,7 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
     int selectWidth = selectEndXPos - selectStartXPos;
     int boxWidth = (int) std::ceil(bw);
     int displayEndXPos = (int) (std::ceil(xAxisOffset + bw));
-    if (debugVerbose) DEBUG("selectStartXPos %d selectEndXPos %d xAxisOffset %d boxWidth %d displayEndXPos %d",
+    if (debugVerbose) DEBUG("selectStartXPos %d selectEndXPos %d xAxisOffset %g boxWidth %d displayEndXPos %d",
             selectStartXPos, selectEndXPos, xAxisOffset, boxWidth, displayEndXPos);
     if (debugVerbose) DEBUG("old displayStart %u displayEnd %u", displayStart, displayEnd);
     // note condition to require the first quarter note of a very long note to be visible
@@ -458,9 +458,9 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
             && selectStartXPos + displayStartMargin <= displayEndXPos;
     bool endShouldBeVisible = selectEndXPos + displayEndMargin <= displayEndXPos
             || selectWidth > boxWidth;
-    const int lastXPostion = notes.back().xPosition;
+    const int lastXPosition = notes.back().xPosition;
     bool recomputeDisplayOffset = !startIsVisible || !endShouldBeVisible
-            || xAxisOffset > std::max(0, lastXPostion - boxWidth);
+            || xAxisOffset > std::max(0, lastXPosition - boxWidth);
     bool recomputeDisplayEnd = recomputeDisplayOffset
             || !displayEnd || notes.size() <= displayEnd
             || cache->startXPos(displayEnd) <= displayEndXPos;
@@ -481,7 +481,7 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
             xAxisOffset = selectBoxX - boxWidth + displayEndMargin;
             if (debugVerbose) DEBUG("3 xAxisOffset %g selectBoxX %d", xAxisOffset, selectBoxX);
         }
-        xAxisOffset = std::max(0.f, std::min((float) lastXPostion - boxWidth, xAxisOffset));
+        xAxisOffset = std::max(0.f, std::min((float) lastXPosition - boxWidth, xAxisOffset));
         dynamicXOffsetTimer = oldX - xAxisOffset;
         if (fabsf(dynamicXOffsetTimer) <= 5) {
             dynamicXOffsetTimer = 0;
@@ -489,7 +489,7 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
             dynamicXOffsetStep = -dynamicXOffsetTimer * 70 * state.callInterval / 24;
         }
     }
-    SCHMICKLE(xAxisOffset <= std::max(0, lastXPostion - boxWidth));
+    SCHMICKLE(xAxisOffset <= std::max(0, lastXPosition - boxWidth));
     if (recomputeDisplayEnd) {
         float displayStartXPos = std::max(0.f, xAxisOffset - displayQuarterNoteWidth);
         displayStart = std::min(notes.size() - 1, (size_t) displayStart);
@@ -503,7 +503,7 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
             }
             displayStart = displayNext;
         } while (displayStart < notes.size());
-        displayEndXPos = std::min((float) lastXPostion,
+        displayEndXPos = std::min((float) lastXPosition,
                 xAxisOffset + boxWidth + displayQuarterNoteWidth);
         while ((unsigned) displayEnd < notes.size()
                 && cache->startXPos(displayEnd) <= displayEndXPos) {
@@ -517,7 +517,7 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
             }
             displayEnd = displayPrevious;
         } while (displayEnd);
-        if (debugVerbose) DEBUG("displayStartXPos %d displayEndXPos %d", displayStartXPos, displayEndXPos);
+        if (debugVerbose) DEBUG("displayStartXPos %g displayEndXPos %d", displayStartXPos, displayEndXPos);
         if (debugVerbose) DEBUG("displayStart %u displayEnd %u", displayStart, displayEnd);
     }
 }
@@ -1556,7 +1556,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     SCHMICKLE(PositionType::left == cacheNotes[start].tupletPosition);
     BeamPositions bp;
     unsigned index = start;
-    while (++index < notes.size()) {
+    while (++index < cacheNotes.size()) {
         auto& noteCache = cacheNotes[index];
         if (tupletId != noteCache.tupletId) {
             continue;
@@ -1586,7 +1586,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     }
     SCHMICKLE(PositionType::right == tupletRight.tupletPosition);
     auto vg = state.vg;
-    SetNoteColor(vg, notes[index].channel, alpha);
+    SetNoteColor(vg, tupletLeft.channel, alpha);
     // draw '3' at center of notes above or below staff
     nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, 16);

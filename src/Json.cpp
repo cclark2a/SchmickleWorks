@@ -53,7 +53,8 @@ json_t* NoteTakerWidget::toJson() {
     json_object_set_new(root, "insertButton", insertButton->toJson());
     json_object_set_new(root, "partButton", partButton->toJson());
     json_object_set_new(root, "restButton", restButton->toJson());
-    json_object_set_new(root, "runButton", runButton->toJson());
+// run button state is not saved and restored : module always starts with run off
+//    json_object_set_new(root, "runButton", runButton->toJson());
     json_object_set_new(root, "selectButton", selectButton->toJson());
     json_object_set_new(root, "slotButton", slotButton->toJson());
     json_object_set_new(root, "sustainButton", sustainButton->toJson());
@@ -139,7 +140,8 @@ void NoteTakerWidget::fromJson(json_t* root) {
     insertButton->fromJson(json_object_get(root, "insertButton"));
     partButton->fromJson(json_object_get(root, "partButton"));
     restButton->fromJson(json_object_get(root, "restButton"));
-    runButton->fromJson(json_object_get(root, "runButton"));
+// run button state is not saved and restored : module always starts with run off
+//    runButton->fromJson(json_object_get(root, "runButton"));
     selectButton->fromJson(json_object_get(root, "selectButton"));
     slotButton->fromJson(json_object_get(root, "slotButton"));
     sustainButton->fromJson(json_object_get(root, "sustainButton"));

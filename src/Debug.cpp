@@ -197,32 +197,28 @@ void Notes::DebugDump(const vector<DisplayNote>& notes, unsigned start, unsigned
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         SCHMICKLE(i == typeNames[i].type);
     }
-    DEBUG("notes: %d", notes.size());
+    DEBUG("notes: %d cache: %d", notes.size(), cache ? cache->size() : 0);
+    unsigned lastC = INT_MAX;
     for (unsigned index = start; index < end; ++index) {
         const DisplayNote& note = notes[index];
-        std::string s;
-        if (INT_MAX != selectStart && &note == &notes[selectStart]) {
-            s += "< ";
-        }
+        std::string angleStart = INT_MAX != selectStart && &note == &notes[selectStart] ? "< " : "";
+        std::string cacheIndex;
+        std::string cacheDump;
         if (cache && note.cache) {
-            unsigned cIndex = note.cache - &cache->front();
-            do {
-                const NoteCache& c = (*cache)[cIndex];
-                if ("" != s && "< " != s) {
-                    DEBUG("%d/%s", cIndex, s.c_str());
-                    s = "";
-                }
-                s += std::to_string(index) + " " + c.debugString();
-            } while (++cIndex < cache->size() && (*cache)[cIndex].note == &note);
+            unsigned nextC = note.cache - &cache->front();
+            while (++lastC < nextC) {
+                const auto& c = (*cache)[lastC];
+                DEBUG("%s%d/%d %s", angleStart.c_str(), lastC, c.note - &notes.front(),
+                        c.debugString().c_str());
+                angleStart.clear();  
+            }
+            cacheDump = " " + (*cache)[nextC].debugString();
+            cacheIndex = std::to_string(nextC) + "/";
+            lastC = nextC;
         }
-        s += " " + note.debugString();
-        if (INT_MAX != selectEnd && &note == &notes[selectEnd - 1]) {
-            s += "> ";
-        }
-        if (cache && note.cache) {
-            s = std::to_string(note.cache - &cache->front()) + "/" + s;
-        }
-        DEBUG("%s", s.c_str());
+        std::string angleEnd = INT_MAX != selectEnd && &note == &notes[selectEnd - 1] ? " >" : "";
+        DEBUG("%s%s%u%s %s%s", angleStart.c_str(), cacheIndex.c_str(), index,
+                cacheDump.c_str(), note.debugString().c_str(), angleEnd.c_str());
     }
 }
 

@@ -143,8 +143,8 @@ struct NoteTakerWidget : ModuleWidget {
         ModuleWidget::onButton(e);
     }
 
-    void resetAndPlay();
     bool resetControls();
+    void resetForPlay();
     void resetRun();
     void resetScore();
     void resetState();

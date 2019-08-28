@@ -596,7 +596,8 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
         nt->zeroGates();
     } else {
         nt->resetRun();
-        ntw->resetAndPlay();
+        ntw->resetForPlay();
+        nt->playSelection();
         ntw->turnOffLEDButtons(this, true);
         ntw->disableEmptyButtons();
         dynamicRunAlpha = 0;

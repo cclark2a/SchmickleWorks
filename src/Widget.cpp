@@ -782,14 +782,13 @@ const NoteTaker* NoteTakerWidget::nt() const {
     return dynamic_cast<const NoteTaker* >(module);
 }
 
-void NoteTakerWidget::resetAndPlay() {
+void NoteTakerWidget::resetForPlay() {
     auto& n = this->n();
     display->range.setRange(n);
     unsigned next = n.nextAfter(n.selectStart, 1);
     this->setSelectStart(next < n.notes.size() - 1 ? next : selectButton->editStart() ? 0 : 1);
     horizontalWheel->lastRealValue = INT_MAX;
     verticalWheel->lastValue = INT_MAX;
-    this->nt()->playSelection();
 }
 
 bool NoteTakerWidget::resetControls() {

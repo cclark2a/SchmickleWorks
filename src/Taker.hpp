@@ -95,7 +95,7 @@ struct NoteTaker : Module {
     dsp::Timer resetTimer;
     int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per qn)
     // end of state saved into json; written by step
-    float elapsedSeconds = 0;               // seconds into score
+    double elapsedSeconds = 0;              // seconds into score (float is not enough bits)
     double realSeconds = 0;                 // seconds for UI timers
     unsigned playStart = 0;                 // index of notes output
     int midiEndTime = INT_MAX;
@@ -146,6 +146,7 @@ struct NoteTaker : Module {
                         tempo = note.tempo();
                         externalClockTempo = 
                                 (int) ((float) externalClockTempo / stdMSecsPerQuarterNote * tempo);
+                        if (debugVerbose) DEBUG("tempo: %d extern: %d", tempo, externalClockTempo);
                     }
                     // fall through
                 case KEY_SIGNATURE:

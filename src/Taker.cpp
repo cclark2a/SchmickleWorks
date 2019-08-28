@@ -28,6 +28,7 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
             ntw()->displayBuffer->redraw();
             lastRatio = tempoRatio;
         }
+        if ((deltaTime < 0 || tempoRatio < 0) && debugVerbose) DEBUG("local %d delta %g ratio %g", localTempo, deltaTime, tempoRatio);
         deltaTime *= tempoRatio;
     }
     return deltaTime;
@@ -73,6 +74,7 @@ void NoteTaker::invalidateAndPlay(Inval inval) {
         this->setOutputsVoiceCount();
 
     } else if (Inval::cut != inval) {
+        this->setPlayStart();
         this->playSelection();
     }
 }
@@ -88,8 +90,7 @@ const Notes& NoteTaker::n() const {
 void NoteTaker::playSelection() {
     const auto& n = this->n();
     elapsedSeconds = MidiToSeconds(n.notes[n.selectStart].startTime, n.ppq);
-    elapsedSeconds *= stdMSecsPerQuarterNote / tempo;
-    this->setPlayStart();
+    elapsedSeconds *= (float) stdMSecsPerQuarterNote / tempo;
     int midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
     eosInterval = 0;
     const auto& storage = ntw()->storage;
@@ -147,11 +148,13 @@ void NoteTaker::process(const ProcessArgs &args) {
         stagedSlotStart = INT_MAX;
         this->invalidateAndPlay(Inval::load);
         this->resetRun();
-        ntw()->resetAndPlay();
+        ntw()->resetForPlay();
+        this->playSelection();
     }
     auto& n = this->n();
     bool running = this->isRunning();
     int localTempo = tempo;
+    SCHMICKLE(tempo);
     if (inputs[RESET_INPUT].isConnected()) {
         if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
             resetCycle = std::max(0., realSeconds - resetHighTime);
@@ -204,7 +207,14 @@ void NoteTaker::process(const ProcessArgs &args) {
         // note on event start changes cv and sets gate high
         // note on event duration sets gate low
         midiTime = SecondsToMidi(elapsedSeconds, n.ppq);
+        double debugSeconds = elapsedSeconds;
         elapsedSeconds += args.sampleTime * this->beatsPerHalfSecond(localTempo);
+        if (debugSeconds >= elapsedSeconds) {
+            DEBUG("last %g elapsed %g sample %g tempo %d beats %g",
+                    debugSeconds, elapsedSeconds, args.sampleTime, localTempo,
+                    this->beatsPerHalfSecond(localTempo));
+            _schmickled();
+        }
         if (midiTime >= midiClockOut) {
             midiClockOut += n.ppq;
             clockPulse.trigger();
@@ -521,5 +531,7 @@ float NoteTaker::wheelToTempo(float value) const {
     const float largest = INT_MAX / 500000.f;
     float ceil = (unsigned) next < NoteDurations::Count() ? NoteDurations::ToStd(next) : largest;
     float interp = floor + (ceil - floor) * (value - horzIndex);
+    if (interp <= 0 && debugVerbose) DEBUG("value %g horz %d floor %d next %d ceil %g interp %g",
+            value, horzIndex, floor, next, ceil, interp);
     return stdTimePerQuarterNote / interp;
 }
