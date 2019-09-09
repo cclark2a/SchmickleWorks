@@ -16,9 +16,9 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     auto ntw = this->ntw();
     auto& n = ntw->n();
     if (shiftTime) {
-        Notes::ShiftNotes(n.notes, shiftLoc, shiftTime);
+        n.shift(shiftLoc, shiftTime);
     }
-    Notes::Sort(n.notes);
+    n.sort();
     ntw->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
     ntw->nt()->invalidateAndPlay(Inval::cut);
@@ -175,7 +175,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         if (shiftTime) {
             ntw->shiftNotes(start, shiftTime);
         } else {
-            Notes::Sort(n.notes);
+            n.sort();
         }
         ntw->nt()->invalidateAndPlay(Inval::cut);
         ntw->turnOffLEDButtons();
@@ -411,7 +411,9 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             ntw->nt()->stageSlot(pspan[0].index);
         } else {
             int nextStart = ntw->nextStartTime(insertLoc);
-            Notes::ShiftNotes(span, 0, lastEndTime - span.front().startTime);
+            if (Notes::ShiftNotes(span, 0, lastEndTime - span.front().startTime)) {
+                Notes::SortNotes(span);
+            }
             n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
             // include notes on other channels that fit within the start/end window
            // shift by span duration less next start (if any) on same channel minus selectStart time
@@ -755,6 +757,21 @@ void TempoButton::draw(const DrawArgs& args) {
     nvgFillColor(vg, nvgRGBA(0, 0, 0, this->runAlpha()));
     nvgFontSize(vg, 24);
     nvgText(vg, 5 + af, 41 - af, "@", NULL);
+}
+
+void TieButton::onDragEnd(const event::DragEnd& e) {
+    // horz: no slur / [optional original] / all slur
+    // vert: no triplet / [optional original] / all triplet
+    // to do : if selection is too small to slur / trip, button should be disabled
+    auto ntw = this->ntw();
+    ntw->edit.clear();
+    auto& n = ntw->n();
+    ntw->edit.init(ntw->n(), ntw->selectChannels);
+    setTie = n.slursOrTies(ntw->selectChannels, Notes::HowMany::set, &setSlur);
+    setTriplet = n.triplets(ntw->selectChannels, Notes::HowMany::set);
+    clearTie = n.slursOrTies(ntw->selectChannels, Notes::HowMany::clear, &clearSlur);
+    clearTriplet = n.triplets(ntw->selectChannels, Notes::HowMany::clear);
+    EditLEDButton::onDragEnd(e);
 }
 
 void TieButton::draw(const DrawArgs& args) {

@@ -11,7 +11,12 @@ struct Notes {
     unsigned selectStart = 0;           // index into notes of first selected (any channel)
     unsigned selectEnd = 1;             // one past last selected
     int ppq = stdTimePerQuarterNote;    // default to 96 pulses/ticks per quarter note
-    
+        
+    enum class HowMany {
+        clear,         // at least one slur/trip can be cleared
+        set,           // at least one slurs/trip can be set
+    };
+
     Notes() {
         notes.emplace_back(MIDI_HEADER);
         notes.emplace_back(TRACK_END);
@@ -40,7 +45,6 @@ struct Notes {
     static std::string FullName(int duration, int ppq);
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     // static void HighestOnly(vector<DisplayNote>& );
-    bool hasTie(unsigned selectChannels) const;
     unsigned horizontalCount(unsigned selectChannels) const;
 
     bool insertContains(unsigned loc, DisplayType type) const {
@@ -128,6 +132,9 @@ struct Notes {
     static bool PitchCollision(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,
             vector<const DisplayNote*>* overlaps);
     bool pitchCollision(const DisplayNote& , int newPitch) const;
+    void setSlurs(unsigned selectChannels, bool condition);
+    void setTriplets(unsigned selectChannels, bool condition);
+    bool slursOrTies(unsigned selectChannels, HowMany , bool* atLeastOneSlur) const;
     static std::string SharpName(unsigned midiPitch);
 
     unsigned selectEndPos(unsigned select) const {
@@ -146,11 +153,17 @@ struct Notes {
     // truncates / expands duration preventing note from colliding with same pitch later on 
     void setDuration(DisplayNote* );
 
+    void shift(unsigned start, int diff, unsigned selectChannels = ALL_CHANNELS) {
+        if (Notes::ShiftNotes(notes, start, diff, selectChannels)) {
+            this->sort();
+        }
+    }
+
     // shift track end only if another shifted note bumps it out
     // If all notes are selected, shift signatures. Otherwise, leave them be.
-    static void ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff,
+    static bool ShiftNotes(vector<DisplayNote>& notes, unsigned start, int diff,
             unsigned selectChannels = ALL_CHANNELS) {
-        bool sort = false;
+        bool sortResult = false;
         int trackEndTime = 0;
         bool hasTrackEnd = TRACK_END == notes.back().type;
         if (hasTrackEnd) {
@@ -164,7 +177,7 @@ struct Notes {
                     || note.isSelectable(selectChannels)) {
                 note.startTime += diff;
             } else {
-                sort = true;
+                sortResult = true;
             }
             if (hasTrackEnd && TRACK_END != note.type) {
                 trackEndTime = std::max(trackEndTime, note.endTime());
@@ -173,14 +186,36 @@ struct Notes {
         if (hasTrackEnd) {
             notes.back().startTime = trackEndTime;
         }
-        if (sort) {
-            Sort(notes);
-        }
+        return sortResult;
    }
 
     // don't use std::sort function; use insertion sort to minimize reordering
-    static void Sort(vector<DisplayNote>& notes, bool debugging = false) {
-        if (debugging) DEBUG("sort notes");
+     void sort() {
+        if (debugVerbose) DEBUG("sort notes");
+        DisplayType start = SELECT_START;
+        DisplayType end = SELECT_END;
+        SCHMICKLE(selectStart < selectEnd);
+        SCHMICKLE(selectEnd < notes.size());
+        std::swap(start, notes[selectStart].type);
+        std::swap(end, notes[selectEnd].type);
+        Notes::SortNotes(notes);
+        // sort may move selection end (and maybe start?)
+        // set up select start / end after sorting to where they landed
+        for (auto& note : notes) {
+            if (SELECT_START == note.type) {
+                selectStart = &note - &notes.front();
+                std::swap(start, note.type);
+            }
+            if (SELECT_END == note.type) {
+                selectEnd = &note - &notes.front();
+                std::swap(end, note.type);
+            }
+        }
+        SCHMICKLE(SELECT_START == start);
+        SCHMICKLE(SELECT_END == end);
+    }
+
+    static void SortNotes(vector<DisplayNote>& notes) {
         for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
             auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
             std::rotate(insertion_point, it, it + 1);
@@ -191,6 +226,7 @@ struct Notes {
     static std::string TSNumer(const DisplayNote* , int ppq);
     static std::string TSUnit(const DisplayNote* , int count, int ppq);
     bool transposeSpan(vector<DisplayNote>& span) const;
+    bool triplets(unsigned selectChannels, HowMany ) const;
     json_t* toJson() const;
     static void ToJsonCompressed(const vector<DisplayNote>& , json_t* , std::string );
     static void ToJsonUncompressed(const vector<DisplayNote>& , json_t* , std::string );

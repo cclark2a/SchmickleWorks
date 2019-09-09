@@ -62,6 +62,7 @@ constexpr unsigned EXPANSION_OUTPUTS = 8;
 struct NoteDurations {
     static int Beams(unsigned index);
     static unsigned Count();
+    static bool Dotted(int midi, int ppq);
     static unsigned FromMidi(int midi, int ppq);
     static unsigned FromStd(int duration);
     static unsigned FromTripletMidi(int midi, int ppq);

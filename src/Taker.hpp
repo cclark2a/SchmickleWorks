@@ -166,6 +166,9 @@ struct NoteTaker : Module {
                     ;
             }
             ++playStart;
+            if (debugVerbose && playStart >= n().notes.size()) {
+                DEBUG("playStart %u n().notes.size() %u", playStart, n().notes.size());
+            }
             SCHMICKLE(playStart < n().notes.size());
         } while (true);
     }
@@ -249,8 +252,10 @@ struct NoteTaker : Module {
                     voice.gateLow = 0;
                     if (channel < CV_OUTPUTS) {
                         outputs[GATE1_OUTPUT + channel].setVoltage(0, index);
+#if DEBUG_RUN_TIME
                         DEBUG("set expired low [%u / %u]", channel, index);
-                    } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
+#endif
+                   } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
                         channels[channel].voices[index].gate = 0;
                     }
                 }

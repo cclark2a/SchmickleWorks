@@ -75,6 +75,15 @@ struct NoteTakerWheel : app::SliderKnob {
         return root;
     }
 
+    void getLimits(float* lo, float* hi) const {
+        if (paramQuantity) {
+            *lo = paramQuantity->minValue;
+            *hi = paramQuantity->maxValue;
+        } else {
+            *lo = *hi = 0;
+        }
+    }
+
     float getValue() const {
         if (paramQuantity) {
             return paramQuantity->getValue();

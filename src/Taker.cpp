@@ -314,7 +314,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             } else {
                 voice.note = &note;
                 voice.realStart = realSeconds;
-                voice.gateLow = note.slur() ? INT_MAX : 
+                voice.gateLow = note.slurEnd() ? INT_MAX : 
                         note.startTime + storage.current().channels[note.channel].sustain(note.duration);
                 voice.noteEnd = endTime;
                 if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
@@ -324,9 +324,11 @@ void NoteTaker::process(const ProcessArgs &args) {
                     message->gate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
                 }
                 if (note.channel < CV_OUTPUTS) {
+#if DEBUG_RUN_TIME
                     if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
                             note.channel, voice.gateLow, voice.noteEnd, voice.note - &n.notes.front(),
                             midiTime, outputs[GATE1_OUTPUT + note.channel].getVoltage(voiceIndex));
+#endif
                     outputs[GATE1_OUTPUT + note.channel].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE, voiceIndex);
                 }
             }
@@ -353,11 +355,13 @@ void NoteTaker::process(const ProcessArgs &args) {
                     message->velocity[note.channel][voiceIndex] = velocity;
                 }
                 if (note.channel < CV_OUTPUTS) {
+#if DEBUG_RUN_TIME
                     if (debugVerbose) DEBUG("setNote [%u] bias %g v_oct %g wheel %g pitch %g new %g old %g",
                         note.channel, bias,
                         inputs[V_OCT_INPUT].getVoltage(), verticalWheel->getValue(),
                         note.pitch() / 12.f, bias + note.pitch() / 12.f,
                         outputs[CV1_OUTPUT + note.channel].getVoltage(voiceIndex));
+#endif
                     outputs[CV1_OUTPUT + note.channel].setVoltage(bias + note.pitch() / 12.f, voiceIndex);
                 }
             }
@@ -485,7 +489,9 @@ void NoteTaker::setVoiceCount() {
                 continue;
             }
             ++vCount;
+#if DEBUG_VOICE_COUNT
             DEBUG("%d over note %s", vCount, note.debugString().c_str());
+#endif
         }
         over = overStart - 1;
         if (VOICE_COUNT < vCount) {
@@ -509,7 +515,9 @@ void NoteTaker::setVoiceCount() {
         channels[chan].voiceCount =
                 std::max(channels[chan].voiceCount, vCount);
         note.voice = over - overStart;
+#if DEBUG_VOICE_COUNT
         DEBUG("%u vCount %d chan %d %s", index, vCount, chan, note.debugString().c_str());
+#endif
     }
 }
 

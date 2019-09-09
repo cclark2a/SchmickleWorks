@@ -246,34 +246,39 @@ DisplayBuffer::DisplayBuffer(const Vec& pos, const Vec& size, NoteTakerWidget* _
     fb->addChild(display);
 }
 
-DisplayControl::DisplayControl(NoteTakerDisplay* d, NVGcontext* v)
+DisplayControl::DisplayControl(NoteTakerDisplay* d, NVGcontext* v, bool h)
     : display(d)
-    , vg(v) {
+    , vg(v)
+    , horizontal(h) {
 }
 
 // set control offset to bring offscreen into view
 // frame time works with any screen refresh rate
 void DisplayControl::autoDrift(float value, float frameTime, int visCells) {
     constexpr float scrollRate = 5.6f;
-    auto horzLo = floorf(value);
-    auto xOff = display->xControlOffset;
-    // xControlOffset draws current location, 0 to storage size - 4
-    if (horzLo < xOff) {
-        xOff = std::max(horzLo, xOff - scrollRate * frameTime);
+    auto lo = floorf(value);
+    auto offset = horizontal ? display->xControlOffset : display->yControlOffset;
+    auto original = offset;
+    if (lo < offset) {
+        offset = std::max(lo, offset - scrollRate * frameTime);
     } else {
-        auto horzHi = ceilf(value - visCells);
-        if (horzHi > xOff) {
-            xOff = std::min(horzHi, xOff + scrollRate * frameTime);
+        auto hi = ceilf(value - visCells);
+        if (hi > offset) {
+            offset = std::min(hi, offset + scrollRate * frameTime);
         } else {
-            xOff = floorf(xOff);
+            offset = floorf(offset);
         }
     }
-    if (display->xControlOffset == xOff) {
+    if (original == offset) {
         return;
     }
-    if (debugVerbose) DEBUG("autodrift old %g new %g", display->xControlOffset, xOff);
+    if (debugVerbose) DEBUG("autodrift old %g new %g", original, offset);
     display->redraw();
-    display->xControlOffset = xOff;
+    if (horizontal) {
+        display->xControlOffset = offset;
+    } else {
+        display->yControlOffset = offset;
+    }
 }
 
 void DisplayControl::drawActiveNarrow(unsigned slot) const {
@@ -288,6 +293,23 @@ void DisplayControl::drawActive(unsigned start, unsigned end) const {
     nvgBeginPath(vg);
     nvgRect(vg, 40 + (start - display->xControlOffset) * boxWidth,
             display->box.size.y - boxWidth - 5, boxWidth * (end - start), boxWidth);
+    nvgStrokeWidth(vg, 2);
+    nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+    nvgStroke(vg);
+}
+
+void DisplayControl::drawActive(float position) const {
+    nvgBeginPath(vg);
+    float start = (horizontal ? display->box.size.x : display->box.size.y) / 2;
+    start += (position - 0.5) * (boxWidth + margin) + margin / 2;
+    if (debugVerbose) DEBUG("center %g start %g position %g boxWidth %g margin %g",
+            (horizontal ? display->box.size.x : display->box.size.y) / 2,
+            start, position, boxWidth, margin);
+    if (horizontal) {
+        nvgRect(vg, start, display->box.size.y - boxWidth - 5, boxWidth, boxWidth);
+    } else {
+        nvgRect(vg, display->box.size.x - boxWidth - 5, start, boxWidth, boxWidth);
+    }
     nvgStrokeWidth(vg, 2);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
@@ -394,14 +416,22 @@ void DisplayControl::drawStart() const {
     nvgScissor(vg, 40 - boxWidth / 2, display->box.size.y - boxWidth - 5, boxWidth * 5, boxWidth);
 }
 
-void DisplayControl::drawTie(unsigned position, unsigned index) const {
+void DisplayControl::drawTie(int position, unsigned index) const {
     nvgSave(vg);
-    nvgTranslate(vg, 40 + (position - display->xControlOffset) * boxWidth,
-            display->box.size.y - boxWidth - 5);
+    nvgTranslate(vg, position, display->box.size.y - boxWidth - 5);
     this->drawNoteCommon();
-    const char labels[] = {'{', 'H', '>', '?'};  // to do: replace last with triplet + tie
+    const char labels[] = {'<', '~', '{', ';'};
     nvgText(vg, boxWidth / 2, boxWidth - 7, &labels[index], &labels[index] + 1);
-    this->drawEdgeGradient(position, 0, 2);
+    nvgRestore(vg);
+}
+
+void DisplayControl::drawTriplet(int position, unsigned index) const {
+    nvgSave(vg);
+    if (debugVerbose) DEBUG("drawTriplet %g %d", display->box.size.x - boxWidth - 5, position);
+    nvgTranslate(vg, display->box.size.x - boxWidth - 5, position);
+    this->drawNoteCommon();
+    const char labels[] = {'|', '~', '>', ';'};
+    nvgText(vg, boxWidth / 2, boxWidth - 7, &labels[index], &labels[index] + 1);
     nvgRestore(vg);
 }
 
@@ -447,9 +477,11 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
     int selectWidth = selectEndXPos - selectStartXPos;
     int boxWidth = (int) std::ceil(bw);
     int displayEndXPos = (int) (std::ceil(xAxisOffset + bw));
+#if DEBUG_DISPLAY_RANGE
     if (debugVerbose) DEBUG("selectStartXPos %d selectEndXPos %d xAxisOffset %g boxWidth %d displayEndXPos %d",
             selectStartXPos, selectEndXPos, xAxisOffset, boxWidth, displayEndXPos);
     if (debugVerbose) DEBUG("old displayStart %u displayEnd %u", displayStart, displayEnd);
+#endif
     // note condition to require the first quarter note of a very long note to be visible
     const int displayQuarterNoteWidth = stdTimePerQuarterNote * xAxisScale;
     const int displayStartMargin = editStart ? 0 : displayQuarterNoteWidth;
@@ -472,14 +504,20 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
             xAxisOffset = (NoteTakerDisplay::CacheWidth(*last, state.vg) > boxWidth ?
                 n.xPosAtEndStart() :  // show beginning of end
                 selectEndXPos - boxWidth) + displayEndMargin;  // show all of end
+#if DEBUG_DISPLAY_RANGE
             if (debugVerbose) DEBUG("1 xAxisOffset %g", xAxisOffset);
+#endif
         } else if (xAxisOffset > selectStartXPos - displayStartMargin) { // left to start
             xAxisOffset = selectStartXPos - displayStartMargin;
+#if DEBUG_DISPLAY_RANGE
             if (debugVerbose) DEBUG("2 xAxisOffset %g", xAxisOffset);
+#endif
         } else {    // scroll enough to show start on right
             int selectBoxX = n.xPosAtStartEnd();
             xAxisOffset = selectBoxX - boxWidth + displayEndMargin;
+#if DEBUG_DISPLAY_RANGE
             if (debugVerbose) DEBUG("3 xAxisOffset %g selectBoxX %d", xAxisOffset, selectBoxX);
+#endif
         }
         xAxisOffset = std::max(0.f, std::min((float) lastXPosition - boxWidth, xAxisOffset));
         dynamicXOffsetTimer = oldX - xAxisOffset;
@@ -517,8 +555,10 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
             }
             displayEnd = displayPrevious;
         } while (displayEnd);
+#if DEBUG_DISPLAY_RANGE
         if (debugVerbose) DEBUG("displayStartXPos %g displayEndXPos %d", displayStartXPos, displayEndXPos);
         if (debugVerbose) DEBUG("displayStart %u displayEnd %u", displayStart, displayEnd);
+#endif
     }
 }
 
@@ -623,8 +663,8 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     }
     auto cache = &slot->cache;
     if (slot->invalid) {
-        CacheBuilder builder(state, cache, n.ppq);
-        builder.updateXPosition(n);
+        CacheBuilder builder(state, n, cache, n.ppq);
+        builder.updateXPosition();
         slot->invalid = false;
         range.invalid = true;
     }
@@ -1311,25 +1351,46 @@ void NoteTakerDisplay::drawPartControl() {
 // to do : mock score software ?
 // in scoring software, slur is drawn from first to last, offset by middle, if needed
 void NoteTakerDisplay::drawSlur(unsigned start, unsigned char alpha) const {
-    auto& notes = this->cache()->notes;
-    SCHMICKLE(PositionType::left == notes[start].slurPosition);
+    auto& cacheNotes = this->cache()->notes;
+    auto& notes = ntw()->n().notes;
+    SCHMICKLE(PositionType::left == cacheNotes[start].slurPosition);
     BeamPositions bp;
     unsigned index = start;
-    int chan = notes[start].channel;
-    while (++index < notes.size()) {
-        if (chan != notes[index].channel) {
+    int chan = cacheNotes[start].channel;
+    while (++index < cacheNotes.size()) {
+        auto& noteCache = cacheNotes[index];
+        const DisplayNote* note = noteCache.note;
+        if (NOTE_ON != note->type) {
             continue;
         }
-        if (PositionType::right == notes[index].slurPosition) {
+        if (!noteCache.staff) {
+            continue;
+        }
+        if (chan != noteCache.channel) {
+            continue;
+        }
+        if (PositionType::right == noteCache.slurPosition) {
             this->setBeamPos(start, index, &bp);
             break;
         }
-        if (PositionType::mid != notes[index].slurPosition) {
-            if (debugVerbose) DEBUG("malformed slur");
-            return;
+        if (DEBUG_SLUR_TEST && PositionType::mid != noteCache.slurPosition) {
+            DEBUG("PositionType::mid != cache[%d].slurPosition (%s) cache[%u]: %s note[%u]: %s",
+                    index, debugPositionType[(int) noteCache.slurPosition], index,
+                    noteCache.debugString().c_str(), noteCache.note - &notes.front(),
+                    noteCache.note->debugString().c_str());
+            debugDump(start, index);
         }
+        SCHMICKLE(PositionType::mid == cacheNotes[index].slurPosition);
     }
-    SCHMICKLE(PositionType::right == notes[index].slurPosition);
+    auto& slurRight = cacheNotes[index];
+    if (DEBUG_SLUR_TEST && PositionType::right != cacheNotes[index].slurPosition) {
+        DEBUG("PositionType::mid != cache[%d].slurPosition (%s) cache[%u]: %s note[%u]: %s",
+                index, debugPositionType[(int) slurRight.slurPosition], index,
+                slurRight.debugString().c_str(), slurRight.note - &notes.front(),
+                slurRight.note->debugString().c_str());
+        debugDump(start, index);
+    }
+    SCHMICKLE(PositionType::right == slurRight.slurPosition);
     SetNoteColor(state.vg, chan, alpha);
     this->drawArc(bp, start, index);
 }
@@ -1515,18 +1576,39 @@ void NoteTakerDisplay::drawTempo(int xPos, int tempo, unsigned char alpha) {
 // to do : for all scrolling controls -- if user turns off button in middle of scroll, 
 //         make sure timers are canceled, scrolling state is set to nearest integer, etc.
 void NoteTakerDisplay::drawTieControl() {
-    DisplayControl control(this, state.vg);
     auto ntw = this->ntw();
+    DisplayControl horzCtrl(this, state.vg);
     auto horizontalWheel = ntw->horizontalWheel;
     float selected = horizontalWheel->getValue();
-    int slot = (int) (selected + .5);
-    control.autoDrift(selected, state.callInterval);
-    control.drawStart();
-    for (int index = 0; index < 3; ++index) {
-        control.drawTie(index, (slot + index) % 4);
+    float lo, hi;
+    horizontalWheel->getLimits(&lo, &hi);
+    int count = (int) hi - (int) lo + 1;
+    int totalWidth = horzCtrl.boxWidth * count + horzCtrl.margin * std::max(0, count - 1);
+    int leftEdge = (box.size.x - totalWidth) / 2;
+    // draw 1, 2, or 3 boxes, depending on tie button settings
+    for (int index = (int) lo; index < (int) lo + count; ++index) {
+        horzCtrl.drawTie(leftEdge, index);
+        leftEdge += horzCtrl.boxWidth + horzCtrl.margin;
+    };
+    if (lo < hi) {
+        if (debugVerbose) DEBUG("horzCtrl selected %g lo %g hi %g", selected, lo, hi);
+        horzCtrl.drawActive(selected - (lo + hi) / 2);
     }
-    control.drawEnd();
-    control.drawActive(slot, slot + 1);
+    // to do : draw vertical triplet control
+    DisplayControl vertCtrl(this, state.vg);
+    auto verticalWheel = ntw->verticalWheel;
+    selected = verticalWheel->getValue();
+    verticalWheel->getLimits(&lo, &hi);
+    count = (int) hi - (int) lo + 1;
+    int totalHeight = vertCtrl.boxWidth * count + vertCtrl.margin * std::max(0, count - 1);
+    int topEdge = (box.size.y - totalHeight) / 2;
+    for (int index = (int) lo; index < (int) lo + count; ++index) {
+        vertCtrl.drawTriplet(topEdge, index);
+        topEdge += vertCtrl.boxWidth + vertCtrl.margin;
+    }
+    if (lo < hi) {
+        vertCtrl.drawActive(selected - (lo + hi) / 2);
+    }
 }
 
 void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
@@ -1540,9 +1622,7 @@ void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
 // to do : share code with draw slur, draw beam ?
 void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewBeam) const {
     auto& cacheNotes = this->cache()->notes;
-#if DEBUG_TRIPLET_DRAW
     auto& notes = ntw()->n().notes;
-#endif
     auto& tupletLeft = cacheNotes[start];
     const uint8_t tupletId = tupletLeft.tupletId;
     if (DEBUG_TRIPLET_TEST && PositionType::left != tupletLeft.tupletPosition) {

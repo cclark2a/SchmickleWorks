@@ -77,6 +77,11 @@ static unsigned from_std(const std::array<int, 20>& durations, int duration) {
     return std::upper_bound(durations.begin(), durations.end(), duration) - durations.begin() - 1;
 }
 
+bool NoteDurations::Dotted(int midi, int ppq) {
+    unsigned index = FromMidi(midi, ppq);
+    return index && !(index & 1);
+}
+
 unsigned NoteDurations::FromStd(int duration) {
     return from_std(noteDurations, duration);
 }

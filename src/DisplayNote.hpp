@@ -22,8 +22,13 @@ enum DisplayType : uint8_t {
     MIDI_TEMPO,         // B
     REST_TYPE,          // C
     TRACK_END,          // D
+    SELECT_START,       // used to maintain select start and end over sort, not persistent types
+    SELECT_END,
     NUM_TYPES
 };
+
+#define SLUR_START_BIT 1
+#define SLUR_END_BIT 2
 
 // midi is awkward to parse at run time to draw notes since the duration is some
 // where in the future stream. It is not trival (or maybe not possible) to walk
@@ -138,14 +143,25 @@ struct DisplayNote {
     }
 
     // if set, gate is kept high through next note (no midi note off until after next note on?)
-    bool slur() const {
-        assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);
-        return data[1];
+    bool slurEnd() const {
+        assertValid(NOTE_ON);
+        return data[1] & SLUR_END_BIT;
     }
 
-    void setSlur(bool slur) {
-        data[1] = slur;
-        assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);
+    // if set, note is start or middle of slur (or tie)
+    bool slurStart() const {
+        assertValid(NOTE_ON);
+        return data[1] & SLUR_START_BIT;
+    }
+
+    void setSlurEnd(bool slur) {
+        data[1] = (slur ? SLUR_END_BIT : 0) | (data[1] & ~SLUR_END_BIT);
+        assertValid(NOTE_ON);
+    }
+
+    void setSlurStart(bool slur) {
+        data[1] = (slur ? SLUR_START_BIT : 0) | (data[1] & ~SLUR_START_BIT);
+        assertValid(NOTE_ON);
     }
 
     int tracks() const {
@@ -229,10 +245,6 @@ struct DisplayNote {
             SCHMICKLE(type == t);
         }
         SCHMICKLE(isValid());
-    }
-
-    int endSlurTime() const {
-        return endTime() + slur();
     }
 
     int endTime() const {

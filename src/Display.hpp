@@ -117,10 +117,13 @@ struct DisplayControl {
     NoteTakerDisplay* display;  // initialized by constructor
     NVGcontext* vg;  // initialized by constructor
     const float boxWidth = 25;
+    const float margin = 10;   // gap between boxes
+    bool horizontal;
 
-    DisplayControl(NoteTakerDisplay* , NVGcontext*);
+    DisplayControl(NoteTakerDisplay* , NVGcontext* , bool horizontal = true);
     void autoDrift(float value, float frameTime, int visCells = 3);
     void drawActive(unsigned start, unsigned end) const;
+    void drawActive(float position) const;
     void drawActiveNarrow(unsigned slot) const;
     void drawEdgeGradient(unsigned position, unsigned firstVisible, unsigned lastVisible) const;
     void drawEmpty() const;
@@ -131,7 +134,8 @@ struct DisplayControl {
             unsigned firstVisible, unsigned lastVisible) const;
     void drawSlotNote(SlotPlay::Stage) const;
     void drawStart() const;
-    void drawTie(unsigned position, unsigned index) const;
+    void drawTie(int position, unsigned index) const;
+    void drawTriplet(int position, unsigned index) const;
 };
 
 struct NoteTakerDisplay : Widget {
@@ -152,6 +156,7 @@ struct NoteTakerDisplay : Widget {
     float dynamicCNaturalTimer = 0;
     float dynamicTempoTimer = 0;
     float xControlOffset = 0;
+    float yControlOffset = 0;
     int keySignature = 0;
     int lastTranspose = 60;
     int lastTempo = stdTimePerQuarterNote;

@@ -46,6 +46,7 @@ struct NoteTakerEdit {
         horizontalNote = verticalNote = nullptr;
         horizontalValue = verticalValue = INT_MAX;
     }
+
     void fromJson(json_t* root) {
         voice = json_boolean_value(json_object_get(root, "voice"));
     }

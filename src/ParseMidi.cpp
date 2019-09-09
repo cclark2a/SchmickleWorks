@@ -149,8 +149,27 @@ bool NoteTakerParseMidi::parseMidi() {
                         SCHMICKLE(noteOn);
                         DisplayNote* lastOnChannel = &(&parsedNotes.front())[lastOnChannelIndex];
                         if (lastOnChannel->endTime() == noteOn->startTime + 1) {
-                            lastOnChannel->setSlur(true);
-                            noteOn->setSlur(true);
+                            lastOnChannel->setSlurStart(true);
+                            noteOn->setSlurEnd(true);
+#if DEBUG_SLUR
+                            if (debugVerbose) {
+                                DEBUG("set slur start %d %s ; set slur end %d %s",
+                                        lastOnChannel - &parsedNotes.front(),
+                                        lastOnChannel->debugString().c_str(),
+                                        noteOn - &parsedNotes.front(),
+                                        noteOn->debugString().c_str());
+                            }
+#endif
+                        } else if (lastOnChannel->startTime == noteOn->startTime
+                                && lastOnChannel->slurEnd()) {
+                            noteOn->setSlurEnd(true);  // set slur end for all notes in chord
+#if DEBUG_SLUR
+                            if (debugVerbose) {
+                                DEBUG("set slur end %d %s",
+                                        noteOn - &parsedNotes.front(),
+                                        noteOn->debugString().c_str());
+                            }
+#endif
                         }
                     }
                     trackLength -= iter - messageStart;
@@ -488,7 +507,7 @@ bool NoteTakerParseMidi::parseMidi() {
             channelUsed[index] = true;
         }
     } while (iter != midi.end());
-    Notes::Sort(parsedNotes);
+    Notes::SortNotes(parsedNotes);
     if (trackEnd.startTime < 0) {
         trackEnd.startTime = midiTime;
     }

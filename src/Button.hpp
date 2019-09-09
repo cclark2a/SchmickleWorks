@@ -614,16 +614,15 @@ struct TempoButtonToolTip : WidgetToolTip<TempoButton> {
 };
 
 struct TieButton : EditLEDButton {
-    enum class State {
-        slur,
-        normal,
-        tuplet,
-        both,
-    };
-
-    State state = State::normal;
+    bool setSlur = false;   // defaults true; selection is empty (all slurable notes are slurred)
+    bool setTie = false;
+    bool setTriplet = false;
+    bool clearSlur = false;
+    bool clearTie = false;
+    bool clearTriplet = false;
 
     void draw(const DrawArgs& ) override;
+    void onDragEnd(const event::DragEnd &e) override;
 };
 
 struct TieButtonToolTip : WidgetToolTip<TieButton> {

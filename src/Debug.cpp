@@ -24,6 +24,8 @@ struct DisplayTypeNames {
     { MIDI_TEMPO, "midi tempo"},
     { REST_TYPE, "rest type"},
     { TRACK_END, "track end"},
+    { SELECT_START, "select start (sorting)"},
+    { SELECT_END, "select end (sorting)"},
 };
 
 std::string InvalDebugStr(Inval inval) {
@@ -55,14 +57,11 @@ std::string NoteCache::debugString() const {
     s += "[" + TrimmedFloat(xPosition) + ", " + TrimmedFloat(yPosition) + "] ";
     s += "vS:" + std::to_string(vStartTime) + " vD:" + std::to_string(vDuration);
     s += " M" + std::to_string(bar) + " ";
-    if (PositionType::none != beamPosition) {
+    if (PositionType::none != beamPosition || beamCount) {
         s += "b" + PosAsStr(beamPosition) + std::to_string(beamCount) + " ";
     }
-    if (beamCount) {
-        s += std::to_string(beamCount) + " ";
-    }
     if (channel) {
-        s += std::to_string(channel) + " ";
+        s += "[" + std::to_string(channel) + "] ";
     }
     if (PositionType::none != slurPosition) {
         s += "s" + PosAsStr(slurPosition) + " ";
@@ -94,9 +93,12 @@ std::string DisplayNote::debugString() const {
     s += "] " + std::to_string(duration);
     switch (type) {
         case NOTE_ON:
-            s += " pitch=" + std::to_string(pitch());
-            if (slur()) {
-                s += " slur";
+            s += " pitch=" + std::to_string(this->pitch());
+            if (this->slurStart()) {
+                s += " slur ";
+                s += this->slurEnd() ? "mid" : "left";
+            } else if (this->slurEnd()) {
+                s += " slur right";
             }
 #if 0   // to do : once we're using these, show them in dump
             s += " onVel=" + std::to_string(onVelocity());

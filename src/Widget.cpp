@@ -366,6 +366,18 @@ void NoteTakerWidget::appendContextMenu(Menu *menu) {
      */
 }
 
+void NoteTakerWidget::clearSlurs() {
+    this->n().setSlurs(selectChannels, false);
+    storage.invalidate();
+}
+
+void NoteTakerWidget::clearTriplets() {
+    this->n().setTriplets(selectChannels, false);
+    display->range.displayEnd = 0;
+    displayBuffer->redraw();
+    this->nt()->invalidateAndPlay(Inval::change);
+}
+
 // to do : once clipboard is set, don't reset unless:
 // selection range was enlarged
 // insert or cut
@@ -520,7 +532,7 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
         if (shiftTime) {
             this->shiftNotes(insertLoc + insertSize, shiftTime);
         } else {
-            Notes::Sort(this->n().notes);
+            this->n().sort();
         }
         this->setSelect(insertLoc, n().nextAfter(insertLoc, insertSize));
     }
@@ -533,26 +545,6 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
         this->nt()->invalidateAndPlay(Inval::note);
     }
     if (debugVerbose) this->debugDump(true);
-}
-
-bool NoteTakerWidget::isSlur() const {
-    auto& n = this->n();
-    for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-        if (n.notes[index].slur()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool NoteTakerWidget::isTriplet() const {
-    auto& n = this->n();
-    for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-        if (NoteDurations::TripletPart(n.notes[index].duration, n.ppq)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 void NoteTakerWidget::loadScore() {
@@ -571,150 +563,19 @@ void NoteTakerWidget::resetScore() {
     this->setSelectStart(atZero);
 }
 
-// to do : allow for triplet + slurred ?
-// to do : if triplet, make normal
-// to do : if triplet, start UI selection on triplet
-void NoteTakerWidget::makeNormal() {
-    // to do : if notes are slurred (missing note off) or odd timed (triplets) restore
-    auto& n = this->n();
-    for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-        DisplayNote& note = n.notes[index];
-        if (note.isNoteOrRest() && note.isSelectable(selectChannels)) {
-            note.setSlur(false);
-        }
-    }
-}
-
 // allows two or more notes, or two or more rests: to be tied
 // repeats for each channel, to allow multiple channels to be selected and slurred at once
-void NoteTakerWidget::makeSlur() {
-    // to do: disallow choosing slur in UI if there isn't at least one pair.
-    // For now, avoid singletons and non-notes
-    unsigned start = -1;
-    unsigned count = 0;
-    int channel = -1;  // active channel to be slurred
-    DisplayType type = UNUSED;
-    array<unsigned, CHANNEL_COUNT> channels;  // track end of slurred notes
-    channels.fill(0);
-    auto& n = this->n();
-    for (unsigned index = n.selectStart; index <= n.selectEnd; ++index) {  // note that this goes 1 past
-        if (index != n.selectEnd) {
-            auto& note = n.notes[index];
-            if (index < channels[note.channel]) {  // skip if channel has already been slurred
-                continue;
-            }
-            if (UNUSED == type && note.isNoteOrRest()) {   // allow pairing notes or rests
-                type = note.type;
-            }
-            if (type == note.type) {
-                if (note.isSelectable(selectChannels)) {
-                    if ((unsigned) -1 == start) {
-                        start = index;
-                        channel = note.channel;
-                        count = 1;
-                    } else if (channel == note.channel) {
-                        ++count;
-                    }
-                }
-                continue;
-            }
-        }
-        if ((unsigned) -1 == start || count < 2) {
-            continue;
-        }
-        for (unsigned inner = start; inner < index; ++inner) {
-            auto& iNote = n.notes[inner];
-            if (type == iNote.type && channel == iNote.channel) {
-                iNote.setSlur(true);
-            }
-        }
-        channels[channel] = index;
-        index = start + 1;
-        start = -1;
-        count = 0;
-        channel = -1;
-        type = UNUSED;
-    }
+void NoteTakerWidget::makeSlurs() {
+    this->n().setSlurs(selectChannels, true);
+    storage.invalidate();
 }
 
 // if current selection includes durations not in std note durations, do nothing
 // the assumption is that in this case, durations have already been tupletized 
-void NoteTakerWidget::makeTuplet() {
-    auto& n = this->n();
-    int smallest = NoteDurations::ToMidi(NoteDurations::Count() - 1, n.ppq);
-    int beats = 0;
-    auto addBeat = [&](int duration) {
-        if (NoteDurations::LtOrEq(duration, n.ppq) != duration) {
-            DEBUG("can't tuple nonstandard duration %d ppq %d", duration, n.ppq);
-            return false;
-        }
-        int divisor = (int) gcd(smallest, duration);
-        if (NoteDurations::LtOrEq(divisor, n.ppq) != divisor) {
-            DEBUG("can't tuple gcd: smallest %d divisor %d ppq %d", smallest, divisor, n.ppq);
-            return false;
-        }
-        if (divisor < smallest) {
-            beats *= smallest / divisor;
-            smallest = divisor;
-        }
-        DEBUG("divisor %d smallest %d", divisor, smallest);
-        beats += duration / smallest;
-        return true;
-    };
-    // count number of beats or beat fractions, find smallest factor
-    int last = 0;
-    for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-        const DisplayNote& note = n.notes[index];
-        if (!note.isSelectable(selectChannels)) {
-            continue;
-        }
-        int restDuration = last - note.startTime;
-        if (restDuration > 0) {    // implied rest
-            DEBUG("add implied rest %d", restDuration);
-            if (!addBeat(restDuration)) {
-                return;
-            }
-        }
-        DEBUG("add beat %s", note.debugString().c_str());
-        if (!addBeat(note.duration)) {
-            return;
-        }
-        last = note.endTime();
-    }
-    DEBUG("beats : %d", beats);
-    if (beats % 3) {
-        return;   // to do : only support triplets for now
-    }
-    // to do : to support 5-tuple, ppq must be a multiple of 5
-    //       : to support 7-tuple, ppq must be a multiple of 7
-    // to do : general tuple rules are complicated, so only implement a few simple ones
-    // to do : respect time signature (ignored for now)
-    int adjustment = 0;
-    for (int tuple : { 3, 5, 7 } ) {
-        // 3 in time of 2, 5 in time of 4, 7 in time of 4
-        if (beats % tuple) {
-            continue;
-        }
-        last = 0;
-        int factor = 3 == tuple ? 1 : 3;
-        for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-            DisplayNote& note = n.notes[index];
-            if (!note.isSelectable(selectChannels)) {
-                continue;
-            }
-            int restDuration = last - note.startTime;
-            if (restDuration > 0) {
-                adjustment -= restDuration / tuple;
-            }
-            note.startTime += adjustment;
-            int delta = note.duration * factor / tuple;
-            adjustment -= delta;
-            note.duration -= delta;
-            last = note.endTime();
-        }
-        break;
-    }
-    this->shiftNotes(n.selectEnd, adjustment);
+void NoteTakerWidget::makeTriplets() {
+    this->n().setTriplets(selectChannels, true);
+    display->range.displayEnd = 0;
+    displayBuffer->redraw();
     this->nt()->invalidateAndPlay(Inval::change);
 }
 
@@ -810,6 +671,12 @@ bool NoteTakerWidget::resetControls() {
     return true;
 }
 
+void NoteTakerWidget::resetNotes() {
+    auto& n = this->n();
+    n.notes = edit.base;
+    storage.invalidate();
+}
+
 void NoteTakerWidget::resetRun() {
     display->range.reset();
     edit.voice = false;
@@ -838,7 +705,7 @@ void NoteTakerWidget::setScoreEmpty() {
     vector<uint8_t> emptyMidi;
     NoteTakerMakeMidi makeMidi;
     makeMidi.createEmpty(emptyMidi);
-    if (debugVerbose) NoteTakerParseMidi::DebugDumpRawMidi(emptyMidi);
+    if (false && debugVerbose) NoteTakerParseMidi::DebugDumpRawMidi(emptyMidi);
     auto& slot = storage.current();
     NoteTakerParseMidi emptyParser(emptyMidi, &slot.n.notes, nullptr, slot.channels);
     bool success = emptyParser.parseMidi();
@@ -888,11 +755,13 @@ void NoteTakerWidget::setSelect(unsigned start, unsigned end) {
     if (!runButton->ledOn()) {
         this->enableInsertSignature(end);  // disable buttons that already have signatures in score
     }
+#if DEBUG_RUN_TIME
     if (debugVerbose) DEBUG("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
+#endif
     n.selectStart = start;
     n.selectEnd = end;
     displayBuffer->redraw();
-    if (debugVerbose) DEBUG("setSelect set");
+    if (false && debugVerbose) DEBUG("setSelect set");
 }
 
 bool NoteTakerWidget::setSelectEnd(int wheelValue, unsigned end) {
@@ -932,9 +801,9 @@ bool NoteTakerWidget::setSelectStart(unsigned start) {
 
 void NoteTakerWidget::shiftNotes(unsigned start, int diff) {
     auto& n = this->n();
-    if (debugVerbose) DEBUG("shiftNotes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
-    Notes::ShiftNotes(n.notes, start, diff, selectChannels);
-    Notes::Sort(n.notes);
+    if (debugVerbose) DEBUG("shift notes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
+    n.shift(start, diff, selectChannels);
+    n.sort();
 }
 
 void NoteTakerWidget::draw(const DrawArgs &args) {

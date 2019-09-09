@@ -142,6 +142,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     restButton->fromJson(json_object_get(root, "restButton"));
 // run button state is not saved and restored : module always starts with run off
 //    runButton->fromJson(json_object_get(root, "runButton"));
+    runButton->setValue(0);
     selectButton->fromJson(json_object_get(root, "selectButton"));
     slotButton->fromJson(json_object_get(root, "slotButton"));
     sustainButton->fromJson(json_object_get(root, "sustainButton"));
@@ -158,7 +159,6 @@ void NoteTakerWidget::fromJson(json_t* root) {
     this->nt()->invalidateAndPlay(Inval::load);
     this->setClipboardLight();
 }
-
 
 void SlotArray::FromJson(json_t* root, vector<SlotPlay>* playback) {
     json_t* _playback = json_object_get(root, "playback");

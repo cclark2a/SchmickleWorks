@@ -120,6 +120,170 @@ std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
     return result;
 }
 
+// does not change note duration: make note duration overlap by one only when saving to midi
+void Notes::setSlurs(unsigned selectChannels, bool condition) {
+    array<DisplayNote*, CHANNEL_COUNT> last;
+    last.fill(nullptr);
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        auto& note = notes[index];
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        if (REST_TYPE == note.type) {
+            last[note.channel] = nullptr;
+            continue;
+        }
+        if (NOTE_ON != note.type) {
+            last.fill(nullptr);
+            continue;
+        }
+        auto lastOne = last[note.channel];
+        if (lastOne) {
+            if (lastOne->startTime >= note.startTime) {
+                if (lastOne->slurEnd()) {
+                    note.setSlurEnd(condition);
+                }
+                continue;
+            }
+            if (lastOne->endTime() == note.startTime) {
+                lastOne->setSlurStart(condition);
+                note.setSlurEnd(condition);
+            }
+        }
+        last[note.channel] = &note;
+    }
+}
+
+// at least one can be set, or at least one can be cleared; and at least one slur
+bool Notes::slursOrTies(unsigned selectChannels, HowMany howMany, bool* atLeastOneSlur) const {
+    array<const DisplayNote*, CHANNEL_COUNT> last;
+    last.fill(nullptr);
+    if (atLeastOneSlur) {
+        *atLeastOneSlur = false;
+    }
+    bool condition = HowMany::set == howMany;
+    bool result = false;
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        auto& note = notes[index];
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        if (REST_TYPE == note.type) {
+            last[note.channel] = nullptr;
+            continue;
+        }
+        if (NOTE_ON != note.type) {
+            last.fill(nullptr);
+            continue;
+        }
+        auto lastOne = last[note.channel];
+        if (lastOne) {
+            if (lastOne->startTime >= note.startTime) {
+                continue;  // ignore other notes on chord
+            }
+            if (condition != note.slurEnd()) {
+                SCHMICKLE(condition != lastOne->slurStart());
+                if (atLeastOneSlur) {
+                    *atLeastOneSlur |= lastOne->pitch() != note.pitch();
+                }
+                result = true;
+            }
+        }
+        last[note.channel] = &note;
+    }
+    return result;
+}
+
+struct Candidate {
+    const DisplayNote* last = nullptr;
+    const DisplayNote* tripStart = nullptr;
+    bool atLeastOneNote = false;
+};
+
+void Notes::setTriplets(unsigned selectChannels, bool condition) {
+    array<Candidate, CHANNEL_COUNT> candidate;
+    candidate.fill(Candidate());
+    int adjustment = 0;
+    int numer = condition ? 2 : 3;
+    int denom = condition ? 3 : 2;
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        auto& note = notes[index];
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
+            candidate.fill(Candidate());
+            continue;
+        }
+        if (condition == NoteDurations::TripletPart(note.duration, ppq)) {
+            candidate.fill(Candidate());
+            continue;
+        }
+        auto& can = candidate[note.channel];
+        if (can.last && can.last->startTime >= note.startTime) {
+            continue;  // handle notes in chord below
+        }
+        can.last = &note;
+        can.atLeastOneNote |= NOTE_ON == note.type;
+        if (!can.tripStart) {
+            can.tripStart = &note;
+            continue;
+        }
+        // look for enough non-triplet part notes to make a multiple of three
+        int totalDuration = note.endTime() - can.tripStart->startTime;
+        if (!(totalDuration % 3) && can.atLeastOneNote) {
+            int startTime = can.tripStart->startTime;
+            for (auto trip = can.tripStart; trip != &note; ++trip) {
+                note.startTime -= (note.startTime - startTime) / denom + adjustment;
+                note.duration = note.duration * numer / denom;
+            }
+            adjustment += totalDuration / denom;
+        }
+    }
+    this->shift(selectEnd, adjustment, selectChannels);
+    this->sort();
+}
+
+// more precisely: all notes and rests that can be triplets, are
+// Note that dotted notes are disallowed as triplet parts.
+// This is because 2/3rds of the dotted note is the undotted note, making it indistinguishable
+//   from a regular undotted note outside a triplet.
+bool Notes::triplets(unsigned selectChannels, HowMany howMany) const {
+    array<Candidate, CHANNEL_COUNT> candidate;
+    candidate.fill(Candidate());
+    bool condition = HowMany::set == howMany;
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        auto& note = notes[index];
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
+            candidate.fill(Candidate());
+            continue;
+        }
+        if (condition == NoteDurations::TripletPart(note.duration, ppq)) {
+            candidate.fill(Candidate());
+            continue;
+        }
+        auto& can = candidate[note.channel];
+        if (can.last && can.last->startTime >= note.startTime) {
+            continue;  // ignore other notes on chord
+        }
+        can.last = &note;
+        can.atLeastOneNote |= NOTE_ON == note.type;
+        if (!can.tripStart) {
+            can.tripStart = &note;
+            continue;
+        }
+        // look for enough non-triplet part notes to make a multiple of three
+        int totalDuration = note.endTime() - can.tripStart->startTime;
+        if (!(totalDuration % 3) && can.atLeastOneNote) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
     array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;
     NoteTakerParseMidi midiParser(storage, notes, ppq, dummyChannels);
@@ -208,27 +372,6 @@ vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
         return notes[lhs].pitch() < notes[rhs].pitch();
     });
     return result;
-}
-
-// returns true if selection has consecutive rests or same pitched notes on same channel
-// to do : disallows ties if there's a tempo change between notes. Should it?
-bool Notes::hasTie(unsigned selectChannels) const {
-    std::array<const DisplayNote*, CHANNEL_COUNT> last;
-    last.fill(nullptr);
-    for (unsigned index = selectStart; index < selectEnd; ++index) {
-        auto& note = notes[index];
-        if (!note.isNoteOrRest()) {
-            last.fill(nullptr);
-            continue;
-        }
-        auto lastOne = last[note.channel];
-        if (lastOne && lastOne->type == note.type && lastOne->endTime() >= note.startTime
-                && (REST_TYPE == lastOne->type || lastOne->pitch() == note.pitch())) {
-            return true;
-        }
-        last[note.channel] = &note;
-    }
-    return false;
 }
 
 // not sure what I was thinking (also, this doesn't work)

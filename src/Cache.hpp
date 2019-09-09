@@ -101,19 +101,20 @@ struct PosAdjust {
 
 struct CacheBuilder {
     const DisplayState& state;
+    const Notes& notes;
     DisplayCache* cache;
-    int ppq;
+    const int ppq;
     
-    CacheBuilder(const DisplayState& , DisplayCache* , int ppq);
+    CacheBuilder(const DisplayState& , const Notes& , DisplayCache* , int ppq);
 
     void cacheBeams();
     void cacheSlurs();
     void cacheStaff();
-    void cacheTuplets(const Notes& );
+    void cacheTuplets();
     void clearTuplet(unsigned index, unsigned limit);
     void closeBeam(unsigned first, unsigned limit);
     void closeSlur(unsigned first, unsigned limit);
-    void setDurations(const Notes& );
+    void setDurations();
     void trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime);
-    void updateXPosition(const Notes& );
+    void updateXPosition();
 };

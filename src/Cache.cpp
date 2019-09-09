@@ -100,8 +100,9 @@ int BarPosition::resetSignatureStart(const DisplayNote& note, float barWidth) {
     return result;
 }
 
-CacheBuilder::CacheBuilder(const DisplayState& sd, DisplayCache* c, int _ppq) 
+CacheBuilder::CacheBuilder(const DisplayState& sd, const Notes& n, DisplayCache* c, int _ppq) 
     : state(sd)
+    , notes(n)
     , cache(c)
     , ppq(_ppq) {
 }
@@ -193,7 +194,15 @@ void CacheBuilder::cacheSlurs() {
     for (unsigned cacheIndex = 0; cacheIndex < notes.size(); ++cacheIndex) {
         NoteCache& noteCache = notes[cacheIndex];
         const DisplayNote* note = noteCache.note;
+        SCHMICKLE(noteCache.channel == note->channel);
         if (NOTE_ON != note->type) {
+            if (REST_TYPE == note->type) {
+                this->closeSlur(slurStarts[noteCache.channel], cacheIndex);
+            } else {
+                for (auto slurStart : slurStarts) {
+                    this->closeSlur(slurStart, cacheIndex);
+                }
+            }
             continue;
         }
         if (!noteCache.staff) {
@@ -202,37 +211,44 @@ void CacheBuilder::cacheSlurs() {
         unsigned& slurStart = slurStarts[noteCache.channel];
         bool checkForStart = true;
         if (INT_MAX != slurStart) {
-            if (!note->slur()) {
+            if (!note->slurEnd()) {
                 this->closeSlur(slurStart, cacheIndex);
 #if DEBUG_SLUR
-                if (debugVerbose) DEBUG("set slur close %s", notes[slurStart].note->debugString().c_str());
+                if (debugVerbose) DEBUG("set slur close %d/%d %s", slurStart,
+                        notes[slurStart].note - &this->notes.notes.front(),
+                        notes[slurStart].note->debugString().c_str());
 #endif
                 slurStart = INT_MAX;
             } else {
                 noteCache.slurPosition = PositionType::mid;
                 checkForStart = false;
 #if DEBUG_SLUR
-                if (debugVerbose) DEBUG("set slur mid %s", note->debugString().c_str());
+                if (debugVerbose) DEBUG("set slur mid %d/%d %s", cacheIndex,
+                    note - &this->notes.notes.front(),
+                    note->debugString().c_str());
 #endif
             }
         }
-        if (checkForStart && note->slur()) {
+        if (checkForStart && note->slurStart()) {
             slurStart = cacheIndex;
             if (PositionType::none == noteCache.slurPosition) {
                 noteCache.slurPosition = PositionType::left;
-            }
 #if DEBUG_SLUR
-            if (debugVerbose) DEBUG("set slur left %s", note->debugString().c_str());
+                if (debugVerbose) DEBUG("set slur left %d/%d %s", cacheIndex,
+                        note - &this->notes.notes.front(),
+                        note->debugString().c_str());
 #endif
+            }
         }
     }
     for (auto slurStart : slurStarts) {
-        if (INT_MAX != slurStart) {
-            this->closeSlur(slurStart, notes.size());
+        this->closeSlur(slurStart, notes.size());
 #if DEBUG_SLUR
-            if (debugVerbose) DEBUG("slur unmatched %s", notes[slurStart].note->debugString().c_str());
+         if (INT_MAX != slurStart && debugVerbose) 
+                DEBUG("slur unmatched %d/%d %s", slurStart,
+                        notes[slurStart].note - &this->notes.notes.front(),
+                        notes[slurStart].note->debugString().c_str());
 #endif
-        }
     }
 }
 
@@ -335,12 +351,12 @@ void CacheBuilder::cacheStaff() {
 // only mark triplets if notes are the right duration and collectively a multiple of three
 // to do : if too few notes are of the right duration, they (probably) need to be drawn as ties --
 // 2/3rds of 1/4 note is 1/6 (.167) which could be 1/8 + 1/32 (.156)
-void CacheBuilder::cacheTuplets(const Notes& n) {
+void CacheBuilder::cacheTuplets() {
     array<unsigned, CHANNEL_COUNT> tripStarts;  // first index in notes (not cache) of triplet
     tripStarts.fill(INT_MAX);
     uint8_t tupletId = 0;
-    for (unsigned index = 0; index < n.notes.size(); ++index) {
-        const DisplayNote& note = n.notes[index];
+    for (unsigned index = 0; index < notes.notes.size(); ++index) {
+        const DisplayNote& note = notes.notes[index];
         if (!note.isNoteOrRest()) {
             tripStarts.fill(INT_MAX);
             continue;
@@ -353,13 +369,13 @@ void CacheBuilder::cacheTuplets(const Notes& n) {
         }
         unsigned& tripStart = tripStarts[note.channel];
         if (INT_MAX != tripStart) {
-            const DisplayNote& start = n.notes[tripStart];
+            const DisplayNote& start = notes.notes[tripStart];
             int totalDuration = note.endTime() - start.startTime;
             int tripDur = start.duration * 3;
             int factor = totalDuration / tripDur;
                 // to do : use time signature to limit triplet to bar 
                 // for now, limit triplet to whole note
-            if ((totalDuration > n.ppq * 4)
+            if ((totalDuration > ppq * 4)
                 // to do : take advantage of start time % 3 to note that remainder is 0/1/2
                 //         if the note is part of the 1st/2nd/3rd triplet
                     || (totalDuration * 2 != tripDur && factor * tripDur != totalDuration)) {
@@ -446,12 +462,12 @@ void CacheBuilder::cacheTuplets(const Notes& n) {
             }
         }
         // to do : remove or mark as debugging only
-        if (!NoteDurations::InStd(note.duration, n.ppq)) {
+        if (!NoteDurations::InStd(note.duration, ppq)) {
 #if DEBUG_TRIPLET_DRAW
             DEBUG("note !InStd %s ppq %d", note.debugString().c_str(), n.ppq);
 #endif
         }
-        if (NoteDurations::TripletPart(note.duration, n.ppq)) {
+        if (NoteDurations::TripletPart(note.duration, ppq)) {
             tripStart = index;
         }
     }
@@ -495,7 +511,12 @@ void CacheBuilder::closeBeam(unsigned first, unsigned limit) {
 #endif
 }
 
+// start here;
+// debug and assert if closed slur does not have a left and right
 void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
+    if (INT_MAX == first) {
+        return;
+    }
     vector<NoteCache>& notes = cache->notes;
     SCHMICKLE(PositionType::left == notes[first].slurPosition);
     int chan = notes[first].channel;
@@ -514,21 +535,24 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
     }
     notes[last].slurPosition = last == first ? PositionType::none : PositionType::right;
 #if DEBUG_SLUR
-    if (debugVerbose) DEBUG("close slur first %d last %d pos %u", first, last, notes[last].slurPosition);
+    if (debugVerbose) DEBUG("close slur first %d/%d last %d/%d pos %s",
+            first, notes[first].note - &this->notes.notes.front(), 
+            last, notes[last].note - &this->notes.notes.front(),
+            debugPositionType[(int) notes[last].slurPosition]);
 #endif
 }
 
 
 // compute ties first, so we know how many notes to draw
 // to do : use cache notes' bar count instead of recomputing the bar count
-void CacheBuilder::setDurations(const Notes& n) {
+void CacheBuilder::setDurations() {
     const StaffNote* pitchMap = sharpMap;
     BarPosition bar;
 #if DEBUG_DURATIONS
     if (debugVerbose) DEBUG("setDurations %u ", n.notes.size());
 #endif
-    for (unsigned index = 0; index < n.notes.size(); ++index) {
-        const DisplayNote& note = n.notes[index];
+    for (unsigned index = 0; index < notes.notes.size(); ++index) {
+        const DisplayNote& note = notes.notes[index];
         cache->notes.emplace_back(&note);
         NoteCache& cacheEntry = cache->notes.back();
         cacheEntry.bar = bar.count(cacheEntry);
@@ -619,8 +643,8 @@ void CacheBuilder::setDurations(const Notes& n) {
         const_cast<DisplayNote*>(riter->note)->cache = &*riter;
     }
     // check to see if things moved
-    SCHMICKLE(n.notes.front().cache == &cache->notes.front());
-    SCHMICKLE(cache->notes.front().note == &n.notes.front());
+    SCHMICKLE(notes.notes.front().cache == &cache->notes.front());
+    SCHMICKLE(cache->notes.front().note == &notes.notes.front());
 #if DEBUG_DURATIONS
     if (debugVerbose) DEBUG("finished set durations");
     if (debugVerbose) {
@@ -648,7 +672,7 @@ void CacheBuilder::trackPos(std::list<PosAdjust>& posAdjust, float xOff, int end
     }
 }
 
-void CacheBuilder::updateXPosition(const Notes& n) {
+void CacheBuilder::updateXPosition() {
     auto vg = state.vg;
     float xAxisScale = state.xAxisScale;
     SCHMICKLE(vg);
@@ -656,21 +680,21 @@ void CacheBuilder::updateXPosition(const Notes& n) {
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     cache->notes.clear();
-    cache->notes.reserve(n.notes.size());
-    this->setDurations(n);  // adds cache per tied note part, sets its duration and note index
+    cache->notes.reserve(notes.notes.size());
+    this->setDurations();  // adds cache per tied note part, sets its duration and note index
     // to do : If a pair of notes landed at the same place at the same time, but have different
     //         pitches, flip the notes' accidentals to move them to different staff fines.
     //       : Next, figure out how many horizontal positions are required to show non-overlapping
     //         notes.
     this->cacheStaff();  // set staff flag if note owns shared staff
-    SCHMICKLE(n.notes.front().cache == &cache->notes.front());
-    SCHMICKLE(cache->notes.front().note == &n.notes.front());
-    if (!(n.ppq % 3)) {  // to do : only triplets for now
-        this->cacheTuplets(n);
+    SCHMICKLE(notes.notes.front().cache == &cache->notes.front());
+    SCHMICKLE(cache->notes.front().note == &notes.notes.front());
+    if (!(ppq % 3)) {  // to do : only triplets for now
+        this->cacheTuplets();
     }
     for (auto& noteCache : cache->notes) {
         if (noteCache.note->isNoteOrRest()) {
-            noteCache.setDurationSymbol(n.ppq);
+            noteCache.setDurationSymbol(ppq);
         }
     }
     this->cacheBeams();
@@ -704,7 +728,7 @@ void CacheBuilder::updateXPosition(const Notes& n) {
             bar.setPriorBars(noteCache);
         }
         int bars = bar.priorBars + ((noteCache.vStartTime - bar.tsStart) / bar.duration);
-        int stdStart = NoteDurations::InStd(noteCache.vStartTime, n.ppq);
+        int stdStart = NoteDurations::InStd(noteCache.vStartTime, ppq);
         noteCache.xPosition = (int) std::ceil((stdStart + bars * BAR_WIDTH)
                 * xAxisScale + pos);
 #if DEBUG_POS
@@ -749,7 +773,7 @@ void CacheBuilder::updateXPosition(const Notes& n) {
                     if (drawWidth < 10 && PositionType::none != noteCache.beamPosition) {
                         drawWidth += 3; // make space for half beams
                     }
-                    float xOff = drawWidth - NoteDurations::InStd(noteCache.vDuration, n.ppq)
+                    float xOff = drawWidth - NoteDurations::InStd(noteCache.vDuration, ppq)
                             * xAxisScale;
                     this->trackPos(posAdjust, xOff, noteCache.vEndTime());
 #if DEBUG_POS
@@ -770,7 +794,7 @@ void CacheBuilder::updateXPosition(const Notes& n) {
                 pos += bar.resetSignatureStart(note, BAR_WIDTH * xAxisScale);
                 pos += NoteTakerDisplay::TimeSignatureWidth(note, vg, state.musicFont);
                 pos += TIME_SIGNATURE_GAP * xAxisScale;
-                bar.setSignature(note, n.ppq);
+                bar.setSignature(note, ppq);
                 break;
             case MIDI_TEMPO:
                 cache->leadingTempo |= !note.startTime;
@@ -790,6 +814,6 @@ void CacheBuilder::updateXPosition(const Notes& n) {
         }
     }
     this->cacheSlurs();
-    SCHMICKLE(n.notes.front().cache == &cache->notes.front());
-    SCHMICKLE(cache->notes.front().note == &n.notes.front());
+    SCHMICKLE(notes.notes.front().cache == &cache->notes.front());
+    SCHMICKLE(cache->notes.front().note == &notes.notes.front());
 }

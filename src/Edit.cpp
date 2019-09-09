@@ -76,14 +76,17 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         return;
     }
     if (tieButton->ledOn()) {
-        horizontalWheel->setLimits(-4, 7.999f); // one set more in either direction for scrolling
-        bool trips = this->isTriplet();
-        bool slur = this->isSlur();
-        int index = trips ? 2 + slur : !slur;
-        horizontalWheel->setValue(index);
-        display->xControlOffset = (index + 3) % 4;
-        if (debugVerbose) DEBUG("tieButton trips %d slur %d setHorz val %g xControlOffset %g",
-                trips, slur, index + 0.5f, display->xControlOffset);
+        int upper = (int) tieButton->clearTriplet + (int) tieButton->setTriplet;
+        if (!upper) {
+            horizontalWheel->setLimits(3, 3);
+            horizontalWheel->setValue(3);
+        } else {
+            horizontalWheel->setLimits(!tieButton->clearTriplet, !tieButton->clearTriplet + upper);
+            horizontalWheel->setValue(1);
+        }
+        if (debugVerbose) DEBUG("tieButton trips %d/%d limit %d/%d",
+                tieButton->clearTriplet, tieButton->setTriplet,
+                !tieButton->clearTriplet, !tieButton->clearTriplet + upper);
         return;
     }
     auto& n = this->n();
@@ -145,8 +148,17 @@ void NoteTakerWidget::setVerticalWheelRange() {
         return;
     }
     if (tieButton->ledOn()) {
-        verticalWheel->setLimits(0, 0);
-        verticalWheel->setValue(0);
+        int upper = (int) tieButton->clearTie + (int) tieButton->setTie;
+        if (!upper) {
+            verticalWheel->setLimits(3, 3);
+            verticalWheel->setValue(3);
+        } else {
+            verticalWheel->setLimits(!tieButton->clearTie, !tieButton->clearTie + upper);
+            verticalWheel->setValue(1);
+        }
+        if (debugVerbose) DEBUG("tieButton tie %d/%d limit %d/%d",
+                tieButton->clearTie, tieButton->setTie,
+                !tieButton->clearTie, !tieButton->clearTie + upper);
         return;
     }
     auto& n = this->n();
@@ -292,38 +304,26 @@ void NoteTakerWidget::updateHorizontal() {
         }
         return;
     }
-    if (tieButton->ledOn()) {
-        TieButton::State prev = tieButton->state;
-        float value = horizontalWheel->getValue();
-        if (value < 0 || value >= 4) {
-            value += value < 0 ? 4 : -4;
-            horizontalWheel->setValue(value); 
-            if (debugVerbose) DEBUG("tie updateHorz value %g", value);
-        }
-        TieButton::State next = (TieButton::State) value;
-        if (prev == next) {
+    // start here;
+    // disallow wheel if trip state cannot be changed (no selection, or no possible trips)
+    // if some trips, add no trip selection
+    // if not all trips, add all trips selection
+    // to do : use common code with general changing note duration to clear / make triplets
+    if (tieButton->ledOn()) {   // horz wheel sets tie to no trip / orig / no trip
+        if (!horizontalWheel->hasChanged()) {
             return;
         }
-        switch (next) {
-            case TieButton::State::slur:
-            // to do : disallow choosing slur if either selection is one note
-            //       : or if all of selection is not notes?
-                this->makeNormal();
-                this->makeSlur();
-            break;
-            case TieButton::State::normal:
-                this->makeNormal();
-            break;
-            case TieButton::State::tuplet:
-                this->makeNormal();
-                this->makeTuplet();
-            break;
-            case TieButton::State::both:
-                this->makeSlur();
-                this->makeTuplet();
-            break;
+        switch (horizontalWheel->wheelValue()) {
+            case 0:
+                this->clearTriplets();
+                break;
+            case 1:
+                this->resetNotes();
+                break;
+            case 2:
+                this->makeTriplets();
+                break;
         }
-        tieButton->state = next;
         nt->invalidateAndPlay(Inval::change);
         return;
     }
@@ -450,7 +450,7 @@ void NoteTakerWidget::updateHorizontal() {
         SCHMICKLE(TRACK_END == n.notes.back().type);
         n.notes.back().startTime = maxEnd;
         inval = Inval::note;
-        Notes::Sort(n.notes);
+        n.sort();
     } else {
         unsigned start, end;
         edit.voice = false;
@@ -602,6 +602,23 @@ void NoteTakerWidget::updateVertical() {
         }
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainDuration, n.ppq));
         return;
+    }
+    if (tieButton->ledOn()) {
+        if (!horizontalWheel->hasChanged()) {
+            return;
+        }
+        switch (horizontalWheel->wheelValue()) {
+            case 0:
+                this->clearSlurs();
+                break;
+            case 1:
+                this->resetNotes();
+                break;
+            case 2:
+                this->makeSlurs();
+                break;
+        }
+        nt->invalidateAndPlay(Inval::change);
     }
     if (!selectButton->ledOn()) {
         if (Wheel::horizontal == edit.wheel) {

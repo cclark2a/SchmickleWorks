@@ -25,8 +25,8 @@ struct LastNote {
     }
 
     bool operator<(const LastNote& n) const { 
-        return note->endSlurTime() < n.note->endSlurTime() ||
-                (note->endSlurTime() == n.note->endSlurTime() && note->channel < n.note->channel);
+        return note->endTime() < n.note->endTime() ||
+                (note->endTime() == n.note->endTime() && note->channel < n.note->channel);
     }
 
     const DisplayNote* note;
@@ -79,11 +79,11 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTakerSlot& slot, vector<uint8_
             case NOTE_ON:
                 while (!lastNotes.empty()) {
                     auto off = lastNotes.begin()->note;
-                    if (off->endSlurTime() > n.startTime) {
+                    if (off->endTime() > n.startTime) {
                         DEBUG("%u break off %s", lastNotes.size(), off->debugString().c_str());
                         break;
                     }
-                    add_delta(off->endSlurTime(), &lastTime);
+                    add_delta(off->endTime(), &lastTime);
                     add_one(midiNoteOff + off->channel);
                     add_one(off->pitch());
                     add_one(off->offVelocity());
@@ -128,7 +128,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTakerSlot& slot, vector<uint8_
             case TRACK_END:
                 for (auto last : lastNotes) {
                     auto off = last.note;
-                    add_delta(off->endSlurTime(), &lastTime);
+                    add_delta(off->endTime(), &lastTime);
                     add_one(midiNoteOff + off->channel);
                     add_one(off->pitch());
                     add_one(off->offVelocity());

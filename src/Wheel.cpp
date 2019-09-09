@@ -386,19 +386,17 @@ std::string HorizontalWheelToolTip::getDisplayValueString() {
         return prefix + Notes::FullName(duration, n.ppq);
     }
     if (ntw->tieButton->ledOn()) {
-        auto roundedValue = (TieButton::State) (this->getValue() + .5);
-        std::string slurString = n.hasTie(ntw->selectChannels) ? "tie" : "slur";
+        int roundedValue = (int) (this->getValue() + .5);
         switch (roundedValue) {
-            case TieButton::State::slur:
-                return slurString;
-            case TieButton::State::normal:
-                return "no " + slurString + " or triplet";
-            case TieButton::State::tuplet:
-                return "triplet";
-            case TieButton::State::both:
-                return slurString + " and triplet";
+            case 0:
+            case 3:
+                return "no ties or slurs";
+            case 1:
+                return "no change";
+            case 2:
+                return "all ties and slurs";
             default:
-                DEBUG("unexpected tie %d", value);
+                DEBUG("unexpected tie %g %d", this->getValue(), roundedValue);
                 _schmickled();
         }
     }
@@ -488,7 +486,19 @@ std::string VerticalWheelToolTip::getDisplayValueString() {
         }
     }
     if (ntw->tieButton->ledOn()) {
-        return "(unused)";
+        int roundedValue = (int) (this->getValue() + .5);
+        switch (roundedValue) {
+            case 0:
+            case 3:
+                return "no triplets";
+            case 1:
+                return "no change";
+            case 2:
+                return "all triplets";
+            default:
+                DEBUG("unexpected triplet %g %d", this->getValue(), roundedValue);
+                _schmickled();
+        }
     }
     auto& n = ntw->n();
     if (n.isEmpty(ntw->selectChannels)) {

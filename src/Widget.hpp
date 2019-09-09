@@ -74,6 +74,8 @@ struct NoteTakerWidget : ModuleWidget {
     void addButton(const Vec& size, NoteTakerButton* );
     void addWheel(const Vec& size, NoteTakerWheel* );
     void appendContextMenu(Menu *menu) override;
+    void clearSlurs();
+    void clearTriplets();
     void copyNotes();
     void copySlots();
     void copySelectableNotes();
@@ -87,12 +89,9 @@ struct NoteTakerWidget : ModuleWidget {
     void fromJson(json_t* rootJ) override;
     unsigned getSlot() const;  // index of module slot, not influenced by file button or wheel
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
-    bool isSlur() const;
-    bool isTriplet() const;
     void loadScore();
-    void makeNormal();
-    void makeSlur();
-    void makeTuplet();
+    void makeSlurs();
+    void makeTriplets();
     bool menuButtonOn() const;
     DisplayNote middleC() const;
         
@@ -145,6 +144,7 @@ struct NoteTakerWidget : ModuleWidget {
 
     bool resetControls();
     void resetForPlay();
+    void resetNotes();
     void resetRun();
     void resetScore();
     void resetState();
