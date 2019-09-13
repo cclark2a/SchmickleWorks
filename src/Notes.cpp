@@ -120,6 +120,93 @@ std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
     return result;
 }
 
+// only mark triplets if notes are the right duration and collectively a multiple of three
+// to do : if too few notes are of the right duration, they (probably) need to be drawn as ties --
+// 2/3rds of 1/4 note is 1/6 (.167) which could be 1/8 + 1/32 (.156)
+void Notes::findTriplets(vector<NoteTuplet>* tuplets) {
+#if DEBUG_TRIPLET_DRAW
+    DEBUG("%s", __func__);
+    auto tripletDrawDebug = [=](const char* str, const DisplayNote& note) {
+        DEBUG("findTriplets %s [%d] %s" , str, &note - &notes.front(),
+                note.debugString().c_str());
+    };
+    auto noteTripletDebug = [=](const char* str, const NoteTuplet& tuplet, const DisplayNote& note) {
+        DEBUG("findTriplets %s [%d] pos %d id %d [%d] %s" , str, &tuplet - &tuplets->front(),
+                (int) tuplet.position, tuplet.id, &note - &notes.front(), note.debugString().c_str());
+    };
+#else
+    auto tripletDrawDebug = [](const char* , const DisplayNote& ) {};
+    auto tripletCacheDebug = [](const char* , const NoteCache* ) {};
+#endif
+    tuplets->resize(notes.size());
+    array<TripletCandidate, CHANNEL_COUNT> tripStarts;  // first index in notes (not cache) of triplet
+    tripStarts.fill(TripletCandidate());
+    uint8_t tupletId = 0;
+    for (unsigned index = 0; index < notes.size(); ++index) {
+        DisplayNote& note = notes[index];
+        if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
+            tripletDrawDebug("not note, rest, or dotted", note);
+            tripStarts.fill(TripletCandidate());
+            continue;
+        }
+        if (!NoteDurations::TripletPart(note.duration, ppq)) {
+            tripletDrawDebug("not triplet part", note);
+            tripStarts.fill(TripletCandidate());
+            continue;
+        }
+        auto& candidate = tripStarts[note.channel];
+        if (INT_MAX != candidate.lastIndex
+                && notes[candidate.lastIndex].startTime >= note.startTime) {
+            tripletDrawDebug("chord part", note);
+            continue;  // ignore other notes on chord
+        }
+        candidate.lastIndex = index;
+        candidate.atLeastOneNote |= NOTE_ON == note.type;
+        if (INT_MAX == candidate.startIndex) {
+            tripletDrawDebug("triplet start", note);
+            candidate.startIndex = index;
+            continue;
+        }
+        if (!candidate.atLeastOneNote) {
+            tripletDrawDebug("not one note", note);
+            continue;
+        }
+        DisplayNote* test = &notes[candidate.startIndex];
+        int totalDuration = note.endTime() - test->startTime;
+        if ((NoteDurations::InStd(totalDuration, ppq) % 3)) {
+#if DEBUG_TRIPLET_DRAW
+            DEBUG("%s total duration %d ppq %d", __func__, totalDuration, ppq);
+            tripletDrawDebug("last candidate note", note);
+#endif
+            continue;
+        }
+        ++tupletId;
+        // triplet in cache begins at can trip start time, ends at note end time
+        (*tuplets)[candidate.startIndex].position = PositionType::left;
+        (*tuplets)[candidate.startIndex].id = tupletId;
+        noteTripletDebug("left", (*tuplets)[candidate.startIndex], *test);
+        int chan = test->channel;
+        DisplayNote* last = test;
+        while (++test < &note) {
+            if (test->channel != chan) {
+                continue;
+            }
+            if (last->startTime >= test->startTime) {
+                continue;
+            }
+            last = test;
+            auto& testTuplet = (*tuplets)[test - &notes.front()];
+            testTuplet.position = PositionType::mid;
+            testTuplet.id = tupletId;
+            noteTripletDebug("mid", testTuplet, *test);
+        }
+        auto& noteTuplet = (*tuplets)[&note - &notes.front()];
+        noteTuplet.position = PositionType::right;
+        noteTuplet.id = tupletId;
+        noteTripletDebug("right", noteTuplet, note);
+    }
+}
+
 // does not change note duration: make note duration overlap by one only when saving to midi
 void Notes::setSlurs(unsigned selectChannels, bool condition) {
     array<DisplayNote*, CHANNEL_COUNT> last;
@@ -194,49 +281,55 @@ bool Notes::slursOrTies(unsigned selectChannels, HowMany howMany, bool* atLeastO
     return result;
 }
 
-struct Candidate {
-    const DisplayNote* last = nullptr;
-    const DisplayNote* tripStart = nullptr;
-    bool atLeastOneNote = false;
-};
-
+// note : adjusts totalDuration by ppq
 void Notes::setTriplets(unsigned selectChannels, bool condition) {
-    array<Candidate, CHANNEL_COUNT> candidate;
-    candidate.fill(Candidate());
+    array<TripletCandidate, CHANNEL_COUNT> tripStarts;
+    tripStarts.fill(TripletCandidate());
     int adjustment = 0;
     int numer = condition ? 2 : 3;
     int denom = condition ? 3 : 2;
+    int modulo = condition ? 9 : 3;  //  3 non-trips (3*2^n) : 3 trips (2^n)
     for (unsigned index = selectStart; index < selectEnd; ++index) {
         auto& note = notes[index];
         if (!note.isSelectable(selectChannels)) {
             continue;
         }
         if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
-            candidate.fill(Candidate());
+            tripStarts.fill(TripletCandidate());
             continue;
         }
         if (condition == NoteDurations::TripletPart(note.duration, ppq)) {
-            candidate.fill(Candidate());
+            tripStarts.fill(TripletCandidate());
             continue;
         }
-        auto& can = candidate[note.channel];
-        if (can.last && can.last->startTime >= note.startTime) {
-            continue;  // handle notes in chord below
+        auto& candidate = tripStarts[note.channel];
+        if (INT_MAX != candidate.lastIndex
+                && notes[candidate.lastIndex].startTime >= note.startTime) {
+            continue;  // ignore other notes on chord
         }
-        can.last = &note;
-        can.atLeastOneNote |= NOTE_ON == note.type;
-        if (!can.tripStart) {
-            can.tripStart = &note;
+        candidate.lastIndex = index;
+        candidate.atLeastOneNote |= NOTE_ON == note.type;
+        if (INT_MAX == candidate.startIndex) {
+            candidate.startIndex = index;
+            continue;
+        }
+        if (!candidate.atLeastOneNote) {
             continue;
         }
         // look for enough non-triplet part notes to make a multiple of three
-        int totalDuration = note.endTime() - can.tripStart->startTime;
-        if (!(totalDuration % 3) && can.atLeastOneNote) {
-            int startTime = can.tripStart->startTime;
-            for (auto trip = can.tripStart; trip != &note; ++trip) {
-                note.startTime -= (note.startTime - startTime) / denom + adjustment;
-                note.duration = note.duration * numer / denom;
-            }
+        DisplayNote* test = &notes[candidate.startIndex];
+        int startTime = test->startTime;
+        int totalDuration = note.endTime() - startTime;
+        if (!(NoteDurations::InStd(totalDuration, ppq) % modulo)) {
+            do {
+                if (debugVerbose) DEBUG("%s test->startTime old:%d new:%d dur old:%d new:%d"
+                        " startTime:%d numer:%d denom:%d adjustment:%d", __func__, test->startTime,
+                        test->startTime - (test->startTime - startTime) / denom + adjustment,
+                        test->duration, test->duration * numer / denom, startTime, numer, denom,
+                        adjustment);
+                test->startTime -= (test->startTime - startTime) / denom + adjustment;
+                test->duration = test->duration * numer / denom;
+            } while (&note != test++);
             adjustment += totalDuration / denom;
         }
     }
@@ -249,35 +342,41 @@ void Notes::setTriplets(unsigned selectChannels, bool condition) {
 // This is because 2/3rds of the dotted note is the undotted note, making it indistinguishable
 //   from a regular undotted note outside a triplet.
 bool Notes::triplets(unsigned selectChannels, HowMany howMany) const {
-    array<Candidate, CHANNEL_COUNT> candidate;
-    candidate.fill(Candidate());
+    array<TripletCandidate, CHANNEL_COUNT> tripStarts;
+    tripStarts.fill(TripletCandidate());
     bool condition = HowMany::set == howMany;
+    int modulo = condition ? 9 : 3;  //  3 non-trips (3*2^n) : 3 trips (2^n)
     for (unsigned index = selectStart; index < selectEnd; ++index) {
         auto& note = notes[index];
         if (!note.isSelectable(selectChannels)) {
             continue;
         }
         if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
-            candidate.fill(Candidate());
+            tripStarts.fill(TripletCandidate());
             continue;
         }
         if (condition == NoteDurations::TripletPart(note.duration, ppq)) {
-            candidate.fill(Candidate());
+            tripStarts.fill(TripletCandidate());
             continue;
         }
-        auto& can = candidate[note.channel];
-        if (can.last && can.last->startTime >= note.startTime) {
+        auto& candidate = tripStarts[note.channel];
+        if (INT_MAX != candidate.lastIndex
+                && notes[candidate.lastIndex].startTime >= note.startTime) {
             continue;  // ignore other notes on chord
         }
-        can.last = &note;
-        can.atLeastOneNote |= NOTE_ON == note.type;
-        if (!can.tripStart) {
-            can.tripStart = &note;
+        candidate.lastIndex = index;
+        candidate.atLeastOneNote |= NOTE_ON == note.type;
+        if (INT_MAX == candidate.startIndex) {
+            candidate.startIndex = index;
+            continue;
+        }
+        if (!candidate.atLeastOneNote) {
             continue;
         }
         // look for enough non-triplet part notes to make a multiple of three
-        int totalDuration = note.endTime() - can.tripStart->startTime;
-        if (!(totalDuration % 3) && can.atLeastOneNote) {
+        const DisplayNote* test = &notes[candidate.startIndex];
+        int totalDuration = note.endTime() - test->startTime;
+        if (!(NoteDurations::InStd(totalDuration, ppq) % modulo)) {
             return true;
         }
     }

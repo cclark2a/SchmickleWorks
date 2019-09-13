@@ -46,7 +46,7 @@ extern bool debugVerbose;  // switch to permit user debugging in shipping code
     void UnitTest(struct NoteTakerWidget* , TestType );
 #endif
 
-#define DEBUG_TRIPLET_DRAW 0
+#define DEBUG_TRIPLET_DRAW 01
 #define DEBUG_TRIPLET_TEST (DEBUG_TRIPLET_DRAW && debugVerbose)
 #define DEBUG_TRIPLET_DRAW_SHOW_DETAILS 0
 #if DEBUG_TRIPLET_DRAW_SHOW_DETAILS
@@ -58,7 +58,7 @@ extern bool debugVerbose;  // switch to permit user debugging in shipping code
 #endif
 #define DEBUG_BAR 0
 #define DEBUG_BAR_ADD_POS (DEBUG_BAR && 0)
-#define DEBUG_BEAM 0
+#define DEBUG_BEAM 01
 #define DEBUG_DISPLAY_RANGE 0
 #define DEBUG_DURATIONS 0
 #define DEBUG_POS 0
@@ -69,10 +69,10 @@ extern bool debugVerbose;  // switch to permit user debugging in shipping code
 #define DEBUG_VOICE_COUNT 0
 
 struct Super8Data {
-    float cv[4][16] = {};
-    float gate[4][16] = {};
-    float velocity[8][16] = {};
-    unsigned channels[8] = {};
+    float exCv[4][16] = {};
+    float exGate[4][16] = {};
+    float exVelocity[8][16] = {};
+    unsigned exChannels[8] = {};
 };
 
 template<class TWidget>

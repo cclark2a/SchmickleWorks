@@ -5,6 +5,13 @@
 struct DisplayState;
 struct NoteTakerDisplay;
 
+struct TripletCandidate {
+    unsigned lastIndex = INT_MAX;
+    unsigned startIndex = INT_MAX;
+    NoteCache* lastCache = nullptr;
+    bool atLeastOneNote = false;
+};
+
 // break out notes and range so that preview can draw notes without instantiated module
 struct Notes {
     vector<DisplayNote> notes;
@@ -33,6 +40,7 @@ struct Notes {
         return _schmickled();  // should have hit track end
     }
 
+    void findTriplets(vector<NoteTuplet>* tuplets);
     static void DebugDump(const vector<DisplayNote>& , unsigned start = 0,
             unsigned end = INT_MAX, const vector<NoteCache>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);

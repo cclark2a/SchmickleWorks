@@ -59,10 +59,6 @@ struct NoteTakerWheel : app::SliderKnob {
 
     void onDragEnd(const event::DragEnd& ) override;
 
-    void onDragStart(const event::DragStart& ) override {
-//        inUse = true;
-    }
-
     void reset() override {
         lastValue = INT_MAX;
         Knob::reset();
@@ -100,6 +96,15 @@ struct NoteTakerWheel : app::SliderKnob {
         return true;
     }
 
+    bool hasRoundedChanged() {
+        int result = (int) (this->getValue() + 0.5f);
+        if (result == lastValue) {
+            return false;
+        }
+        lastValue = result;
+        return true;
+    }
+
     NoteTakerWidget* ntw() {
         return getAncestorOfType<NoteTakerWidget>();
     }
@@ -125,6 +130,7 @@ struct NoteTakerWheel : app::SliderKnob {
         if (paramQuantity) {
             paramQuantity->setValue(value);
         }
+        lastValue = (int) value;
     }
 
     int wheelValue() const {

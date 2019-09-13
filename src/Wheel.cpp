@@ -190,8 +190,8 @@ void NoteTakerWheel::drawGear(NVGcontext *vg, float frame) const {
 	nvgStroke(vg);
 }
 
-void NoteTakerWheel::onDragEnd(const event::DragEnd& ) {
-//    inUse = false;
+void NoteTakerWheel::onDragEnd(const event::DragEnd& e) {
+    Knob::onDragEnd(e);
     ntw()->displayBuffer->redraw();
     if (debugVerbose) DEBUG("wheel on drag end");
 }

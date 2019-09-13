@@ -27,6 +27,19 @@ enum DisplayType : uint8_t {
     NUM_TYPES
 };
 
+enum class PositionType : uint8_t {
+    none,
+    left,
+    mid,
+    right,
+};
+
+// used by update x position to compute triplet before note cache is allocated
+struct NoteTuplet {
+    int id = 0;
+    PositionType position = PositionType::none;
+};
+
 #define SLUR_START_BIT 1
 #define SLUR_END_BIT 2
 
@@ -283,13 +296,6 @@ struct DisplayNote {
     std::string debugString() const;
 };
 
-enum class PositionType : uint8_t {
-    none,
-    left,
-    mid,
-    right,
-};
-
 enum class StemType : int8_t {
     unknown = -1,
     down,
@@ -307,20 +313,20 @@ struct NoteCache {
     int vStartTime;  // visible start time, for multi part note alignment
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
     int bar = 0;
+    int tripletId = 0;  // distinguish between multiple simultaneous triplets
     PositionType beamPosition = PositionType::none;
     uint8_t beamCount = 0;
     uint8_t channel;
+    PositionType tripletPosition = PositionType::none;
     PositionType slurPosition = PositionType::none;
     PositionType tiePosition = PositionType::none;
-    PositionType tupletPosition = PositionType::none;
-    uint8_t tupletId = 0;  // distinguish between multiple simultaneous triplets
     uint8_t symbol;
     uint8_t pitchPosition = 0;
     StemType stemDirection = StemType::unknown;
     bool accidentalSpace = false;
     bool endsOnBeat = false; // for beams
     bool staff = false;  // set if note owns staff; for flags, tuplets, beaming, slurs, ties
-    bool twoThirds = false; // set as hint that note may be triplet part
+//    bool twoThirds = false; // set as hint that note may be triplet part
 
     NoteCache(const DisplayNote* n)
          : note(n)
@@ -337,7 +343,7 @@ struct NoteCache {
 
     void setDurationSymbol(int ppq)  {
         int dur = vDuration;
-        if (PositionType::none != tupletPosition) {
+        if (PositionType::none != tripletPosition) {
             dur = dur * 3 / 2;  // to do : just support triplets for now
         }
         symbol = (uint8_t) NoteDurations::FromMidi(dur, ppq);

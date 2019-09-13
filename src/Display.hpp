@@ -123,7 +123,7 @@ struct DisplayControl {
     DisplayControl(NoteTakerDisplay* , NVGcontext* , bool horizontal = true);
     void autoDrift(float value, float frameTime, int visCells = 3);
     void drawActive(unsigned start, unsigned end) const;
-    void drawActive(float position) const;
+    void drawActivePointer(float position, float offset) const;
     void drawActiveNarrow(unsigned slot) const;
     void drawEdgeGradient(unsigned position, unsigned firstVisible, unsigned lastVisible) const;
     void drawEmpty() const;
@@ -209,7 +209,7 @@ struct NoteTakerDisplay : Widget {
         range.invalidate();
     }
 
-    const Notes* notes();
+    Notes* notes();
 
     NoteTakerWidget* ntw() {
          return mainWidget;

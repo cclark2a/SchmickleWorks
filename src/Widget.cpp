@@ -811,7 +811,7 @@ void NoteTakerWidget::draw(const DrawArgs &args) {
     static float lastTransform[6];
     nvgCurrentTransform(args.vg, t);
     if (memcmp(lastTransform, t, sizeof(lastTransform))) {
-        DEBUG("widget draw xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
+        if (false) DEBUG("widget draw xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
         display->redraw();
         selectButton->fb()->dirty = true;
         memcpy(lastTransform, t, sizeof(t));
@@ -824,7 +824,7 @@ void NoteTakerWidget::step() {
     static float lastTransform[6];
     nvgCurrentTransform(APP->window->vg, t);
     if (memcmp(lastTransform, t, sizeof(lastTransform))) {
-        DEBUG("widget step xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
+        if (false) DEBUG("widget step xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
         display->redraw();
         selectButton->fb()->dirty = true;
         memcpy(lastTransform, t, sizeof(t));

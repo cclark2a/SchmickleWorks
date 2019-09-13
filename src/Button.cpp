@@ -171,6 +171,10 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         } else {
             SCHMICKLE(State::cutAndShift == state || State::insertCutAndShift == state);
         }
+        // set selection to previous selectable note, or zero if none
+        int wheel = ntw->noteToWheel(start);
+        unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
+        ntw->setSelect(previous, previous < start ? start : previous + 1);
         n.eraseNotes(start, end, ntw->selectChannels);
         if (shiftTime) {
             ntw->shiftNotes(start, shiftTime);
@@ -179,10 +183,6 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         }
         ntw->nt()->invalidateAndPlay(Inval::cut);
         ntw->turnOffLEDButtons();
-        // set selection to previous selectable note, or zero if none
-        int wheel = ntw->noteToWheel(start);
-        unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
-        ntw->setSelect(previous, previous < start ? start : previous + 1);
     }
     ntw->selectButton->setSingle();
     // range is smaller
@@ -759,14 +759,15 @@ void TempoButton::draw(const DrawArgs& args) {
     nvgText(vg, 5 + af, 41 - af, "@", NULL);
 }
 
+// to do : call body (minus inherited part) on json load to restore state?
 void TieButton::onDragEnd(const event::DragEnd& e) {
     // horz: no slur / [optional original] / all slur
     // vert: no triplet / [optional original] / all triplet
-    // to do : if selection is too small to slur / trip, button should be disabled
+    // to do : if selection is too small to slur / trip, button should be disabled ?
     auto ntw = this->ntw();
     ntw->edit.clear();
     auto& n = ntw->n();
-    ntw->edit.init(ntw->n(), ntw->selectChannels);
+    ntw->edit.init(n, ntw->selectChannels);
     setTie = n.slursOrTies(ntw->selectChannels, Notes::HowMany::set, &setSlur);
     setTriplet = n.triplets(ntw->selectChannels, Notes::HowMany::set);
     clearTie = n.slursOrTies(ntw->selectChannels, Notes::HowMany::clear, &clearSlur);

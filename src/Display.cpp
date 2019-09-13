@@ -298,21 +298,39 @@ void DisplayControl::drawActive(unsigned start, unsigned end) const {
     nvgStroke(vg);
 }
 
-void DisplayControl::drawActive(float position) const {
+void DisplayControl::drawActivePointer(float position, float offset) const {
+    float mid = (horizontal ? display->box.size.x : display->box.size.y) / 2;
+    float boxMargin = boxWidth + margin;
+    // draw rectangle around selected
+    float rectEdge =  mid + ((int) (position + 0.5) - offset - 0.5) * boxMargin + margin / 2;
     nvgBeginPath(vg);
-    float start = (horizontal ? display->box.size.x : display->box.size.y) / 2;
-    start += (position - 0.5) * (boxWidth + margin) + margin / 2;
-    if (debugVerbose) DEBUG("center %g start %g position %g boxWidth %g margin %g",
-            (horizontal ? display->box.size.x : display->box.size.y) / 2,
-            start, position, boxWidth, margin);
     if (horizontal) {
-        nvgRect(vg, start, display->box.size.y - boxWidth - 5, boxWidth, boxWidth);
+        nvgRect(vg, rectEdge, display->box.size.y - boxWidth - 5, boxWidth, boxWidth);
     } else {
-        nvgRect(vg, display->box.size.x - boxWidth - 5, start, boxWidth, boxWidth);
+        nvgRect(vg, display->box.size.x - boxWidth - 5, rectEdge, boxWidth, boxWidth);
     }
     nvgStrokeWidth(vg, 2);
     nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x3F));
     nvgStroke(vg);
+    // draw triangle at edge
+    float triMid = mid + (position - offset) * boxMargin;
+    if (false && debugVerbose) DEBUG("center %g rectEdge %g triMid %g position %g offset %g boxWidth %g margin %g",
+            (horizontal ? display->box.size.x : display->box.size.y) / 2,
+            rectEdge, triMid, position, offset, boxWidth, margin);
+    nvgBeginPath(vg);
+    if (horizontal) {
+        float yOff = display->box.size.y - 5;
+        nvgMoveTo(vg, triMid, yOff);
+        nvgLineTo(vg, triMid + 2, yOff + 4);
+        nvgLineTo(vg, triMid - 2, yOff + 4);
+    } else {
+        float xOff = display->box.size.x - 5;
+        nvgMoveTo(vg, xOff, triMid);
+        nvgLineTo(vg, xOff + 4, triMid + 2);
+        nvgLineTo(vg, xOff + 4, triMid - 2);
+    }
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 0x3F));
+    nvgFill(vg);
 }
 
 void DisplayControl::drawEdgeGradient(unsigned position, unsigned firstVisible,
@@ -338,6 +356,7 @@ void DisplayControl::drawEdgeGradient(unsigned position, unsigned firstVisible,
 void DisplayControl::drawEmpty() const {
     nvgBeginPath(vg);
     nvgRect(vg, 0, 0, boxWidth, boxWidth);
+    // draw 'x'
     nvgMoveTo(vg, 0, 0);
     nvgLineTo(vg, boxWidth, boxWidth);
     nvgMoveTo(vg, boxWidth, 0);
@@ -418,7 +437,7 @@ void DisplayControl::drawStart() const {
 
 void DisplayControl::drawTie(int position, unsigned index) const {
     nvgSave(vg);
-    nvgTranslate(vg, position, display->box.size.y - boxWidth - 5);
+    nvgTranslate(vg, display->box.size.x - boxWidth - 5, position);
     this->drawNoteCommon();
     const char labels[] = {'<', '~', '{', ';'};
     nvgText(vg, boxWidth / 2, boxWidth - 7, &labels[index], &labels[index] + 1);
@@ -427,8 +446,8 @@ void DisplayControl::drawTie(int position, unsigned index) const {
 
 void DisplayControl::drawTriplet(int position, unsigned index) const {
     nvgSave(vg);
-    if (debugVerbose) DEBUG("drawTriplet %g %d", display->box.size.x - boxWidth - 5, position);
-    nvgTranslate(vg, display->box.size.x - boxWidth - 5, position);
+    if (false && debugVerbose) DEBUG("drawTriplet %g %d", display->box.size.x - boxWidth - 5, position);
+    nvgTranslate(vg, position, display->box.size.y - boxWidth - 5);
     this->drawNoteCommon();
     const char labels[] = {'|', '~', '>', ';'};
     nvgText(vg, boxWidth / 2, boxWidth - 7, &labels[index], &labels[index] + 1);
@@ -655,7 +674,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
             ntw->selectButton->fb()->dirty = true;
         }
     } 
-    const auto& n = *this->notes();
+    auto n = this->notes();
     auto vg = state.vg = args.vg;
     if (stagedSlot) {
         slot = stagedSlot;
@@ -663,7 +682,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     }
     auto cache = &slot->cache;
     if (slot->invalid) {
-        CacheBuilder builder(state, n, cache, n.ppq);
+        CacheBuilder builder(state, n, cache);
         builder.updateXPosition();
         slot->invalid = false;
         range.invalid = true;
@@ -672,24 +691,24 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     if (debugVerbose) {
         static const DisplayNote* lastNotes = nullptr;
         static const NoteCache* lastCache = nullptr;
-        if (lastCache != n.notes.front().cache || lastNotes != cache->notes.front().note) {
-            DEBUG("slot %p notes %p cache %p ", slot, &n.notes.front(), slot->cache.notes.front());
-            DEBUG("%s n.notes.front().cache %p", __func__, n.notes.front().cache);
+        if (lastCache != n->notes.front().cache || lastNotes != cache->notes.front().note) {
+            DEBUG("slot %p notes %p cache %p ", slot, &n->notes.front(), slot->cache.notes.front());
+            DEBUG("%s n->notes.front().cache %p", __func__, n->notes.front().cache);
             DEBUG("&cache->notes.front() %p", &cache->notes.front());
             lastNotes = cache->notes.front().note;
-            lastCache = n.notes.front().cache;
+            lastCache = n->notes.front().cache;
         } 
     }
-    SCHMICKLE(n.notes.front().cache == &cache->notes.front());
-    SCHMICKLE(cache->notes.front().note == &n.notes.front());
+    SCHMICKLE(n->notes.front().cache == &cache->notes.front());
+    SCHMICKLE(cache->notes.front().note == &n->notes.front());
     if (range.invalid) {
-        if (debugVerbose && n.notes.front().cache != &cache->notes.front()) {
-            DEBUG("n.notes.front().cache %p", n.notes.front().cache);
+        if (debugVerbose && n->notes.front().cache != &cache->notes.front()) {
+            DEBUG("n->notes.front().cache %p", n->notes.front().cache);
             DEBUG("&cache->notes.front() %p", &cache->notes.front());
         }
-        SCHMICKLE(n.notes.front().cache == &cache->notes.front());
-        SCHMICKLE(cache->notes.front().note == &n.notes.front());
-        range.updateRange(n, cache, ntw->selectButton->editStart());
+        SCHMICKLE(n->notes.front().cache == &cache->notes.front());
+        SCHMICKLE(cache->notes.front().note == &n->notes.front());
+        range.updateRange(*n, cache, ntw->selectButton->editStart());
         range.invalid = false;
     }
 #if RUN_UNIT_TEST
@@ -1037,7 +1056,7 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
                 if (drawBeams) {
                     this->drawBeam(index, alpha);
                 }
-                if (PositionType::left == noteCache.tupletPosition) {
+                if (PositionType::left == noteCache.tripletPosition) {
                     this->drawTuple(index, alpha, drawBeams);
                 }
                 if (PositionType::left == noteCache.slurPosition) {
@@ -1050,7 +1069,7 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
             } break;
             case REST_TYPE:
                 this->drawBarRest(bar, noteCache, noteCache.xPosition, alpha);
-                if (PositionType::left == noteCache.tupletPosition) {
+                if (PositionType::left == noteCache.tripletPosition) {
                     this->drawTuple(index, alpha, false);
                 }
                 if (PositionType::left == noteCache.slurPosition) {
@@ -1580,34 +1599,38 @@ void NoteTakerDisplay::drawTieControl() {
     DisplayControl horzCtrl(this, state.vg);
     auto horizontalWheel = ntw->horizontalWheel;
     float selected = horizontalWheel->getValue();
-    float lo, hi;
-    horizontalWheel->getLimits(&lo, &hi);
-    int count = (int) hi - (int) lo + 1;
+    float flo, fhi;
+    horizontalWheel->getLimits(&flo, &fhi);
+    int lo = (int) flo;
+    int hi = (int) fhi;
+    int count = hi - lo + 1;
     int totalWidth = horzCtrl.boxWidth * count + horzCtrl.margin * std::max(0, count - 1);
     int leftEdge = (box.size.x - totalWidth) / 2;
-    // draw 1, 2, or 3 boxes, depending on tie button settings
-    for (int index = (int) lo; index < (int) lo + count; ++index) {
-        horzCtrl.drawTie(leftEdge, index);
+    // draw 1, 2, or 3 boxes, depending on triplet button settings
+    for (int index = lo; index < lo + count; ++index) {
+        horzCtrl.drawTriplet(leftEdge, index);
         leftEdge += horzCtrl.boxWidth + horzCtrl.margin;
     };
     if (lo < hi) {
-        if (debugVerbose) DEBUG("horzCtrl selected %g lo %g hi %g", selected, lo, hi);
-        horzCtrl.drawActive(selected - (lo + hi) / 2);
+        if (false && debugVerbose) DEBUG("horzCtrl selected %g lo %d hi %d", selected, lo, hi);
+        horzCtrl.drawActivePointer(selected, (float) (lo + hi) / 2);
     }
     // to do : draw vertical triplet control
-    DisplayControl vertCtrl(this, state.vg);
+    DisplayControl vertCtrl(this, state.vg, false);
     auto verticalWheel = ntw->verticalWheel;
     selected = verticalWheel->getValue();
-    verticalWheel->getLimits(&lo, &hi);
-    count = (int) hi - (int) lo + 1;
-    int totalHeight = vertCtrl.boxWidth * count + vertCtrl.margin * std::max(0, count - 1);
-    int topEdge = (box.size.y - totalHeight) / 2;
-    for (int index = (int) lo; index < (int) lo + count; ++index) {
-        vertCtrl.drawTriplet(topEdge, index);
-        topEdge += vertCtrl.boxWidth + vertCtrl.margin;
+    verticalWheel->getLimits(&flo, &fhi);
+    lo = (int) flo;
+    hi = (int) fhi;
+    count = hi - lo + 1;
+    int yOffset = (box.size.y + vertCtrl.boxWidth * (count - 2) + vertCtrl.margin * (count - 1)) / 2;
+    for (int index = lo; index < lo + count; ++index) {
+        vertCtrl.drawTie(yOffset, index);
+        yOffset -= vertCtrl.boxWidth + vertCtrl.margin;
     }
     if (lo < hi) {
-        vertCtrl.drawActive(selected - (lo + hi) / 2);
+        if (false && debugVerbose) DEBUG("vertCtrl selected %g lo %d hi %d", selected, lo, hi);
+        vertCtrl.drawActivePointer(fhi - selected, 2 - (float) (lo + hi) / 2);
     }
 }
 
@@ -1624,47 +1647,47 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     auto& cacheNotes = this->cache()->notes;
     auto& notes = ntw()->n().notes;
     auto& tupletLeft = cacheNotes[start];
-    const uint8_t tupletId = tupletLeft.tupletId;
-    if (DEBUG_TRIPLET_TEST && PositionType::left != tupletLeft.tupletPosition) {
-        DEBUG("PositionType::left != cache[%u].tupletPosition (%s) tupletId %d cache[%u]: %s"
+    const uint8_t tupletId = tupletLeft.tripletId;
+    if (DEBUG_TRIPLET_TEST && PositionType::left != tupletLeft.tripletPosition) {
+        DEBUG("PositionType::left != cache[%u].tripletPosition (%s) tupletId %d cache[%u]: %s"
                 " note[%u]: %s",
-                start, debugPositionType[(int) tupletLeft.tupletPosition], tupletId, start,
+                start, debugPositionType[(int) tupletLeft.tripletPosition], tupletId, start,
                 tupletLeft.debugString().c_str(), tupletLeft.note - &notes.front(),
                 tupletLeft.note->debugString().c_str());
         debugDump(start, start + 1);
     }
-    SCHMICKLE(PositionType::left == cacheNotes[start].tupletPosition);
+    SCHMICKLE(PositionType::left == cacheNotes[start].tripletPosition);
     BeamPositions bp;
     unsigned index = start;
     while (++index < cacheNotes.size()) {
         auto& noteCache = cacheNotes[index];
-        if (tupletId != noteCache.tupletId) {
+        if (tupletId != noteCache.tripletId) {
             continue;
         }
-        if (PositionType::right == noteCache.tupletPosition) {
+        if (PositionType::right == noteCache.tripletPosition) {
             this->setBeamPos(start, index, &bp);
             break;
         }
-        if (DEBUG_TRIPLET_TEST && PositionType::mid != noteCache.tupletPosition) {
-            DEBUG("PositionType::mid != cache[%d].tupletPosition (%s) tupletId %d cache[%u]: %s"
+        if (DEBUG_TRIPLET_TEST && PositionType::mid != noteCache.tripletPosition) {
+            DEBUG("PositionType::mid != cache[%d].tripletPosition (%s) tupletId %d cache[%u]: %s"
                     " note[%u]: %s",
-                    index, debugPositionType[(int) noteCache.tupletPosition], tupletId, index,
+                    index, debugPositionType[(int) noteCache.tripletPosition], tupletId, index,
                     noteCache.debugString().c_str(), noteCache.note - &notes.front(),
                     noteCache.note->debugString().c_str());
             debugDump(start, index);
         }
-        SCHMICKLE(PositionType::mid == noteCache.tupletPosition);
+        SCHMICKLE(PositionType::mid == noteCache.tripletPosition);
     }
     auto& tupletRight = cacheNotes[index];
-    if (DEBUG_TRIPLET_TEST && PositionType::right != tupletRight.tupletPosition) {
-        DEBUG("PositionType::right != cache[%d].tupletPosition (%s) tupletId %d cache[%u]: %s"
+    if (DEBUG_TRIPLET_TEST && PositionType::right != tupletRight.tripletPosition) {
+        DEBUG("PositionType::right != cache[%d].tripletPosition (%s) tupletId %d cache[%u]: %s"
                 " note[%u]: %s",
-                index, debugPositionType[(int) tupletRight.tupletPosition], tupletId, index,
+                index, debugPositionType[(int) tupletRight.tripletPosition], tupletId, index,
                 tupletRight.debugString().c_str(), tupletRight.note - &notes.front(),
                 tupletRight.note->debugString().c_str());
         debugDump(start, index);
     }
-    SCHMICKLE(PositionType::right == tupletRight.tupletPosition);
+    SCHMICKLE(PositionType::right == tupletRight.tripletPosition);
     auto vg = state.vg;
     SetNoteColor(vg, tupletLeft.channel, alpha);
     // draw '3' at center of notes above or below staff
@@ -1676,6 +1699,7 @@ void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewB
     float yOffset = stemUp ? -1 : 7.5;
     nvgText(vg, centerX, bp.y + yOffset, "3", NULL);
     // to do : if !drew beam, draw square brackets on either side of '3'
+    if (DEBUG_TRIPLET_TEST) DEBUG("drewBeam %d bp.sx %g bp.ex %g", drewBeam, bp.sx, bp.ex);
     if (!drewBeam) {
         bp.sx -= 2;
         bp.y += stemUp ? 0 : 3;
@@ -1749,40 +1773,8 @@ void NoteTakerDisplay::invalidateCache() {
     this->redraw();
 }
 
-const Notes* NoteTakerDisplay::notes() {
+Notes* NoteTakerDisplay::notes() {
     return &ntw()->storage.current().n;
-#if 0
-    if (!previewNotes) {
-        previewNotes = new Notes();
-        previewNotes->notes.clear();
-        previewNotes->selectStart = 1;
-        previewNotes->selectEnd = 2;
-        previewNotes->ppq = 96;
-        const int ppq = previewNotes->ppq;
-        DisplayNote header(MIDI_HEADER);
-        header.setTracks(1);
-        header.setPpq(ppq);
-        DisplayNote key(KEY_SIGNATURE);
-        key.setKey(1);
-        DisplayNote time(TIME_SIGNATURE);
-        DisplayNote midC(NOTE_ON, 0, ppq / 2, 1);
-        midC.setPitch(60);
-        DisplayNote midE(NOTE_ON, ppq / 2, ppq / 2, 1);
-        midE.setPitch(64);
-        DisplayNote trailer(TRACK_END, ppq);
-        auto& notes = previewNotes->notes;
-        notes.push_back(header);
-        notes.push_back(key);
-        notes.push_back(time);
-        notes.push_back(midC);
-        notes.push_back(midE);
-        notes.push_back(trailer);
-        NoteTaker::DebugDump(notes);
-        this->invalidateCache();
-    }
-    // use a hardcoded set of notes for preview
-    return previewNotes;
-#endif
 }
 
 void NoteTakerDisplay::recenterVerticalWheel() {
@@ -1803,6 +1795,8 @@ void NoteTakerDisplay::recenterVerticalWheel() {
 }
 
 // used by beams and tuplets
+// to do : tuplet rules are different from beam rules
+//         tuplet beam position should be above upper stave or below lower stave
 void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const {
     unsigned index = first;
     auto& notes = this->cache()->notes;

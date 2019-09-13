@@ -34,6 +34,7 @@ void NoteTakerWidget::setHorizontalNoteLimits() {
         horizontalWheel->setLimits(0, 0);
     }
 }
+
 void NoteTakerWidget::setHorizontalWheelRange() {
     if (runButton->ledOn()) {
         horizontalWheel->setLimits(0, NoteDurations::Count() - .001f); // tempo relative to quarter note
@@ -75,6 +76,8 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         horizontalWheel->setValue(NoteDurations::FromMidi(sustainMinDuration, n().ppq));
         return;
     }
+    auto& n = this->n();
+    edit.init(n, selectChannels);  // set up for horz and vert
     if (tieButton->ledOn()) {
         int upper = (int) tieButton->clearTriplet + (int) tieButton->setTriplet;
         if (!upper) {
@@ -89,8 +92,6 @@ void NoteTakerWidget::setHorizontalWheelRange() {
                 !tieButton->clearTriplet, !tieButton->clearTriplet + upper);
         return;
     }
-    auto& n = this->n();
-    edit.init(n, selectChannels);  // set up for horz and vert
     // horizontal wheel range and value
     int value = INT_MAX;
     if (selectButton->isOff()) {
@@ -310,7 +311,7 @@ void NoteTakerWidget::updateHorizontal() {
     // if not all trips, add all trips selection
     // to do : use common code with general changing note duration to clear / make triplets
     if (tieButton->ledOn()) {   // horz wheel sets tie to no trip / orig / no trip
-        if (!horizontalWheel->hasChanged()) {
+        if (!horizontalWheel->hasRoundedChanged()) {
             return;
         }
         switch (horizontalWheel->wheelValue()) {
@@ -604,10 +605,10 @@ void NoteTakerWidget::updateVertical() {
         return;
     }
     if (tieButton->ledOn()) {
-        if (!horizontalWheel->hasChanged()) {
+        if (!verticalWheel->hasRoundedChanged()) {
             return;
         }
-        switch (horizontalWheel->wheelValue()) {
+        switch (verticalWheel->wheelValue()) {
             case 0:
                 this->clearSlurs();
                 break;

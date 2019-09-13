@@ -66,19 +66,20 @@ struct Super8 : Module {
 		if (leftExpander.module && leftExpander.module->model == modelNoteTaker) {
 			Super8Data* message = (Super8Data*) leftExpander.consumerMessage;
 			for (unsigned index = 0; index < 4; index++) {
-                unsigned voiceCount = message->channels[CV_OUTPUTS + index];
+                unsigned voiceCount = message->exChannels[CV_OUTPUTS + index];
                 outputs[CV5_OUTPUT + index].setChannels(voiceCount);
                 outputs[GATE5_OUTPUT + index].setChannels(voiceCount);
                 for (unsigned voice = 0; voice < voiceCount; ++voice) {
-                    outputs[CV5_OUTPUT + index].setVoltage(message->cv[index][voice], voice);
-				    outputs[GATE5_OUTPUT + index].setVoltage(message->gate[index][voice], voice);
+                    outputs[CV5_OUTPUT + index].setVoltage(message->exCv[index][voice], voice);
+				    outputs[GATE5_OUTPUT + index].setVoltage(message->exGate[index][voice], voice);
                 }
 			}
 			for (unsigned index = 0; index < 8; index++) {
-                unsigned voiceCount = message->channels[index];
+                unsigned voiceCount = message->exChannels[index];
                 outputs[VELOCITY1_OUTPUT + index].setChannels(voiceCount);
                 for (unsigned voice = 0; voice < voiceCount; ++voice) {
-				    outputs[VELOCITY1_OUTPUT + index].setVoltage(message->velocity[index][voice], voice);
+				    outputs[VELOCITY1_OUTPUT + index].setVoltage(message->exVelocity[index][voice],
+                            voice);
                 }
             }
 		}

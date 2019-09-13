@@ -69,18 +69,17 @@ std::string NoteCache::debugString() const {
     if (PositionType::none != tiePosition) {
         s += "t" + PosAsStr(tiePosition) + " ";
     }
-    if (PositionType::none != tupletPosition) {
-        s += "3" + PosAsStr(tupletPosition) + " ";
+    if (PositionType::none != tripletPosition) {
+        s += "3" + PosAsStr(tripletPosition) + " ";
     }
-    if (tupletId) {
-        s += std::to_string(tupletId) + " ";
+    if (tripletId) {
+        s += std::to_string(tripletId) + " ";
     }
     if (pitchPosition) {
         s += std::to_string(pitchPosition) + " ";
     }
     s += std::to_string(symbol) +  (accidentalSpace ? "#" : "")
-            + (endsOnBeat ? "B" : "") + StemAsStr(stemDirection) + (staff ? "s" : "") 
-            + (twoThirds ? "2" : "");
+            + (endsOnBeat ? "B" : "") + StemAsStr(stemDirection) + (staff ? "s" : "");
     return s;
 }
 

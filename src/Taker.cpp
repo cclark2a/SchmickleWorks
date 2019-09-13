@@ -261,6 +261,17 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (!running) {
                 this->setExpiredGatesLow(INT_MAX);
             }
+            if (debugVerbose) {
+                static float last = 0;
+                static const float* lastAddr = nullptr;
+                auto* gatePtr = &channels[4].voices[0].gate;
+                if (last != *gatePtr && lastAddr != gatePtr) {
+                    DEBUG("[%g] setExpiredGatesLow gate %g %p running %d",
+                            realSeconds, *gatePtr, gatePtr, running);
+                    last = *gatePtr;
+                    lastAddr = gatePtr;
+                }
+            }
             playNotes = false;
         }
     }
@@ -268,23 +279,24 @@ void NoteTaker::process(const ProcessArgs &args) {
     if (rightExpander.module && rightExpander.module->model == modelSuper8) {
         Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
         for (unsigned chan = 0; chan < EXPANSION_OUTPUTS; ++chan) {
-            message->channels[chan] = channels[chan].voiceCount;
+            message->exChannels[chan] = channels[chan].voiceCount;
             const auto& vIn = channels[chan].voices;
+            if (debugVerbose && 4 == chan && !playNotes) {
+                static float last = -1;
+                static const float* lastAddr = nullptr;
+                if (last != vIn[0].gate || lastAddr != &vIn[0].gate) {
+                    DEBUG("[%g] vIn[0].gate %g %p channels[%u].", realSeconds,
+                            vIn[0].gate, &vIn[0].gate);
+                    last = vIn[0].gate;
+                    lastAddr = &vIn[0].gate;
+                }
+            }
             for (unsigned voice = 0; voice < VOICE_COUNT; ++voice) {
                 if (chan >= CV_OUTPUTS) {
-                    if (debugVerbose && 4 == chan && 0 == voice && !playNotes) {
-                        static float last = -1;
-                        static const float* lastAddr = nullptr;
-                        if (last != vIn[voice].gate || lastAddr != &vIn[voice].gate) {
-                            DEBUG("vIn[voice].gate %g %p", vIn[voice].gate, &vIn[voice].gate);
-                            last = vIn[voice].gate;
-                            lastAddr = &vIn[voice].gate;
-                        }
-                    }
-                    message->gate[chan - CV_OUTPUTS][voice] = vIn[voice].gate;
-                    message->cv[chan - CV_OUTPUTS][voice] = vIn[voice].cv;
+                    message->exGate[chan - CV_OUTPUTS][voice] = vIn[voice].gate;
+                    message->exCv[chan - CV_OUTPUTS][voice] = vIn[voice].cv;
                 }
-                message->velocity[chan][voice] = vIn[voice].velocity;
+                message->exVelocity[chan][voice] = vIn[voice].velocity;
             }
         }
     }
@@ -321,7 +333,13 @@ void NoteTaker::process(const ProcessArgs &args) {
                         && rightExpander.module && rightExpander.module->model == modelSuper8) {
                     Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
                     channels[note.channel].voices[voiceIndex].gate = DEFAULT_GATE_HIGH_VOLTAGE;
-                    message->gate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
+                    message->exGate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
+                    // to do : to get sensible output, need two deep buffer to avoid showing all values
+                    if (false && debugVerbose && 4 == note.channel && 0 == voiceIndex) {
+                        DEBUG("[%g] exGate[0][0] = DEFAULT_GATE_HIGH_VOLTAGE %p", realSeconds,
+                                &message->exGate[note.channel - CV_OUTPUTS][voiceIndex]);
+
+                    }
                 }
                 if (note.channel < CV_OUTPUTS) {
 #if DEBUG_RUN_TIME
@@ -348,11 +366,11 @@ void NoteTaker::process(const ProcessArgs &args) {
                     if (note.channel >= CV_OUTPUTS) {
                         float newCV = bias + note.pitch() / 12.f;
                         channels[note.channel].voices[voiceIndex].cv = newCV;
-                        message->cv[note.channel - CV_OUTPUTS][voiceIndex] = newCV;
+                        message->exCv[note.channel - CV_OUTPUTS][voiceIndex] = newCV;
                     }
                     float velocity = note.onVelocity();
                     channels[note.channel].voices[voiceIndex].velocity = velocity;
-                    message->velocity[note.channel][voiceIndex] = velocity;
+                    message->exVelocity[note.channel][voiceIndex] = velocity;
                 }
                 if (note.channel < CV_OUTPUTS) {
 #if DEBUG_RUN_TIME
@@ -379,8 +397,8 @@ void NoteTaker::process(const ProcessArgs &args) {
     if (rightExpander.module && rightExpander.module->model == modelSuper8) {
         if (debugVerbose && !playNotes) {
             Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-            if (message->gate[0][0]) {
-                DEBUG("expected zero gate");
+            if (message->exGate[0][0]) {
+                DEBUG("[%g] expected zero gate", realSeconds);
                 _schmickled();
             }
         }

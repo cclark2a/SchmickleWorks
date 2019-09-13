@@ -62,8 +62,8 @@ struct BarPosition {
     }
 
     int count(const NoteCache& noteCache) const;
-    int noteRegular(const DisplayNote& , int ppq, bool twoThirds);
-    int notesTied(const DisplayNote& , int ppq, bool* twoThirds);
+    int noteRegular(const DisplayNote& , const NoteTuplet& , int ppq);
+    int notesTied(const DisplayNote& , const NoteTuplet& , int ppq);
     int resetSignatureStart(const DisplayNote& , float barWidth);
 
     void setMidiEnd(const NoteCache& noteCache) {
@@ -101,20 +101,18 @@ struct PosAdjust {
 
 struct CacheBuilder {
     const DisplayState& state;
-    const Notes& notes;
+    Notes* notes;
     DisplayCache* cache;
-    const int ppq;
     
-    CacheBuilder(const DisplayState& , const Notes& , DisplayCache* , int ppq);
+    CacheBuilder(const DisplayState& , Notes* , DisplayCache* );
 
     void cacheBeams();
     void cacheSlurs();
     void cacheStaff();
-    void cacheTuplets();
-    void clearTuplet(unsigned index, unsigned limit);
+    void cacheTuplets(const vector<NoteTuplet>& tuplets);
     void closeBeam(unsigned first, unsigned limit);
     void closeSlur(unsigned first, unsigned limit);
-    void setDurations();
+    void setDurations(const vector<NoteTuplet>& );
     void trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime);
     void updateXPosition();
 };
