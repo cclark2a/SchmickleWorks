@@ -2,6 +2,7 @@
 
 #include "DisplayNote.hpp"
 
+struct DisplayCache;
 struct DisplayState;
 struct NoteTakerDisplay;
 
@@ -40,7 +41,7 @@ struct Notes {
         return _schmickled();  // should have hit track end
     }
 
-    void findTriplets(vector<NoteTuplet>* tuplets);
+    void findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCache);
     static void DebugDump(const vector<DisplayNote>& , unsigned start = 0,
             unsigned end = INT_MAX, const vector<NoteCache>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);

@@ -15,28 +15,6 @@ static void draw_stem(NVGcontext*vg, float x, int ys, int ye) {
     nvgStroke(vg);
 }
 
-struct BeamPositions {
-    unsigned beamMin = INT_MAX;
-    float xOffset;
-    int yOffset;
-    float slurOffset;
-    float sx;
-    float ex;
-    int yStemExtend;
-    int y;
-    int yLimit;
-
-    void drawOneBeam(NVGcontext* vg) {
-        nvgBeginPath(vg);
-        nvgMoveTo(vg, sx, y);
-        nvgLineTo(vg, ex, y);
-        nvgLineTo(vg, ex, y + 3);
-        nvgLineTo(vg, sx, y + 3);
-        nvgFill(vg);
-        y += yOffset;
-    }
-};
-
 //  major: G D A E B F# C#
 const uint8_t trebleSharpKeys[] = { 29, 32, 28, 31, 34, 30, 33 };
 //  major: F Bb Eb Ab Db Gb Cb
@@ -769,7 +747,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     Widget::draw(args);
 }
 
-void NoteTakerDisplay::drawArc(const BeamPositions& bp, unsigned start, unsigned index) const {
+void NoteTakerDisplay::drawArc(const BeamPosition& bp, unsigned start, unsigned index) const {
     auto& notes = this->cache()->notes;
     float yOff = bp.slurOffset;
     int midOff = (StemType::up == notes[start].stemDirection ? 2 : -2);
@@ -848,32 +826,41 @@ void NoteTakerDisplay::drawBars(const BarPosition& bar) {
     }
 }
 
+struct BeamState {
+    float sx;
+    float ex;
+    int y;
+
+    BeamState(BeamPosition bp)
+        : sx(bp.sx)
+        , ex(bp.ex)
+        , y(bp.y) {
+    }
+
+    void drawOneBeam(NVGcontext* vg, BeamPosition bp) {
+        nvgBeginPath(vg);
+        nvgMoveTo(vg, sx, y);
+        nvgLineTo(vg, ex, y);
+        nvgLineTo(vg, ex, y + 3);
+        nvgLineTo(vg, sx, y + 3);
+        nvgFill(vg);
+        y += bp.yOffset;
+    }
+
+};
+
 void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
     auto& notes = this->cache()->notes;
     SCHMICKLE(PositionType::left == notes[start].beamPosition);
-    BeamPositions bp;
+    const BeamPosition& bp = this->cache()->beams[notes[start].beamId];
     unsigned index = start;
     int chan = notes[start].channel;
-    while (++index < notes.size()) {
-        auto& noteCache = notes[index];
-        if (!noteCache.staff) {
-            continue;
-        }
-        if (chan != noteCache.channel) {
-            continue;
-        }
-        if (PositionType::right == noteCache.beamPosition) {
-            this->setBeamPos(start, index, &bp);
-            break;
-        }
-        SCHMICKLE(PositionType::mid == noteCache.beamPosition);
-    }
-    SCHMICKLE(PositionType::right == notes[index].beamPosition);
     auto vg = state.vg;
     SetNoteColor(vg, chan, alpha);
-    bp.ex += 0.25;
+    BeamState bs(bp);
+    bs.ex += 0.25;
     for (unsigned count = 0; count < bp.beamMin; ++count) {
-        bp.drawOneBeam(vg);
+        bs.drawOneBeam(vg ,bp);
     }
     index = start;
     int yReset = bp.y;
@@ -894,29 +881,29 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
             return;
         }
         const NoteCache& next = notes[index];
-        bp.sx = noteCache->xPosition + bp.xOffset;
+        bs.sx = noteCache->xPosition + bp.xOffset;
         draw_stem(vg, bp.sx, noteCache->yPosition + bp.yStemExtend, bp.yLimit);
-        bp.sx += 0.25;
-        bp.ex = next.xPosition + bp.xOffset + 0.25;
-        bp.y = yReset;
+        bs.sx += 0.25;
+        bs.ex = next.xPosition + bp.xOffset + 0.25;
+        bs.y = yReset;
         bool fullBeam = true;
         for (unsigned count = bp.beamMin; count < noteCache->beamCount; ++count) {
             if (fullBeam && next.beamCount <= count) {
                 if (prev && prev->beamCount >= count) {
                     continue;
                 }
-                bp.ex = bp.sx + 6;   // draw partial beam on left
+                bs.ex = bs.sx + 6;   // draw partial beam on left
                 fullBeam = false;
             } 
-            bp.drawOneBeam(vg);
+            bs.drawOneBeam(vg, bp);
         }
         if (PositionType::right == next.beamPosition) { // draw partial beam on right
-            bp.ex = next.xPosition + bp.xOffset;
-            draw_stem(vg, bp.ex, next.yPosition + bp.yStemExtend, bp.yLimit);
-            bp.ex += 0.25;
-            bp.sx = bp.ex - 6;
+            bs.ex = next.xPosition + bp.xOffset;
+            draw_stem(vg, bs.ex, next.yPosition + bp.yStemExtend, bp.yLimit);
+            bs.ex += 0.25;
+            bs.sx = bs.ex - 6;
             for (unsigned count = noteCache->beamCount; count < next.beamCount; ++count) {
-                bp.drawOneBeam(vg);
+                bs.drawOneBeam(vg, bp);
             }
             break;
         }
@@ -1369,68 +1356,42 @@ void NoteTakerDisplay::drawPartControl() {
 // to do : move slur so it doesn't draw on top of tie
 // to do : mock score software ?
 // in scoring software, slur is drawn from first to last, offset by middle, if needed
-void NoteTakerDisplay::drawSlur(unsigned start, unsigned char alpha) const {
+void NoteTakerDisplay::drawSlur(unsigned first, unsigned char alpha) const {
     auto& cacheNotes = this->cache()->notes;
     auto& notes = ntw()->n().notes;
-    SCHMICKLE(PositionType::left == cacheNotes[start].slurPosition);
-    BeamPositions bp;
-    unsigned index = start;
-    int chan = cacheNotes[start].channel;
-    while (++index < cacheNotes.size()) {
-        auto& noteCache = cacheNotes[index];
-        const DisplayNote* note = noteCache.note;
-        if (NOTE_ON != note->type) {
-            continue;
-        }
-        if (!noteCache.staff) {
-            continue;
-        }
-        if (chan != noteCache.channel) {
-            continue;
-        }
-        if (PositionType::right == noteCache.slurPosition) {
-            this->setBeamPos(start, index, &bp);
-            break;
-        }
-        if (DEBUG_SLUR_TEST && PositionType::mid != noteCache.slurPosition) {
-            DEBUG("PositionType::mid != cache[%d].slurPosition (%s) cache[%u]: %s note[%u]: %s",
-                    index, debugPositionType[(int) noteCache.slurPosition], index,
-                    noteCache.debugString().c_str(), noteCache.note - &notes.front(),
-                    noteCache.note->debugString().c_str());
-            debugDump(start, index);
-        }
-        SCHMICKLE(PositionType::mid == cacheNotes[index].slurPosition);
-    }
-    auto& slurRight = cacheNotes[index];
-    if (DEBUG_SLUR_TEST && PositionType::right != cacheNotes[index].slurPosition) {
+    SCHMICKLE(PositionType::left == cacheNotes[first].slurPosition);
+    const BeamPosition& bp = this->cache()->beams[cacheNotes[first].beamId];
+    unsigned last = bp.last;
+    int chan = cacheNotes[first].channel;
+    auto& slurRight = cacheNotes[last];
+    if (DEBUG_SLUR_TEST && PositionType::right != slurRight.slurPosition) {
         DEBUG("PositionType::mid != cache[%d].slurPosition (%s) cache[%u]: %s note[%u]: %s",
-                index, debugPositionType[(int) slurRight.slurPosition], index,
+                last, debugPositionType[(int) slurRight.slurPosition], last,
                 slurRight.debugString().c_str(), slurRight.note - &notes.front(),
                 slurRight.note->debugString().c_str());
-        debugDump(start, index);
+        debugDump(first, last);
     }
     SCHMICKLE(PositionType::right == slurRight.slurPosition);
     SetNoteColor(state.vg, chan, alpha);
-    this->drawArc(bp, start, index);
+    this->drawArc(bp, first, last);
 }
 
-void NoteTakerDisplay::drawTie(unsigned start, unsigned char alpha) const {
+void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
     auto& notes = this->cache()->notes;
-    SCHMICKLE(PositionType::left == notes[start].tiePosition
-            || PositionType::mid == notes[start].tiePosition);
-    BeamPositions bp;
-    unsigned index = start;
-    int chan = notes[start].channel;
-    while (++index < notes.size() && chan != notes[index].channel)
-        ;
-    this->setBeamPos(start, index, &bp);
-    if (PositionType::right != notes[index].tiePosition
-            && PositionType::mid != notes[index].tiePosition) {
-                // to do : reenable this to debug : disable for now because it outputs continuously
-                if (false && debugVerbose) DEBUG("** missing tie end %s", notes[start].note->debugString().c_str());
-            }
+    SCHMICKLE(PositionType::left == notes[first].tiePosition
+            || PositionType::mid == notes[first].tiePosition);
+    const BeamPosition& bp = this->cache()->beams[notes[first].beamId];
+    int chan = notes[first].channel;
+    unsigned last = bp.last;
+    if (PositionType::right != notes[last].tiePosition
+            && PositionType::mid != notes[last].tiePosition) {
+        // to do : reenable this to debug : disable for now because it outputs continuously
+        if (false && debugVerbose) {
+            DEBUG("** missing tie end %s", notes[first].note->debugString().c_str());
+        }
+    }
     SetNoteColor(state.vg, chan, alpha);
-    this->drawArc(bp, start, index);
+    this->drawArc(bp, first, last);
 }
 
 // note this assumes storage playback has at least one entry
@@ -1643,76 +1604,59 @@ void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
 }
 
 // to do : share code with draw slur, draw beam ?
-void NoteTakerDisplay::drawTuple(unsigned start, unsigned char alpha, bool drewBeam) const {
+void NoteTakerDisplay::drawTuple(unsigned first, unsigned char alpha, bool drewBeam) const {
     auto& cacheNotes = this->cache()->notes;
     auto& notes = ntw()->n().notes;
-    auto& tupletLeft = cacheNotes[start];
-    const uint8_t tupletId = tupletLeft.tripletId;
-    if (DEBUG_TRIPLET_TEST && PositionType::left != tupletLeft.tripletPosition) {
+    int chan = notes[first].channel;
+    if (DEBUG_TRIPLET_TEST && PositionType::left != cacheNotes[first].tripletPosition) {
+        auto& tupletLeft = cacheNotes[first];
         DEBUG("PositionType::left != cache[%u].tripletPosition (%s) tupletId %d cache[%u]: %s"
                 " note[%u]: %s",
-                start, debugPositionType[(int) tupletLeft.tripletPosition], tupletId, start,
+                first, debugPositionType[(int) tupletLeft.tripletPosition],
+                cacheNotes[first].beamId, first,
                 tupletLeft.debugString().c_str(), tupletLeft.note - &notes.front(),
                 tupletLeft.note->debugString().c_str());
-        debugDump(start, start + 1);
+        debugDump(first, first + 1);
     }
-    SCHMICKLE(PositionType::left == cacheNotes[start].tripletPosition);
-    BeamPositions bp;
-    unsigned index = start;
-    while (++index < cacheNotes.size()) {
-        auto& noteCache = cacheNotes[index];
-        if (tupletId != noteCache.tripletId) {
-            continue;
-        }
-        if (PositionType::right == noteCache.tripletPosition) {
-            this->setBeamPos(start, index, &bp);
-            break;
-        }
-        if (DEBUG_TRIPLET_TEST && PositionType::mid != noteCache.tripletPosition) {
-            DEBUG("PositionType::mid != cache[%d].tripletPosition (%s) tupletId %d cache[%u]: %s"
-                    " note[%u]: %s",
-                    index, debugPositionType[(int) noteCache.tripletPosition], tupletId, index,
-                    noteCache.debugString().c_str(), noteCache.note - &notes.front(),
-                    noteCache.note->debugString().c_str());
-            debugDump(start, index);
-        }
-        SCHMICKLE(PositionType::mid == noteCache.tripletPosition);
-    }
-    auto& tupletRight = cacheNotes[index];
-    if (DEBUG_TRIPLET_TEST && PositionType::right != tupletRight.tripletPosition) {
+    SCHMICKLE(PositionType::left == cacheNotes[first].tripletPosition);
+    const BeamPosition& bp = this->cache()->beams[cacheNotes[first].beamId];
+    if (DEBUG_TRIPLET_TEST && PositionType::right != cacheNotes[bp.last].tripletPosition) {
+        auto& tupletRight = cacheNotes[bp.last];
         DEBUG("PositionType::right != cache[%d].tripletPosition (%s) tupletId %d cache[%u]: %s"
                 " note[%u]: %s",
-                index, debugPositionType[(int) tupletRight.tripletPosition], tupletId, index,
+                bp.last, debugPositionType[(int) tupletRight.tripletPosition],
+                cacheNotes[bp.last].beamId, bp.last,
                 tupletRight.debugString().c_str(), tupletRight.note - &notes.front(),
                 tupletRight.note->debugString().c_str());
-        debugDump(start, index);
+        debugDump(first, bp.last);
     }
-    SCHMICKLE(PositionType::right == tupletRight.tripletPosition);
+    SCHMICKLE(PositionType::right == cacheNotes[bp.last].tripletPosition);
     auto vg = state.vg;
-    SetNoteColor(vg, tupletLeft.channel, alpha);
+    SetNoteColor(vg, chan, alpha);
     // draw '3' at center of notes above or below staff
     nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     float centerX = (bp.sx + bp.ex) / 2;
-    bool stemUp = StemType::up == cacheNotes[start].stemDirection;
+    bool stemUp = StemType::up == cacheNotes[first].stemDirection;
     float yOffset = stemUp ? -1 : 7.5;
     nvgText(vg, centerX, bp.y + yOffset, "3", NULL);
     // to do : if !drew beam, draw square brackets on either side of '3'
-    if (DEBUG_TRIPLET_TEST) DEBUG("drewBeam %d bp.sx %g bp.ex %g", drewBeam, bp.sx, bp.ex);
+    if (false && DEBUG_TRIPLET_TEST) DEBUG("drewBeam %d bp.sx %g bp.ex %g", drewBeam, bp.sx, bp.ex);
     if (!drewBeam) {
-        bp.sx -= 2;
-        bp.y += stemUp ? 0 : 3;
+        BeamState bs(bp);
+        bs.sx -= 2;
+        bs.y += stemUp ? 0 : 3;
         nvgBeginPath(vg);
-        nvgMoveTo(vg, bp.sx, bp.y);
-        bp.y += stemUp ? -3 : 3;
-        nvgLineTo(vg, bp.sx, bp.y);
-        nvgLineTo(vg, centerX - 3, bp.y);
-        nvgMoveTo(vg, centerX + 3, bp.y);
-        bp.ex += 2;
-        nvgLineTo(vg, bp.ex, bp.y);
-        bp.y -= stemUp ? -3 : 3;
-        nvgLineTo(vg, bp.ex, bp.y);
+        nvgMoveTo(vg, bs.sx, bs.y);
+        bs.y += stemUp ? -3 : 3;
+        nvgLineTo(vg, bs.sx, bs.y);
+        nvgLineTo(vg, centerX - 3, bs.y);
+        nvgMoveTo(vg, centerX + 3, bs.y);
+        bs.ex += 2;
+        nvgLineTo(vg, bs.ex, bs.y);
+        bs.y -= stemUp ? -3 : 3;
+        nvgLineTo(vg, bs.ex, bs.y);
         nvgStrokeWidth(vg, 0.5);
         nvgStroke(vg);
     }
@@ -1791,49 +1735,6 @@ void NoteTakerDisplay::recenterVerticalWheel() {
         } else {
             this->redraw();
         }
-    }
-}
-
-// used by beams and tuplets
-// to do : tuplet rules are different from beam rules
-//         tuplet beam position should be above upper stave or below lower stave
-void NoteTakerDisplay::setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const {
-    unsigned index = first;
-    auto& notes = this->cache()->notes;
-    int chan = notes[first].channel;
-    float yMax = 0;
-    float yMin = FLT_MAX;
-    unsigned beamMax = 0;
-    unsigned lastMeasured = first;
-    do {
-        const NoteCache& noteCache = notes[index];
-        if (chan != noteCache.channel) {
-            continue;
-        }
-        yMax = std::max(noteCache.yPosition, yMax);
-        yMin = std::min(noteCache.yPosition, yMin);
-        beamMax = std::max((unsigned) noteCache.beamCount, beamMax);
-        bp->beamMin = std::min((unsigned) noteCache.beamCount, bp->beamMin);
-        lastMeasured = index;
-    } while (++index <= last);
-    bool stemUp = StemType::up == notes[first].stemDirection;
-    bp->xOffset = stemUp ? 6 : -0.25;
-    bp->yOffset = stemUp ? 5 : -5;
-    bp->sx = notes[first].xPosition + bp->xOffset;
-    bp->ex = notes[last].xPosition + bp->xOffset;
-    int yStem = stemUp ? -22 : 15;
-    bp->yStemExtend = yStem + (stemUp ? 0 : 3);
-    bp->y = (stemUp ? yMin : yMax) + yStem;
-    if (beamMax > 3) {
-        bp->y -= ((int) beamMax - 3) * bp->yOffset;
-    }
-    bp->yLimit = bp->y + (stemUp ? 0 : 3);
-    if (stemUp) {
-        int highFirstLastY = std::max(notes[first].yPosition, notes[lastMeasured].yPosition);
-        bp->slurOffset = std::max(0.f, yMax - highFirstLastY);
-    } else {
-        int lowFirstLastY = std::min(notes[first].yPosition, notes[lastMeasured].yPosition);
-        bp->slurOffset = std::min(0.f, yMin - lowFirstLastY) - 3;
     }
 }
 

@@ -72,8 +72,8 @@ std::string NoteCache::debugString() const {
     if (PositionType::none != tripletPosition) {
         s += "3" + PosAsStr(tripletPosition) + " ";
     }
-    if (tripletId) {
-        s += std::to_string(tripletId) + " ";
+    if (INT_MAX != beamId) {
+        s += std::to_string(beamId) + " ";
     }
     if (pitchPosition) {
         s += std::to_string(pitchPosition) + " ";

@@ -123,25 +123,26 @@ std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
 // only mark triplets if notes are the right duration and collectively a multiple of three
 // to do : if too few notes are of the right duration, they (probably) need to be drawn as ties --
 // 2/3rds of 1/4 note is 1/6 (.167) which could be 1/8 + 1/32 (.156)
-void Notes::findTriplets(vector<NoteTuplet>* tuplets) {
+// This adds beam position records for each triplet and keep that index rather than trip id.
+void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCache) {
 #if DEBUG_TRIPLET_DRAW
     DEBUG("%s", __func__);
     auto tripletDrawDebug = [=](const char* str, const DisplayNote& note) {
         DEBUG("findTriplets %s [%d] %s" , str, &note - &notes.front(),
                 note.debugString().c_str());
     };
-    auto noteTripletDebug = [=](const char* str, const NoteTuplet& tuplet, const DisplayNote& note) {
-        DEBUG("findTriplets %s [%d] pos %d id %d [%d] %s" , str, &tuplet - &tuplets->front(),
-                (int) tuplet.position, tuplet.id, &note - &notes.front(), note.debugString().c_str());
+    auto noteTripletDebug = [=](const char* str, PositionType* tuplet, const DisplayNote& note) {
+        DEBUG("findTriplets %s [%d] pos %d [%d] %s" , str, tuplet - &tuplets->front(),
+                (int) *tuplet, &note - &notes.front(), note.debugString().c_str());
     };
 #else
     auto tripletDrawDebug = [](const char* , const DisplayNote& ) {};
     auto tripletCacheDebug = [](const char* , const NoteCache* ) {};
 #endif
+    vector<BeamPosition>* beams = &displayCache->beams;
     tuplets->resize(notes.size());
     array<TripletCandidate, CHANNEL_COUNT> tripStarts;  // first index in notes (not cache) of triplet
     tripStarts.fill(TripletCandidate());
-    uint8_t tupletId = 0;
     for (unsigned index = 0; index < notes.size(); ++index) {
         DisplayNote& note = notes[index];
         if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
@@ -180,11 +181,9 @@ void Notes::findTriplets(vector<NoteTuplet>* tuplets) {
 #endif
             continue;
         }
-        ++tupletId;
         // triplet in cache begins at can trip start time, ends at note end time
-        (*tuplets)[candidate.startIndex].position = PositionType::left;
-        (*tuplets)[candidate.startIndex].id = tupletId;
-        noteTripletDebug("left", (*tuplets)[candidate.startIndex], *test);
+        (*tuplets)[candidate.startIndex] = PositionType::left;
+        noteTripletDebug("left", &(*tuplets)[candidate.startIndex], *test);
         int chan = test->channel;
         DisplayNote* last = test;
         while (++test < &note) {
@@ -196,14 +195,15 @@ void Notes::findTriplets(vector<NoteTuplet>* tuplets) {
             }
             last = test;
             auto& testTuplet = (*tuplets)[test - &notes.front()];
-            testTuplet.position = PositionType::mid;
-            testTuplet.id = tupletId;
-            noteTripletDebug("mid", testTuplet, *test);
+            testTuplet = PositionType::mid;
+            noteTripletDebug("mid", &testTuplet, *test);
         }
-        auto& noteTuplet = (*tuplets)[&note - &notes.front()];
-        noteTuplet.position = PositionType::right;
-        noteTuplet.id = tupletId;
-        noteTripletDebug("right", noteTuplet, note);
+        unsigned rightIndex = &note - &notes.front();
+        auto& noteTuplet = (*tuplets)[rightIndex];
+        noteTuplet = PositionType::right;
+        noteTripletDebug("right", &noteTuplet, note);
+        // note indices are replaced with cache indices in cache builder cache tuplets
+        beams->emplace_back(candidate.startIndex, rightIndex, true);
     }
 }
 

@@ -9,8 +9,33 @@ struct DisplayState;
 struct Notes;
 struct NoteTakerDisplay;
 
+struct BeamPosition {
+    unsigned beamMin = INT_MAX;
+    float xOffset;
+    int yOffset;
+    float slurOffset;
+    float sx;
+    float ex;
+    int yStemExtend;
+    int y;
+    int yLimit;
+    unsigned first;
+    unsigned last;
+    bool outsideStaff;  // set true for tuplet
+
+    BeamPosition(unsigned f, unsigned l, bool os = false) 
+        : first(f)
+        , last(l)
+        , outsideStaff(os) {
+    }
+
+    void drawOneBeam(NVGcontext* vg);
+    void set(const vector<NoteCache>& notes);
+};
+
 struct DisplayCache {
     vector<NoteCache> notes;  // where note is drawn (computed cache, not saved)
+    vector<BeamPosition> beams; // where beams/ties/slurs/triplets are drawn
     bool leadingTempo = false;
 
     unsigned next(unsigned index) const {
@@ -62,8 +87,8 @@ struct BarPosition {
     }
 
     int count(const NoteCache& noteCache) const;
-    int noteRegular(const DisplayNote& , const NoteTuplet& , int ppq);
-    int notesTied(const DisplayNote& , const NoteTuplet& , int ppq);
+    int noteRegular(int noteDuration , PositionType , int ppq);
+    int notesTied(const DisplayNote& , PositionType , int ppq);
     int resetSignatureStart(const DisplayNote& , float barWidth);
 
     void setMidiEnd(const NoteCache& noteCache) {
@@ -109,10 +134,10 @@ struct CacheBuilder {
     void cacheBeams();
     void cacheSlurs();
     void cacheStaff();
-    void cacheTuplets(const vector<NoteTuplet>& tuplets);
+    void cacheTuplets(const vector<PositionType>& tuplets);
     void closeBeam(unsigned first, unsigned limit);
     void closeSlur(unsigned first, unsigned limit);
-    void setDurations(const vector<NoteTuplet>& );
+    void setDurations(const vector<PositionType>& );
     void trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime);
     void updateXPosition();
 };

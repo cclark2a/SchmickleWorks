@@ -170,7 +170,7 @@ struct NoteTakerDisplay : Widget {
     static float CacheWidth(const NoteCache& , NVGcontext* );
     void debugDump(unsigned start, unsigned end) const;
     void draw(const DrawArgs& ) override;
-    void drawArc(const BeamPositions& bp, unsigned start, unsigned index) const;
+    void drawArc(const BeamPosition& bp, unsigned start, unsigned index) const;
     void drawBars(const BarPosition& bar);
     void drawBarAt(int xPos);
     void drawBarNote(BarPosition& , const DisplayNote& , const NoteCache& ,
@@ -244,7 +244,6 @@ struct NoteTakerDisplay : Widget {
     static void SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha);
     static void SetPartColor(NVGcontext* vg, int index, int part);
     static void SetSelectColor(NVGcontext* vg, unsigned chan);
-    void setBeamPos(unsigned first, unsigned last, BeamPositions* bp) const;
     void setKeySignature(int key);
     void setUpAccidentals(BarPosition& bar);
 

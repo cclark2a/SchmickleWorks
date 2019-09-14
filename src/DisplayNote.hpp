@@ -34,12 +34,6 @@ enum class PositionType : uint8_t {
     right,
 };
 
-// used by update x position to compute triplet before note cache is allocated
-struct NoteTuplet {
-    int id = 0;
-    PositionType position = PositionType::none;
-};
-
 #define SLUR_START_BIT 1
 #define SLUR_END_BIT 2
 
@@ -313,7 +307,7 @@ struct NoteCache {
     int vStartTime;  // visible start time, for multi part note alignment
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
     int bar = 0;
-    int tripletId = 0;  // distinguish between multiple simultaneous triplets
+    unsigned beamId = 0;
     PositionType beamPosition = PositionType::none;
     uint8_t beamCount = 0;
     uint8_t channel;

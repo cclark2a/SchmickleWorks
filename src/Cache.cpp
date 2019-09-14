@@ -33,19 +33,19 @@ int BarPosition::count(const NoteCache& noteCache) const {
     return (noteCache.vStartTime - tsStart) / duration + priorBars;
 }
 
-int BarPosition::noteRegular(const DisplayNote& note, const NoteTuplet& noteTuplet, int ppq) {
-    int result = NoteTakerDisplay::TiedCount(duration, note.duration, ppq);
+int BarPosition::noteRegular(int noteDuration, PositionType noteTuplet, int ppq) {
+    int result = NoteTakerDisplay::TiedCount(duration, noteDuration, ppq);
 #if DEBUG_BAR
-    if (debugVerbose) DEBUG("noteRegular result %d twoThirds %d note %s", result, twoThirds,
-            note.debugString().c_str());
+    if (debugVerbose) DEBUG("noteRegular result %d twoThirds %d noteDuration %d", result, twoThirds,
+            PositionType::none != noteTuplet, noteDuration);
 #endif
-    if (1 == result || PositionType::none == noteTuplet.position) {
+    if (1 == result || PositionType::none == noteTuplet) {
         return result;
     }
-    return NoteTakerDisplay::TiedCount(duration, note.duration * 3 / 2, ppq);
+    return NoteTakerDisplay::TiedCount(duration, noteDuration * 3 / 2, ppq);
 }
 
-int BarPosition::notesTied(const DisplayNote& note, const NoteTuplet& noteTuplet, int ppq) {
+int BarPosition::notesTied(const DisplayNote& note, PositionType noteTuplet, int ppq) {
     int inTsStartTime = note.startTime - tsStart;
     int startBar = inTsStartTime / duration;
     int inTsEndTime = note.endTime() - tsStart;  // end time relative to time signature start
@@ -56,7 +56,7 @@ int BarPosition::notesTied(const DisplayNote& note, const NoteTuplet& noteTuplet
 #endif
     if (startBar == endBar) {
         leader = note.duration;
-        return this->noteRegular(note, noteTuplet, ppq);
+        return this->noteRegular(leader, noteTuplet, ppq);
     }
     // note.startTime needs be relative to last bar start, not zero
     leader = (startBar + 1) * duration - inTsStartTime;
@@ -76,11 +76,11 @@ int BarPosition::notesTied(const DisplayNote& note, const NoteTuplet& noteTuplet
 #endif
     int result = 0;
     if (leader >= NoteDurations::Smallest(ppq)) {
-        result += NoteTakerDisplay::TiedCount(duration, leader, ppq);
+        result += this->noteRegular(leader, noteTuplet, ppq);
     }
     result += endBar - startBar - 1;  // # of bars with whole notes
     if (trailer >= NoteDurations::Smallest(ppq)) {
-        result += NoteTakerDisplay::TiedCount(duration, trailer, ppq);
+        result += this->noteRegular(trailer, noteTuplet, ppq);
     }
     return result;
 }
@@ -95,6 +95,48 @@ int BarPosition::resetSignatureStart(const DisplayNote& note, float barWidth) {
     }
     tsStart = note.startTime;
     return result;
+}
+
+// used by beams and tuplets
+// to do : tuplet rules are different from beam rules
+//         tuplet beam position should be above upper stave or below lower stave
+void BeamPosition::set(const vector<NoteCache>& notes) {
+    unsigned index = first;
+    int chan = notes[first].channel;
+    float yMax = 0;
+    float yMin = FLT_MAX;
+    unsigned beamMax = 0;
+    unsigned lastMeasured = first;
+    do {
+        const NoteCache& noteCache = notes[index];
+        if (chan != noteCache.channel) {
+            continue;
+        }
+        yMax = std::max(noteCache.yPosition, yMax);
+        yMin = std::min(noteCache.yPosition, yMin);
+        beamMax = std::max((unsigned) noteCache.beamCount, beamMax);
+        beamMin = std::min((unsigned) noteCache.beamCount, beamMin);
+        lastMeasured = index;
+    } while (++index <= last);
+    bool stemUp = StemType::up == notes[first].stemDirection;
+    xOffset = stemUp ? 6 : -0.25;
+    yOffset = stemUp ? 5 : -5;
+    sx = notes[first].xPosition + xOffset;
+    ex = notes[last].xPosition + xOffset;
+    int yStem = stemUp ? -22 : 15;
+    yStemExtend = yStem + (stemUp ? 0 : 3);
+    y = (stemUp ? yMin : yMax) + yStem;
+    if (beamMax > 3) {
+        y -= ((int) beamMax - 3) * yOffset;
+    }
+    yLimit = y + (stemUp ? 0 : 3);
+    if (stemUp) {
+        int highFirstLastY = std::max(notes[first].yPosition, notes[lastMeasured].yPosition);
+        slurOffset = std::max(0.f, yMax - highFirstLastY);
+    } else {
+        int lowFirstLastY = std::min(notes[first].yPosition, notes[lastMeasured].yPosition);
+        slurOffset = std::min(0.f, yMin - lowFirstLastY) - 3;
+    }
 }
 
 CacheBuilder::CacheBuilder(const DisplayState& sd, Notes* n, DisplayCache* c) 
@@ -150,7 +192,7 @@ void CacheBuilder::cacheBeams() {
                 beamStart = INT_MAX;
             } else {
                 if (!noteCache.endsOnBeat || PositionType::right == noteCache.tripletPosition) {
-                    noteCache.beamPosition = PositionType::right;
+                    this->closeBeam(beamStart, cacheIndex);
                     beamStart = INT_MAX;
                 } else {
                     noteCache.beamPosition = PositionType::mid;
@@ -347,22 +389,41 @@ void CacheBuilder::cacheStaff() {
     }
 }
 
-void CacheBuilder::cacheTuplets(const vector<NoteTuplet>& tuplets) {
+// note that this remaps beam position first/last from note indices to cache indices
+void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
     array<TripletCandidate, CHANNEL_COUNT> tripStarts;
     tripStarts.fill(TripletCandidate());
+    array<unsigned , CHANNEL_COUNT> beamIds;
+    beamIds.fill(INT_MAX);
+    auto beamPtr = &cache->beams.front();
     for (auto& entry : cache->notes) {
         if (!entry.staff) {
             continue;
         }
         int chan = entry.channel;
         unsigned noteIndex = entry.note - &notes->notes.front();
-        entry.tripletPosition = tuplets[noteIndex].position;
-        entry.tripletId = tuplets[noteIndex].id;
+        entry.tripletPosition = tuplets[noteIndex];
+        if (PositionType::left == entry.tripletPosition) {
+            while (!beamPtr->outsideStaff || beamPtr->first < noteIndex) {
+                ++beamPtr;
+                SCHMICKLE(beamPtr <= &cache->beams.back());
+            }
+            SCHMICKLE(beamPtr->first == noteIndex);
+            beamPtr->first = &entry - &cache->notes.front(); 
+            beamIds[chan] = beamPtr - &cache->beams.front();
+        }
+        entry.beamId = beamIds[chan];
+        SCHMICKLE(INT_MAX != entry.beamId);
         if (noteIndex == tripStarts[chan].lastIndex) {
             if (PositionType::left == entry.tripletPosition) {
                 entry.tripletPosition = PositionType::mid;
             } else if (PositionType::right == entry.tripletPosition) {
                 tripStarts[chan].lastCache->tripletPosition = PositionType::mid;
+                SCHMICKLE(INT_MAX != beamIds[chan]);
+                auto rightBeamPtr = &cache->beams[beamIds[chan]];
+                SCHMICKLE(rightBeamPtr->last == noteIndex);
+                rightBeamPtr->last = &entry - &cache->notes.front();
+                beamIds[chan] = INT_MAX;
             }
         }
         tripStarts[chan].lastCache = &entry;
@@ -374,6 +435,7 @@ void CacheBuilder::closeBeam(unsigned first, unsigned limit) {
     vector<NoteCache>& notes = cache->notes;
     SCHMICKLE(PositionType::left == notes[first].beamPosition);
     int chan = notes[first].channel;
+    unsigned beamId = notes[first].beamId = cache->beams.size();
     unsigned last = first;
     unsigned index = first;
     while (++index < limit) {
@@ -381,20 +443,26 @@ void CacheBuilder::closeBeam(unsigned first, unsigned limit) {
             continue;
         }
         if (chan == notes[index].channel) {
+            notes[index].beamId = beamId;
             if (PositionType::mid != notes[index].beamPosition) {
                 break;
             }
             last = index;
         }
     }
-    notes[last].beamPosition = last == first ? PositionType::none : PositionType::right;
+    if (last != first) {
+        notes[last].beamPosition = PositionType::right;
+        cache->beams.emplace_back(first, last);
+    } else {
+        notes[index].beamId = INT_MAX;
+        notes[last].beamPosition = PositionType::none;
+    }
 #if DEBUG_BEAM
     if (debugVerbose) DEBUG("close beam first %d last %d pos %u", first, last, notes[last].beamPosition);
 #endif
 }
 
-// start here;
-// debug and assert if closed slur does not have a left and right
+// to do : debug and assert if closed slur does not have a left and right
 void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
     if (INT_MAX == first) {
         return;
@@ -402,6 +470,7 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
     vector<NoteCache>& notes = cache->notes;
     SCHMICKLE(PositionType::left == notes[first].slurPosition);
     int chan = notes[first].channel;
+    unsigned beamId = notes[first].beamId = cache->beams.size();
     unsigned last = first;
     unsigned index = first;
     while (++index < limit) {
@@ -409,13 +478,20 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
             continue;
         }
         if (chan == notes[index].channel) {
+            notes[index].beamId = beamId;
             if (PositionType::mid != notes[index].slurPosition) {
                 break;
             }
             last = index;
         }
     }
-    notes[last].slurPosition = last == first ? PositionType::none : PositionType::right;
+    if (last != first) {
+        notes[last].slurPosition = PositionType::right;
+        cache->beams.emplace_back(first, last);
+    } else {
+        notes[index].beamId = INT_MAX;
+        notes[last].slurPosition = PositionType::none;
+    }
 #if DEBUG_SLUR
     if (debugVerbose) DEBUG("close slur first %d/%d last %d/%d pos %s",
             first, notes[first].note - &this->notes->notes.front(), 
@@ -427,7 +503,7 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
 
 // compute ties first, so we know how many notes to draw
 // to do : use cache notes' bar count instead of recomputing the bar count
-void CacheBuilder::setDurations(const vector<NoteTuplet>& noteTuplets) {
+void CacheBuilder::setDurations(const vector<PositionType>& noteTuplets) {
     const StaffNote* pitchMap = sharpMap;
     BarPosition bar;
 #if DEBUG_DURATIONS
@@ -560,8 +636,9 @@ void CacheBuilder::updateXPosition() {
     nvgFontFaceId(vg, state.musicFont);
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
-    vector<NoteTuplet> tuplets;
-    notes->findTriplets(&tuplets);
+    cache->beams.clear();
+    vector<PositionType> tuplets;
+    notes->findTriplets(&tuplets, cache);
     cache->notes.clear();
     cache->notes.reserve(notes->notes.size());
     this->setDurations(tuplets);  // adds cache per tied note part, sets its duration and note index
@@ -698,6 +775,9 @@ void CacheBuilder::updateXPosition() {
         }
     }
     this->cacheSlurs();
+    for (auto& beam : cache->beams) {
+        beam.set(cache->notes);
+    }
     SCHMICKLE(notes->notes.front().cache == &cache->notes.front());
     SCHMICKLE(cache->notes.front().note == &notes->notes.front());
 }
