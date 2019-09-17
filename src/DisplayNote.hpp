@@ -163,11 +163,17 @@ struct DisplayNote {
 
     void setSlurEnd(bool slur) {
         data[1] = (slur ? SLUR_END_BIT : 0) | (data[1] & ~SLUR_END_BIT);
+#if DEBUG_SLUR
+    if (debugVerbose) DEBUG("%s slur %d note %s", __func__, slur, this->debugString().c_str());
+#endif
         assertValid(NOTE_ON);
     }
 
     void setSlurStart(bool slur) {
         data[1] = (slur ? SLUR_START_BIT : 0) | (data[1] & ~SLUR_START_BIT);
+#if DEBUG_SLUR
+    if (debugVerbose) DEBUG("%s slur %d note %s", __func__, slur, this->debugString().c_str());
+#endif
         assertValid(NOTE_ON);
     }
 

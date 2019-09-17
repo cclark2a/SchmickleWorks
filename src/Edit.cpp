@@ -305,10 +305,6 @@ void NoteTakerWidget::updateHorizontal() {
         }
         return;
     }
-    // start here;
-    // disallow wheel if trip state cannot be changed (no selection, or no possible trips)
-    // if some trips, add no trip selection
-    // if not all trips, add all trips selection
     // to do : use common code with general changing note duration to clear / make triplets
     if (tieButton->ledOn()) {   // horz wheel sets tie to no trip / orig / no trip
         if (!horizontalWheel->hasRoundedChanged()) {
@@ -489,6 +485,9 @@ void NoteTakerWidget::updateHorizontal() {
 }
 
 void NoteTakerWidget::updateSlotVertical(SlotButton::Select select) {
+    if (!verticalWheel->hasChanged()) {
+        return;
+    }
     SlotPlay& slot = storage.playback[storage.slotStart];
     int slotParam = INT_MAX;
     int repMin = INT_MAX;
@@ -538,12 +537,9 @@ void NoteTakerWidget::updateVertical() {
     if (this->menuButtonOn()) {
         displayBuffer->redraw();
     }
-    if (!verticalWheel->hasChanged()) {
-        return;
-    }
     const int wheelValue = verticalWheel->wheelValue();
     if (fileButton->ledOn() || partButton->ledOn()) {
-        if (verticalWheel->getValue() <= 2) {
+        if (verticalWheel->getValue() <= 2 && !display->downSelected) {
             display->downSelected = true;
             if (fileButton->ledOn()) {
                 unsigned val = (unsigned) horizontalWheel->getValue();
@@ -560,7 +556,7 @@ void NoteTakerWidget::updateVertical() {
                 }
             }
         }
-        if (verticalWheel->getValue() >= 8) {
+        if (verticalWheel->getValue() >= 8 && !display->upSelected) {
             display->upSelected = true;
             if (fileButton->ledOn() && (unsigned) horizontalWheel->getValue() < storage.size()) {
                 this->loadScore();
@@ -582,6 +578,9 @@ void NoteTakerWidget::updateVertical() {
         return;
     }
     if (sustainButton->ledOn()) {
+        if (!verticalWheel->hasChanged()) {
+            return;
+        }
         // use first unlocked channel as guide
         NoteTakerChannel& channel = storage.current().channels[this->unlockedChannel()];
         int sustainDuration = INT_MAX;
@@ -620,6 +619,10 @@ void NoteTakerWidget::updateVertical() {
                 break;
         }
         nt->invalidateAndPlay(Inval::change);
+        return;
+    }
+    if (!verticalWheel->hasChanged()) {
+        return;
     }
     if (!selectButton->ledOn()) {
         if (Wheel::horizontal == edit.wheel) {

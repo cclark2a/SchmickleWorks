@@ -261,6 +261,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (!running) {
                 this->setExpiredGatesLow(INT_MAX);
             }
+#if DEBUG_GATES
             if (debugVerbose) {
                 static float last = 0;
                 static const float* lastAddr = nullptr;
@@ -272,6 +273,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                     lastAddr = gatePtr;
                 }
             }
+#endif
             playNotes = false;
         }
     }
@@ -281,6 +283,7 @@ void NoteTaker::process(const ProcessArgs &args) {
         for (unsigned chan = 0; chan < EXPANSION_OUTPUTS; ++chan) {
             message->exChannels[chan] = channels[chan].voiceCount;
             const auto& vIn = channels[chan].voices;
+#if DEBUG_GATES
             if (debugVerbose && 4 == chan && !playNotes) {
                 static float last = -1;
                 static const float* lastAddr = nullptr;
@@ -291,6 +294,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                     lastAddr = &vIn[0].gate;
                 }
             }
+#endif
             for (unsigned voice = 0; voice < VOICE_COUNT; ++voice) {
                 if (chan >= CV_OUTPUTS) {
                     message->exGate[chan - CV_OUTPUTS][voice] = vIn[voice].gate;
@@ -326,27 +330,25 @@ void NoteTaker::process(const ProcessArgs &args) {
             } else {
                 voice.note = &note;
                 voice.realStart = realSeconds;
-                voice.gateLow = note.slurEnd() ? INT_MAX : 
+                // to do : gate low should be set to sustain if slur is last note of non-running selection
+                voice.gateLow = note.slurStart() ? INT_MAX : 
                         note.startTime + storage.current().channels[note.channel].sustain(note.duration);
                 voice.noteEnd = endTime;
                 if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
                         && rightExpander.module && rightExpander.module->model == modelSuper8) {
                     Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+            #if DEBUG_GATES
+                    if (debugVerbose && DEFAULT_GATE_HIGH_VOLTAGE
+                            != channels[note.channel].voices[voiceIndex].gate) {
+                        DEBUG("[%g] chan %d gate %d from %g to DEFAULT_GATE_HIGH_VOLTAGE", realSeconds,
+                                note.channel, voiceIndex, channels[note.channel].voices[voiceIndex].gate);
+                    }
+            #endif
                     channels[note.channel].voices[voiceIndex].gate = DEFAULT_GATE_HIGH_VOLTAGE;
                     message->exGate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
                     // to do : to get sensible output, need two deep buffer to avoid showing all values
-                    if (false && debugVerbose && 4 == note.channel && 0 == voiceIndex) {
-                        DEBUG("[%g] exGate[0][0] = DEFAULT_GATE_HIGH_VOLTAGE %p", realSeconds,
-                                &message->exGate[note.channel - CV_OUTPUTS][voiceIndex]);
-
-                    }
                 }
                 if (note.channel < CV_OUTPUTS) {
-#if DEBUG_RUN_TIME
-                    if (debugVerbose) DEBUG("setGate [%u] gateLow %d noteEnd %d noteIndex %u midiTime %d old %g",
-                            note.channel, voice.gateLow, voice.noteEnd, voice.note - &n.notes.front(),
-                            midiTime, outputs[GATE1_OUTPUT + note.channel].getVoltage(voiceIndex));
-#endif
                     outputs[GATE1_OUTPUT + note.channel].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE, voiceIndex);
                 }
             }

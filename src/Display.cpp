@@ -1376,24 +1376,6 @@ void NoteTakerDisplay::drawSlur(unsigned first, unsigned char alpha) const {
     this->drawArc(bp, first, last);
 }
 
-void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
-    auto& notes = this->cache()->notes;
-    SCHMICKLE(PositionType::left == notes[first].tiePosition
-            || PositionType::mid == notes[first].tiePosition);
-    const BeamPosition& bp = this->cache()->beams[notes[first].beamId];
-    int chan = notes[first].channel;
-    unsigned last = bp.last;
-    if (PositionType::right != notes[last].tiePosition
-            && PositionType::mid != notes[last].tiePosition) {
-        // to do : reenable this to debug : disable for now because it outputs continuously
-        if (false && debugVerbose) {
-            DEBUG("** missing tie end %s", notes[first].note->debugString().c_str());
-        }
-    }
-    SetNoteColor(state.vg, chan, alpha);
-    this->drawArc(bp, first, last);
-}
-
 // note this assumes storage playback has at least one entry
 void NoteTakerDisplay::drawSlotControl() {
     auto ntw = this->ntw();
@@ -1590,17 +1572,40 @@ void NoteTakerDisplay::drawTieControl() {
         yOffset -= vertCtrl.boxWidth + vertCtrl.margin;
     }
     if (lo < hi) {
-        if (false && debugVerbose) DEBUG("vertCtrl selected %g lo %d hi %d", selected, lo, hi);
-        vertCtrl.drawActivePointer(fhi - selected, 2 - (float) (lo + hi) / 2);
+#if DEBUG_SLUR
+        if (debugVerbose) {
+            static float lastS = 0;
+            static int lastLo = 0;
+            static int lastHi = 0;
+            if (lastS != selected || lastLo != lo || lastHi != hi) {
+                DEBUG("vertCtrl selected %g lo %d hi %d", selected, lo, hi);
+                lastS = selected;
+                lastLo = lo;
+                lastHi = hi;
+            }
+        }
+#endif
+        vertCtrl.drawActivePointer(fhi - selected, 2 == count ? 0.5f : 1);  // to do : '1' offset is a guess
     }
 }
 
-void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
-    auto& cacheNotes = this->cache()->notes;
-    auto& notes = slot->n.notes;
-    unsigned start = cacheNotes[cacheStart].note - &notes.front();
-    unsigned end = cacheNotes[cacheEnd].note - &notes.front();
-    Notes::DebugDump(notes, start - 10, start + 10, &cacheNotes, start, end);
+void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
+    auto& notes = this->cache()->notes;
+    SCHMICKLE(PositionType::left == notes[first].tiePosition
+            || PositionType::mid == notes[first].tiePosition);
+    SCHMICKLE(notes[first].beamId < this->cache()->beams.size());
+    const BeamPosition& bp = this->cache()->beams[notes[first].beamId];
+    int chan = notes[first].channel;
+    unsigned last = bp.last;
+    if (PositionType::right != notes[last].tiePosition
+            && PositionType::mid != notes[last].tiePosition) {
+        // to do : reenable this to debug : disable for now because it outputs continuously
+        if (debugVerbose) {
+            DEBUG("** missing tie end %s", notes[first].note->debugString().c_str());
+        }
+    }
+    SetNoteColor(state.vg, chan, alpha);
+    this->drawArc(bp, first, last);
 }
 
 // to do : share code with draw slur, draw beam ?

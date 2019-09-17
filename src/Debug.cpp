@@ -135,6 +135,14 @@ std::string DisplayNote::debugString() const {
     return s;
 }
 
+void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
+    auto& cacheNotes = this->cache()->notes;
+    auto& notes = slot->n.notes;
+    unsigned start = cacheNotes[cacheStart].note - &notes.front();
+    unsigned end = cacheNotes[cacheEnd].note - &notes.front();
+    Notes::DebugDump(notes, start - 10, start + 10, &cacheNotes, start, end);
+}
+
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto& n = this->n();
 #if 1 // def DEBUGGING_STORAGE // not normally defined

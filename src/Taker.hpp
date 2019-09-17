@@ -233,16 +233,18 @@ struct NoteTaker : Module {
     }
 
     void setExpiredGatesLow(int midiTime) {
-    #define DEBUG_GATES 0
-    #if DEBUG_GATES
-        static array<int, CHANNEL_COUNT> debugLastGateLow {-1, -1, -1, -1};
-        static array<int, CHANNEL_COUNT> debugLastNoteEnd {-1, -1, -1, -1};
-        static array<int, CHANNEL_COUNT> debugCount {-1, -1, -1, -1};
-        static int debugMidiTime = -1;
-    #endif
+#if DEBUG_GATES
+        static array<unsigned, CHANNEL_COUNT> debugVoiceCount;
+#endif
         bool hasExpander = rightExpander.module && modelSuper8 == rightExpander.module->model;
         for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
             auto& c = channels[channel];
+#if DEBUG_GATES
+            if (debugVerbose && debugVoiceCount[channel] != c.voiceCount) {
+                DEBUG("[%g] %s chan %u voice count %u", realSeconds, __func__, channel, c.voiceCount);
+                debugVoiceCount[channel] = c.voiceCount;
+            }
+#endif
             for (unsigned index = 0; index < c.voiceCount; ++index) {
                 auto& voice = c.voices[index];
                 if (!voice.note) {
@@ -251,11 +253,24 @@ struct NoteTaker : Module {
                 if (voice.gateLow && voice.gateLow < midiTime) {
                     voice.gateLow = 0;
                     if (channel < CV_OUTPUTS) {
+            #if DEBUG_GATES
+                        if (debugVerbose) {
+                            if (outputs[GATE1_OUTPUT + channel].getVoltage(index)) {
+                                DEBUG("[%g] %s set expired low [%u / %u]", realSeconds, __func__,
+                                        channel, index);
+                            }
+                        }
+            #endif
                         outputs[GATE1_OUTPUT + channel].setVoltage(0, index);
-#if DEBUG_RUN_TIME
-                        DEBUG("set expired low [%u / %u]", channel, index);
-#endif
-                   } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
+                    } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
+            #if DEBUG_GATES
+                        if (debugVerbose) {
+                            if (channels[channel].voices[index].gate) {
+                                DEBUG("[%g] %s set expired low [%u / %u]", realSeconds, __func__,
+                                        channel, index);
+                            }
+                        }
+            #endif
                         channels[channel].voices[index].gate = 0;
                     }
                 }

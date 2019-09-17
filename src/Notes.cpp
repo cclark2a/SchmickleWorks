@@ -208,7 +208,11 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
 }
 
 // does not change note duration: make note duration overlap by one only when saving to midi
+// note that this allows slurs over tempo/key/time changes
 void Notes::setSlurs(unsigned selectChannels, bool condition) {
+#if DEBUG_SLUR
+    if (debugVerbose) DEBUG("%s chans %08x cond %d", __func__, selectChannels, condition);
+#endif
     array<DisplayNote*, CHANNEL_COUNT> last;
     last.fill(nullptr);
     for (unsigned index = selectStart; index < selectEnd; ++index) {
@@ -226,10 +230,11 @@ void Notes::setSlurs(unsigned selectChannels, bool condition) {
         }
         auto lastOne = last[note.channel];
         if (lastOne) {
-            if (lastOne->startTime >= note.startTime) {
-                if (lastOne->slurEnd()) {
-                    note.setSlurEnd(condition);
-                }
+            if (lastOne->startTime >= note.startTime) { // ignore chord notes
+#if DEBUG_SLUR
+    if (debugVerbose) DEBUG("%s last %s note %s", __func__, lastOne->debugString().c_str(),
+            note.debugString().c_str());
+#endif
                 continue;
             }
             if (lastOne->endTime() == note.startTime) {
@@ -289,6 +294,7 @@ void Notes::setTriplets(unsigned selectChannels, bool condition) {
     int numer = condition ? 2 : 3;
     int denom = condition ? 3 : 2;
     int modulo = condition ? 9 : 3;  //  3 non-trips (3*2^n) : 3 trips (2^n)
+    int sign = condition ? -1 : 1;
     for (unsigned index = selectStart; index < selectEnd; ++index) {
         auto& note = notes[index];
         if (!note.isSelectable(selectChannels)) {
@@ -327,7 +333,7 @@ void Notes::setTriplets(unsigned selectChannels, bool condition) {
                         test->startTime - (test->startTime - startTime) / denom + adjustment,
                         test->duration, test->duration * numer / denom, startTime, numer, denom,
                         adjustment);
-                test->startTime -= (test->startTime - startTime) / denom + adjustment;
+                test->startTime += sign * ((test->startTime - startTime) / denom + adjustment);
                 test->duration = test->duration * numer / denom;
             } while (&note != test++);
             adjustment += totalDuration / denom;

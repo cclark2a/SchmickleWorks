@@ -251,45 +251,46 @@ void CacheBuilder::cacheSlurs() {
         }
         unsigned& slurStart = slurStarts[noteCache.channel];
         bool checkForStart = true;
+#if DEBUG_SLUR
+        if (debugVerbose) DEBUG("%s slur start %d cache [%d] %s note [%d] %s", __func__, slurStart,
+                cacheIndex, noteCache.debugString().c_str(), note - &this->notes->notes.front(),
+                note->debugString().c_str());
+#endif
         if (INT_MAX != slurStart) {
             if (!note->slurEnd()) {
                 this->closeSlur(slurStart, cacheIndex);
-#if DEBUG_SLUR
-                if (debugVerbose) DEBUG("set slur close %d/%d %s", slurStart,
-                        notes[slurStart].note - &this->notes->notes.front(),
-                        notes[slurStart].note->debugString().c_str());
-#endif
                 slurStart = INT_MAX;
             } else {
-                noteCache.slurPosition = PositionType::mid;
+                auto& prior = notes[slurStart];
+                if (prior.note->pitch() == noteCache.note->pitch()) {
+                    if (PositionType::none == prior.tiePosition) {
+                        prior.slurPosition = PositionType::none;
+                        prior.tiePosition = PositionType::left;
+                    }
+                    noteCache.tiePosition = PositionType::mid;
+                } else {
+                    noteCache.slurPosition = PositionType::mid;
+                }
                 checkForStart = false;
 #if DEBUG_SLUR
                 if (debugVerbose) DEBUG("set slur mid %d/%d %s", cacheIndex,
-                    note - &this->notes->notes.front(),
-                    note->debugString().c_str());
-#endif
-            }
-        }
-        if (checkForStart && note->slurStart()) {
-            slurStart = cacheIndex;
-            if (PositionType::none == noteCache.slurPosition) {
-                noteCache.slurPosition = PositionType::left;
-#if DEBUG_SLUR
-                if (debugVerbose) DEBUG("set slur left %d/%d %s", cacheIndex,
                         note - &this->notes->notes.front(),
                         note->debugString().c_str());
 #endif
             }
         }
-    }
-    for (auto slurStart : slurStarts) {
-        this->closeSlur(slurStart, notes.size());
+        // assume slur for new start ; change to tie in logic above on next note
+        if (checkForStart && note->slurStart()
+                && PositionType::none == noteCache.slurPosition
+                && PositionType::none == noteCache.tiePosition) {
+            slurStart = cacheIndex;
+            noteCache.slurPosition = PositionType::left;
 #if DEBUG_SLUR
-         if (INT_MAX != slurStart && debugVerbose) 
-                DEBUG("slur unmatched %d/%d %s", slurStart,
-                        notes[slurStart].note - &this->notes->notes.front(),
-                        notes[slurStart].note->debugString().c_str());
+            if (debugVerbose) DEBUG("set slur left %d/%d %s", cacheIndex,
+                    note - &this->notes->notes.front(),
+                    note->debugString().c_str());
 #endif
+        }
     }
 }
 
@@ -412,8 +413,9 @@ void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
             beamPtr->first = &entry - &cache->notes.front(); 
             beamIds[chan] = beamPtr - &cache->beams.front();
         }
-        entry.beamId = beamIds[chan];
-        SCHMICKLE(INT_MAX != entry.beamId);
+        if (INT_MAX != beamIds[chan]) {
+            entry.beamId = beamIds[chan];
+        }
         if (noteIndex == tripStarts[chan].lastIndex) {
             if (PositionType::left == entry.tripletPosition) {
                 entry.tripletPosition = PositionType::mid;
@@ -467,37 +469,51 @@ void CacheBuilder::closeSlur(unsigned first, unsigned limit) {
     if (INT_MAX == first) {
         return;
     }
-    vector<NoteCache>& notes = cache->notes;
-    SCHMICKLE(PositionType::left == notes[first].slurPosition);
-    int chan = notes[first].channel;
-    unsigned beamId = notes[first].beamId = cache->beams.size();
+    vector<NoteCache>& noteCache = cache->notes;
+#if DEBUG_SLUR
+    if (debugVerbose) DEBUG("%s cache [%d] %s note [%d] %s", __func__,
+            &noteCache[first] - &cache->notes.front(), noteCache[first].debugString().c_str(),
+            noteCache[first].note - &this->notes->notes.front(),
+            noteCache[first].note->debugString().c_str());
+#endif
+    SCHMICKLE(PositionType::left == noteCache[first].slurPosition
+            || PositionType::left == noteCache[first].tiePosition);
+    int chan = noteCache[first].channel;
+    unsigned beamId = noteCache[first].beamId = cache->beams.size();
     unsigned last = first;
     unsigned index = first;
     while (++index < limit) {
-        if (!notes[index].staff) {
+        if (!noteCache[index].staff) {
             continue;
         }
-        if (chan == notes[index].channel) {
-            notes[index].beamId = beamId;
-            if (PositionType::mid != notes[index].slurPosition) {
+        if (chan == noteCache[index].channel) {
+            noteCache[index].beamId = beamId;
+            if (PositionType::mid != noteCache[index].slurPosition
+                    && PositionType::mid != noteCache[index].tiePosition) {
                 break;
             }
             last = index;
         }
     }
     if (last != first) {
-        notes[last].slurPosition = PositionType::right;
+        if (PositionType::left == noteCache[first].slurPosition) {
+            noteCache[last].slurPosition = PositionType::right;
+        } else {
+            noteCache[last].tiePosition = PositionType::right;
+        }
         cache->beams.emplace_back(first, last);
     } else {
-        notes[index].beamId = INT_MAX;
-        notes[last].slurPosition = PositionType::none;
-    }
 #if DEBUG_SLUR
-    if (debugVerbose) DEBUG("close slur first %d/%d last %d/%d pos %s",
-            first, notes[first].note - &this->notes->notes.front(), 
-            last, notes[last].note - &this->notes->notes.front(),
-            debugPositionType[(int) notes[last].slurPosition]);
+         if (debugVerbose) DEBUG("%s unmatched beamId %d cache [%d] %s note [%d] %s", __func__,
+                first, &noteCache[first] - &cache->notes.front(),
+                noteCache[first].debugString().c_str(),
+                noteCache[first].note - &this->notes->notes.front(),
+                noteCache[first].note->debugString().c_str());
 #endif
+        noteCache[index].beamId = INT_MAX;
+        noteCache[last].slurPosition = PositionType::none;
+        noteCache[last].tiePosition = PositionType::none;
+    }
 }
 
 

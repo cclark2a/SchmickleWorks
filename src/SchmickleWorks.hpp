@@ -61,6 +61,7 @@ extern bool debugVerbose;  // switch to permit user debugging in shipping code
 #define DEBUG_BEAM 01
 #define DEBUG_DISPLAY_RANGE 0
 #define DEBUG_DURATIONS 0
+#define DEBUG_GATES 01
 #define DEBUG_POS 0
 #define DEBUG_RUN_TIME 0
 #define DEBUG_STAFF 0

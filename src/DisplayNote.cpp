@@ -28,7 +28,7 @@ bool DisplayNote::isValid() const {
                 DEBUG("invalid note pitch %d\n", data[0]);
                 return false;
             }
-            if (data[1] != !!data[1]) {
+            if (0 > data[1] || data[1] > (SLUR_START_BIT | SLUR_END_BIT)) {
                 DEBUG("invalid slur %d\n", data[1]);
                 return false;
             }
@@ -44,10 +44,6 @@ bool DisplayNote::isValid() const {
         case REST_TYPE:
             if (channel > CHANNEL_COUNT) {
                 DEBUG("invalid note channel %d\n", channel);
-                return false;
-            }
-            if (data[1] != !!data[1]) {
-                DEBUG("invalid slur %d\n", data[1]);
                 return false;
             }
         break;
