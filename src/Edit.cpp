@@ -233,7 +233,6 @@ void NoteTakerWidget::setWheelRange() {
 }
 
 void NoteTakerWidget::updateHorizontal() {
-    auto nt = this->nt();
     auto& n = this->n();
     if (runButton->ledOn()) {
         return;
@@ -266,7 +265,7 @@ void NoteTakerWidget::updateHorizontal() {
                         slot.index = (int) orig.index + diff < 0 ? 0 :
                                 std::min(orig.index + diff, SLOT_COUNT - 1);
                         if (storage.slotStart == index) {
-                            nt->stageSlot(slot.index);
+                            this->stageSlot(slot.index);
                         }
                     break;
                     case SlotButton::Select::end:
@@ -315,13 +314,13 @@ void NoteTakerWidget::updateHorizontal() {
                 this->clearTriplets();
                 break;
             case 1:
-                this->resetNotes();
+                this->restoreNotes();
                 break;
             case 2:
                 this->makeTriplets();
                 break;
         }
-        nt->invalidateAndPlay(Inval::change);
+        this->invalAndPlay(Inval::change);
         return;
     }
     if (n.isEmpty(selectChannels)) {
@@ -330,7 +329,7 @@ void NoteTakerWidget::updateHorizontal() {
     bool selectOne = !selectButton->ledOn() && n.selectStart + 1 == n.selectEnd;
     DisplayNote& oneNote = n.notes[n.selectStart];
     if (selectOne && MIDI_TEMPO == oneNote.type) {
-        oneNote.setTempo(nt->wheelToTempo(horizontalWheel->getValue()) * 500000);
+        oneNote.setTempo(this->nt()->wheelToTempo(horizontalWheel->getValue()) * 500000);
         displayBuffer->redraw();
         return;
     }
@@ -344,12 +343,12 @@ void NoteTakerWidget::updateHorizontal() {
         } else {
             oneNote.setDenominator(wheelValue);
         }
-        nt->invalidateAndPlay(Inval::change);
+        this->invalAndPlay(Inval::change);
         return;
     }
     if (selectOne && KEY_SIGNATURE == oneNote.type) {
         oneNote.setMinor(wheelValue);
-        nt->invalidateAndPlay(Inval::change);
+        this->invalAndPlay(Inval::change);
         return;
     }
     Inval inval = Inval::none;
@@ -474,14 +473,15 @@ void NoteTakerWidget::updateHorizontal() {
             if (start + 1 == end) {
                 const auto& note = n.notes[start];
                 if (KEY_SIGNATURE == note.type && !note.key()) {
-                    display->dynamicCNaturalTimer = nt->realSeconds + display->fadeDuration;
+                    display->dynamicCNaturalTimer = this->nt()->getRealSeconds()
+                            + display->fadeDuration;
                     display->dynamicCNaturalAlpha = 0xFF;
                 }
             }
         }
     }
     if (debugVerbose) n.validate(); // find buggy shifts sooner?
-    nt->invalidateAndPlay(inval);
+    this->invalAndPlay(inval);
 }
 
 void NoteTakerWidget::updateSlotVertical(SlotButton::Select select) {
@@ -529,7 +529,6 @@ void NoteTakerWidget::updateSlotVertical(SlotButton::Select select) {
 }
 
 void NoteTakerWidget::updateVertical() {
-    auto nt = this->nt();
     auto& n = this->n();
     if (runButton->ledOn()) {
         return;
@@ -545,7 +544,7 @@ void NoteTakerWidget::updateVertical() {
                 unsigned val = (unsigned) horizontalWheel->getValue();
                 SCHMICKLE(val < storage.size());
                 this->copyToSlot(val);
-                this->nt()->stageSlot(val);
+                this->stageSlot(val);
             } else {
                 SCHMICKLE(partButton->ledOn());
                 int part = horizontalWheel->part();
@@ -612,13 +611,13 @@ void NoteTakerWidget::updateVertical() {
                 this->clearSlurs();
                 break;
             case 1:
-                this->resetNotes();
+                this->restoreNotes();
                 break;
             case 2:
                 this->makeSlurs();
                 break;
         }
-        nt->invalidateAndPlay(Inval::change);
+        this->invalAndPlay(Inval::change);
         return;
     }
     if (!verticalWheel->hasChanged()) {
@@ -639,7 +638,7 @@ void NoteTakerWidget::updateVertical() {
                 case KEY_SIGNATURE:
                     if (n.selectStart + 1 == n.selectEnd) {
                         note.setKey(wheelValue);
-                        nt->invalidateAndPlay(Inval::cut);
+                        this->invalAndPlay(Inval::cut);
                         return;
                     }
                     break;
@@ -651,7 +650,7 @@ void NoteTakerWidget::updateVertical() {
                             horizontalWheel->setLimits(1, 99.99f);   // numer limit 0 to 99
                             horizontalWheel->setValue(note.numerator());
                         }
-                        nt->invalidateAndPlay(Inval::cut);
+                        this->invalAndPlay(Inval::cut);
                         return;
                     }
                     break;
@@ -680,7 +679,7 @@ void NoteTakerWidget::updateVertical() {
             }
         }
         if (playNotes) {
-            nt->invalidateAndPlay(Inval::change);
+            this->invalAndPlay(Inval::change);
         }
         return;
     } else if (selectButton->editEnd()) {
@@ -695,7 +694,7 @@ void NoteTakerWidget::updateVertical() {
             n.selectEnd = n.selectStart + 1;
             DEBUG("selStart %u / selEnd %u wheel %d", n.selectStart, n.selectEnd, wheelValue);
         }
-        nt->invalidateAndPlay(Inval::display);
+        this->invalAndPlay(Inval::display);
     } else {
         SCHMICKLE(selectButton->editStart());
         for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
@@ -725,10 +724,10 @@ void NoteTakerWidget::updateVertical() {
             n.selectEnd = n.selectStart + 1;
             n.notes.insert(n.notes.begin() + n.selectStart, iNote);
             edit.voice = true;
-            nt->invalidateAndPlay(Inval::note);
+            this->invalAndPlay(Inval::note);
         } else {
             n.notes[n.selectStart].setPitch(pitch);
-            nt->invalidateAndPlay(Inval::change);
+            this->invalAndPlay(Inval::change);
         }
     }
     if (debugVerbose) n.validate(); // find buggy shifts sooner?

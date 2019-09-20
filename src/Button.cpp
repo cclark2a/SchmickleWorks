@@ -21,7 +21,7 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     n.sort();
     ntw->selectButton->setOff();
     NoteTakerButton::onDragEnd(e);
-    ntw->nt()->invalidateAndPlay(Inval::cut);
+    ntw->invalAndPlay(Inval::cut);
     ntw->setSelect(insertLoc, insertLoc + 1);
     ntw->turnOffLEDButtons();
     ntw->setWheelRange();  // range is larger
@@ -181,7 +181,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
         } else {
             n.sort();
         }
-        ntw->nt()->invalidateAndPlay(Inval::cut);
+        ntw->invalAndPlay(Inval::cut);
         ntw->turnOffLEDButtons();
     }
     ntw->selectButton->setSingle();
@@ -408,7 +408,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (slotOn) {
             ntw->storage.playback.insert(ntw->storage.playback.begin() + insertLoc, pspan.begin(),
                     pspan.end());
-            ntw->nt()->stageSlot(pspan[0].index);
+            ntw->stageSlot(pspan[0].index);
         } else {
             int nextStart = ntw->nextStartTime(insertLoc);
             if (Notes::ShiftNotes(span, 0, lastEndTime - span.front().startTime)) {
@@ -482,11 +482,11 @@ void NoteTakerButton::draw(const DrawArgs& args) {
         return;
     }
     auto runButton = ntw->runButton;
-    if (runButton->dynamicRunTimer >= nt->realSeconds) {
+    if (runButton->dynamicRunTimer >= nt->getRealSeconds()) {
         this->fb()->dirty = true;
     }
     auto vg = args.vg;
-    int alpha = std::max(0, (int) (255 * (runButton->dynamicRunTimer - nt->realSeconds)
+    int alpha = std::max(0, (int) (255 * (runButton->dynamicRunTimer - nt->getRealSeconds())
             / runButton->fadeDuration));
     if (runButton->ledOn()) {
         alpha = 255 - alpha;
@@ -518,7 +518,7 @@ bool NoteTakerButton::stageSlot(const event::DragEnd& e) {
     if (ntw->storage.slots[slotNumber].n.isEmpty(ALL_CHANNELS)) {
         return true;
     }
-    ntw->nt()->stageSlot(slotNumber);
+    ntw->stageSlot(slotNumber);
     return true;
 }
 
@@ -594,18 +594,17 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
     if (!this->ledOn()) {
         ntw->enableButtons();
         dynamicRunAlpha = 255;
-        nt->playStart = 0;
-        nt->zeroGates();
+        nt->requests.push(RequestType::resetPlayStart);
+        nt->requests.push(RequestType::zeroGates);
     } else {
-        nt->resetRun();
+        nt->requests.push(RequestType::resetAndPlay);
         ntw->resetForPlay();
-        nt->playSelection();
         ntw->turnOffLEDButtons(this, true);
         ntw->disableEmptyButtons();
         dynamicRunAlpha = 0;
     }
 
-    dynamicRunTimer = nt->realSeconds + fadeDuration;
+    dynamicRunTimer = nt->getRealSeconds() + fadeDuration;
     ntw->setWheelRange();
     ntw->displayBuffer->redraw();
     DEBUG("onDragEnd end af %d ledOn %d", animationFrame, ledOn());
@@ -646,7 +645,9 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             if (debugVerbose) DEBUG("isSingle post storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.slotStart, storage.slotEnd);
         } else {
-            ntw->nt()->invalidVoiceCount |= ntw->edit.voice;
+            if (ntw->edit.voice) {
+                ntw->nt()->requests.push(RequestType::invalidateVoiceCount);
+            }
             ntw->edit.voice = false;
             unsigned start = saveZero ? ntw->wheelToNote(0) : n.selectStart;
             ntw->setSelect(start, n.nextAfter(start, 1));
@@ -658,7 +659,9 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
             if (debugVerbose) DEBUG("isExtend pre storage saveZero=%d s=%d e=%d", storage.saveZero,
                     storage.slotStart, storage.slotEnd);
         } else {
-            ntw->nt()->invalidVoiceCount |= ntw->edit.voice;
+            if (ntw->edit.voice) {
+                ntw->nt()->requests.push(RequestType::invalidateVoiceCount);
+            }
             ntw->edit.voice = false;
             if (!n.horizontalCount(ntw->selectChannels)) {
                 ntw->clipboard.notes.clear();
@@ -761,8 +764,8 @@ void TempoButton::draw(const DrawArgs& args) {
 
 // to do : call body (minus inherited part) on json load to restore state?
 void TieButton::onDragEnd(const event::DragEnd& e) {
-    // horz: no slur / [optional original] / all slur
-    // vert: no triplet / [optional original] / all triplet
+    // horz: no slur / original / all slur
+    // vert: no triplet / original / all triplet
     // to do : if selection is too small to slur / trip, button should be disabled ?
     auto ntw = this->ntw();
     ntw->edit.clear();

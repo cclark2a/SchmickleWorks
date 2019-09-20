@@ -622,7 +622,32 @@ struct TieButton : EditLEDButton {
     bool clearTriplet = false;
 
     void draw(const DrawArgs& ) override;
+
+    void fromJson(json_t* root) override {
+        NoteTakerButton::fromJson(root);
+        setSlur = json_integer_value(json_object_get(root, "setSlur"));
+        setTie = json_integer_value(json_object_get(root, "setTie"));
+        setTriplet = json_integer_value(json_object_get(root, "setTriplet"));
+        clearSlur = json_integer_value(json_object_get(root, "clearSlur"));
+        clearTie = json_integer_value(json_object_get(root, "clearTie"));
+        clearTriplet = json_integer_value(json_object_get(root, "clearTriplet"));
+    }
+
     void onDragEnd(const event::DragEnd &e) override;
+
+    json_t* toJson() const override {
+        json_t* root = NoteTakerButton::toJson();
+        if (!root) {
+            root = json_object();
+        }
+        json_object_set_new(root, "setSlur", json_integer(setSlur));
+        json_object_set_new(root, "setTie", json_integer(setTie));
+        json_object_set_new(root, "setTriplet", json_integer(setTriplet));
+        json_object_set_new(root, "clearSlur", json_integer(clearSlur));
+        json_object_set_new(root, "clearTie", json_integer(clearTie));
+        json_object_set_new(root, "clearTriplet", json_integer(clearTriplet));
+        return root;
+    }
 };
 
 struct TieButtonToolTip : WidgetToolTip<TieButton> {

@@ -114,6 +114,8 @@ void Clipboard::toJsonCompressed(json_t* root) const {
 // make sure things like loading midi don't happen if module is null
 NoteTakerWidget::NoteTakerWidget(NoteTaker* module) 
     : editButtonSize(Vec(22, 43)) {
+    reqs.reader = &reqs.buffer.front();
+    reqs.writer = &reqs.buffer.front();
     if (debugVerbose) {
         NoteDurations::Validate();
     }
@@ -148,7 +150,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
         module->configParam<TempoButtonToolTip>(NoteTaker::TEMPO_BUTTON, 0, 1, 0, "Insert");
         module->configParam<HorizontalWheelToolTip>(NoteTaker::HORIZONTAL_WHEEL, 0, 1, 0, "Time Wheel");
         module->configParam<VerticalWheelToolTip>(NoteTaker::VERTICAL_WHEEL, 0, 1, 0, "Pitch Wheel");
-        module->mainWidget = this;  // to do : is there a way to avoid this cross-dependency?
+        module->setMainWidget(this);  // to do : is there a way to avoid this cross-dependency?
     }
     Vec hWheelPos = Vec(RACK_GRID_WIDTH * 7 - 50, RACK_GRID_WIDTH * 11.5f);
     Vec hWheelSize = Vec(100, 23);
@@ -197,7 +199,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     this->addButton(editButtonSize, (dumpButton = 
             createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
     if (module) {
-        module->onReset();
+        module->requests.push(RequestType::onReset);
     }
 }
 
@@ -375,7 +377,7 @@ void NoteTakerWidget::clearTriplets() {
     this->n().setTriplets(selectChannels, false);
     display->range.displayEnd = 0;
     displayBuffer->redraw();
-    this->nt()->invalidateAndPlay(Inval::change);
+    this->invalAndPlay(Inval::change);
 }
 
 // to do : once clipboard is set, don't reset unless:
@@ -454,6 +456,19 @@ void NoteTakerWidget::disableEmptyButtons() const {
         }
         button->fb()->dirty = true;
     }
+}
+
+void NoteTakerWidget::draw(const DrawArgs &args) {
+    float t[6];
+    static float lastTransform[6];
+    nvgCurrentTransform(args.vg, t);
+    if (memcmp(lastTransform, t, sizeof(lastTransform))) {
+        if (false) DEBUG("widget draw xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
+        display->redraw();
+        selectButton->fb()->dirty = true;
+        memcpy(lastTransform, t, sizeof(t));
+    }
+    ModuleWidget::draw(args);
 }
 
 void NoteTakerWidget::enableButtons() const {
@@ -542,25 +557,27 @@ void NoteTakerWidget::insertFinal(int shiftTime, unsigned insertLoc, unsigned in
     this->setWheelRange();
     displayBuffer->redraw();
     if (!slotOn) {
-        this->nt()->invalidateAndPlay(Inval::note);
+        this->invalAndPlay(Inval::note);
     }
     if (debugVerbose) this->debugDump(true);
+}
+
+void NoteTakerWidget::invalAndPlay(Inval inval) {
+    if (Inval::none == inval) {
+        return;
+    }
+    display->invalidateRange();
+    if (Inval::display != inval) {
+        display->invalidateCache();
+    }
+    this->nt()->requests.push({RequestType::invalidateAndPlay, (unsigned) inval});
 }
 
 void NoteTakerWidget::loadScore() {
     unsigned slot = (unsigned) horizontalWheel->getValue();
     SCHMICKLE(slot < storage.size());
-    this->nt()->stageSlot(slot);
+    this->stageSlot(slot);
     this->resetScore();
-}
-
-void NoteTakerWidget::resetScore() {
-    display->range.resetXAxisOffset();
-    this->nt()->resetRun();
-    this->nt()->invalidateAndPlay(Inval::load);
-    unsigned atZero = this->n().atMidiTime(0);
-    atZero -= TRACK_END == storage.current().n.notes[atZero].type;
-    this->setSelectStart(atZero);
 }
 
 // allows two or more notes, or two or more rests: to be tied
@@ -576,7 +593,7 @@ void NoteTakerWidget::makeTriplets() {
     this->n().setTriplets(selectChannels, true);
     display->range.displayEnd = 0;
     displayBuffer->redraw();
-    this->nt()->invalidateAndPlay(Inval::change);
+    this->invalAndPlay(Inval::change);
 }
 
 // true if a button that brings up a secondary menu on display is active
@@ -652,6 +669,12 @@ void NoteTakerWidget::resetForPlay() {
     verticalWheel->lastValue = INT_MAX;
 }
 
+void NoteTakerWidget::resetChannels() {
+    for (auto& channel : storage.current().channels) {
+        channel.reset();
+    }
+}
+
 bool NoteTakerWidget::resetControls() {
     this->turnOffLEDButtons();
     for (NoteTakerButton* button : {
@@ -673,13 +696,24 @@ bool NoteTakerWidget::resetControls() {
 
 void NoteTakerWidget::resetNotes() {
     auto& n = this->n();
-    n.notes = edit.base;
-    storage.invalidate();
+    n.notes.clear();
+    this->setScoreEmpty();
+    n.selectStart = 0;
+    n.selectEnd = 1;
 }
 
 void NoteTakerWidget::resetRun() {
     display->range.reset();
     edit.voice = false;
+}
+
+void NoteTakerWidget::resetScore() {
+    display->range.resetXAxisOffset();
+    this->nt()->requests.push({RequestType::resetRun, 0});
+    this->invalAndPlay(Inval::load);
+    unsigned atZero = this->n().atMidiTime(0);
+    atZero -= TRACK_END == storage.current().n.notes[atZero].type;
+    this->setSelectStart(atZero);
 }
 
 void NoteTakerWidget::resetState() {
@@ -690,6 +724,12 @@ void NoteTakerWidget::resetState() {
     this->resetControls();
 }
 
+void NoteTakerWidget::restoreNotes() {
+    auto& n = this->n();
+    n.notes = edit.base;
+    storage.invalidate();
+}
+
 bool NoteTakerWidget::runningWithButtonsOff() const {
     return runButton->ledOn() && !this->menuButtonOn();
 }
@@ -698,7 +738,7 @@ void NoteTakerWidget::setClipboardLight() {
     bool ledOn = slotButton->ledOn() ? !clipboard.playback.empty() :
             !clipboard.notes.empty() && this->extractClipboard();
     float brightness = ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
-    nt()->setClipboardLight(brightness);
+    nt()->requests.push({RequestType::setClipboardLight, (unsigned) brightness * 256});
 }
 
 void NoteTakerWidget::setScoreEmpty() {
@@ -710,7 +750,7 @@ void NoteTakerWidget::setScoreEmpty() {
     NoteTakerParseMidi emptyParser(emptyMidi, &slot.n.notes, nullptr, slot.channels);
     bool success = emptyParser.parseMidi();
     SCHMICKLE(success);
-    this->nt()->invalidateAndPlay(Inval::cut);
+    this->invalAndPlay(Inval::cut);
 }
 
 void NoteTakerWidget::setSelectableScoreEmpty() {
@@ -723,7 +763,7 @@ void NoteTakerWidget::setSelectableScoreEmpty() {
             ++iter;
         }
     }
-    this->nt()->invalidateAndPlay(Inval::cut);
+    this->invalAndPlay(Inval::cut);
     display->range.displayEnd = 0;  // force recompute of display end
     this->setSelect(0, 1);
     this->setWheelRange();
@@ -806,17 +846,20 @@ void NoteTakerWidget::shiftNotes(unsigned start, int diff) {
     n.sort();
 }
 
-void NoteTakerWidget::draw(const DrawArgs &args) {
-    float t[6];
-    static float lastTransform[6];
-    nvgCurrentTransform(args.vg, t);
-    if (memcmp(lastTransform, t, sizeof(lastTransform))) {
-        if (false) DEBUG("widget draw xform %g %g %g %g %g %g", t[0], t[1], t[2], t[3], t[4], t[5]);
-        display->redraw();
-        selectButton->fb()->dirty = true;
-        memcpy(lastTransform, t, sizeof(t));
+void NoteTakerWidget::stageSlot(unsigned slot) {
+    unsigned last = this->getSlot();
+    SCHMICKLE(last < SLOT_COUNT);
+    if (slot == last) {
+        return;
     }
-    ModuleWidget::draw(args);
+    if (debugVerbose) DEBUG("stageSlot %u old %u", slot, last);
+    storage.slotStart = slot;
+    storage.slotEnd = slot + 1;
+    display->stagedSlot = &storage.current();
+    this->invalAndPlay(Inval::load);
+    this->resetForPlay();
+    this->nt()->requests.push(RequestType::resetRun);
+    this->nt()->requests.push(RequestType::playSelection);
 }
 
 void NoteTakerWidget::step() {

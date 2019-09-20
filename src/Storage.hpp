@@ -14,6 +14,8 @@ enum class Inval {
     load,       // inval voice, cache, range; does not play
 };
 
+extern std::string InvalDebugStr(Inval );
+
 struct SlotPlay {
     // switch slots on next ...
     enum class Stage {
@@ -58,6 +60,7 @@ struct NoteTakerSlot {
     static void Decode(const vector<char>& encoded, vector<uint8_t>* midi);
     static void EncodeTriplet(const uint8_t trips[3], vector<char>* encoded);
     static void Encode(const vector<uint8_t>& midi, vector<char>* encoded);
+    std::string debugString(unsigned index) const;
     void fromJson(json_t* root);
     bool setFromMidi();
     json_t* toJson() const;
@@ -89,6 +92,7 @@ struct SlotArray {
     void fromJson(json_t* root);
 
     void invalidate() {
+        if (debugVerbose) DEBUG("%s slotStart:%u", __func__, slotStart);
         slots[slotStart].invalid = true;
     }
 

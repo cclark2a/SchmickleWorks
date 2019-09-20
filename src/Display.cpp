@@ -641,6 +641,51 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
 
 void NoteTakerDisplay::draw(const DrawArgs& args) {
     auto ntw = this->ntw();
+    auto n = this->notes();
+    ReqRecord record;
+    do {
+        record = ntw->reqs.pop();
+        if (debugVerbose && ReqType::nothingToDo != record.type)
+            DEBUG("%s pop %s", __func__, record.debugStr().c_str());
+        switch (record.type) {
+            case ReqType::resetChannels:
+                ntw->resetChannels();
+                break;
+            case ReqType::resetNotes:
+                ntw->resetNotes();
+                break;
+            case ReqType::resetRun:
+                ntw->resetRun();
+                break;
+            case ReqType::resetState:
+                ntw->resetState();
+                break;
+            case ReqType::resetXAxisOffset:
+                range.resetXAxisOffset();
+                break;
+            case ReqType::runButtonActivate: {
+                event::DragEnd e;
+                ntw->runButton->onDragEnd(e);
+                } break;
+//            case ReqType::setPlayStart:  // ping-pong to get note state set before play
+//                ntw->nt()->requests.push(RequestType::setPlayStart);
+//                break;
+            case ReqType::setSelectStart:
+                (void) ntw->setSelectStart(record.data);
+                break;
+            case ReqType::stagedSlotStart:
+                ntw->storage.slotStart = record.data;
+                ntw->storage.slotEnd = record.data + 1;
+                slot = &ntw->storage.current();
+                break;
+            case ReqType::startPlaying:
+                ntw->nt()->requests.push(RequestType::setPlayStart);
+                ntw->nt()->requests.push(RequestType::playSelection);
+                break;
+            default:
+                assert(ReqType::nothingToDo == record.type);
+        }
+    } while (ReqType::nothingToDo != record.type);
     if (false && debugVerbose) {
         static float last[6] = {};
         float t[6];
@@ -651,15 +696,17 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
             this->redraw();
             ntw->selectButton->fb()->dirty = true;
         }
-    } 
-    auto n = this->notes();
+    }
     auto vg = state.vg = args.vg;
-    if (stagedSlot) {
+    if (false && stagedSlot) {
+        if (debugVerbose) DEBUG("stagedSlot %s",
+                stagedSlot->debugString(stagedSlot - &ntw->storage.slots.front()).c_str());
         slot = stagedSlot;
         stagedSlot = nullptr;
     }
     auto cache = &slot->cache;
     if (slot->invalid) {
+        if (debugVerbose) DEBUG("%s slot invalid", __func__);
         CacheBuilder builder(state, n, cache);
         builder.updateXPosition();
         slot->invalid = false;
@@ -698,7 +745,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     }
 #endif
     if (ntw->nt()) {
-        float realT = (float) ntw->nt()->realSeconds;
+        float realT = (float) ntw->nt()->getRealSeconds();
         state.callInterval = lastCall ? realT - lastCall : 1 / (float) settings::frameRateLimit;
         lastCall = realT;    
     }
@@ -963,7 +1010,7 @@ void NoteTakerDisplay::drawKeySignature(unsigned index) {
         if (dynamicCNaturalAlpha > 0) {
             auto nt = ntw()->nt();
             dynamicCNaturalAlpha = std::max(0, std::min(255, 
-                    (int) (255 * (dynamicCNaturalTimer - nt->realSeconds) / fadeDuration)));
+                    (int) (255 * (dynamicCNaturalTimer - nt->getRealSeconds()) / fadeDuration)));
             nvgFillColor(vg, nvgRGBA(0, 0, 0, dynamicCNaturalAlpha));
             nvgText(vg, xPos, 32 * 3 - 48, "%", NULL);
             nvgText(vg, xPos, 46 * 3 - 48, "%", NULL);
@@ -1198,20 +1245,22 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
     if (!ntw->menuButtonOn()) {
         auto nt = ntw->nt();
         if (ntw->verticalWheel->hasChanged()) {
-            dynamicPitchTimer = nt->realSeconds + fadeDuration;
+            dynamicPitchTimer = nt->getRealSeconds() + fadeDuration;
         }
         auto horizontalWheel = ntw->horizontalWheel;
         if (!this->cache()->leadingTempo
                 && horizontalWheel->lastRealValue != horizontalWheel->getValue()) {
-            dynamicTempoTimer = nt->realSeconds + fadeDuration;
+            dynamicTempoTimer = nt->getRealSeconds() + fadeDuration;
             horizontalWheel->lastRealValue = horizontalWheel->getValue();
         }
         if ((dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
                 || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255)) {
             this->redraw();
         }
-        dynamicTempoAlpha = std::max(0, (int) (255 * (dynamicTempoTimer - nt->realSeconds) / fadeDuration));
-        dynamicPitchAlpha = std::max(0, (int) (255 * (dynamicPitchTimer - nt->realSeconds) / fadeDuration));
+        dynamicTempoAlpha = std::max(0,
+                (int) (255 * (dynamicTempoTimer - nt->getRealSeconds()) / fadeDuration));
+        dynamicPitchAlpha = std::max(0,
+                (int) (255 * (dynamicPitchTimer - nt->getRealSeconds()) / fadeDuration));
         if ((dynamicTempoAlpha > 0 && dynamicTempoAlpha < 255)
                 || (dynamicPitchAlpha > 0 && dynamicPitchAlpha < 255)) {
             this->redraw();

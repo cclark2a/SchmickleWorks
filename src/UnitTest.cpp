@@ -138,7 +138,7 @@ static void LowLevelTestDigits(NoteTakerWidget* n) {
             if (counters[digits]) {
                 break;
             }
-            n->nt()->resetState();
+            n->nt()->requests.push(RequestType::resetState);
             n->resetControls();
             for (index = 0; index < digits; ++index) {
                 LowLevelAction(n, counters[index]);
@@ -151,7 +151,7 @@ static void LowLevelTestDigits(NoteTakerWidget* n) {
 static void LowLevelTestDigitsSolo(NoteTakerWidget* n) {
     int counters[] = {2, 5, 3, 4, 0, 0};
     int digits = 5;
-    n->nt()->resetState();
+    n->nt()->requests.push(RequestType::resetState);
     n->resetControls();
     for (int index = 0; index < digits; ++index) {
         LowLevelAction(n, counters[index]);
@@ -160,7 +160,7 @@ static void LowLevelTestDigitsSolo(NoteTakerWidget* n) {
 
 static void LowLevelRandom(NoteTakerWidget* n, unsigned seed, int steps) {
     srand(seed);
-    n->nt()->resetState();
+    n->nt()->requests.push(RequestType::resetState);
     n->resetControls();
     for (int index = 0; index < steps; ++index) {
         int control = rand() % (NoteTaker::NUM_PARAMS + NoteTaker::NUM_INPUTS);
@@ -169,7 +169,7 @@ static void LowLevelRandom(NoteTakerWidget* n, unsigned seed, int steps) {
 }
 
 static void AddTwoNotes(NoteTakerWidget* n) {
-    n->nt()->resetState();
+    n->nt()->requests.push(RequestType::resetState);
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     unsigned note1 = n->wheelToNote(1);
@@ -182,7 +182,7 @@ static bool IsEmpty(NoteTakerWidget* n) {
 
 static void Expected(NoteTakerWidget* n) {
     json_t* saveState = n->toJson();
-    n->nt()->onReset();
+    n->nt()->requests.push(RequestType::onReset);
     DEBUG("delete a note with empty score");
     Press(n, n->cutButton);
 
@@ -273,11 +273,11 @@ static void Expected(NoteTakerWidget* n) {
     SCHMICKLE(4 == n->n().horizontalCount(n->selectChannels));
 
     DEBUG("restore defaults");
-    n->nt()->resetState();
+    n->nt()->requests.push(RequestType::resetState);
     n->resetControls();
     n->fromJson(saveState);
     json_decref(saveState);
-    n->nt()->invalidateAndPlay(Inval::load);
+    n->invalAndPlay(Inval::load);
 }
 
 static void TestEncode() {

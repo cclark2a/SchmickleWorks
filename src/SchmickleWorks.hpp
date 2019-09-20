@@ -84,20 +84,19 @@ struct WidgetToolTip : ParamQuantity {
     std::string getDisplayValueString() override;
 };
 
-// to do : create a compile time option to omit debugging code?
-#define SCHMICKLE(x) _schmickle(x, #x)
+// note: when implemented as inline c++ functions, stack and assert line # was out of line
+// to do : remove assert from production, so that innoculous asserts don't cause a crash?
+#define _schmickled() \
+    (DEBUG("%s", system::getStackTrace().c_str()), assert(0))
 
-inline bool _schmickled() {
-    std::string st = system::getStackTrace();
-    DEBUG("%s", st.c_str());
-    assert(0);  // to do : remove from production, so that innoculous asserts don't cause a crash?
-    return false;
-}
+#define _schmickle_false() \
+    _schmickled(), false
 
-inline bool _schmickle(bool cond, const char* condStr) {
-    if (cond) {
-        return true;
+#define _schmickle(cond, condStr) \
+    if (!(cond)) { \
+        DEBUG("%s", condStr); \
+        _schmickled(); \
     }
-    DEBUG("%s", condStr);
-    return _schmickled();
-}
+
+#define SCHMICKLE(x) \
+    _schmickle(x, #x)

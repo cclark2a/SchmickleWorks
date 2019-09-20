@@ -85,6 +85,14 @@ void NoteTakerSlot::EncodeTriplet(const uint8_t trips[3], vector<char>* encoded)
     encoded->insert(encoded->end(), out, &out[4]);
 }
 
+std::string NoteTakerSlot::debugString(unsigned index) const {
+    return "[" + std::to_string(index) + "]"
+            " notes:" + std::to_string(n.notes.size())
+          + " cache:" + std::to_string(cache.notes.size())
+          + " dir:" + directory + " file:" + filename + " invalid:"
+          + (invalid ? "true" : "false");
+}
+
 void NoteTakerSlot::writeToMidi() const {
     vector<uint8_t> midi;
     NoteTakerMakeMidi maker;

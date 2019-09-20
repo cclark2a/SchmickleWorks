@@ -13,6 +13,74 @@ struct NoteTakerDisplay;
 struct NoteTakerWheel;
 struct VerticalWheel;
 
+// circular buffer holds requests to modify widget state
+// taker thread writes to buffer and then advances writer pointer when done
+// widget thread reads from buffer and advances reader pointer when done
+enum class ReqType : unsigned {
+    nothingToDo,
+    resetChannels,
+    resetNotes,
+    resetRun,
+    resetState,
+    resetXAxisOffset,
+    runButtonActivate,
+//    setPlayStart,
+    setSelectStart,
+    stagedSlotStart,
+    startPlaying,
+};
+
+struct ReqRecord {
+    ReqType type;
+    unsigned data;
+
+    std::string debugStr() const {
+        std::string result;
+        switch(type) {
+            case ReqType::nothingToDo: return "nothingToDo";
+            case ReqType::resetChannels: return "resetChannels";
+            case ReqType::resetNotes: return "resetNotes";
+            case ReqType::resetRun: return "resetRun";
+            case ReqType::resetState: return "resetState";
+            case ReqType::resetXAxisOffset: return "resetXAxisOffset";
+            case ReqType::runButtonActivate: return "runButtonActivate";
+//            case ReqType::setPlayStart: return "setPlayStart";
+            case ReqType::setSelectStart: return "setSelectStart" + std::to_string(data);
+            case ReqType::stagedSlotStart: return "stagedSlotStart: " + std::to_string(data);
+            case ReqType::startPlaying: return "startPlaying";
+            default:
+                assert(0);  // incomplete
+        }
+        return "";
+    }
+};
+
+struct Reqs {
+    array<ReqRecord, 16> buffer;
+    ReqRecord* reader;
+    ReqRecord* writer;
+
+    ReqRecord pop() {
+        if (reader < writer) {
+            writer = &buffer.front();
+        }
+        if (reader == writer) {
+            return {ReqType::nothingToDo, INT_MAX};
+        }
+        return *writer++;
+    }
+
+    void push(const ReqRecord& record) {
+        ReqRecord* temp = reader == &buffer.back() ? &buffer.front() : reader;
+        *temp = record;
+        reader = temp + 1;
+    }
+
+    void push(ReqType type) {
+        this->push({type, 0});
+    }
+};
+
 struct Clipboard {
     vector<DisplayNote> notes;
     vector<SlotPlay> playback;
@@ -37,6 +105,7 @@ struct Clipboard {
 };
 
 struct NoteTakerWidget : ModuleWidget {
+    Reqs reqs;
     std::shared_ptr<Font> _musicFont = nullptr;
     std::shared_ptr<Font> _textFont = nullptr;
     Clipboard clipboard;
@@ -89,6 +158,7 @@ struct NoteTakerWidget : ModuleWidget {
     void fromJson(json_t* rootJ) override;
     unsigned getSlot() const;  // index of module slot, not influenced by file button or wheel
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
+    void invalAndPlay(Inval );
     void loadScore();
     void makeSlurs();
     void makeTriplets();
@@ -98,6 +168,23 @@ struct NoteTakerWidget : ModuleWidget {
     int musicFont() const {
         return _musicFont->handle;
     }
+
+    // ok to call from either thread
+    void redraw() const {
+        displayBuffer->redraw();
+    }
+
+    void reqPush(ReqType reqType) {
+        reqs.push(reqType);
+        this->redraw();
+    }
+
+    void reqPush(const ReqRecord& record) {
+        reqs.push(record);
+        this->redraw();
+    }
+
+    void stageSlot(unsigned slot);
 
     int textFont() const {
         return _textFont->handle;
@@ -142,12 +229,14 @@ struct NoteTakerWidget : ModuleWidget {
         ModuleWidget::onButton(e);
     }
 
+    void resetChannels();
     bool resetControls();
     void resetForPlay();
     void resetNotes();
     void resetRun();
     void resetScore();
     void resetState();
+    void restoreNotes();
     bool runningWithButtonsOff() const;
     void setClipboardLight();
     void setHorizontalNoteLimits();

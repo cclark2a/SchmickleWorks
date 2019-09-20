@@ -51,6 +51,7 @@ json_t* NoteTakerWidget::toJson() {
     json_object_set_new(root, "cutButton", cutButton->toJson());
     json_object_set_new(root, "fileButton", fileButton->toJson());
     json_object_set_new(root, "insertButton", insertButton->toJson());
+    json_object_set_new(root, "keyButton", keyButton->toJson());
     json_object_set_new(root, "partButton", partButton->toJson());
     json_object_set_new(root, "restButton", restButton->toJson());
 // run button state is not saved and restored : module always starts with run off
@@ -58,6 +59,8 @@ json_t* NoteTakerWidget::toJson() {
     json_object_set_new(root, "selectButton", selectButton->toJson());
     json_object_set_new(root, "slotButton", slotButton->toJson());
     json_object_set_new(root, "sustainButton", sustainButton->toJson());
+    json_object_set_new(root, "tempoButton", tempoButton->toJson());
+    json_object_set_new(root, "tieButton", tieButton->toJson());
     json_object_set_new(root, "timeButton", timeButton->toJson());
     json_object_set_new(root, "horizontalWheel", horizontalWheel->toJson());
     json_object_set_new(root, "verticalWheel", verticalWheel->toJson());
@@ -138,6 +141,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     cutButton->fromJson(json_object_get(root, "cutButton"));
     fileButton->fromJson(json_object_get(root, "fileButton"));
     insertButton->fromJson(json_object_get(root, "insertButton"));
+    keyButton->fromJson(json_object_get(root, "keyButton"));
     partButton->fromJson(json_object_get(root, "partButton"));
     restButton->fromJson(json_object_get(root, "restButton"));
 // run button state is not saved and restored : module always starts with run off
@@ -146,17 +150,27 @@ void NoteTakerWidget::fromJson(json_t* root) {
     selectButton->fromJson(json_object_get(root, "selectButton"));
     slotButton->fromJson(json_object_get(root, "slotButton"));
     sustainButton->fromJson(json_object_get(root, "sustainButton"));
+    tempoButton->fromJson(json_object_get(root, "tempoButton"));
+    tieButton->fromJson(json_object_get(root, "tieButton"));
     timeButton->fromJson(json_object_get(root, "timeButton"));
     horizontalWheel->fromJson(json_object_get(root, "horizontalWheel"));
     verticalWheel->fromJson(json_object_get(root, "verticalWheel"));
     // end of controls' state
+    if (tieButton->ledOn()) { // turn tie button off if wheel is not pointing to default
+            // ... since restoring would require having saved edit state earlier
+        (void) horizontalWheel->hasRoundedChanged();
+        (void) verticalWheel->hasRoundedChanged();
+        if (1 != horizontalWheel->wheelValue() || 1 != verticalWheel->wheelValue()) {
+            tieButton->setValue(0);
+        }
+    }
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
     storage.fromJson(json_object_get(root, "storage"));
     display->range.fromJson(json_object_get(root, "display"));
     // update display cache
     this->setWheelRange();
     displayBuffer->redraw();
-    this->nt()->invalidateAndPlay(Inval::load);
+    this->invalAndPlay(Inval::load);
     this->setClipboardLight();
 }
 

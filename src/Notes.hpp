@@ -38,7 +38,7 @@ struct Notes {
                 return index;
             }
         }
-        return _schmickled();  // should have hit track end
+        return _schmickle_false();  // should have hit track end
     }
 
     void findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCache);

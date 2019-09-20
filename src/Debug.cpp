@@ -160,7 +160,7 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     DEBUG("select s/e %u %u display s/e %u %u chans 0x%02x unlocked %d tempo %d ppq %d voice %d",
             n.selectStart, n.selectEnd, display->range.displayStart, display->range.displayEnd,
             selectChannels, 
-            this->unlockedChannel(), nt() ? nt()->tempo : 0, n.ppq, edit.voice);
+            this->unlockedChannel(), nt() ? nt()->getTempo() : 0, n.ppq, edit.voice);
     auto& slot = storage.current();
     DEBUG("slot %p notes %p cache %p ", &slot, &n.notes.front(), slot.cache.notes.front());
     Notes::DebugDump(n.notes, 0, INT_MAX, slot.invalid ? nullptr : &slot.cache.notes,
@@ -200,8 +200,10 @@ void Notes::DebugDump(const vector<DisplayNote>& notes, unsigned start, unsigned
     unsigned size = notes.size();
     start = std::min(start, size - std::min(size, 20U));  // show at least 20 notes
     end = std::min(size, std::max(start + 20, end));
-    if (notes.size()) DEBUG("%s n.notes.front().cache %p", __func__, notes.front().cache);
-    if (cache) DEBUG("&cache->notes.front() %p", &cache->front());
+    if (notes.size()) DEBUG("%s notes.front().cache %p &notes.front() %p", __func__,
+            notes.front().cache, &notes.front());
+    if (cache) DEBUG("&cache->front() %p cache->front().note %p", &cache->front(),
+            cache->front().note);
     // to do : move this to some static assert or one time initialization function
     for (unsigned i = 0; i < NUM_TYPES; ++i) {
         SCHMICKLE(i == typeNames[i].type);

@@ -10,6 +10,8 @@
 
 NoteTaker::NoteTaker() {
     this->config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+    requests.reader = &requests.buffer.front();
+    requests.writer = &requests.buffer.front();
 }
 
 float NoteTaker::beatsPerHalfSecond(int localTempo) const {
@@ -22,10 +24,10 @@ float NoteTaker::beatsPerHalfSecond(int localTempo) const {
         // for 3), second step determines bphs -- tempo change always lags 1 beat
         // playback continues for one beat after clock stops
         static float lastRatio = 0;
-        auto horizontalWheel = ntw()->horizontalWheel;
+        const auto horizontalWheel = ntw()->horizontalWheel;
         float tempoRatio = this->wheelToTempo(horizontalWheel->getValue());
         if (lastRatio != tempoRatio) {
-            ntw()->displayBuffer->redraw();
+            ntw()->redraw();    // ok to call at any time
             lastRatio = tempoRatio;
         }
         if ((deltaTime < 0 || tempoRatio < 0) && debugVerbose) DEBUG("local %d delta %g ratio %g", localTempo, deltaTime, tempoRatio);
@@ -40,8 +42,7 @@ int NoteTaker::externalTempo() {
         if (clockCycle) {
             // upward edge, advance clock
             if (!this->isRunning()) {
-                event::DragEnd e;
-                ntw()->runButton->onDragEnd(e);
+                ntw()->reqPush(ReqType::runButtonActivate);
             } else {
                 externalClockTempo = (int) (tempo * 2 / clockCycle);
             }
@@ -55,30 +56,23 @@ bool NoteTaker::isRunning() const {
     return ntw()->runButton->ledOn();
 }
 
+// don't change other threads data here (display)
 void NoteTaker::invalidateAndPlay(Inval inval) {
     DEBUG("invalidateAndPlay %s", InvalDebugStr(inval).c_str());
-    if (Inval::none == inval) {
-        return;
-    }
-    auto display = this->ntw()->display;
-    display->invalidateRange();
-    if (Inval::display != inval) {
-        display->invalidateCache();
-        if (Inval::note == inval || Inval::load == inval) {
-            invalidVoiceCount = true;
-            DEBUG("invalidVoiceCount true");
-        }
+    if (Inval::note == inval || Inval::load == inval || Inval::change == inval) {
+        invalidVoiceCount = true;
+        DEBUG("invalidVoiceCount true");
     }
     if (Inval::load == inval) {
         this->setVoiceCount();
         this->setOutputsVoiceCount();
-
     } else if (Inval::cut != inval) {
-        this->setPlayStart();
+        this->setPlayStart();   // make sure notes are set up in caller before calling set start
         this->playSelection();
     }
 }
 
+// to do : document why a non-const version is required
 Notes& NoteTaker::n() {
     return ntw()->storage.current().n;
 }
@@ -123,7 +117,9 @@ void NoteTaker::playSelection() {
         eosBase = midiEndTime;
         repeat = this->isRunning() ? INT_MAX : 1;
     }
+    if (debugVerbose) DEBUG("%s playStart %d", __func__, playStart);
     this->advancePlayStart(midiTime, midiEndTime);
+    if (debugVerbose) DEBUG("%s advance playStart %d", __func__, playStart);
 }
 
 // since this runs on a high frequency thread, avoid state except to play notes
@@ -139,18 +135,73 @@ void NoteTaker::process(const ProcessArgs &args) {
         return;
     }
 #endif
+    RequestRecord record;
+    do {
+        record = requests.pop();
+        if (debugVerbose && RequestType::nothingToDo != record.type)
+                DEBUG("%s pop %s", __func__, record.debugStr().c_str());
+        switch (record.type) {
+            case RequestType::invalidateAndPlay:
+                this->invalidateAndPlay((Inval) record.data);
+                break;
+            case RequestType::invalidateVoiceCount:
+                invalidVoiceCount = true;
+                break;
+            case RequestType::onReset:
+                this->onReset();
+                break;
+            case RequestType::playSelection:
+                this->playSelection();
+                break;
+            case RequestType::resetAndPlay:
+                this->resetRun();
+                this->ntw()->reqPush(ReqType::startPlaying);
+                break;
+            case RequestType::resetPlayStart:
+                playStart = 0;
+                break;
+            case RequestType::resetRun:
+                this->resetRun();
+                break;
+            case RequestType::resetState:
+                this->resetState();
+                break;
+            case RequestType::setClipboardLight:
+                this->setClipboardLight((float) record.data / 256.f);
+                break;
+            case RequestType::setPlayStart:
+                this->setPlayStart();
+                break;
+//            case RequestType::stageSlot:
+//                stagedSlotStart = record.data;
+//                break;
+            case RequestType::zeroGates:
+                this->zeroGates();
+                break;
+            default:
+                assert(RequestType::nothingToDo == record.type);
+        }
+    } while (RequestType::nothingToDo != record.type);
 // to do : defer switch until criteria (e.g., end of bar) is met
+// to do : make this multi-stage, switching threads to keep it sequenced
+/* stage 1: post event in display queue to update slot start, end, display staged slot
+   stage 2: (in display thread) invalAndPlay(load) (posts event in process queue)
+   stage 3: (in process cue) resetRun
+   stage 4: (in display) resetForPlay
+   stage 5: (in process) playSelection
+   maybe able to optimize this
+ */
+/*
     if (INT_MAX != stagedSlotStart) {
         if (debugVerbose) DEBUG("process stagedSlotStart %u", stagedSlotStart);
-        ntw()->storage.slotStart = stagedSlotStart;
-        ntw()->storage.slotEnd = stagedSlotStart + 1;
-        ntw()->display->stagedSlot = &ntw()->storage.current();
         stagedSlotStart = INT_MAX;
         this->invalidateAndPlay(Inval::load);
+        // to do : inval display range
         this->resetRun();
         ntw()->resetForPlay();
         this->playSelection();
     }
+*/
     auto& n = this->n();
     bool running = this->isRunning();
     int localTempo = tempo;
@@ -190,7 +241,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             } else {
                 localTempo = this->externalTempo();
                 if (resetCycle) {
-                    ntw()->display->range.resetXAxisOffset();
+                    ntw()->reqPush(ReqType::resetXAxisOffset);
                     this->resetRun();
                     resetCycle = 0;
                 }
@@ -201,7 +252,7 @@ void NoteTaker::process(const ProcessArgs &args) {
     }
     bool playNotes = (bool) playStart;
     int midiTime = 0;
-    auto& storage = ntw()->storage;
+    const auto& storage = ntw()->storage;
     if (playNotes) {
         // read data from display notes to determine pitch
         // note on event start changes cv and sets gate high
@@ -242,18 +293,18 @@ void NoteTaker::process(const ProcessArgs &args) {
                     unsigned selectStart = storage.slotStart;
                     if (selectStart + 1 >= storage.playback.size()) {
                         repeat = 1;
-                        this->stageSlot(0);
+                        ntw()->reqPush({ReqType::stagedSlotStart, 0});
                         running = false;
                         // to do : turn run button off
                     } else {
                         const SlotPlay& slotPlay = storage.playback[selectStart + 1];
                         repeat = slotPlay.repeat;
-                        this->stageSlot(slotPlay.index);
+                        ntw()->reqPush({ReqType::stagedSlotStart, slotPlay.index});
                     }
                 }
             }
             if (running) {
-                ntw()->display->range.resetXAxisOffset();
+                ntw()->reqPush(ReqType::resetXAxisOffset);
                 this->resetRun();
                 eosPulse.trigger();
                 this->advancePlayStart(0, INT_MAX);
@@ -288,8 +339,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                 static float last = -1;
                 static const float* lastAddr = nullptr;
                 if (last != vIn[0].gate || lastAddr != &vIn[0].gate) {
-                    DEBUG("[%g] vIn[0].gate %g %p channels[%u].", realSeconds,
-                            vIn[0].gate, &vIn[0].gate);
+                    DEBUG("[%g] vIn[0].gate %g %p", realSeconds, vIn[0].gate, &vIn[0].gate);
                     last = vIn[0].gate;
                     lastAddr = &vIn[0].gate;
                 }
@@ -358,7 +408,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
             if (note.channel < EXPANSION_OUTPUTS) {
                 float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
-                auto verticalWheel = ntw()->verticalWheel;
+                const auto verticalWheel = ntw()->verticalWheel;
                 if (mainWidget->runningWithButtonsOff()) {
                     bias += inputs[V_OCT_INPUT].getVoltage();
                     bias += ((int) verticalWheel->getValue() - 60) / 12.f;
@@ -387,12 +437,9 @@ void NoteTaker::process(const ProcessArgs &args) {
             }
         } while (true);
         if (running) {
-            // to do : don't write to same state in different threads
-            // not sure how to enforce this, but the gist is that here is only written to
-            // while running; everywhere else is only written to while not running
-            // to do : add 'stage select start' to display so that other thread sets display start later
+            // stage select start to display so that other thread sets display start later
             if (INT_MAX != sStart && n.selectStart != sStart) {
-                (void) ntw()->setSelectStart(sStart);
+                ntw()->reqPush({ReqType::setSelectStart, sStart});
             }
         }
     }
@@ -410,26 +457,19 @@ void NoteTaker::process(const ProcessArgs &args) {
 
 void NoteTaker::onReset() {
     this->resetState();
+    auto ntw = this->ntw();
+    ntw->reqPush(ReqType::resetChannels);
+    ntw->reqPush(ReqType::resetNotes);
+    ntw->reqPush(ReqType::resetState);
     Module::onReset();
 }
 
 void NoteTaker::resetState() {
     if (debugVerbose) DEBUG("notetaker reset");
-    auto ntw = this->ntw();
-    auto& n = this->n();
-    n.notes.clear();
-    for (auto& channel : ntw->storage.current().channels) {
-        channel.reset();
-    }
     for (auto& c : channels) {
         c.voiceCount = 0;
     }
     this->resetRun();
-    ntw->setScoreEmpty();
-    n.selectStart = 0;
-    n.selectEnd = 1;
-    ntw->resetState();
-    ntw->resetControls();
 }
 
 void NoteTaker::resetRun() {
@@ -445,8 +485,9 @@ void NoteTaker::resetRun() {
     clockPulse.reset();
     eosPulse.reset();
     resetTimer.reset();
-    mainWidget->resetRun();
-    this->setPlayStart();
+    this->ntw()->reqPush(ReqType::resetRun);
+    // give display thread a chance to catch up: this request will call back here once sync'd
+    this->ntw()->reqPush(ReqType::startPlaying);
 }
 
 void NoteTaker::setOutputsVoiceCount() {
@@ -463,9 +504,9 @@ void NoteTaker::setPlayStart() {
     auto& n = this->n();
     playStart = ntw()->edit.voice ? n.selectStart : 0;
     unsigned lastNote = (this->isRunning() ? n.notes.size() : n.selectEnd) - 1;
-    if (debugVerbose) DEBUG("setPlayStart lastNote %u", lastNote);
     midiEndTime = n.notes[lastNote].endTime();
-    if (debugVerbose) DEBUG("setPlayStart midiEndTime %d", midiEndTime);
+    if (debugVerbose) DEBUG("setPlayStart %u lastNote %u midiEndTime %d",
+            playStart, lastNote, midiEndTime);
 }
 
 // to do : output debug data to show what set voice count did
@@ -539,16 +580,6 @@ void NoteTaker::setVoiceCount() {
         DEBUG("%u vCount %d chan %d %s", index, vCount, chan, note.debugString().c_str());
 #endif
     }
-}
-
-void NoteTaker::stageSlot(unsigned slotIndex) {
-    unsigned last = this->ntw()->getSlot();
-    SCHMICKLE(last < SLOT_COUNT);
-    if (slotIndex == last) {
-        return;
-    }
-    if (debugVerbose) DEBUG("stageSlot %u old %u", slotIndex, last);
-    stagedSlotStart = slotIndex;
 }
 
 float NoteTaker::wheelToTempo(float value) const {

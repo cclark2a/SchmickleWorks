@@ -33,6 +33,82 @@ struct Voices {
     unsigned voiceCount = 0;
 };
 
+// circular buffer holds requests to modify notetaker state
+// outside thread writes to buffer and then advances writer pointer when done
+// note taker thread reads from buffer and advances reader pointer when done
+enum class RequestType : unsigned {
+    nothingToDo,
+    invalidateAndPlay,
+    invalidateVoiceCount,
+    onReset,
+    playSelection,
+    resetAndPlay,
+    resetPlayStart,
+    resetRun,
+    resetState,
+    setClipboardLight,
+    setPlayStart,
+//    stageSlot,
+    zeroGates,
+};
+
+struct RequestRecord {
+    RequestType type;
+    unsigned data;
+
+    std::string debugStr() const {
+        std::string result;
+        switch(type) {
+            case RequestType::nothingToDo: return "nothingToDo";
+            case RequestType::invalidateAndPlay: return "invalidateAndPlay: "
+                    + InvalDebugStr((Inval) data);
+            case RequestType::invalidateVoiceCount: return "invalidateVoiceCount";
+            case RequestType::onReset: return "onReset";
+            case RequestType::playSelection: return "playSelection";
+            case RequestType::resetAndPlay: return "resetAndPlay";
+            case RequestType::resetPlayStart: return "resetPlayStart";
+            case RequestType::resetRun: return "resetRun";
+            case RequestType::resetState: return "resetState";
+            case RequestType::setClipboardLight: return "setClipboardLight: "
+                    + std::to_string((float) data / 256.f);
+            case RequestType::setPlayStart: return "setPlayStart";
+//            case RequestType::stageSlot: return "stageSlot: " + std::to_string(data);
+            case RequestType::zeroGates: return "zeroGates";
+            default:
+                assert(0);  // incomplete
+        }
+        return "";
+    }
+};
+
+struct Requests {
+    array<RequestRecord, 16> buffer;
+    RequestRecord* reader;
+    RequestRecord* writer;
+
+    RequestRecord pop() {
+        if (reader < writer) {
+            writer = &buffer.front();
+        }
+        if (reader == writer) {
+            return {RequestType::nothingToDo, INT_MAX};
+        }
+        return *writer++;
+    }
+
+    void push(const RequestRecord& record) {
+        RequestRecord* temp = reader == &buffer.back() ? &buffer.front() : reader;
+        *temp = record;
+        reader = temp + 1;
+    }
+
+    void push(RequestType type) {
+        this->push({type, 0});
+    }
+};
+
+// most state in note taker should not be altered by the display/ui thread
+// to do : do not write playStart except directly or indirectly by process()
 struct NoteTaker : Module {
 	enum ParamIds {       // numbers used by unit test
         RUN_BUTTON,       // 0
@@ -83,7 +159,8 @@ struct NoteTaker : Module {
 
     const unsigned UNASSIGNED_VOICE_INDEX = (unsigned) -1;
 
-    NoteTakerWidget* mainWidget = nullptr;
+    Requests requests;
+private:  // avoid directly accessing cross-thread stuff
     // state saved into json
     // written by step:
     array<Voices, CHANNEL_COUNT> channels;
@@ -93,8 +170,8 @@ struct NoteTaker : Module {
     dsp::PulseGenerator clockPulse;
     dsp::PulseGenerator eosPulse;
     dsp::Timer resetTimer;
-    int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per qn)
     // end of state saved into json; written by step
+    NoteTakerWidget* mainWidget = nullptr;
     double elapsedSeconds = 0;              // seconds into score (float is not enough bits)
     double realSeconds = 0;                 // seconds for UI timers
     unsigned playStart = 0;                 // index of notes output
@@ -106,16 +183,43 @@ struct NoteTaker : Module {
     float clockCycle = 0;
     float clockHighTime = FLT_MAX;
     int externalClockTempo = stdMSecsPerQuarterNote;
+    int tempo = stdMSecsPerQuarterNote;     // default to 120 beats/minute (500,000 ms per qn)
     // reset input state (not saved)
     float resetCycle = 0;
     float resetHighTime = FLT_MAX;
     int midiClockOut = INT_MAX;
     SlotPlay::Stage runningStage;
-    unsigned stagedSlotStart = INT_MAX;
+//    unsigned stagedSlotStart = INT_MAX;
     bool invalidVoiceCount = false;
 
+public:
     NoteTaker();
+    float beatsPerHalfSecond(int tempo) const;
 
+    double getRealSeconds() const {
+        return realSeconds;
+    }
+
+    int getTempo() const {
+        return tempo;
+    }
+
+    int outputCount() const {
+        return rightExpander.module && modelSuper8 == rightExpander.module->model ?
+                EXPANSION_OUTPUTS : CV_OUTPUTS;
+    }
+
+    void setMainWidget(NoteTakerWidget* widget) {
+        mainWidget = widget;
+    }
+
+    float wheelToTempo(float value) const;
+
+protected:
+    void onReset() override;
+    void process(const ProcessArgs &args) override;
+
+private:
     // returns true if playstart could be advanced, false if end was reached
     bool advancePlayStart(int midiTime, int midiEndTime) {
         if (midiTime >= midiEndTime) {
@@ -173,7 +277,6 @@ struct NoteTaker : Module {
         } while (true);
     }
 
-    float beatsPerHalfSecond(int tempo) const;
     void dataFromJson(json_t* rootJ) override;
     json_t* dataToJson() override;
 
@@ -197,6 +300,7 @@ struct NoteTaker : Module {
     Notes& n();
     const Notes& n() const;
 
+    // to do : remove this -- require access to be const
     NoteTakerWidget* ntw() {
         return mainWidget;
     }
@@ -205,31 +309,12 @@ struct NoteTaker : Module {
         return mainWidget;
     }
 
-    void onReset() override;
-
-    int outputCount() const {
-        return rightExpander.module && modelSuper8 == rightExpander.module->model ?
-                EXPANSION_OUTPUTS : CV_OUTPUTS;
-    }
-
     void playSelection();
-    void process(const ProcessArgs &args) override;
     void resetRun();
     void resetState();
 
     void setClipboardLight(float brightness) {
         lights[CLIPBOARD_ON_LIGHT].setBrightness(brightness);
-    }
-
-    void setGateLow(const DisplayNote& note) {
-        unsigned voiceIndex = note.voice;
-        if (UNASSIGNED_VOICE_INDEX != voiceIndex) {
-            auto& c = channels[note.channel];
-            auto& v = c.voices[voiceIndex];
-            v.note = nullptr;
-            v.gateLow = 0;
-            v.noteEnd = 0;
-        }
     }
 
     void setExpiredGatesLow(int midiTime) {
@@ -281,11 +366,9 @@ struct NoteTaker : Module {
         }
     }
 
-    void setOutputsVoiceCount();
     void setPlayStart();
+    void setOutputsVoiceCount();
     void setVoiceCount();
-    void stageSlot(unsigned slot);
-    float wheelToTempo(float value) const;
 
     void zeroGates() {
         if (debugVerbose) DEBUG("zero gates");
