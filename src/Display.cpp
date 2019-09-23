@@ -648,17 +648,8 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         if (debugVerbose && ReqType::nothingToDo != record.type)
             DEBUG("%s pop %s", __func__, record.debugStr().c_str());
         switch (record.type) {
-            case ReqType::resetChannels:
-                ntw->resetChannels();
-                break;
-            case ReqType::resetNotes:
-                ntw->resetNotes();
-                break;
-            case ReqType::resetRun:
-                ntw->resetRun();
-                break;
-            case ReqType::resetState:
-                ntw->resetState();
+            case ReqType::resetDisplayRange:
+                range.reset();
                 break;
             case ReqType::resetXAxisOffset:
                 range.resetXAxisOffset();
@@ -667,9 +658,6 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
                 event::DragEnd e;
                 ntw->runButton->onDragEnd(e);
                 } break;
-//            case ReqType::setPlayStart:  // ping-pong to get note state set before play
-//                ntw->nt()->requests.push(RequestType::setPlayStart);
-//                break;
             case ReqType::setSelectStart:
                 (void) ntw->setSelectStart(record.data);
                 break;
@@ -677,10 +665,6 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
                 ntw->storage.slotStart = record.data;
                 ntw->storage.slotEnd = record.data + 1;
                 slot = &ntw->storage.current();
-                break;
-            case ReqType::startPlaying:
-                ntw->nt()->requests.push(RequestType::setPlayStart);
-                ntw->nt()->requests.push(RequestType::playSelection);
                 break;
             default:
                 assert(ReqType::nothingToDo == record.type);

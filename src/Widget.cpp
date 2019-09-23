@@ -198,6 +198,7 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     // debug button is hidden to the right of tempo
     this->addButton(editButtonSize, (dumpButton = 
             createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
+    this->onReset();
     if (module) {
         module->requests.push(RequestType::onReset);
     }
@@ -667,6 +668,7 @@ void NoteTakerWidget::resetForPlay() {
     this->setSelectStart(next < n.notes.size() - 1 ? next : selectButton->editStart() ? 0 : 1);
     horizontalWheel->lastRealValue = INT_MAX;
     verticalWheel->lastValue = INT_MAX;
+    edit.voice = false;
 }
 
 void NoteTakerWidget::resetChannels() {
@@ -702,14 +704,8 @@ void NoteTakerWidget::resetNotes() {
     n.selectEnd = 1;
 }
 
-void NoteTakerWidget::resetRun() {
-    display->range.reset();
-    edit.voice = false;
-}
-
 void NoteTakerWidget::resetScore() {
     display->range.resetXAxisOffset();
-    this->nt()->requests.push({RequestType::resetRun, 0});
     this->invalAndPlay(Inval::load);
     unsigned atZero = this->n().atMidiTime(0);
     atZero -= TRACK_END == storage.current().n.notes[atZero].type;
@@ -858,8 +854,7 @@ void NoteTakerWidget::stageSlot(unsigned slot) {
     display->stagedSlot = &storage.current();
     this->invalAndPlay(Inval::load);
     this->resetForPlay();
-    this->nt()->requests.push(RequestType::resetRun);
-    this->nt()->requests.push(RequestType::playSelection);
+    this->nt()->requests.push(RequestType::resetAndPlay);
 }
 
 void NoteTakerWidget::step() {

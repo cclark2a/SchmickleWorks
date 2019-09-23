@@ -25,6 +25,8 @@ struct NoteTakerEdit {
     unsigned originalStart; // sel start / end before voice select
     unsigned originalEnd;
     Wheel wheel;
+    // because voice is read at play time in process thread, it is duplicated in taker
+    // and the duplicate is kept in sync with the bool here
     bool voice;             // true if current or last edit selects one voice from channel
 
 

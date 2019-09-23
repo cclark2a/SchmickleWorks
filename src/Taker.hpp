@@ -41,15 +41,10 @@ enum class RequestType : unsigned {
     invalidateAndPlay,
     invalidateVoiceCount,
     onReset,
-    playSelection,
     resetAndPlay,
     resetPlayStart,
-    resetRun,
-    resetState,
     setClipboardLight,
     setPlayStart,
-//    stageSlot,
-    zeroGates,
 };
 
 struct RequestRecord {
@@ -64,16 +59,11 @@ struct RequestRecord {
                     + InvalDebugStr((Inval) data);
             case RequestType::invalidateVoiceCount: return "invalidateVoiceCount";
             case RequestType::onReset: return "onReset";
-            case RequestType::playSelection: return "playSelection";
             case RequestType::resetAndPlay: return "resetAndPlay";
             case RequestType::resetPlayStart: return "resetPlayStart";
-            case RequestType::resetRun: return "resetRun";
-            case RequestType::resetState: return "resetState";
             case RequestType::setClipboardLight: return "setClipboardLight: "
                     + std::to_string((float) data / 256.f);
             case RequestType::setPlayStart: return "setPlayStart";
-//            case RequestType::stageSlot: return "stageSlot: " + std::to_string(data);
-            case RequestType::zeroGates: return "zeroGates";
             default:
                 assert(0);  // incomplete
         }
@@ -209,6 +199,9 @@ public:
                 EXPANSION_OUTPUTS : CV_OUTPUTS;
     }
 
+    // note: only called by unit test
+    void resetState(bool pushRequest = true);
+
     void setMainWidget(NoteTakerWidget* widget) {
         mainWidget = widget;
     }
@@ -310,8 +303,7 @@ private:
     }
 
     void playSelection();
-    void resetRun();
-    void resetState();
+    void resetRun(bool pushRequest = true);
 
     void setClipboardLight(float brightness) {
         lights[CLIPBOARD_ON_LIGHT].setBrightness(brightness);

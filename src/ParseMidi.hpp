@@ -22,6 +22,7 @@ struct NoteTakerParseMidi {
     static void DebugDumpRawMidi(const vector<uint8_t>& v);
 
     void debug_out(vector<uint8_t>::const_iterator& iter, int lastSuccess = 0) const {
+        DEBUG("%s midi size %u iter %u", __func__, midi.size(), &*iter - &midi.front());
         std::string s;
         auto start = std::max(&midi.front() + lastSuccess, &*iter - 25);
         auto end = std::min(&midi.back(), &*iter + 5);

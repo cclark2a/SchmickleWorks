@@ -18,16 +18,11 @@ struct VerticalWheel;
 // widget thread reads from buffer and advances reader pointer when done
 enum class ReqType : unsigned {
     nothingToDo,
-    resetChannels,
-    resetNotes,
-    resetRun,
-    resetState,
+    resetDisplayRange,
     resetXAxisOffset,
     runButtonActivate,
-//    setPlayStart,
     setSelectStart,
     stagedSlotStart,
-    startPlaying,
 };
 
 struct ReqRecord {
@@ -38,16 +33,11 @@ struct ReqRecord {
         std::string result;
         switch(type) {
             case ReqType::nothingToDo: return "nothingToDo";
-            case ReqType::resetChannels: return "resetChannels";
-            case ReqType::resetNotes: return "resetNotes";
-            case ReqType::resetRun: return "resetRun";
-            case ReqType::resetState: return "resetState";
+            case ReqType::resetDisplayRange: return "resetDisplayRange";
             case ReqType::resetXAxisOffset: return "resetXAxisOffset";
             case ReqType::runButtonActivate: return "runButtonActivate";
-//            case ReqType::setPlayStart: return "setPlayStart";
             case ReqType::setSelectStart: return "setSelectStart" + std::to_string(data);
             case ReqType::stagedSlotStart: return "stagedSlotStart: " + std::to_string(data);
-            case ReqType::startPlaying: return "startPlaying";
             default:
                 assert(0);  // incomplete
         }
@@ -160,6 +150,7 @@ struct NoteTakerWidget : ModuleWidget {
     void insertFinal(int duration, unsigned insertLoc, unsigned insertSize);
     void invalAndPlay(Inval );
     void loadScore();
+
     void makeSlurs();
     void makeTriplets();
     bool menuButtonOn() const;
@@ -167,27 +158,6 @@ struct NoteTakerWidget : ModuleWidget {
         
     int musicFont() const {
         return _musicFont->handle;
-    }
-
-    // ok to call from either thread
-    void redraw() const {
-        displayBuffer->redraw();
-    }
-
-    void reqPush(ReqType reqType) {
-        reqs.push(reqType);
-        this->redraw();
-    }
-
-    void reqPush(const ReqRecord& record) {
-        reqs.push(record);
-        this->redraw();
-    }
-
-    void stageSlot(unsigned slot);
-
-    int textFont() const {
-        return _textFont->handle;
     }
 
     int nextStartTime(unsigned start) const;
@@ -229,11 +199,31 @@ struct NoteTakerWidget : ModuleWidget {
         ModuleWidget::onButton(e);
     }
 
+    void onReset() {
+        this->resetChannels();
+        this->resetNotes();
+        this->resetState();
+    }
+
+    // ok to call from either thread
+    void redraw() const {
+        displayBuffer->redraw();
+    }
+
+    void reqPush(ReqType reqType) {
+        reqs.push(reqType);
+        this->redraw();
+    }
+
+    void reqPush(const ReqRecord& record) {
+        reqs.push(record);
+        this->redraw();
+    }
+
     void resetChannels();
     bool resetControls();
     void resetForPlay();
     void resetNotes();
-    void resetRun();
     void resetScore();
     void resetState();
     void restoreNotes();
@@ -249,7 +239,13 @@ struct NoteTakerWidget : ModuleWidget {
     void setVerticalWheelRange();
     void setWheelRange();
     void shiftNotes(unsigned start, int diff);
+    void stageSlot(unsigned slot);
     void step() override;
+
+    int textFont() const {
+        return _textFont->handle;
+    }
+
     json_t* toJson() override;
     void turnOffLEDButtons(const NoteTakerButton* exceptFor = nullptr, bool exceptSlot = false);
 

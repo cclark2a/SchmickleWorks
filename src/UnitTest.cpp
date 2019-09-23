@@ -123,6 +123,11 @@ static void LowLevelAction(NoteTakerWidget* n, int control) {
     }
 }
 
+static void ResetState(NoteTakerWidget* n) {
+    n->nt()->resetState(false);
+    n->display->range.reset();
+}
+
 static void LowLevelTestDigits(NoteTakerWidget* n) {
     int counters[6];
     for (int digits = 1; digits <= 5; ++digits) {
@@ -138,7 +143,7 @@ static void LowLevelTestDigits(NoteTakerWidget* n) {
             if (counters[digits]) {
                 break;
             }
-            n->nt()->requests.push(RequestType::resetState);
+            ResetState(n);
             n->resetControls();
             for (index = 0; index < digits; ++index) {
                 LowLevelAction(n, counters[index]);
@@ -151,7 +156,7 @@ static void LowLevelTestDigits(NoteTakerWidget* n) {
 static void LowLevelTestDigitsSolo(NoteTakerWidget* n) {
     int counters[] = {2, 5, 3, 4, 0, 0};
     int digits = 5;
-    n->nt()->requests.push(RequestType::resetState);
+    ResetState(n);
     n->resetControls();
     for (int index = 0; index < digits; ++index) {
         LowLevelAction(n, counters[index]);
@@ -160,7 +165,7 @@ static void LowLevelTestDigitsSolo(NoteTakerWidget* n) {
 
 static void LowLevelRandom(NoteTakerWidget* n, unsigned seed, int steps) {
     srand(seed);
-    n->nt()->requests.push(RequestType::resetState);
+    ResetState(n);
     n->resetControls();
     for (int index = 0; index < steps; ++index) {
         int control = rand() % (NoteTaker::NUM_PARAMS + NoteTaker::NUM_INPUTS);
@@ -169,7 +174,7 @@ static void LowLevelRandom(NoteTakerWidget* n, unsigned seed, int steps) {
 }
 
 static void AddTwoNotes(NoteTakerWidget* n) {
-    n->nt()->requests.push(RequestType::resetState);
+    ResetState(n);
     Press(n, n->insertButton);
     Press(n, n->insertButton);
     unsigned note1 = n->wheelToNote(1);
@@ -273,7 +278,7 @@ static void Expected(NoteTakerWidget* n) {
     SCHMICKLE(4 == n->n().horizontalCount(n->selectChannels));
 
     DEBUG("restore defaults");
-    n->nt()->requests.push(RequestType::resetState);
+    ResetState(n);
     n->resetControls();
     n->fromJson(saveState);
     json_decref(saveState);

@@ -595,7 +595,6 @@ void RunButton::onDragEnd(const event::DragEnd& e) {
         ntw->enableButtons();
         dynamicRunAlpha = 255;
         nt->requests.push(RequestType::resetPlayStart);
-        nt->requests.push(RequestType::zeroGates);
     } else {
         nt->requests.push(RequestType::resetAndPlay);
         ntw->resetForPlay();
@@ -647,8 +646,8 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         } else {
             if (ntw->edit.voice) {
                 ntw->nt()->requests.push(RequestType::invalidateVoiceCount);
+                ntw->edit.voice = false;
             }
-            ntw->edit.voice = false;
             unsigned start = saveZero ? ntw->wheelToNote(0) : n.selectStart;
             ntw->setSelect(start, n.nextAfter(start, 1));
         }
@@ -661,8 +660,8 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
         } else {
             if (ntw->edit.voice) {
                 ntw->nt()->requests.push(RequestType::invalidateVoiceCount);
+                ntw->edit.voice = false;
             }
-            ntw->edit.voice = false;
             if (!n.horizontalCount(ntw->selectChannels)) {
                 ntw->clipboard.notes.clear();
                 this->setState(State::single);  // can't start selection if there's nothing to select

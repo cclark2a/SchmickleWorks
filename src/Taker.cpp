@@ -64,6 +64,7 @@ void NoteTaker::invalidateAndPlay(Inval inval) {
         DEBUG("invalidVoiceCount true");
     }
     if (Inval::load == inval) {
+        this->resetRun();
         this->setVoiceCount();
         this->setOutputsVoiceCount();
     } else if (Inval::cut != inval) {
@@ -117,7 +118,8 @@ void NoteTaker::playSelection() {
         eosBase = midiEndTime;
         repeat = this->isRunning() ? INT_MAX : 1;
     }
-    if (debugVerbose) DEBUG("%s playStart %d", __func__, playStart);
+    if (debugVerbose) DEBUG("%s playStart %d midiTime %d midiEndTime %d",
+            __func__, playStart, midiTime, midiEndTime);
     this->advancePlayStart(midiTime, midiEndTime);
     if (debugVerbose) DEBUG("%s advance playStart %d", __func__, playStart);
 }
@@ -150,21 +152,14 @@ void NoteTaker::process(const ProcessArgs &args) {
             case RequestType::onReset:
                 this->onReset();
                 break;
-            case RequestType::playSelection:
-                this->playSelection();
-                break;
             case RequestType::resetAndPlay:
                 this->resetRun();
-                this->ntw()->reqPush(ReqType::startPlaying);
+                this->setPlayStart();
+                this->playSelection();
                 break;
             case RequestType::resetPlayStart:
                 playStart = 0;
-                break;
-            case RequestType::resetRun:
-                this->resetRun();
-                break;
-            case RequestType::resetState:
-                this->resetState();
+                this->zeroGates();
                 break;
             case RequestType::setClipboardLight:
                 this->setClipboardLight((float) record.data / 256.f);
@@ -172,36 +167,10 @@ void NoteTaker::process(const ProcessArgs &args) {
             case RequestType::setPlayStart:
                 this->setPlayStart();
                 break;
-//            case RequestType::stageSlot:
-//                stagedSlotStart = record.data;
-//                break;
-            case RequestType::zeroGates:
-                this->zeroGates();
-                break;
             default:
                 assert(RequestType::nothingToDo == record.type);
         }
     } while (RequestType::nothingToDo != record.type);
-// to do : defer switch until criteria (e.g., end of bar) is met
-// to do : make this multi-stage, switching threads to keep it sequenced
-/* stage 1: post event in display queue to update slot start, end, display staged slot
-   stage 2: (in display thread) invalAndPlay(load) (posts event in process queue)
-   stage 3: (in process cue) resetRun
-   stage 4: (in display) resetForPlay
-   stage 5: (in process) playSelection
-   maybe able to optimize this
- */
-/*
-    if (INT_MAX != stagedSlotStart) {
-        if (debugVerbose) DEBUG("process stagedSlotStart %u", stagedSlotStart);
-        stagedSlotStart = INT_MAX;
-        this->invalidateAndPlay(Inval::load);
-        // to do : inval display range
-        this->resetRun();
-        ntw()->resetForPlay();
-        this->playSelection();
-    }
-*/
     auto& n = this->n();
     bool running = this->isRunning();
     int localTempo = tempo;
@@ -243,6 +212,8 @@ void NoteTaker::process(const ProcessArgs &args) {
                 if (resetCycle) {
                     ntw()->reqPush(ReqType::resetXAxisOffset);
                     this->resetRun();
+                    this->setPlayStart();
+                    this->playSelection();
                     resetCycle = 0;
                 }
             }
@@ -306,6 +277,8 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (running) {
                 ntw()->reqPush(ReqType::resetXAxisOffset);
                 this->resetRun();
+                this->setPlayStart();
+                this->playSelection();
                 eosPulse.trigger();
                 this->advancePlayStart(0, INT_MAX);
             }
@@ -457,22 +430,18 @@ void NoteTaker::process(const ProcessArgs &args) {
 
 void NoteTaker::onReset() {
     this->resetState();
-    auto ntw = this->ntw();
-    ntw->reqPush(ReqType::resetChannels);
-    ntw->reqPush(ReqType::resetNotes);
-    ntw->reqPush(ReqType::resetState);
     Module::onReset();
 }
 
-void NoteTaker::resetState() {
+void NoteTaker::resetState(bool pushRequest) {
     if (debugVerbose) DEBUG("notetaker reset");
     for (auto& c : channels) {
         c.voiceCount = 0;
     }
-    this->resetRun();
+    this->resetRun(pushRequest);
 }
 
-void NoteTaker::resetRun() {
+void NoteTaker::resetRun(bool pushRequest) {
     outputs[CLOCK_OUTPUT].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE);
     elapsedSeconds = 0;
     clockHighTime = FLT_MAX;
@@ -485,9 +454,9 @@ void NoteTaker::resetRun() {
     clockPulse.reset();
     eosPulse.reset();
     resetTimer.reset();
-    this->ntw()->reqPush(ReqType::resetRun);
-    // give display thread a chance to catch up: this request will call back here once sync'd
-    this->ntw()->reqPush(ReqType::startPlaying);
+    if (pushRequest) {
+        this->ntw()->reqPush(ReqType::resetDisplayRange);
+    }
 }
 
 void NoteTaker::setOutputsVoiceCount() {
@@ -502,7 +471,7 @@ void NoteTaker::setPlayStart() {
     tempo = stdMSecsPerQuarterNote;
     this->setVoiceCount();
     auto& n = this->n();
-    playStart = ntw()->edit.voice ? n.selectStart : 0;
+    playStart = this->ntw()->edit.voice ? n.selectStart : 0;
     unsigned lastNote = (this->isRunning() ? n.notes.size() : n.selectEnd) - 1;
     midiEndTime = n.notes[lastNote].endTime();
     if (debugVerbose) DEBUG("setPlayStart %u lastNote %u midiEndTime %d",
