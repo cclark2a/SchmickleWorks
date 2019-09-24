@@ -36,7 +36,7 @@ struct ReqRecord {
             case ReqType::resetDisplayRange: return "resetDisplayRange";
             case ReqType::resetXAxisOffset: return "resetXAxisOffset";
             case ReqType::runButtonActivate: return "runButtonActivate";
-            case ReqType::setSelectStart: return "setSelectStart" + std::to_string(data);
+            case ReqType::setSelectStart: return "setSelectStart: " + std::to_string(data);
             case ReqType::stagedSlotStart: return "stagedSlotStart: " + std::to_string(data);
             default:
                 assert(0);  // incomplete
@@ -208,16 +208,6 @@ struct NoteTakerWidget : ModuleWidget {
     // ok to call from either thread
     void redraw() const {
         displayBuffer->redraw();
-    }
-
-    void reqPush(ReqType reqType) {
-        reqs.push(reqType);
-        this->redraw();
-    }
-
-    void reqPush(const ReqRecord& record) {
-        reqs.push(record);
-        this->redraw();
     }
 
     void resetChannels();

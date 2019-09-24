@@ -137,7 +137,7 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
     };
 #else
     auto tripletDrawDebug = [](const char* , const DisplayNote& ) {};
-    auto tripletCacheDebug = [](const char* , const NoteCache* ) {};
+    auto noteTripletDebug = [](const char* , PositionType* , const DisplayNote& ) {};
 #endif
     vector<BeamPosition>* beams = &displayCache->beams;
     tuplets->resize(notes.size());

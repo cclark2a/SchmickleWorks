@@ -642,34 +642,6 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
 void NoteTakerDisplay::draw(const DrawArgs& args) {
     auto ntw = this->ntw();
     auto n = this->notes();
-    ReqRecord record;
-    do {
-        record = ntw->reqs.pop();
-        if (debugVerbose && ReqType::nothingToDo != record.type)
-            DEBUG("%s pop %s", __func__, record.debugStr().c_str());
-        switch (record.type) {
-            case ReqType::resetDisplayRange:
-                range.reset();
-                break;
-            case ReqType::resetXAxisOffset:
-                range.resetXAxisOffset();
-                break;
-            case ReqType::runButtonActivate: {
-                event::DragEnd e;
-                ntw->runButton->onDragEnd(e);
-                } break;
-            case ReqType::setSelectStart:
-                (void) ntw->setSelectStart(record.data);
-                break;
-            case ReqType::stagedSlotStart:
-                ntw->storage.slotStart = record.data;
-                ntw->storage.slotEnd = record.data + 1;
-                slot = &ntw->storage.current();
-                break;
-            default:
-                assert(ReqType::nothingToDo == record.type);
-        }
-    } while (ReqType::nothingToDo != record.type);
     if (false && debugVerbose) {
         static float last[6] = {};
         float t[6];

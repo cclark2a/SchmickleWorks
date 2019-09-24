@@ -42,7 +42,7 @@ int NoteTaker::externalTempo() {
         if (clockCycle) {
             // upward edge, advance clock
             if (!this->isRunning()) {
-                ntw()->reqPush(ReqType::runButtonActivate);
+                ntw()->reqs.push(ReqType::runButtonActivate);
             } else {
                 externalClockTempo = (int) (tempo * 2 / clockCycle);
             }
@@ -210,7 +210,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             } else {
                 localTempo = this->externalTempo();
                 if (resetCycle) {
-                    ntw()->reqPush(ReqType::resetXAxisOffset);
+                    ntw()->reqs.push(ReqType::resetXAxisOffset);
                     this->resetRun();
                     this->setPlayStart();
                     this->playSelection();
@@ -264,21 +264,21 @@ void NoteTaker::process(const ProcessArgs &args) {
                     unsigned selectStart = storage.slotStart;
                     if (selectStart + 1 >= storage.playback.size()) {
                         repeat = 1;
-                        ntw()->reqPush({ReqType::stagedSlotStart, 0});
+                        ntw()->reqs.push({ReqType::stagedSlotStart, 0});
                         running = false;
                         // to do : turn run button off
                     } else {
                         const SlotPlay& slotPlay = storage.playback[selectStart + 1];
                         repeat = slotPlay.repeat;
-                        ntw()->reqPush({ReqType::stagedSlotStart, slotPlay.index});
+                        ntw()->reqs.push({ReqType::stagedSlotStart, slotPlay.index});
                     }
                 }
             }
             if (running) {
-                ntw()->reqPush(ReqType::resetXAxisOffset);
+                ntw()->reqs.push(ReqType::resetXAxisOffset);
                 this->resetRun();
                 this->setPlayStart();
-                this->playSelection();
+//                this->playSelection();
                 eosPulse.trigger();
                 this->advancePlayStart(0, INT_MAX);
             }
@@ -412,7 +412,8 @@ void NoteTaker::process(const ProcessArgs &args) {
         if (running) {
             // stage select start to display so that other thread sets display start later
             if (INT_MAX != sStart && n.selectStart != sStart) {
-                ntw()->reqPush({ReqType::setSelectStart, sStart});
+                n.selectStart = sStart;  // jam result in so this thread plays right note
+                ntw()->reqs.push({ReqType::setSelectStart, sStart}); // then compute full answer for display
             }
         }
     }
@@ -455,7 +456,7 @@ void NoteTaker::resetRun(bool pushRequest) {
     eosPulse.reset();
     resetTimer.reset();
     if (pushRequest) {
-        this->ntw()->reqPush(ReqType::resetDisplayRange);
+        this->ntw()->reqs.push(ReqType::resetDisplayRange);
     }
 }
 

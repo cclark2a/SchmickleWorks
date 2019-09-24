@@ -4,6 +4,8 @@
 #include "Wheel.hpp"
 #include "Widget.hpp"
 
+const bool dbgOut = DEBUG_EDIT && debugVerbose;
+
 void NoteTakerWidget::setHorizontalNoteLimits() {
     const auto& n = this->n();
     const DisplayNote* note = &n.notes[n.selectStart];
@@ -27,11 +29,11 @@ void NoteTakerWidget::setHorizontalNoteLimits() {
         }
     } else if (edit.horizontalNote) {
         // to do : choose shortest note at starting time
-        horizontalWheel->setValue(edit.horizontalValue);
         horizontalWheel->setLimits(0, NoteDurations::Count() - 0.001f);
+        horizontalWheel->setValue(edit.horizontalValue);
     } else {
-        horizontalWheel->setValue(0);
         horizontalWheel->setLimits(0, 0);
+        horizontalWheel->setValue(0);
     }
 }
 
@@ -87,7 +89,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
             horizontalWheel->setLimits(!tieButton->clearTriplet, !tieButton->clearTriplet + upper);
             horizontalWheel->setValue(1);
         }
-        if (debugVerbose) DEBUG("tieButton trips %d/%d limit %d/%d",
+        if (dbgOut) DEBUG("tieButton trips %d/%d limit %d/%d",
                 tieButton->clearTriplet, tieButton->setTriplet,
                 !tieButton->clearTriplet, !tieButton->clearTriplet + upper);
         return;
@@ -99,7 +101,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
     } else {
         int wheelMin = selectButton->editStart() ? 0 : 1;
         float wheelMax = n.horizontalCount(selectChannels) + .999f;
-        if (debugVerbose) DEBUG("horizontalWheel->setLimits selButtonVal %d wheelMin %d wheelMax %g",
+        if (dbgOut) DEBUG("horizontalWheel->setLimits selButtonVal %d wheelMin %d wheelMax %g",
                 selectButton->getValue(), wheelMin, wheelMax);
         horizontalWheel->setLimits(wheelMin, wheelMax);
         if (n.isEmpty(selectChannels)) {
@@ -157,7 +159,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
             verticalWheel->setLimits(!tieButton->clearTie, !tieButton->clearTie + upper);
             verticalWheel->setValue(1);
         }
-        if (debugVerbose) DEBUG("tieButton tie %d/%d limit %d/%d",
+        if (dbgOut) DEBUG("tieButton tie %d/%d limit %d/%d",
                 tieButton->clearTie, tieButton->setTie,
                 !tieButton->clearTie, !tieButton->clearTie + upper);
         return;
@@ -227,7 +229,7 @@ void NoteTakerWidget::setWheelRange() {
     edit.clear();
     this->setHorizontalWheelRange();
     this->setVerticalWheelRange();
-    if (debugVerbose) DEBUG("updateWheelRange %s %s", 
+    if (dbgOut) DEBUG("updateWheelRange %s %s", 
             horizontalWheel->debugString().c_str(),
             verticalWheel->debugString().c_str());
 }
@@ -281,7 +283,7 @@ void NoteTakerWidget::updateHorizontal() {
         } else if (selectButton->isSingle()) {
             storage.setStartFromWheel(wheelValue);
             static unsigned debugStart = INT_MAX;
-            if (debugVerbose && debugStart != storage.slotStart) {
+            if (dbgOut && debugStart != storage.slotStart) {
                 DEBUG("updateHorizontal %u", storage.slotStart);
                 debugStart = storage.slotStart;
             }
@@ -374,38 +376,38 @@ void NoteTakerWidget::updateHorizontal() {
             auto* note = &n.notes[index];
             int startDiff = test.startTime - startTime;
             if (startDiff) {
-                if (debugVerbose) DEBUG("old note start %s", note->debugString().c_str());
+                if (dbgOut) DEBUG("old note start %s", note->debugString().c_str());
                 if (wheelChange) {
                     int index = NoteDurations::FromMidi(startDiff, n.ppq);
                     note->startTime = startTime + NoteDurations::ToMidi(index + wheelChange, n.ppq);
                 } else {
                     note->startTime = test.startTime;
                 }
-                if (debugVerbose) DEBUG("new note start %s", note->debugString().c_str());
+                if (dbgOut) DEBUG("new note start %s", note->debugString().c_str());
             }
             if (test.isNoteOrRest()) {
-                if (debugVerbose) DEBUG("old note duration %s", note->debugString().c_str());
+                if (dbgOut) DEBUG("old note duration %s", note->debugString().c_str());
                 if (wheelChange) {
                     int oldDurationIndex = NoteDurations::FromMidi(test.duration, n.ppq);
                     note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
                 } else {
                     note->duration = test.duration;
                 }
-                if (debugVerbose) DEBUG("new note duration %s", note->debugString().c_str());
+                if (dbgOut) DEBUG("new note duration %s", note->debugString().c_str());
                 if (edit.voice) {
                     n.setDuration(note);
                 } else if (test.endTime() > edit.selectMaxEnd) {
                     overlaps.emplace_back(std::pair<int, int>(test.endTime(), note->endTime()));
-                    if (debugVerbose) DEBUG("add overlap base %d note %d",
+                    if (dbgOut) DEBUG("add overlap base %d note %d",
                             test.endTime(), note->endTime());
                 }
             }
             if (test.endTime() <= edit.nextStart) {
-                if (debugVerbose) DEBUG("selectMaxEnd %d note end time %d", selectMaxEnd,
+                if (dbgOut) DEBUG("selectMaxEnd %d note end time %d", selectMaxEnd,
                         note->endTime());
                 selectMaxEnd = std::max(selectMaxEnd, note->endTime());
             }
-            if (debugVerbose) DEBUG("maxEnd %d note end time %d", maxEnd, note->endTime());
+            if (dbgOut) DEBUG("maxEnd %d note end time %d", maxEnd, note->endTime());
             maxEnd = std::max(maxEnd, note->endTime());
         }
         overlaps.emplace_back(std::pair<int, int>(edit.selectMaxEnd, selectMaxEnd));
@@ -416,7 +418,7 @@ void NoteTakerWidget::updateHorizontal() {
             });
             auto* overPtr = &overlaps.front();
             int insertedTime = overPtr->second - overPtr->first;
-            if (debugVerbose) DEBUG("insertedTime %d", insertedTime);
+            if (dbgOut) DEBUG("insertedTime %d", insertedTime);
             // note subtract one skips track end
             const unsigned last = n.notes.size() - 1;
             SCHMICKLE(TRACK_END == edit.base[last].type);
@@ -432,13 +434,13 @@ void NoteTakerWidget::updateHorizontal() {
                         }
                         overPtr = overTest;
                         insertedTime = std::max(insertedTime, overPtr->second - overPtr->first);
-                        if (debugVerbose) DEBUG("over insertedTime %d", insertedTime);
+                        if (dbgOut) DEBUG("over insertedTime %d", insertedTime);
                     }
-                    if (debugVerbose) DEBUG("old post start %s", note->debugString().c_str());
+                    if (dbgOut) DEBUG("old post start %s", note->debugString().c_str());
                     note->startTime = base.startTime + insertedTime;
-                    if (debugVerbose) DEBUG("new post start %s", note->debugString().c_str());
+                    if (dbgOut) DEBUG("new post start %s", note->debugString().c_str());
                 }
-                if (debugVerbose) DEBUG("post maxEnd %d note end time %d", maxEnd, note->endTime());
+                if (dbgOut) DEBUG("post maxEnd %d note end time %d", maxEnd, note->endTime());
                 maxEnd = std::max(maxEnd, note->endTime());
             }
         }
@@ -456,13 +458,13 @@ void NoteTakerWidget::updateHorizontal() {
                     selectButton->selStart - (int) selectButton->saveZero) + 1;
             start = this->wheelToNote(std::min(wheelValue, wheelStart));
             end =  this->wheelToNote(std::max(wheelValue + 1, wheelStart));
-            if (debugVerbose) DEBUG("start %u end %u wheelValue %d wheelStart %d",
+            if (dbgOut) DEBUG("start %u end %u wheelValue %d wheelStart %d",
                     start, end, wheelValue, wheelStart);
         } else {
             start = this->wheelToNote(wheelValue);
             selectButton->saveZero = selectButton->isSingle() && !start;
             end = n.nextAfter(start, 1);
-            if (debugVerbose) DEBUG("start %u end %u wheelValue %d", start, end, wheelValue);
+            if (dbgOut) DEBUG("start %u end %u wheelValue %d", start, end, wheelValue);
         }
         SCHMICKLE(start < end);
         if (start != n.selectStart || end != n.selectEnd) {
@@ -480,7 +482,7 @@ void NoteTakerWidget::updateHorizontal() {
             }
         }
     }
-    if (debugVerbose) n.validate(); // find buggy shifts sooner?
+    if (dbgOut) n.validate(); // find buggy shifts sooner?
     this->invalAndPlay(inval);
 }
 
@@ -730,5 +732,5 @@ void NoteTakerWidget::updateVertical() {
             this->invalAndPlay(Inval::change);
         }
     }
-    if (debugVerbose) n.validate(); // find buggy shifts sooner?
+    if (dbgOut) n.validate(); // find buggy shifts sooner?
 }

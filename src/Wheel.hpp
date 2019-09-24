@@ -127,6 +127,7 @@ struct NoteTakerWheel : app::SliderKnob {
     }
 
     void setValue(float value) {
+        if (debugVerbose) DEBUG("%s value %g last %d", __func__, value, lastValue);
         if (paramQuantity) {
             paramQuantity->setValue(value);
         }

@@ -867,6 +867,34 @@ void NoteTakerWidget::step() {
         selectButton->fb()->dirty = true;
         memcpy(lastTransform, t, sizeof(t));
     }
+    ReqRecord record;
+    do {
+        record = reqs.pop();
+        if (debugVerbose && ReqType::nothingToDo != record.type)
+            DEBUG("%s pop %s", __func__, record.debugStr().c_str());
+        switch (record.type) {
+            case ReqType::resetDisplayRange:
+                display->range.reset();
+                break;
+            case ReqType::resetXAxisOffset:
+                display->range.resetXAxisOffset();
+                break;
+            case ReqType::runButtonActivate: {
+                event::DragEnd e;
+                runButton->onDragEnd(e);
+                } break;
+            case ReqType::setSelectStart:
+                (void) this->setSelectStart(record.data);
+                break;
+            case ReqType::stagedSlotStart:
+                storage.slotStart = record.data;
+                storage.slotEnd = record.data + 1;
+                display->slot = &storage.current();
+                break;
+            default:
+                assert(ReqType::nothingToDo == record.type);
+        }
+    } while (ReqType::nothingToDo != record.type);
     ModuleWidget::step();
 }
 
