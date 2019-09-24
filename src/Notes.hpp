@@ -30,6 +30,13 @@ struct Notes {
         notes.emplace_back(TRACK_END);
     }
 
+    void clear() {
+        notes.clear();
+        selectStart = 0;
+        selectEnd = 1;
+        ppq = stdTimePerQuarterNote;
+    }
+
     unsigned atMidiTime(int midiTime) const {
         for (unsigned index = 0; index < notes.size(); ++index) {
             const DisplayNote& note = notes[index];

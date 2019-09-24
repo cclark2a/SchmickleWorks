@@ -12,8 +12,9 @@ enum class Wheel {
 
 std::string InvalDebugStr(Inval );
 
+// keep the original selection in case the edit re-sorts the notes and changes the start, end
 struct NoteTakerEdit {
-    vector<DisplayNote> base;
+    Notes base;
     vector<SlotPlay> pbase;
     vector<unsigned> voices;  // index of notes in note array, sorted in ascending pitch
     const DisplayNote* horizontalNote;  // note, if any, used to determine wheel value
@@ -78,11 +79,11 @@ struct NoteTakerEdit {
 
     // base should permit undoing edits, including restoring triplets
     void init(const Notes& n, unsigned selectChannels) {
-        base = n.notes;  // see note above: more copying than required most of the time
+        base = n;  // see note above: more copying than required most of the time
         nextStart = n.nextStart(selectChannels);
         this->clearNotes();
         for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-            const auto& test = base[index];
+            const auto& test = base.notes[index];
             if (!test.isSelectable(selectChannels)) {
                 continue;
             }

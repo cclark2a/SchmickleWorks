@@ -722,7 +722,7 @@ void NoteTakerWidget::resetState() {
 
 void NoteTakerWidget::restoreNotes() {
     auto& n = this->n();
-    n.notes = edit.base;
+    n = edit.base;
     storage.invalidate();
 }
 

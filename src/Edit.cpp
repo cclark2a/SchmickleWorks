@@ -168,7 +168,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
     if (n.isEmpty(selectChannels)) {
         return;
     }
-    SCHMICKLE(edit.base.size());
+    SCHMICKLE(edit.base.notes.size());
     if (selectButton->isOff()) {
         if (edit.verticalNote) {
             verticalWheel->setLimits(0, 127.999f);  // range for midi pitch
@@ -362,18 +362,19 @@ void NoteTakerWidget::updateHorizontal() {
         edit.wheel = Wheel::horizontal;
         SCHMICKLE((unsigned) wheelValue < NoteDurations::Count());
         int wheelChange = wheelValue - edit.horizontalValue;
-        int startTime = edit.base[n.selectStart].startTime;
+        int startTime = edit.base.notes[edit.base.selectStart].startTime;
         int selectMaxEnd = 0;
         int maxEnd = 0;
         vector<std::pair<int, int>> overlaps; // orig end time, adj end time
         // proportionately adjust start times and durations of all in selection
-        // additionally, compute the insertedTime as n.nextStart - selectStart.start mod wheel chang
-        for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-            const auto& test = edit.base[index];
+        // additionally, compute the insertedTime as n.nextStart - selectStart.start mod wheel change
+        auto* note = &n.notes[n.selectStart];
+        for (unsigned index = edit.base.selectStart; index < edit.base.selectEnd; ++index) {
+            const auto& test = edit.base.notes[index];
             if (!test.isSelectable(selectChannels)) {
+                maxEnd = std::max(maxEnd, test.endTime());
                 continue;
             }
-            auto* note = &n.notes[index];
             int startDiff = test.startTime - startTime;
             if (startDiff) {
                 if (dbgOut) DEBUG("old note start %s", note->debugString().c_str());
@@ -409,6 +410,9 @@ void NoteTakerWidget::updateHorizontal() {
             }
             if (dbgOut) DEBUG("maxEnd %d note end time %d", maxEnd, note->endTime());
             maxEnd = std::max(maxEnd, note->endTime());
+            // because sorting may change edit base and note order, advance note separately
+            while (++note < &n.notes.back() && !note->isSelectable(selectChannels))
+                ;
         }
         overlaps.emplace_back(std::pair<int, int>(edit.selectMaxEnd, selectMaxEnd));
         if (!edit.voice) {
@@ -420,11 +424,11 @@ void NoteTakerWidget::updateHorizontal() {
             int insertedTime = overPtr->second - overPtr->first;
             if (dbgOut) DEBUG("insertedTime %d", insertedTime);
             // note subtract one skips track end
-            const unsigned last = n.notes.size() - 1;
-            SCHMICKLE(TRACK_END == edit.base[last].type);
+            const unsigned last = edit.base.notes.size() - 1;
+            SCHMICKLE(TRACK_END == edit.base.notes[last].type);
             SCHMICKLE(TRACK_END == n.notes[last].type);
-            for (unsigned index = n.selectEnd; index < last; ++index) {
-                const auto& base = edit.base[index];
+            for (unsigned index = edit.base.selectEnd; index < last; ++index) {
+                const auto& base = edit.base.notes[index];
                 auto* note = &n.notes[index];
                 if (base.isSelectable(selectChannels)) {
                     while (overPtr < &overlaps.back()) {
@@ -663,14 +667,14 @@ void NoteTakerWidget::updateVertical() {
                     if (!note.isSelectable(selectChannels)) {
                         continue;
                     }
-                    int value = edit.base[index].pitch() + wheelValue - edit.verticalValue;
+                    int value = edit.base.notes[index].pitch() + wheelValue - edit.verticalValue;
                     value = std::max(0, std::min(127, value));
                     if (!n.pitchCollision(note, value)) {
                         note.setPitch(value);
                         // if changing the pitch causes the this pitch to run into the same
                         // pitch on the same channel later, shorten its duration. But, restore the
                         // duration if there is no longer a pitch collision
-                        const DisplayNote& base = edit.base[index];
+                        const DisplayNote& base = edit.base.notes[index];
                         note.duration = base.duration;
                         n.setDuration(&note);
                         playNotes = true;
