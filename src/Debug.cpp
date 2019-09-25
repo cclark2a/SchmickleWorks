@@ -263,10 +263,10 @@ bool Notes::validate(bool assertOnFailure) const {
     return Notes::Validate(notes, assertOnFailure);
 }
 
-bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure) {
+bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure, bool headerTrailer) {
     int time = 0;
     array<vector<const DisplayNote*>, CHANNEL_COUNT> channelTimes;
-    bool sawHeader = false;
+    bool sawHeader = !headerTrailer;
     bool sawTrailer = false;
     bool malformed = false;
     for (const auto& note : notes) {
@@ -331,7 +331,7 @@ bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure) {
                     DEBUG("missing midi header before trailer");
                     malformed = true;
                 }
-                if (sawTrailer) {
+                if (sawTrailer || !headerTrailer) {
                     DEBUG("duplicate midi trailer");
                     malformed = true;
                 }
@@ -357,7 +357,7 @@ bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure) {
             break;
         }
     }
-    if (!malformed && !sawTrailer) {
+    if (!malformed && !sawTrailer && headerTrailer) {
         DEBUG("missing trailer");
         malformed = true;
     }

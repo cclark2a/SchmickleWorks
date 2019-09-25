@@ -6,6 +6,8 @@
 #include "Wheel.hpp"
 #include "Widget.hpp"
 
+Clipboard clipboard;
+
 struct ClipboardLabel : Widget {
     NoteTakerWidget* mainWidget;
 
@@ -81,33 +83,6 @@ struct DisplayBevel : Widget {
     }
 
 };
-
-void Clipboard::fromJsonCompressed(json_t* root) {
-    if (!Notes::FromJsonCompressed(root, &notes, nullptr) || (notes.size()
-            && (MIDI_HEADER == notes.front().type || TRACK_END == notes.back().type))) {
-        this->resetNotes();
-    }
-
-    SlotArray::FromJson(root, &playback);
-}
-
-void Clipboard::fromJsonUncompressed(json_t* root) {
-    Notes::FromJsonUncompressed(root, &notes);
-}
-
-json_t* Clipboard::playBackToJson() const {
-    json_t* root = json_object();
-    json_t* slots = json_array();
-    for (const auto& slot : playback) {
-        json_array_append_new(slots, slot.toJson());
-    }
-    json_object_set_new(root, "slots", slots);
-    return root;
-}
-
-void Clipboard::toJsonCompressed(json_t* root) const {
-    Notes::ToJsonCompressed(notes, root, "clipboardCompressed");
-}
 
 // move everything hanging off NoteTaker for inter-app communication and hang it off
 // NoteTakerWidget instead, 
@@ -195,9 +170,6 @@ NoteTakerWidget::NoteTakerWidget(NoteTaker* module)
     this->addButton<TieButton, TieButtonToolTip>(&tieButton, NoteTaker::TIE_BUTTON);
     this->addButton<SlotButton, SlotButtonToolTip>(&slotButton, NoteTaker::SLOT_BUTTON);
     this->addButton<TempoButton, TempoButtonToolTip>(&tempoButton, NoteTaker::TEMPO_BUTTON);
-    // debug button is hidden to the right of tempo
-    this->addButton(editButtonSize, (dumpButton = 
-            createParam<DumpButton>(Vec(222, 252), module, NoteTaker::DUMP_BUTTON)));
     this->onReset();
     if (module) {
         module->requests.push(RequestType::onReset);
@@ -348,6 +320,22 @@ struct NoteTakerDebugVerboseItem : MenuItem {
 	}
 };
 
+struct NoteTakerDebugCaptureItem : MenuItem {
+
+	void onAction(const event::Action& e) override {
+        debugCapture ^= true;
+        // to do : if true, capture current state
+	}
+};
+
+struct NoteTakerDebugDumpItem : MenuItem {
+	NoteTakerWidget* widget;
+
+	void onAction(const event::Action& e) override {
+        widget->debugDump();
+	}
+};
+
 void NoteTakerWidget::appendContextMenu(Menu *menu) {
     menu->addChild(new MenuEntry);
     auto loadItem = createMenuItem<NoteTakerLoadItem>("Load MIDI", RIGHT_ARROW);
@@ -359,7 +347,13 @@ void NoteTakerWidget::appendContextMenu(Menu *menu) {
     menu->addChild(new MenuSeparator);
     menu->addChild(createMenuItem<NoteTakerDebugVerboseItem>("Verbose debugging",
             CHECKMARK(debugVerbose)));
-;    // to do : add Marc Boule's reset options, approximately:
+    auto dumpItem = createMenuItem<NoteTakerDebugDumpItem>("Dump debug state");
+    dumpItem->widget = this;
+    menu->addChild(dumpItem);
+    menu->addChild(createMenuItem<NoteTakerDebugCaptureItem>("Capture bug",
+            CHECKMARK(debugCapture)));
+
+    // to do : add Marc Boule's reset options, approximately:
     /* Restart when run is -> turned off
                               turned on
                               both
@@ -571,7 +565,9 @@ void NoteTakerWidget::invalAndPlay(Inval inval) {
     if (Inval::display != inval) {
         display->invalidateCache();
     }
-    this->nt()->requests.push({RequestType::invalidateAndPlay, (unsigned) inval});
+    if (this->nt()) {
+        this->nt()->requests.push({RequestType::invalidateAndPlay, (unsigned) inval});
+    }
 }
 
 void NoteTakerWidget::loadScore() {
@@ -734,7 +730,9 @@ void NoteTakerWidget::setClipboardLight() {
     bool ledOn = slotButton->ledOn() ? !clipboard.playback.empty() :
             !clipboard.notes.empty() && this->extractClipboard();
     float brightness = ledOn ? selectButton->editStart() ? 1 : 0.25 : 0;
-    nt()->requests.push({RequestType::setClipboardLight, (unsigned) brightness * 256});
+    if (this->nt()) {
+        this->nt()->requests.push({RequestType::setClipboardLight, (unsigned) brightness * 256});
+    }
 }
 
 void NoteTakerWidget::setScoreEmpty() {

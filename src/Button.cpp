@@ -137,7 +137,7 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     }
     bool slotOn = ntw->slotButton->ledOn();
     if (State::clearClipboard == state) {
-        ntw->clipboard.clear(slotOn);
+        clipboard.clear(slotOn);
         return;
     }
     unsigned start = slotOn ? ntw->storage.slotStart : n.selectStart;
@@ -188,15 +188,6 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
     // range is smaller
     ntw->setWheelRange();
     ntw->displayBuffer->redraw();
-}
-
-// hidden
-void DumpButton::onDragEnd(const event::DragEnd& e) {
-    if (e.button != GLFW_MOUSE_BUTTON_LEFT) {
-        return;
-    }
-    this->ntw()->debugDump();
-    NoteTakerButton::onDragEnd(e);
 }
 
 void EditButton::onDragStart(const event::DragStart& e) {
@@ -257,14 +248,14 @@ void InsertButton::getState() {
     bool useClipboard = selectButton->ledOn();
     if (ntw->slotButton->ledOn()) {
         insertLoc = selectButton->editStart() ? ntw->storage.startToWheel() : ntw->storage.slotEnd;
-        state = useClipboard && !ntw->clipboard.playback.empty() ? State::clipboardShift :
+        state = useClipboard && !clipboard.playback.empty() ? State::clipboardShift :
                 State::dupShift;
         return;
     }
     span.clear();
     lastEndTime = 0;
     insertTime = 0;
-    if (!n.noteCount(ntw->selectChannels) && ntw->clipboard.notes.empty()) {
+    if (!n.noteCount(ntw->selectChannels) && clipboard.notes.empty()) {
         insertLoc = n.atMidiTime(0);
         span.push_back(ntw->middleC());
         state = State::middleCShift;
@@ -310,7 +301,7 @@ void InsertButton::getState() {
 
         }
     }
-    if (!useClipboard || ntw->clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
+    if (!useClipboard || clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
         for (unsigned index = iStart; index < iEnd; ++index) {
             const auto& note = n.notes[index];
             if (note.isSelectable(ntw->selectChannels)) {
@@ -362,7 +353,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
     if (debugVerbose) DEBUG("lastEndTime %d insertLoc %u", lastEndTime, insertLoc);
     bool slotOn = ntw->slotButton->ledOn();
     if (debugVerbose) DEBUG("insertTime %d clipboard size %u", insertTime,
-            slotOn ? ntw->clipboard.playback.size() : ntw->clipboard.notes.size());
+            slotOn ? clipboard.playback.size() : clipboard.notes.size());
     vector<SlotPlay> pspan;
     if (State::middleCShift != state) {
         // select set to insert (start) or off:
@@ -373,7 +364,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         if (state != State::clipboardInPlace && state != State::clipboardShift) {
             if (debugVerbose) DEBUG(!n.selectStart ? "left of first note" :
                     "duplicate selection");
-            ntw->clipboard.clear(slotOn);
+            clipboard.clear(slotOn);
             ntw->setClipboardLight();
             if (slotOn) {
                 pspan.assign(ntw->storage.playback.begin() + ntw->storage.slotStart,
@@ -381,7 +372,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
             }
         } else {
             if (slotOn) {
-                pspan = ntw->clipboard.playback;
+                pspan = clipboard.playback;
             }
             if (debugVerbose) slotOn ? DEBUG("clipboard to pspan (%u slots)", pspan.size()) :
                     DEBUG("clipboard to span (%u notes)", span.size());
@@ -663,7 +654,7 @@ void SelectButton::onDragEnd(const event::DragEnd& e) {
                 ntw->edit.voice = false;
             }
             if (!n.horizontalCount(ntw->selectChannels)) {
-                ntw->clipboard.notes.clear();
+                clipboard.notes.clear();
                 this->setState(State::single);  // can't start selection if there's nothing to select
             } else {
                 int wheelStart = ntw->noteToWheel(n.selectStart);

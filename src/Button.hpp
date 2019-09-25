@@ -300,11 +300,6 @@ struct CutButtonToolTip : WidgetToolTip<CutButton> {
     }
 };
 
-// hidden button to dump notes for debugging
-struct DumpButton : NoteTakerButton {
-    void onDragEnd(const event::DragEnd &e) override;
-};
-
 struct FileButton : EditLEDButton {
     void draw(const DrawArgs& ) override;
 };

@@ -31,6 +31,7 @@ extern Plugin* pluginInstance;
 extern Model* modelNoteTaker;
 extern Model* modelSuper8;
 
+extern bool debugCapture;
 extern bool debugVerbose;  // switch to permit user debugging in shipping code
 
 #define RUN_UNIT_TEST 1 // to do : set to zero for shipping code

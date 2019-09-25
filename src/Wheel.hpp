@@ -29,8 +29,13 @@ struct NoteTakerWheel : app::SliderKnob {
 
     virtual std::string debugString() const {
         auto pq = paramQuantity;
-        return std::to_string(pq->getValue()) + " (" + std::to_string(pq->minValue) + ", "
-                + std::to_string(pq->maxValue) + ") speed=" + std::to_string(speed);
+        std::string result;
+        if (pq) {
+            result = std::to_string(pq->getValue()) + " (" + std::to_string(pq->minValue) + ", "
+                    + std::to_string(pq->maxValue) + ") ";
+        }
+        result += "speed=" + std::to_string(speed);
+        return result;
     }
 
     void drawGear(NVGcontext *vg, float frame) const;

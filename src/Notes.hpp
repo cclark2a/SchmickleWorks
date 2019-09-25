@@ -247,7 +247,8 @@ struct Notes {
     static void ToJsonCompressed(const vector<DisplayNote>& , json_t* , std::string );
     static void ToJsonUncompressed(const vector<DisplayNote>& , json_t* , std::string );
     bool validate(bool assertOnFailure = true) const;
-    static bool Validate(const vector<DisplayNote>& notes, bool assertOnFailure = true);
+    static bool Validate(const vector<DisplayNote>& notes, bool assertOnFailure = true,
+            bool requireHeaderTrailer = true);
     int xPosAtEndEnd(const DisplayState& ) const;
     int xPosAtEndStart() const;
     int xPosAtStartEnd() const;

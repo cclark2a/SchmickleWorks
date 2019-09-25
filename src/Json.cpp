@@ -6,14 +6,46 @@
 #include "Wheel.hpp"
 #include "Widget.hpp"
 
+json_t* Clipboard::playBackToJson() const {
+    json_t* root = json_object();
+    json_t* slots = json_array();
+    for (const auto& slot : playback) {
+        json_array_append_new(slots, slot.toJson());
+    }
+    json_object_set_new(root, "slots", slots);
+    return root;
+}
+
+void Clipboard::toJsonCompressed(json_t* root) const {
+    Notes::ToJsonCompressed(notes, root, "clipboardCompressed");
+}
 
 json_t* Notes::toJson() const {
     json_t* root = json_object();
-    ToJsonCompressed(notes, root, "notesCompressed");
+    Notes::ToJsonCompressed(notes, root, "notesCompressed");
     json_object_set_new(root, "selectStart", json_integer(selectStart));
     json_object_set_new(root, "selectEnd", json_integer(selectEnd));
     json_object_set_new(root, "ppq", json_integer(ppq));
     return root;
+}
+
+// to do : write short note seq using old method for ease in editing json manually
+void Notes::ToJsonUncompressed(const vector<DisplayNote>& notes, json_t* root,
+        std::string jsonName) {
+    json_t* _notes = json_array();
+    for (const auto& note : notes) {
+        json_array_append_new(_notes, note.dataToJson());
+    }
+    json_object_set_new(root, jsonName.c_str(), _notes);
+}
+
+void Notes::ToJsonCompressed(const vector<DisplayNote>& notes, json_t* root, std::string jsonName) {
+    vector<uint8_t> midi;
+    Serialize(notes, midi);
+    vector<char> encoded;
+    NoteTakerSlot::Encode(midi, &encoded);
+    encoded.push_back('\0'); // treat as string
+    json_object_set_new(root, jsonName.c_str(), json_string(&encoded.front()));
 }
 
 json_t* NoteTaker::dataToJson() {
@@ -86,6 +118,37 @@ json_t* SlotArray::toJson() const {
     json_object_set_new(root, "slotEnd", json_integer(slotEnd));
     json_object_set_new(root, "saveZero", json_integer((int) saveZero));
     return root;
+}
+
+void Clipboard::fromJsonCompressed(json_t* root) {
+    if (!Notes::FromJsonCompressed(root, &notes, nullptr)) {
+        this->resetNotes();
+    }
+    SlotArray::FromJson(root, &playback);
+}
+
+void Clipboard::fromJsonUncompressed(json_t* root) {
+    Notes::FromJsonUncompressed(root, &notes);
+}
+
+bool Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* ppq) {
+    if (!jNotes) {
+        return false;
+    }
+    const char* encodedString = json_string_value(jNotes);
+    vector<char> encoded(encodedString, encodedString + strlen(encodedString));
+    vector<uint8_t> midi;
+    NoteTakerSlot::Decode(encoded, &midi);
+    return Deserialize(midi, notes, ppq);    
+}
+
+void Notes::FromJsonUncompressed(json_t* jNotes, vector<DisplayNote>* notes) {
+    size_t index;
+    json_t* value;
+    notes->resize(json_array_size(jNotes), DisplayNote(UNUSED));
+    json_array_foreach(jNotes, index, value) {
+        (*notes)[index].dataFromJson(value);
+    }
 }
 
 void Notes::fromJson(json_t* root) {
