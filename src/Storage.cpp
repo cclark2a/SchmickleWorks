@@ -148,7 +148,7 @@ bool NoteTakerSlot::setFromMidi() {
                 bytesRead, fileSize);
         return false;
     }
-    NoteTakerParseMidi parser(midi, &n.notes, &n.ppq, channels);
+    NoteTakerParseMidi parser(midi, &n.notes, &n.ppq, &channels);
     if (!parser.parseMidi()) {
         DEBUG("failed to parseMidi %s %s", directory.c_str(), filename.c_str());
         return false;

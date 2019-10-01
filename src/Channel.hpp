@@ -18,7 +18,7 @@ struct NoteTakerChannel {
 
     std::string sequenceName;
     std::string instrumentName;
-    int gmInstrument = 0;
+    int gmInstrument = -1;
     int releaseMax = 24;
     int releaseMin = 1;  // midi time for smallest interval gate goes low
     int sustainMin = 1;  // midi time for smallest interval gate goes high

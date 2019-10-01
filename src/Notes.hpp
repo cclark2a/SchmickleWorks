@@ -9,7 +9,6 @@ struct NoteTakerDisplay;
 struct TripletCandidate {
     unsigned lastIndex = INT_MAX;
     unsigned startIndex = INT_MAX;
-    NoteCache* lastCache = nullptr;
     bool atLeastOneNote = false;
 };
 

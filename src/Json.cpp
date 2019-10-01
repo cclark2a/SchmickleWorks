@@ -99,6 +99,9 @@ json_t* NoteTakerWidget::toJson() {
     // end of mostly no-op section
     json_object_set_new(root, "selectChannels", json_integer(selectChannels));
     json_object_set_new(root, "storage", storage.toJson());
+    json_object_set_new(root, "debugCapture", json_integer(debugCapture));
+    json_object_set_new(root, "debugVerbose", json_integer(debugVerbose));
+    json_object_set_new(root, "groupByGMInstrument", json_integer(groupByGMInstrument));
     return root;
 }
 
@@ -230,6 +233,9 @@ void NoteTakerWidget::fromJson(json_t* root) {
     selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
     storage.fromJson(json_object_get(root, "storage"));
     display->range.fromJson(json_object_get(root, "display"));
+    debugCapture = json_integer_value(json_object_get(root, "debugCapture"));
+    debugVerbose = json_integer_value(json_object_get(root, "debugVerbose"));
+    groupByGMInstrument = json_integer_value(json_object_get(root, "groupByGMInstrument"));
     // update display cache
     this->setWheelRange();
     displayBuffer->redraw();

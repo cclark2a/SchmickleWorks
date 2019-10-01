@@ -145,8 +145,13 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
     tripStarts.fill(TripletCandidate());
     for (unsigned index = 0; index < notes.size(); ++index) {
         DisplayNote& note = notes[index];
+        (*tuplets)[index] = PositionType::none;
         if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
-            tripletDrawDebug("not note, rest, or dotted", note);
+            tripletDrawDebug("not note or rest, or is dotted", note);
+        //    start here;
+            // change condition to ones that clear all channels, ones that clear one channel
+            // if clearing one or all, clear tuplets as needed, but only if tuplet isn't closed
+            (*tuplets)[tripStarts[note.channel].startIndex] = PositionType::none;
             tripStarts.fill(TripletCandidate());
             continue;
         }
@@ -390,8 +395,7 @@ bool Notes::triplets(unsigned selectChannels, HowMany howMany) const {
 }
 
 bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
-    array<NoteTakerChannel, CHANNEL_COUNT> dummyChannels;
-    NoteTakerParseMidi midiParser(storage, notes, ppq, dummyChannels);
+    NoteTakerParseMidi midiParser(storage, notes, ppq, nullptr);
     vector<uint8_t>::const_iterator iter = midiParser.midi.begin();
     DisplayNote note(UNUSED);
     int lastSuccess = 0;

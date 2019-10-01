@@ -394,6 +394,8 @@ void CacheBuilder::cacheStaff() {
 void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
     array<TripletCandidate, CHANNEL_COUNT> tripStarts;
     tripStarts.fill(TripletCandidate());
+    array<NoteCache* , CHANNEL_COUNT> lastCache;
+    lastCache.fill(nullptr);
     array<unsigned , CHANNEL_COUNT> beamIds;
     beamIds.fill(INT_MAX);
     auto beamPtr = &cache->beams.front();
@@ -409,8 +411,10 @@ void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
                 ++beamPtr;
                 SCHMICKLE(beamPtr <= &cache->beams.back());
             }
-            if (debugVerbose && beamPtr->first != noteIndex) {
-                DEBUG("");
+            if (beamPtr->first != noteIndex) {
+                DEBUG("%s beamPtr->first %u noteIndex cache: [%u] %s note: [%u] %s", __func__,
+                        beamPtr->first, &entry - &cache->notes.front(), entry.debugString().c_str(),
+                        noteIndex, entry.note->debugString().c_str());
             }
             SCHMICKLE(beamPtr->first == noteIndex);
             beamPtr->first = &entry - &cache->notes.front(); 
@@ -423,7 +427,8 @@ void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
             if (PositionType::left == entry.tripletPosition) {
                 entry.tripletPosition = PositionType::mid;
             } else if (PositionType::right == entry.tripletPosition) {
-                tripStarts[chan].lastCache->tripletPosition = PositionType::mid;
+                SCHMICKLE(lastCache[chan]);
+                lastCache[chan]->tripletPosition = PositionType::mid;
                 SCHMICKLE(INT_MAX != beamIds[chan]);
                 auto rightBeamPtr = &cache->beams[beamIds[chan]];
                 SCHMICKLE(rightBeamPtr->last == noteIndex);
@@ -431,7 +436,7 @@ void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
                 beamIds[chan] = INT_MAX;
             }
         }
-        tripStarts[chan].lastCache = &entry;
+        lastCache[chan] = &entry;
         tripStarts[chan].lastIndex = noteIndex;
     }
 }

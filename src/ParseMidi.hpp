@@ -5,11 +5,11 @@
 struct NoteTakerParseMidi {
     const vector<uint8_t>& midi;
     vector<DisplayNote>* displayNotes;
-    array<NoteTakerChannel, CHANNEL_COUNT>& channels;
+    array<NoteTakerChannel, CHANNEL_COUNT>* channels;
     int* ntPpq;
 
     NoteTakerParseMidi(const vector<uint8_t>& m, vector<DisplayNote>* notes, int* ppq,
-            array<NoteTakerChannel, CHANNEL_COUNT>& chans)
+            array<NoteTakerChannel, CHANNEL_COUNT>* chans)
         : midi(m)
         , displayNotes(notes)
         , channels(chans)

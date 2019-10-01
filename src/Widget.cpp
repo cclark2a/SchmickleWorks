@@ -311,38 +311,23 @@ struct NoteTakerSaveItem : MenuItem {
 };
 
 struct NoteTakerMapItem : MenuItem {
-    GroupBy index;
 
 	void onAction(const event::Action& e) override {
-        groupBy = index;
+        groupByGMInstrument ^= true;
 	}
 };
 
-struct NoteTakerMapMidi : MenuItem {
-
-	Menu *createChildMenu() override {
-        const array<std::string, 3> labels = {{"GM", "track", "channel"}};
-        Menu *menu = new Menu;
-        for (unsigned index = 0; index < 3; ++index) {
-            auto item = createMenuItem<NoteTakerMapItem>("Group by " + labels[index],
-                CHECKMARK(index == (unsigned) groupBy));
-            item->index = (GroupBy) index;
-            menu->addChild(item);
-        }
-        return menu;
-	}
-};
 
 struct NoteTakerDebugVerboseItem : MenuItem {
 
-	void onAction(const event::Action& e) override {
+	void onAction(const event::Action& ) override {
         debugVerbose ^= true;
 	}
 };
 
 struct NoteTakerDebugCaptureItem : MenuItem {
 
-	void onAction(const event::Action& e) override {
+	void onAction(const event::Action& ) override {
         debugCapture ^= true;
         // to do : if true, capture current state
 	}
@@ -364,8 +349,7 @@ void NoteTakerWidget::appendContextMenu(Menu *menu) {
     auto saveItem = createMenuItem<NoteTakerSaveItem>("Save as MIDI", RIGHT_ARROW);
     saveItem->widget = this;
     menu->addChild(saveItem);
-    auto mapItem = createMenuItem<NoteTakerMapItem>("MIDI mapping", RIGHT_ARROW);
-    menu->addChild(mapItem);
+    menu->addChild(createMenuItem<NoteTakerMapItem>("Group by GM", CHECKMARK(groupByGMInstrument)));
     menu->addChild(new MenuSeparator);
     menu->addChild(createMenuItem<NoteTakerDebugVerboseItem>("Verbose debugging",
             CHECKMARK(debugVerbose)));
@@ -785,7 +769,7 @@ void NoteTakerWidget::setScoreEmpty() {
     makeMidi.createEmpty(emptyMidi);
     if (false && debugVerbose) NoteTakerParseMidi::DebugDumpRawMidi(emptyMidi);
     auto& slot = storage.current();
-    NoteTakerParseMidi emptyParser(emptyMidi, &slot.n.notes, nullptr, slot.channels);
+    NoteTakerParseMidi emptyParser(emptyMidi, &slot.n.notes, nullptr, &slot.channels);
     bool success = emptyParser.parseMidi();
     SCHMICKLE(success);
     this->invalAndPlay(Inval::cut);
