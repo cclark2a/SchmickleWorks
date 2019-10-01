@@ -6,10 +6,38 @@
 // to do : not sure what the rules are if note on follows note on without note off... 
 #define DEBUG_NOTE_OFF 0
 
+struct GMUsage {
+    unsigned index;
+    uint8_t instrument;
+    uint8_t channel;
+    uint8_t reassign;
+
+    GMUsage(unsigned idx, uint8_t inst, int8_t c)
+        : index(idx)
+        , instrument(inst)
+        , channel(c)
+        , reassign(c) {
+    }
+};
+
+
+struct TrackUsage {
+    array<unsigned, CHANNEL_COUNT> noteCount;
+    vector<GMUsage> gm;                            // one per instrument assign or change
+    std::string sequenceName;
+    std::string instrumentName;
+    unsigned first = INT_MAX;                      // index of first note in track
+    unsigned last = 0;                             // index of last note in track
+
+    TrackUsage() {
+        noteCount.fill(0);
+    }
+};
+
 bool NoteTakerParseMidi::parseMidi() {
     if (debugVerbose) DEBUG("parseMidi start");
     vector<DisplayNote> parsedNotes;
-    array<NoteTakerChannel, CHANNEL_COUNT> parsedChannels;
+    vector<TrackUsage> parsedTracks;
     if (midi.size() < 14) {
         DEBUG("MIDI file too small size=%llu", midi.size());
         return false;
@@ -44,8 +72,6 @@ bool NoteTakerParseMidi::parseMidi() {
     int trackCount = -1;
     int midiTime;
     parsedNotes.push_back(displayNote);
-    bool channelUsed[CHANNEL_COUNT];
-    memset(channelUsed, 0, sizeof(channelUsed));
     DisplayNote trackEnd(TRACK_END);  // for missing end
     do {
         bool trackEnded = false;
@@ -65,11 +91,13 @@ bool NoteTakerParseMidi::parseMidi() {
             return false;
         }
         ++trackCount;
+        parsedTracks.emplace_back();
+        auto curTrack = &parsedTracks.back();
         midiTime = 0;
         if (debugVerbose) DEBUG("trackLength %d", trackLength);
         unsigned lowNibble;
         unsigned runningStatus = -1;
-        unsigned defaultChannel = trackCount;
+        unsigned defaultChannel = 0;
         // don't allow notes with the same pitch and channel to overlap
         // to detect this economically, store last pitch/channel combo in table
         unsigned pitched[CHANNEL_COUNT][128];
@@ -102,16 +130,7 @@ bool NoteTakerParseMidi::parseMidi() {
             memset(displayNote.data, 0, sizeof(displayNote.data));
             lowNibble = runningStatus & 0x0F;
             displayNote.type = (DisplayType) ((runningStatus >> 4) & 0x7);
-            if (MIDI_SYSTEM == displayNote.type) {
-                displayNote.channel = defaultChannel;
-            } else {
-                if (!lowNibble && trackCount > 0) {
-                    displayNote.channel = trackCount;
-                } else {
-                    displayNote.channel = lowNibble;
-                }
-                defaultChannel = trackCount;
-            }
+            displayNote.channel = MIDI_SYSTEM == displayNote.type ? defaultChannel : lowNibble;
             if (NOTE_ON == displayNote.type || NOTE_OFF == displayNote.type) {
                 if (!midi_check7bits(iter, "pitch", midiTime)) {
                     return false;
@@ -192,6 +211,15 @@ bool NoteTakerParseMidi::parseMidi() {
                     }
                     pitched[displayNote.channel][displayNote.pitch()] = parsedNotes.size();
                     last[displayNote.channel] = parsedNotes.size();
+                    curTrack->noteCount[displayNote.channel] = parsedNotes.size(); 
+                    if (INT_MAX == curTrack->first) {
+                        curTrack->first = parsedNotes.size();
+                    }
+                    curTrack->last = parsedNotes.size();
+                    if (curTrack->gm.empty()) {
+                        curTrack->gm.emplace_back(parsedNotes.size(), 0 /* default to piano */,
+                            displayNote.channel);
+                    }
                 }
                 break;
                 case KEY_PRESSURE:
@@ -211,8 +239,11 @@ bool NoteTakerParseMidi::parseMidi() {
                         }
                         displayNote.data[i] = *iter++;
                     }
-                    if (debugVerbose) DEBUG("control change [chan %d] %d %d", displayNote.channel,
-                            displayNote.data[0], displayNote.data[1]);
+                    if (2 != displayNote.data[0] && debugVerbose) {
+                            // to do : 2 is 'breath control' -- see it a lot, don't know what it does
+                            DEBUG("control change [chan %d] %d %d", displayNote.channel,
+                                displayNote.data[0], displayNote.data[1]);
+                    }
                 break;
                 case PITCH_WHEEL:
                     for (int i = 0; i < 2; i++) {
@@ -231,7 +262,10 @@ bool NoteTakerParseMidi::parseMidi() {
                     displayNote.data[0] = *iter++;
                     if (debugVerbose) DEBUG("program change [chan %d] %s", displayNote.channel,
                             NoteTakerDisplay::GMInstrumentName(displayNote.data[0]));
-                    parsedChannels[displayNote.channel].gmInstrument = displayNote.data[0];
+                    // to do : if gm instrument changes in middle of track, prior notes may go
+                    //         to different channel than following notes
+                    curTrack->gm.emplace_back(parsedNotes.size(), displayNote.data[0],
+                            displayNote.channel);
                 break;
                 case CHANNEL_PRESSURE:
                     if (!midi_check7bits(iter, "channel pressure", midiTime)) {
@@ -328,16 +362,16 @@ bool NoteTakerParseMidi::parseMidi() {
                                     std::string text((char*) &midi.front() + displayNote.data[2],
                                             displayNote.data[1]);
                                     if (0x03 == displayNote.data[0]) {
-                                        parsedChannels[displayNote.channel].sequenceName = text;
+                                        curTrack->sequenceName = text;
                                     } else if (0x04 == displayNote.data[0]) {
-                                        parsedChannels[displayNote.channel].instrumentName = text;
+                                        curTrack->instrumentName = text;
                                     } 
                                     if (debugVerbose) {
                                         static const char* textType[] = { "text event",
                                                 "copyright notice", "sequence/track name",
                                                 "instrument name", "lyric", "marker",
                                                 "cue point"};
-                            DEBUG("track %d channel %u %s %s", trackCount, displayNote.channel,
+                            DEBUG("track %d channel %u %s: %s", trackCount, displayNote.channel,
                                     1 <= displayNote.data[0] && displayNote.data[0] <= 7 ?
                                     textType[displayNote.data[0] - 1] : "(unknown)", text.c_str());
                                     }
@@ -466,7 +500,7 @@ bool NoteTakerParseMidi::parseMidi() {
             if (CONTROL_CHANGE == displayNote.type && 0 == displayNote.startTime &&
                     midiReleaseMax <= displayNote.data[0] && displayNote.data[0] <= midiSustainMax &&
                     (unsigned) displayNote.data[1] < NoteDurations::Count()) {
-                parsedChannels[lowNibble].setLimit(
+                channels[lowNibble].setLimit(
                         (NoteTakerChannel::Limit) (displayNote.data[0] - midiReleaseMax),
                         NoteDurations::ToMidi(displayNote.data[1], ppq));
                 continue;
@@ -498,15 +532,160 @@ bool NoteTakerParseMidi::parseMidi() {
             ri->duration = midiTime - ri->startTime;
             DEBUG("missing note off for %s", ri->debugString().c_str());
         }
-        // track channels used
-        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
-            if (!last[index]) {
+    } while (iter != midi.end());
+    array<bool, CHANNEL_COUNT> usedChannels;
+    usedChannels.fill(false);
+    usedChannels[9] = usedChannels[10] = true;  // don't assign non-drum channels to drums
+    if (groupByGMInstrument) {
+    /* track to channel assignment strategy
+       for each track: see if track has any notes
+       if so, and if channel 10 or 11, assume it is percussion and leave there (10 is coded as 9)
+       otherwise, assign to the next unused channel, and reuse channels without notes
+
+       There may be many more tracks than channels. If the channel has a gm instrument, group
+       all tracks with the same instrument into one channel.
+
+       to do : allow multiple tracks/channels with the same gm instrument but different instrument
+               names to be assigned to separate channels?
+     */
+        struct GMChannel {
+            GMUsage* gmUsage = nullptr;
+            unsigned channel = INT_MAX;
+            unsigned track = INT_MAX;
+
+            GMChannel() {}
+
+            GMChannel(GMUsage* gmu, unsigned c, unsigned t)
+                : gmUsage(gmu)
+                , channel(c)
+                , track(t) {
+            }
+        };
+
+        // get ready to reassign duplicate channels sharing same gm instrument
+        array<GMChannel, 128> gmChannels;  // unsigned is channel #
+        gmChannels.fill(GMChannel());
+        int duplicate = 0;
+        for (auto& track : parsedTracks) {
+            for (auto& gm : track.gm) {
+                if (INT_MAX != gmChannels[gm.instrument].channel) {
+                    gm.reassign = gmChannels[gm.instrument].channel;
+                    continue;
+                }
+                unsigned channel = gm.channel;
+                if (usedChannels[gm.channel] && 9 != channel && 10 != channel) {
+                    duplicate += CHANNEL_COUNT;
+                    channel += duplicate;
+                } else {
+                    usedChannels[channel] = true;
+                }
+                gmChannels[gm.instrument] = GMChannel(&gm, channel, &track - &parsedTracks.front());
+            }
+            if (track.sequenceName.empty() && track.instrumentName.empty()) {
                 continue;
             }
-            if (debugVerbose) DEBUG("channel used %d", index);
-            channelUsed[index] = true;
+            for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+                if (!track.noteCount[index]) {
+                    continue;
+                }
+                if (debugVerbose) DEBUG("%s track:%u chan:%u seq:\"%s\" inst:\"%s\"",
+                        __func__, &track - &parsedTracks.front(), index, 
+                        track.sequenceName.c_str(), track.instrumentName.c_str());
+                channels[index].sequenceName += track.sequenceName;
+                channels[index].instrumentName += track.instrumentName;
+            }
         }
-    } while (iter != midi.end());
+#if DEBUG_PARSE
+        if (debugVerbose) {
+            for (int index = 0; index < 128; ++index) {
+                const auto gmu = gmChannels[index].gmUsage;
+                if (!gmu) {
+                    continue;
+                }
+                SCHMICKLE(index == gmu->instrument);
+                SCHMICKLE(gmu->channel < CHANNEL_COUNT);
+                const auto& track = parsedTracks[gmChannels[index].track];
+                std::string seq = track.chan[gmu->channel].sequenceName.empty() ? "" :
+                        "seq: " + track.chan[gmu->channel].sequenceName + " ";
+                std::string inst = track.chan[gmu->channel].instrumentName.empty() ? "" :
+                        "inst: " + track.chan[gmu->channel].instrumentName + " ";
+                std::string seqInst = seq.empty() && inst.empty() ? "" : "( " + seq + inst + ") ";
+                DEBUG("%s GM %d \"%s\" %sat note %d midi %d reassign %d map %d", __func__, index, 
+                        NoteTakerDisplay::GMInstrumentName(index), seqInst.c_str(),
+                        gmu->index, gmu->channel, gmu->reassign, gmChannels[index].channel);
+            }
+        }
+#endif
+        // at this point, unique gm instruments get their first channel, if uncontested
+        // contested instrument assigns are >= 16
+        unsigned unused = 0;
+        while (unused < CHANNEL_COUNT && usedChannels[unused]) {
+            ++unused;
+        }
+        for (auto& gmChannel : gmChannels) {
+            if (!gmChannel.gmUsage || gmChannel.channel < CHANNEL_COUNT) {
+                continue;
+            }
+            if (unused >= CHANNEL_COUNT) {
+                DEBUG("out of channels");
+                continue;
+            }
+            gmChannel.gmUsage->reassign = unused;
+            gmChannel.channel = unused;
+            usedChannels[unused] = true;
+            do {
+                ++unused;
+            } while (unused < CHANNEL_COUNT && usedChannels[unused]);
+        }
+    } else { // prefer track or channel
+        for (auto& track : parsedTracks) {
+            for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+                auto& trackChan = track.chan[index];
+                usedChannels[index] |= !trackChan.firstNote;
+            }
+        }
+    }
+    // reassign channels if possible
+    // to do : if channel is unused, shift all down
+    array<uint8_t, CHANNEL_COUNT> reassign;
+    array<uint8_t, CHANNEL_COUNT> gmLookup;
+    reassign.fill(0);
+    unsigned unused = 0;
+    for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+        gmLookup[index] = index;
+        if (usedChannels[index] && 9 != index && 10 != index) {
+            reassign[index] = unused;
+            ++unused;
+        }
+    }
+    auto track = &parsedTracks.front();
+    auto gm = track->gm.size() ? &track->gm.front() : nullptr;
+    for (unsigned index = 0; index < parsedNotes.size(); ++index) {
+        if (GroupBy::GM == groupBy) {
+            while (track->last < index) {
+                ++track;
+                gm = track->gm.size() ? &track->gm.front() : nullptr;
+            }
+            while (gm && gm->index < index) {
+#if DEBUG_PARSE
+                if (debugVerbose && reassign[gm->channel] != gm->reassign) {
+                    DEBUG("%s note [%d] from %d to %d reassigned to %d", __func__, index,
+                            gmLookup[gm->channel], gm->reassign, reassign[gm->reassign]);
+                } 
+#endif
+                gmLookup[gm->channel] = gm->reassign;
+                ++gm;
+            }
+        }
+        auto& note = parsedNotes[index];
+        if (DisplayType::NOTE_ON != note.type) {
+            continue;
+        }
+        if (GroupBy::GM == groupBy) {
+            note.channel = gmLookup[note.channel];
+        }
+        note.channel = reassign[note.channel];
+    }
     Notes::SortNotes(parsedNotes);
     if (trackEnd.startTime < 0) {
         trackEnd.startTime = midiTime;
@@ -516,54 +695,42 @@ bool NoteTakerParseMidi::parseMidi() {
     }
     parsedNotes.push_back(trackEnd);
     // insert rests
-    int lastNoteEnd = 0;
     vector<DisplayNote> withRests;
     withRests.reserve(parsedNotes.size());
-    /* track to channel assignment strategy
-       see if track has any notes
-       if so, and if channel 10 or 11, assume it is percussion and leave there
-       otherwise, assign to the next unused channel, and reuse channels without notes
-     */
-    uint8_t reassign[CHANNEL_COUNT];
-    unsigned use = 0;
-    memset(reassign, 0xFF, sizeof(reassign));
-    reassign[10] = 10;
-    reassign[11] = 11;
-    for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
-        if (10 == chan || 11 == chan || !channelUsed[chan]) {
-            continue;
-        }
-        if (debugVerbose) DEBUG("map %u to %u", chan, use);
-        parsedChannels[use] = parsedChannels[chan];
-        parsedChannels[chan].reset();
-        reassign[chan] = use++;
-        if (10 == use) {
-            use = 12;
-        }
-    }
-    int counts[CHANNEL_COUNT] = {};
+#if DEBUG_PARSE
+    array<int , CHANNEL_COUNT> counts;
+    counts.fill(0);
+#endif
+    array<int , CHANNEL_COUNT> ends;
+    ends.fill(0);
     for (auto& note : parsedNotes) {
         unsigned chan = note.channel;
+#if DEBUG_PARSE
         if (NOTE_ON == note.type) {
-            // map to unused channel, if any
-            SCHMICKLE(0xFF != reassign[chan]);
-            note.channel = reassign[chan];
-            counts[note.channel]++;
+            counts[chan]++;
         }
+#endif
         if (NOTE_ON == note.type || TRACK_END == note.type) {
-            int duration = note.startTime - lastNoteEnd;
+            int duration = note.startTime - ends[chan];
             if (duration > 0 && NoteDurations::InStd(duration, ppq)) {
-                withRests.emplace_back(REST_TYPE, lastNoteEnd, duration, note.channel);
+                withRests.emplace_back(REST_TYPE, ends[chan], duration, chan);
             }
         }
         withRests.push_back(note);
-        lastNoteEnd = std::max(lastNoteEnd, note.endTime());
+        ends[chan] = std::max(ends[chan], note.endTime());
     }
-    for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
-        if (counts[index]) {
-            DEBUG("[%u] note count %d", index, counts[index]);
+    if (withRests.size() > parsedNotes.size()) {
+        Notes::SortNotes(withRests);
+    }
+#if DEBUG_PARSE
+    if (debugVerbose) {
+        for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
+            if (counts[index]) {
+                DEBUG("[%u] note count %d", index, counts[index]);
+            }
         }
     }
+#endif
     int lastTime = -1;
     for (const auto& note : withRests) {
         // to do : shouldn't allow zero either, let it slide for now to debug 9.mid
@@ -585,7 +752,6 @@ bool NoteTakerParseMidi::parseMidi() {
     if (ntPpq) {
         *ntPpq = ppq;
     }
-    channels.swap(parsedChannels);
     if (debugVerbose && ntPpq) DEBUG("ntPpq %d", *ntPpq);
     return true;
 }

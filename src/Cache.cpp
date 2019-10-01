@@ -409,6 +409,9 @@ void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
                 ++beamPtr;
                 SCHMICKLE(beamPtr <= &cache->beams.back());
             }
+            if (debugVerbose && beamPtr->first != noteIndex) {
+                DEBUG("");
+            }
             SCHMICKLE(beamPtr->first == noteIndex);
             beamPtr->first = &entry - &cache->notes.front(); 
             beamIds[chan] = beamPtr - &cache->beams.front();

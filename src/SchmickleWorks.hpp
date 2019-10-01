@@ -33,6 +33,7 @@ extern Model* modelSuper8;
 
 extern bool debugCapture;
 extern bool debugVerbose;  // switch to permit user debugging in shipping code
+extern bool groupByGMInstrument;
 
 #define RUN_UNIT_TEST 1 // to do : set to zero for shipping code
 
@@ -62,8 +63,9 @@ extern bool debugVerbose;  // switch to permit user debugging in shipping code
 #define DEBUG_BEAM 0
 #define DEBUG_DISPLAY_RANGE 0
 #define DEBUG_DURATIONS 0
-#define DEBUG_EDIT 1
+#define DEBUG_EDIT 0
 #define DEBUG_GATES 0
+#define DEBUG_PARSE 1
 #define DEBUG_POS 0
 #define DEBUG_RUN_TIME 0
 #define DEBUG_STAFF 0

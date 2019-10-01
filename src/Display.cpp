@@ -1052,8 +1052,9 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
                 if (PositionType::left == noteCache.slurPosition) {
                     this->drawSlur(index, alpha);
                 }
-                if (PositionType::left == noteCache.tiePosition
-                        || PositionType::mid == noteCache.tiePosition) {
+                if ((PositionType::left == noteCache.tiePosition
+                        || PositionType::mid == noteCache.tiePosition)
+                        && INT_MAX != noteCache.beamId) {
                     this->drawTie(index, alpha);
                 }
             } break;
@@ -1061,13 +1062,6 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
                 this->drawBarRest(bar, noteCache, noteCache.xPosition, alpha);
                 if (PositionType::left == noteCache.tripletPosition) {
                     this->drawTuple(index, alpha, false);
-                }
-                if (PositionType::left == noteCache.slurPosition) {
-                    this->drawSlur(index, alpha);
-                }
-                if (PositionType::left == noteCache.tiePosition
-                        || PositionType::mid == noteCache.tiePosition) {
-                    this->drawTie(index, alpha);
                 }
             break;
             case MIDI_HEADER:
@@ -1598,7 +1592,13 @@ void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
     auto& notes = this->cache()->notes;
     SCHMICKLE(PositionType::left == notes[first].tiePosition
             || PositionType::mid == notes[first].tiePosition);
-    SCHMICKLE(notes[first].beamId < this->cache()->beams.size());
+    if (notes[first].beamId >= this->cache()->beams.size()) {
+        if (debugVerbose) DEBUG("** %s beamId out of range; cache: [%d] %s note: [%d] %s  beams size: %u ",
+                __func__, first, notes[first].debugString().c_str(),
+                notes[first].note - &ntw()->n().notes.front(),
+                notes[first].note->debugString().c_str(), this->cache()->beams.size());
+        return;
+    }
     const BeamPosition& bp = this->cache()->beams[notes[first].beamId];
     int chan = notes[first].channel;
     unsigned last = bp.last;
@@ -1756,7 +1756,9 @@ void NoteTakerDisplay::setKeySignature(int key) {
 }
 
 void NoteTakerDisplay::SetNoteColor(NVGcontext* vg, unsigned chan, unsigned char alpha) {
-    SCHMICKLE(chan < sizeof(channelColors) / sizeof(channelColors[0]));
+    if (chan >= sizeof(channelColors) / sizeof(channelColors[0])) {
+        return;
+    }
     const Color& c = channelColors[chan];
     NVGcolor color = nvgRGBA(c.r, c.g, c.b, alpha);
     nvgFillColor(vg, color);

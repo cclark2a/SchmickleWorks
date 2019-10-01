@@ -78,12 +78,14 @@ bool DisplayNote::isValid() const {
                 DEBUG("invalid time signature %d/%d\n", data[0], data[1]);
                 return false;
             }
+#if 0   // we're going to ignore these values anyway (like all other MIDI software)
             if (data[2] != 24) {
                 DEBUG("invalid clocks/click %d\n", data[2]);
             }
             if (data[3] != 8) {
                 DEBUG("invalid 32nds/quarter note %d\n", data[3]);
             }
+#endif
             } break;
         case MIDI_TEMPO: {
             int ticks = data[0];

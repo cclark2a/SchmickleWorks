@@ -79,6 +79,7 @@ struct Clipboard {
         slotOn ? resetSlots() : resetNotes();
     }
 
+    // to do : clear all clipboards on all instances of note taker
     void resetNotes() {
         notes.clear();
     }
@@ -94,12 +95,11 @@ struct Clipboard {
     void toJsonCompressed(json_t* root) const;
 };
 
-extern Clipboard clipboard;  // experiment to see if global clipboard is accessible from instances
-
 struct NoteTakerWidget : ModuleWidget {
     Reqs reqs;
     std::shared_ptr<Font> _musicFont = nullptr;
     std::shared_ptr<Font> _textFont = nullptr;
+    Clipboard clipboard;
     SlotArray storage;
     NoteTakerEdit edit;
     CutButton* cutButton = nullptr;

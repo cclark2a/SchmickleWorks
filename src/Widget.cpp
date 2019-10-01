@@ -6,8 +6,6 @@
 #include "Wheel.hpp"
 #include "Widget.hpp"
 
-Clipboard clipboard;
-
 struct ClipboardLabel : Widget {
     NoteTakerWidget* mainWidget;
 
@@ -297,7 +295,6 @@ struct NoteTakerSaveAsMidi : ui::TextField {
 			TextField::onSelectKey(e);
         }
 	}
-
 };
 
 struct NoteTakerSaveItem : MenuItem {
@@ -310,6 +307,29 @@ struct NoteTakerSaveItem : MenuItem {
         saveAsMidi->widget = widget;
         menu->addChild(saveAsMidi);
 		return menu;
+	}
+};
+
+struct NoteTakerMapItem : MenuItem {
+    GroupBy index;
+
+	void onAction(const event::Action& e) override {
+        groupBy = index;
+	}
+};
+
+struct NoteTakerMapMidi : MenuItem {
+
+	Menu *createChildMenu() override {
+        const array<std::string, 3> labels = {{"GM", "track", "channel"}};
+        Menu *menu = new Menu;
+        for (unsigned index = 0; index < 3; ++index) {
+            auto item = createMenuItem<NoteTakerMapItem>("Group by " + labels[index],
+                CHECKMARK(index == (unsigned) groupBy));
+            item->index = (GroupBy) index;
+            menu->addChild(item);
+        }
+        return menu;
 	}
 };
 
@@ -344,6 +364,8 @@ void NoteTakerWidget::appendContextMenu(Menu *menu) {
     auto saveItem = createMenuItem<NoteTakerSaveItem>("Save as MIDI", RIGHT_ARROW);
     saveItem->widget = this;
     menu->addChild(saveItem);
+    auto mapItem = createMenuItem<NoteTakerMapItem>("MIDI mapping", RIGHT_ARROW);
+    menu->addChild(mapItem);
     menu->addChild(new MenuSeparator);
     menu->addChild(createMenuItem<NoteTakerDebugVerboseItem>("Verbose debugging",
             CHECKMARK(debugVerbose)));
@@ -398,6 +420,16 @@ void NoteTakerWidget::copyNotes() {
     }
     clipboardInvalid = false;
     this->setClipboardLight();
+    // to do : iterate through parent and set all other note taker clipboards
+    for (auto child : parent->children) {
+        auto taker = dynamic_cast<NoteTakerWidget*>(child);
+        if (!taker || this == taker) {
+            continue;
+        }
+        taker->clipboard.notes = clipboard.notes;
+        taker->clipboardInvalid = false;
+        taker->setClipboardLight();
+    }
 }
 
 void NoteTakerWidget::copySlots() {
@@ -425,6 +457,16 @@ void NoteTakerWidget::copySelectableNotes() {
     }
     clipboardInvalid = false;
     this->setClipboardLight();
+    // to do : iterate through parent and set all other note taker clipboards
+    for (auto child : parent->children) {
+        auto taker = dynamic_cast<NoteTakerWidget*>(child);
+        if (!taker || this == taker) {
+            continue;
+        }
+        taker->clipboard.notes = clipboard.notes;
+        taker->clipboardInvalid = false;
+        taker->setClipboardLight();
+    }
 }
 
 void NoteTakerWidget::copyToSlot(unsigned index) {
@@ -454,6 +496,7 @@ void NoteTakerWidget::disableEmptyButtons() const {
 }
 
 void NoteTakerWidget::draw(const DrawArgs &args) {
+#if 0
     float t[6];
     static float lastTransform[6];
     nvgCurrentTransform(args.vg, t);
@@ -463,6 +506,7 @@ void NoteTakerWidget::draw(const DrawArgs &args) {
         selectButton->fb()->dirty = true;
         memcpy(lastTransform, t, sizeof(t));
     }
+#endif
     ModuleWidget::draw(args);
 }
 
