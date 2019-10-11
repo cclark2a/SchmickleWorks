@@ -568,19 +568,22 @@ bool NoteTakerParseMidi::parseMidi() {
                     break;
                 }
             }
-            std::string seq = track->sequenceName.empty() ? "" :
-                    "seq: " + track->sequenceName + " ";
-            std::string inst = track->instrumentName.empty() ? "" :
-                    "inst: " + track->instrumentName + " ";
-            std::string seqInst = seq.empty() && inst.empty() ? "" : "( " + seq + inst + ") ";
-            DEBUG("%s GM %d \"%s\" %sat note %d midi %d reassign %d map %d", __func__, index, 
-                    NoteTakerDisplay::GMInstrumentName(instrument), seqInst.c_str());
+            if (track) {
+                std::string seq = track->sequenceName.empty() ? "" :
+                        "seq: " + track->sequenceName + " ";
+                std::string inst = track->instrumentName.empty() ? "" :
+                        "inst: " + track->instrumentName + " ";
+                std::string seqInst = seq.empty() && inst.empty() ? "" : "( " + seq + inst + ") ";
+                DEBUG("%s GM %d \"%s\" %s", __func__, index, 
+                        NoteTakerDisplay::GMInstrumentName(instrument), seqInst.c_str());
+            }
         }
     }
 #endif
     // reassign channels if possible
     // to do : if channel is unused, shift all down
     reassign.fill(0);
+    reassign[9] = 9;
     unsigned unused = 0;
     for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
         if (usedChannels[index] && 9 != index) {

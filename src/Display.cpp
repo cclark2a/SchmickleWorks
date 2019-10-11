@@ -250,7 +250,7 @@ void DisplayControl::autoDrift(float value, float frameTime, int visCells) {
     if (original == offset) {
         return;
     }
-    if (debugVerbose) DEBUG("autodrift old %g new %g", original, offset);
+    if (false && debugVerbose) DEBUG("autodrift old %g new %g", original, offset);
     display->redraw();
     if (horizontal) {
         display->xControlOffset = offset;
@@ -669,7 +669,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         range.invalid = true;
     }
     SCHMICKLE(&slot->cache == cache);
-    if (debugVerbose) {
+    if (false && debugVerbose) {    // to do : why does this ping pong between two sets, sometimes?
         static const DisplayNote* lastNotes = nullptr;
         static const NoteCache* lastCache = nullptr;
         if (lastCache != n->notes.front().cache || lastNotes != cache->notes.front().note) {
@@ -855,6 +855,7 @@ struct BeamState {
 void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
     auto& notes = this->cache()->notes;
     SCHMICKLE(PositionType::left == notes[start].beamPosition);
+    SCHMICKLE(notes[start].beamId < this->cache()->beams.size());
     const BeamPosition& bp = this->cache()->beams[notes[start].beamId];
     unsigned index = start;
     int chan = notes[start].channel;
@@ -1034,13 +1035,20 @@ void NoteTakerDisplay::drawNote(Accidental accidental,
 void NoteTakerDisplay::drawNotes(BarPosition& bar) {
     auto ntw = this->ntw();
     const auto& n = *this->notes();
+    const int outputCount = NoteTaker::OutputCount(ntw->nt());
     for (unsigned index = range.displayStart; index < range.displayEnd; ++index) {
         const NoteCache& noteCache = this->cache()->notes[index];
+        if (noteCache.channel >= outputCount) {
+            continue;
+        }
         const DisplayNote& note = *noteCache.note;
         this->advanceBar(bar, index);
         unsigned char alpha = note.isSelectable(ntw->selectChannels) ? 0xff : 0x7f;
         switch (note.type) {
             case NOTE_ON: {
+                if (!noteCache.vDuration) {
+                    break;
+                }
                 this->drawBarNote(bar, note, noteCache, alpha);
                 bool drawBeams = PositionType::left == noteCache.beamPosition;
                 if (drawBeams) {
@@ -1059,6 +1067,9 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
                 }
             } break;
             case REST_TYPE:
+                if (!noteCache.vDuration) {
+                    break;
+                }
                 this->drawBarRest(bar, noteCache, noteCache.xPosition, alpha);
                 if (PositionType::left == noteCache.tripletPosition) {
                     this->drawTuple(index, alpha, false);
@@ -1318,7 +1329,7 @@ void NoteTakerDisplay::drawPartControl() {
         this->drawName(s);
     }
     DisplayControl control(this, state.vg);
-    int outputCount = ntw->nt() ? ntw->nt()->outputCount() : CV_OUTPUTS;
+    int outputCount = NoteTaker::OutputCount(ntw->nt());
     control.autoDrift(std::min((float) outputCount, horizontalWheel->getValue()),
             state.callInterval);
     int firstVisible = xControlOffset >= 0 ? xControlOffset - 1 : -1;
@@ -1359,6 +1370,7 @@ void NoteTakerDisplay::drawSlur(unsigned first, unsigned char alpha) const {
     auto& cacheNotes = this->cache()->notes;
     auto& notes = ntw()->n().notes;
     SCHMICKLE(PositionType::left == cacheNotes[first].slurPosition);
+    SCHMICKLE(cacheNotes[first].beamId < this->cache()->beams.size());
     const BeamPosition& bp = this->cache()->beams[cacheNotes[first].beamId];
     unsigned last = bp.last;
     int chan = cacheNotes[first].channel;
@@ -1606,6 +1618,7 @@ void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
             && PositionType::mid != notes[last].tiePosition) {
         // to do : reenable this to debug : disable for now because it outputs continuously
         if (debugVerbose) {
+            DEBUG("%s %s", __func__, bp.debugString().c_str());
             DEBUG("** missing tie end %s", notes[first].note->debugString().c_str());
         }
     }
@@ -1617,6 +1630,14 @@ void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
 void NoteTakerDisplay::drawTuple(unsigned first, unsigned char alpha, bool drewBeam) const {
     auto& cacheNotes = this->cache()->notes;
     auto& notes = ntw()->n().notes;
+    if (INT_MAX == cacheNotes[first].beamId) {
+        auto& entry = cacheNotes[first];
+        // to do : figure out why this happens, sometimes
+        DEBUG("%s missing cache entry [%d] %d note [%d] %s", __func__, first,
+                entry.debugString().c_str(), entry.note - &notes.front(),
+                entry.note->debugString().c_str());
+        return;
+    }
     int chan = notes[first].channel;
     if (DEBUG_TRIPLET_TEST && PositionType::left != cacheNotes[first].tripletPosition) {
         auto& tupletLeft = cacheNotes[first];

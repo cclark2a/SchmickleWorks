@@ -18,7 +18,7 @@ struct Notes {
     unsigned selectStart = 0;           // index into notes of first selected (any channel)
     unsigned selectEnd = 1;             // one past last selected
     int ppq = stdTimePerQuarterNote;    // default to 96 pulses/ticks per quarter note
-        
+
     enum class HowMany {
         clear,         // at least one slur/trip can be cleared
         set,           // at least one slurs/trip can be set

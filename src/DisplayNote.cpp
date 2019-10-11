@@ -120,12 +120,14 @@ json_t* DisplayNote::dataToJson() const {
 
 void DisplayNote::dataFromJson(json_t* root) {
     cache = nullptr;
-    startTime = json_integer_value(json_object_get(root, "startTime"));
-    duration = json_integer_value(json_object_get(root, "duration"));
+    INT_FROM_JSON(startTime);
+    INT_FROM_JSON(duration);
     json_t* noteData = json_object_get(root, "data");
-    for (int unsigned index = 0; index < sizeof(data) / sizeof(data[0]); index++) {
-        data[index] = json_integer_value(json_array_get(noteData, index));
+    size_t index;
+    json_t* value;
+    json_array_foreach(noteData, index, value) {
+        data[index] = json_integer_value(value);
     }
-    channel = json_integer_value(json_object_get(root, "channel"));
-    type = (DisplayType) json_integer_value(json_object_get(root, "type"));
+    INT_FROM_JSON(channel);
+    INT_FROM_JSON(type);
 }

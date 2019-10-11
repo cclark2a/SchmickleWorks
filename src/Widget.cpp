@@ -218,7 +218,7 @@ struct NoteTakerMidiItem : MenuItem {
     std::string directory;
 
 	void onAction(const event::Action& e) override {
-        NoteTakerSlot* slot = widget->activeSlot();
+        auto slot = widget->activeSlot();
         slot->directory = directory;
         slot->filename = text;
         slot->setFromMidi();
@@ -248,8 +248,8 @@ static bool endsWithMid(const std::string& str) {
 struct NoteTakerLoadItem : MenuItem {
 	NoteTakerWidget* widget;
 
-	Menu *createChildMenu() override {
-		Menu *menu = new Menu;
+	Menu* createChildMenu() override {
+		auto menu = new Menu;
         for (auto& dir : { asset::user("/"), SlotArray::UserDirectory() }) {
             std::list<std::string> entries(system::getEntries(dir));
             for (const auto& entry : entries) {
@@ -258,7 +258,7 @@ struct NoteTakerLoadItem : MenuItem {
                 }
                 size_t lastSlash = entry.rfind('/');
                 std::string filename = std::string::npos == lastSlash ? entry : entry.substr(lastSlash + 1);
-                NoteTakerMidiItem *item = new NoteTakerMidiItem;
+                auto item = new NoteTakerMidiItem;
                 item->text = filename;
                 item->widget = widget;
                 item->directory = dir;
@@ -287,7 +287,7 @@ struct NoteTakerSaveAsMidi : ui::TextField {
                 slot->filename += ".mid";
             }
             slot->writeToMidi();
-			ui::MenuOverlay *overlay = getAncestorOfType<ui::MenuOverlay>();
+			auto overlay = getAncestorOfType<ui::MenuOverlay>();
 			overlay->requestDelete();
 			e.consume(this);
         }
@@ -300,9 +300,9 @@ struct NoteTakerSaveAsMidi : ui::TextField {
 struct NoteTakerSaveItem : MenuItem {
 	NoteTakerWidget* widget;
 
-	Menu *createChildMenu() override {
-		Menu *menu = new Menu;
-        NoteTakerSaveAsMidi *saveAsMidi = new NoteTakerSaveAsMidi;
+	Menu* createChildMenu() override {
+		auto menu = new Menu;
+        auto saveAsMidi = new NoteTakerSaveAsMidi;
         saveAsMidi->box.size.x = 100;
         saveAsMidi->widget = widget;
         menu->addChild(saveAsMidi);
@@ -317,6 +317,53 @@ struct NoteTakerMapItem : MenuItem {
 	}
 };
 
+struct NoteTakerQuantizeMidi : ui::TextField {
+	NoteTakerWidget* widget;
+
+	void step() override {
+        char* ptr;
+        int quantizer = strtol(text.c_str(), &ptr, 10);
+        if (!*ptr && midiQuantizer != quantizer) {
+            midiQuantizer = quantizer;
+            // to do : invalidate other note taker instances ?
+            //         or, make midi quantizer a widget property ?
+            widget->display->invalidateCache();
+        }
+		// Keep selected4
+		APP->event->setSelected(this);
+		TextField::step();
+	}
+
+	void onSelectKey(const event::SelectKey& e) override {
+		if (e.action == GLFW_PRESS && (e.key == GLFW_KEY_ENTER || e.key == GLFW_KEY_KP_ENTER)) {
+			auto overlay = getAncestorOfType<ui::MenuOverlay>();
+			overlay->requestDelete();
+			e.consume(this);
+        }
+        if (e.action == GLFW_PRESS && e.key != GLFW_KEY_BACKSPACE && e.key != GLFW_KEY_DELETE
+                && (e.key < GLFW_KEY_0 || e.key > GLFW_KEY_9)) {
+			e.consume(this);
+        }
+		if (!e.getTarget()) {
+			TextField::onSelectKey(e);
+        }
+	}
+
+};
+
+struct NoteTakerQuantizeItem : MenuItem {
+	NoteTakerWidget* widget;
+
+	Menu* createChildMenu() override {
+		auto menu = new Menu;
+        auto quantizeMidi = new NoteTakerQuantizeMidi;
+        quantizeMidi->widget = widget;
+        quantizeMidi->box.size.x = 50;
+        quantizeMidi->setText(std::to_string(midiQuantizer));
+        menu->addChild(quantizeMidi);
+		return menu;
+	}
+};
 
 struct NoteTakerDebugVerboseItem : MenuItem {
 
@@ -350,6 +397,9 @@ void NoteTakerWidget::appendContextMenu(Menu *menu) {
     saveItem->widget = this;
     menu->addChild(saveItem);
     menu->addChild(createMenuItem<NoteTakerMapItem>("Group by GM", CHECKMARK(groupByGMInstrument)));
+    auto quantizeItem = createMenuItem<NoteTakerQuantizeItem>("Quantize MIDI", RIGHT_ARROW);
+    quantizeItem->widget = this;
+    menu->addChild(quantizeItem);
     menu->addChild(new MenuSeparator);
     menu->addChild(createMenuItem<NoteTakerDebugVerboseItem>("Verbose debugging",
             CHECKMARK(debugVerbose)));

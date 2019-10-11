@@ -45,8 +45,13 @@ struct NoteTakerWheel : app::SliderKnob {
     }
 
     void fromJson(json_t* root) {
-        float minValue = json_real_value(json_object_get(root, "minValue"));
-        float maxValue = json_real_value(json_object_get(root, "maxValue"));
+        if (!paramQuantity) {
+            return;
+        }
+        float minValue = paramQuantity->minValue;
+        float maxValue = paramQuantity->maxValue;
+        REAL_FROM_JSON(minValue);
+        REAL_FROM_JSON(maxValue);
         this->setLimits(minValue, maxValue); 
     }
 

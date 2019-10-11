@@ -139,6 +139,22 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
     auto tripletDrawDebug = [](const char* , const DisplayNote& ) {};
     auto noteTripletDebug = [](const char* , PositionType* , const DisplayNote& ) {};
 #endif
+    // if clearing one or all, clear tuplets as needed, but only if tuplet isn't closed
+    auto clearTriplet = [=](TripletCandidate* candidate, unsigned channel) {
+            if (candidate->startIndex >= notes.size()) {
+                return;
+            }
+            if (PositionType::right == (*tuplets)[candidate->lastIndex]) {
+                return;
+            }
+            for (unsigned index = candidate->startIndex; index <= candidate->lastIndex; ++index) {
+                if (channel != notes[index].channel) {
+                    continue;
+                }
+                (*tuplets)[index] = PositionType::none;
+            }
+            *candidate = TripletCandidate();
+    };
     vector<BeamPosition>* beams = &displayCache->beams;
     tuplets->resize(notes.size());
     array<TripletCandidate, CHANNEL_COUNT> tripStarts;  // first index in notes (not cache) of triplet
@@ -146,21 +162,20 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
     for (unsigned index = 0; index < notes.size(); ++index) {
         DisplayNote& note = notes[index];
         (*tuplets)[index] = PositionType::none;
-        if (!note.isNoteOrRest() || NoteDurations::Dotted(note.duration, ppq)) {
-            tripletDrawDebug("not note or rest, or is dotted", note);
-        //    start here;
-            // change condition to ones that clear all channels, ones that clear one channel
-            // if clearing one or all, clear tuplets as needed, but only if tuplet isn't closed
-            (*tuplets)[tripStarts[note.channel].startIndex] = PositionType::none;
-            tripStarts.fill(TripletCandidate());
-            continue;
-        }
-        if (!NoteDurations::TripletPart(note.duration, ppq)) {
-            tripletDrawDebug("not triplet part", note);
-            tripStarts.fill(TripletCandidate());
+        if (!note.isNoteOrRest()) {
+            tripletDrawDebug("not note or rest", note);
+            for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
+                clearTriplet(&tripStarts[chan], chan);
+            }
             continue;
         }
         auto& candidate = tripStarts[note.channel];
+        if (!NoteDurations::TripletPart(note.duration, ppq)
+                || NoteDurations::Dotted(note.duration, ppq)) {
+            tripletDrawDebug("not triplet part, or is dotted", note);
+            clearTriplet(&candidate, note.channel);
+            continue;
+        }
         if (INT_MAX != candidate.lastIndex
                 && notes[candidate.lastIndex].startTime >= note.startTime) {
             tripletDrawDebug("chord part", note);
@@ -209,6 +224,9 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
         noteTripletDebug("right", &noteTuplet, note);
         // note indices are replaced with cache indices in cache builder cache tuplets
         beams->emplace_back(candidate.startIndex, rightIndex, true);
+    }
+    for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
+        clearTriplet(&tripStarts[chan], chan);
     }
 }
 

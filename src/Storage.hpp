@@ -33,9 +33,9 @@ struct SlotPlay {
     Stage stage = Stage::song;
 
     void fromJson(json_t* root) {
-        index = json_integer_value(json_object_get(root, "index"));
-        repeat = json_integer_value(json_object_get(root, "repeat"));
-        stage = (Stage) json_integer_value(json_object_get(root, "stage"));
+        INT_FROM_JSON(index);
+        INT_FROM_JSON(repeat);
+        INT_FROM_JSON(stage);
     }
 
     json_t* toJson() const {

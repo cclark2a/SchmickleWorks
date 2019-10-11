@@ -151,28 +151,13 @@ struct NoteTakerChannel {
     }
 
     void fromJson(json_t* root) {
-        json_t* obj;
-        if ((obj = json_object_get(root, "sequenceName"))) {
-            sequenceName = json_string_value(obj);
-        }
-        if ((obj = json_object_get(root, "instrumentName"))) {
-            instrumentName = json_string_value(obj);
-        }
-        if ((obj = json_object_get(root, "gmInstrument"))) {
-            gmInstrument = json_integer_value(obj);
-        }
-        if ((obj = json_object_get(root, "releaseMax"))) {
-            releaseMax = json_integer_value(obj);
-        }
-        if ((obj = json_object_get(root, "releaseMin"))) {
-            releaseMin = json_integer_value(obj);
-        }
-        if ((obj = json_object_get(root, "sustainMin"))) {
-            sustainMin = json_integer_value(obj);
-        }
-        if ((obj = json_object_get(root, "sustainMax"))) {
-            sustainMax = json_integer_value(obj);
-        }
+        STRING_FROM_JSON(sequenceName);
+        STRING_FROM_JSON(instrumentName);
+        INT_FROM_JSON(gmInstrument);
+        INT_FROM_JSON(releaseMax);
+        INT_FROM_JSON(releaseMin);
+        INT_FROM_JSON(sustainMin);
+        INT_FROM_JSON(sustainMax);
     }
 };
 

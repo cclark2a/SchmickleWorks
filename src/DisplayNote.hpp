@@ -313,7 +313,7 @@ struct NoteCache {
     int vStartTime;  // visible start time, for multi part note alignment
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
     int bar = 0;
-    unsigned beamId = 0;
+    unsigned beamId = INT_MAX;
     PositionType beamPosition = PositionType::none;
     uint8_t beamCount = 0;
     uint8_t channel;
@@ -326,12 +326,11 @@ struct NoteCache {
     bool accidentalSpace = false;
     bool endsOnBeat = false; // for beams
     bool staff = false;  // set if note owns staff; for flags, tuplets, beaming, slurs, ties
-//    bool twoThirds = false; // set as hint that note may be triplet part
 
     NoteCache(const DisplayNote* n)
          : note(n)
-         , vStartTime(n->startTime)
          , channel(n->channel) {
+         vStartTime = Quantize(n->startTime);
     }
 
     bool operator<(const NoteCache& rhs) const {
@@ -340,6 +339,13 @@ struct NoteCache {
     }
 
     std::string debugString() const;
+
+    static int Quantize(int value) {
+        if (1 < midiQuantizer) {
+            return (value * 2 + midiQuantizer) / (midiQuantizer * 2) * midiQuantizer;
+        }
+        return value;
+    }
 
     void setDurationSymbol(int ppq)  {
         int dur = vDuration;

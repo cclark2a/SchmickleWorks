@@ -494,8 +494,8 @@ struct SelectButton : EditLEDButton {
 
     void fromJson(json_t* root) override {
         NoteTakerButton::fromJson(root);
-        selStart = json_integer_value(json_object_get(root, "selStart"));
-        saveZero = json_integer_value(json_object_get(root, "saveZero"));
+        INT_FROM_JSON(selStart);
+        INT_FROM_JSON(saveZero);
     }
 
     bool isOff() const { 
@@ -620,12 +620,12 @@ struct TieButton : EditLEDButton {
 
     void fromJson(json_t* root) override {
         NoteTakerButton::fromJson(root);
-        setSlur = json_integer_value(json_object_get(root, "setSlur"));
-        setTie = json_integer_value(json_object_get(root, "setTie"));
-        setTriplet = json_integer_value(json_object_get(root, "setTriplet"));
-        clearSlur = json_integer_value(json_object_get(root, "clearSlur"));
-        clearTie = json_integer_value(json_object_get(root, "clearTie"));
-        clearTriplet = json_integer_value(json_object_get(root, "clearTriplet"));
+        INT_FROM_JSON(setSlur);
+        INT_FROM_JSON(setTie);
+        INT_FROM_JSON(setTriplet);
+        INT_FROM_JSON(clearSlur);
+        INT_FROM_JSON(clearTie);
+        INT_FROM_JSON(clearTriplet);
     }
 
     void onDragEnd(const event::DragEnd &e) override;

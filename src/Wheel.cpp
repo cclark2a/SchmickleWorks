@@ -208,7 +208,7 @@ void HorizontalWheel::setDenominator(const DisplayNote& note) {
 }
 
 int HorizontalWheel::part() const {
-    int outputCount = ntw()->nt() ? ntw()->nt()->outputCount() : CV_OUTPUTS;
+    int outputCount = NoteTaker::OutputCount(ntw()->nt());
     float fslot = this->getValue() + .5;
     return fslot < 0 ? -1 : std::min(outputCount, (int) fslot);
 }

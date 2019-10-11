@@ -51,7 +51,7 @@ struct NoteTakerEdit {
     }
 
     void fromJson(json_t* root) {
-        voice = json_boolean_value(json_object_get(root, "voice"));
+        BOOL_FROM_JSON(voice);
     }
 
     void init(const SlotArray& storage) {

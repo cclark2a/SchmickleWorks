@@ -31,9 +31,45 @@ extern Plugin* pluginInstance;
 extern Model* modelNoteTaker;
 extern Model* modelSuper8;
 
+#define BOOL_FROM_JSON(key) bool_from_json(root, #key, &key)
+#define INT_FROM_JSON(key) int_from_json(root, #key, &key)
+#define REAL_FROM_JSON(key) real_from_json(root, #key, &key)
+#define STRING_FROM_JSON(key) string_from_json(root, #key, &key)
+
+inline void bool_from_json(const json_t* root, const char* key, bool* dest) {
+    const json_t* obj = json_object_get(root, key);
+    if (obj) {
+        *dest = json_boolean_value(obj);
+    }
+}
+
+template<class T>
+static void int_from_json(const json_t* root, const char* key, T* dest) {
+    const json_t* obj = json_object_get(root, key);
+    if (obj) {
+        *dest = (T) json_integer_value(obj);
+    }
+}
+
+template<class T>
+static void real_from_json(const json_t* root, const char* key, T* dest) {
+    const json_t* obj = json_object_get(root, key);
+    if (obj) {
+        *dest = json_real_value(obj);
+    }
+}
+
+inline void string_from_json(const json_t* root, const char* key, std::string* dest) {
+    const json_t* obj = json_object_get(root, key);
+    if (obj) {
+        *dest = json_string_value(obj);
+    }
+}
+
 extern bool debugCapture;
 extern bool debugVerbose;  // switch to permit user debugging in shipping code
 extern bool groupByGMInstrument;
+extern int midiQuantizer;
 
 #define RUN_UNIT_TEST 1 // to do : set to zero for shipping code
 
@@ -48,7 +84,7 @@ extern bool groupByGMInstrument;
     void UnitTest(struct NoteTakerWidget* , TestType );
 #endif
 
-#define DEBUG_TRIPLET_DRAW 01
+#define DEBUG_TRIPLET_DRAW 0
 #define DEBUG_TRIPLET_TEST (DEBUG_TRIPLET_DRAW && debugVerbose)
 #define DEBUG_TRIPLET_DRAW_SHOW_DETAILS 0
 #if DEBUG_TRIPLET_DRAW_SHOW_DETAILS
@@ -65,8 +101,8 @@ extern bool groupByGMInstrument;
 #define DEBUG_DURATIONS 0
 #define DEBUG_EDIT 0
 #define DEBUG_GATES 0
-#define DEBUG_PARSE 1
-#define DEBUG_POS 0
+#define DEBUG_PARSE 0
+#define DEBUG_POS 01
 #define DEBUG_RUN_TIME 0
 #define DEBUG_STAFF 0
 #define DEBUG_SLUR 0

@@ -29,6 +29,7 @@ struct BeamPosition {
         , outsideStaff(os) {
     }
 
+    std::string debugString() const;
     void drawOneBeam(NVGcontext* vg);
     void set(const vector<NoteCache>& notes);
 };
@@ -88,8 +89,8 @@ struct BarPosition {
 
     int count(const NoteCache& noteCache) const;
     int noteRegular(int noteDuration , PositionType , int ppq);
-    int notesTied(const DisplayNote& , PositionType , int ppq);
-    int resetSignatureStart(const DisplayNote& , float barWidth);
+    int notesTied(PositionType , int qStart, int qDuration, int ppq);
+    int resetSignatureStart(int qStart, float barWidth);
 
     void setMidiEnd(const NoteCache& noteCache) {
         if (INT_MAX != duration) {
@@ -135,8 +136,8 @@ struct CacheBuilder {
     void cacheSlurs();
     void cacheStaff();
     void cacheTuplets(const vector<PositionType>& tuplets);
-    void closeBeam(unsigned first, unsigned limit);
-    void closeSlur(unsigned first, unsigned limit);
+    void closeBeam(unsigned* first, unsigned limit);
+    void closeSlur(unsigned* first, unsigned limit);
     void setDurations(const vector<PositionType>& );
     void trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime);
     void updateXPosition();

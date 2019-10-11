@@ -194,8 +194,8 @@ public:
         return tempo;
     }
 
-    int outputCount() const {
-        return rightExpander.module && modelSuper8 == rightExpander.module->model ?
+    static int OutputCount(const NoteTaker* nt) {
+        return nt && nt->rightExpander.module && modelSuper8 == nt->rightExpander.module->model ?
                 EXPANSION_OUTPUTS : CV_OUTPUTS;
     }
 

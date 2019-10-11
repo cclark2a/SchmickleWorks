@@ -50,7 +50,7 @@ void NoteTakerWidget::setHorizontalWheelRange() {
         return;
     }
     if (partButton->ledOn()) {
-        horizontalWheel->setLimits(-1, nt()->outputCount());
+        horizontalWheel->setLimits(-1, NoteTaker::OutputCount(nt()));
         horizontalWheel->setValue(this->unlockedChannel());
         return;
     }

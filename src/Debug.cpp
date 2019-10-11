@@ -52,6 +52,17 @@ std::string TrimmedFloat(float f) {
     return str;
 }
 
+std::string BeamPosition::debugString() const {
+    std::string s;
+    s += "beamMin:" + std::to_string(beamMin) + " xOffset:" + std::to_string(xOffset);
+    s += " yOffset:"  + std::to_string(yOffset) + " slurOffset:" + std::to_string(slurOffset);
+    s += " sx:" + std::to_string(sx) + " ex:" + std::to_string(ex);
+    s += " yStemExtend:" + std::to_string(yStemExtend) + "y:" + std::to_string(y);
+    s += " yLimit:" + std::to_string(yLimit) + " first:" + std::to_string(first);
+    s += " last:" + std::to_string(last) + " outsideStaff:" + std::to_string(outsideStaff);
+    return s;
+}
+
 std::string NoteCache::debugString() const {
     std::string s;
     s += "[" + TrimmedFloat(xPosition) + ", " + TrimmedFloat(yPosition) + "] ";

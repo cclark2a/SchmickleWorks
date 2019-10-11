@@ -75,10 +75,10 @@ struct DisplayRange {
     DisplayRange(DisplayState& , float boxWidth);
 
     void fromJson(json_t* root) {
-        displayStart = json_integer_value(json_object_get(root, "displayStart"));
-        displayEnd = json_integer_value(json_object_get(root, "displayEnd"));
-        xAxisOffset = json_real_value(json_object_get(root, "xAxisOffset"));
-        xAxisScale = json_real_value(json_object_get(root, "xAxisScale"));
+        INT_FROM_JSON(displayStart);
+        INT_FROM_JSON(displayEnd);
+        REAL_FROM_JSON(xAxisOffset);
+        REAL_FROM_JSON(xAxisScale);
         this->invalidate();
     }
 

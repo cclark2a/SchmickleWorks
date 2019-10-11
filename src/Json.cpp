@@ -102,6 +102,7 @@ json_t* NoteTakerWidget::toJson() {
     json_object_set_new(root, "debugCapture", json_integer(debugCapture));
     json_object_set_new(root, "debugVerbose", json_integer(debugVerbose));
     json_object_set_new(root, "groupByGMInstrument", json_integer(groupByGMInstrument));
+    json_object_set_new(root, "midiQuantizer", json_integer(midiQuantizer));
     return root;
 }
 
@@ -162,17 +163,17 @@ void Notes::fromJson(json_t* root) {
         notes = empty.notes;
     }
     SCHMICKLE(notes.size() >= 2);
-    selectStart = json_integer_value(json_object_get(root, "selectStart"));
+    INT_FROM_JSON(selectStart);
     if (selectStart + 1 >= notes.size()) {
         selectStart = 0;
     }
-    selectEnd = json_integer_value(json_object_get(root, "selectEnd"));
+    INT_FROM_JSON(selectEnd);
     if (selectEnd <= selectStart) {
         selectEnd = selectStart + 1;
     } else if (selectEnd >= notes.size()) {
         selectEnd = notes.size() - 1;
     }
-    ppq = json_integer_value(json_object_get(root, "ppq"));
+    INT_FROM_JSON(ppq);
     // to do : add ppq validate
 }
 
@@ -183,7 +184,7 @@ void NoteTaker::dataFromJson(json_t* root) {
     json_array_foreach(voiceCounts, index, value) {
         outputs[CV1_OUTPUT + index].setChannels(json_integer_value(value));
     }
-    tempo = json_integer_value(json_object_get(root, "tempo"));
+    INT_FROM_JSON(tempo);
 }
 
 void NoteTakerSlot::fromJson(json_t* root) {
@@ -194,8 +195,8 @@ void NoteTakerSlot::fromJson(json_t* root) {
     json_array_foreach(chans, index, value) {
         channels[index].fromJson(value);
     }
-    directory = std::string(json_string_value(json_object_get(root, "directory")));
-    filename = std::string(json_string_value(json_object_get(root, "filename")));
+    STRING_FROM_JSON(directory);
+    STRING_FROM_JSON(filename);
 }
 
 void NoteTakerWidget::fromJson(json_t* root) {
@@ -230,12 +231,16 @@ void NoteTakerWidget::fromJson(json_t* root) {
             tieButton->setValue(0);
         }
     }
-    selectChannels = json_integer_value(json_object_get(root, "selectChannels"));
+    INT_FROM_JSON(selectChannels);
     storage.fromJson(json_object_get(root, "storage"));
     display->range.fromJson(json_object_get(root, "display"));
-    debugCapture = json_integer_value(json_object_get(root, "debugCapture"));
-    debugVerbose = json_integer_value(json_object_get(root, "debugVerbose"));
-    groupByGMInstrument = json_integer_value(json_object_get(root, "groupByGMInstrument"));
+    INT_FROM_JSON(debugCapture);
+    INT_FROM_JSON(debugVerbose);
+#if DEBUG_SLUR
+    debugVerbose = true;
+#endif
+    INT_FROM_JSON(groupByGMInstrument);
+    INT_FROM_JSON(midiQuantizer);
     // update display cache
     this->setWheelRange();
     displayBuffer->redraw();
@@ -268,17 +273,17 @@ void SlotArray::fromJson(json_t* root) {
         slots[index].fromJson(value);
     }
     SlotArray::FromJson(root, &playback);
-    slotStart = json_integer_value(json_object_get(root, "slotStart"));
+    INT_FROM_JSON(slotStart);
     if (slotStart >= playback.size()) {
         slotStart = 0;
     }
-    slotEnd = json_integer_value(json_object_get(root, "slotEnd"));
+    INT_FROM_JSON(slotEnd);
     if (slotEnd <= slotStart) {
         slotEnd = slotStart + 1;
     } else if (slotEnd > playback.size()) {
         slotEnd = playback.size();
     }
-    saveZero = (bool) json_integer_value(json_object_get(root, "saveZero"));
+    INT_FROM_JSON(saveZero);
     if (saveZero && slotStart) {
         saveZero = false;
     }
