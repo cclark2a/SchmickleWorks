@@ -19,13 +19,15 @@ struct BeamPosition {
     int yStemExtend;
     int y;
     int yLimit;
-    unsigned first;
-    unsigned last;
+    unsigned noteFirst;
+    unsigned cacheFirst = INT_MAX; // cache index
+    unsigned noteLast;
+    unsigned cacheLast = INT_MAX;  // cache index
     bool outsideStaff;  // set true for tuplet
 
-    BeamPosition(unsigned f, unsigned l, bool os = false) 
-        : first(f)
-        , last(l)
+    BeamPosition(unsigned first, unsigned last, bool os = false) 
+        : noteFirst(first)
+        , noteLast(last)
         , outsideStaff(os) {
     }
 

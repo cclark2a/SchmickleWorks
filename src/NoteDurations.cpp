@@ -129,6 +129,7 @@ int NoteDurations::ToTripletStd(unsigned index) {
     return tripletDurations[index];
 }
 
+// to do : this is only correct if ppq is power of 2 * 3
 bool NoteDurations::TripletPart(int midi, int ppq) {
     int inStd = InStd(midi, ppq);
     if (!inStd) {

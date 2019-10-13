@@ -84,7 +84,7 @@ extern int midiQuantizer;
     void UnitTest(struct NoteTakerWidget* , TestType );
 #endif
 
-#define DEBUG_TRIPLET_DRAW 0
+#define DEBUG_TRIPLET_DRAW 01
 #define DEBUG_TRIPLET_TEST (DEBUG_TRIPLET_DRAW && debugVerbose)
 #define DEBUG_TRIPLET_DRAW_SHOW_DETAILS 0
 #if DEBUG_TRIPLET_DRAW_SHOW_DETAILS

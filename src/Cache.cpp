@@ -102,12 +102,12 @@ int BarPosition::resetSignatureStart(int quantStartTime, float barWidth) {
 // to do : tuplet rules are different from beam rules
 //         tuplet beam position should be above upper stave or below lower stave
 void BeamPosition::set(const vector<NoteCache>& notes) {
-    unsigned index = first;
-    int chan = notes[first].channel;
+    unsigned index = cacheFirst;
+    int chan = notes[cacheFirst].channel;
     float yMax = 0;
     float yMin = FLT_MAX;
     unsigned beamMax = 0;
-    unsigned lastMeasured = first;
+    unsigned lastMeasured = cacheFirst;
     do {
         const NoteCache& noteCache = notes[index];
         if (chan != noteCache.channel) {
@@ -118,12 +118,12 @@ void BeamPosition::set(const vector<NoteCache>& notes) {
         beamMax = std::max((unsigned) noteCache.beamCount, beamMax);
         beamMin = std::min((unsigned) noteCache.beamCount, beamMin);
         lastMeasured = index;
-    } while (++index <= last);
-    bool stemUp = StemType::up == notes[first].stemDirection;
+    } while (++index <= cacheLast);
+    bool stemUp = StemType::up == notes[cacheFirst].stemDirection;
     xOffset = stemUp ? 6 : -0.25;
     yOffset = stemUp ? 5 : -5;
-    sx = notes[first].xPosition + xOffset;
-    ex = notes[last].xPosition + xOffset;
+    sx = notes[cacheFirst].xPosition + xOffset;
+    ex = notes[cacheLast].xPosition + xOffset;
     int yStem = stemUp ? -22 : 15;
     yStemExtend = yStem + (stemUp ? 0 : 3);
     y = (stemUp ? yMin : yMax) + yStem;
@@ -132,10 +132,10 @@ void BeamPosition::set(const vector<NoteCache>& notes) {
     }
     yLimit = y + (stemUp ? 0 : 3);
     if (stemUp) {
-        int highFirstLastY = std::max(notes[first].yPosition, notes[lastMeasured].yPosition);
+        int highFirstLastY = std::max(notes[cacheFirst].yPosition, notes[lastMeasured].yPosition);
         slurOffset = std::max(0.f, yMax - highFirstLastY);
     } else {
-        int lowFirstLastY = std::min(notes[first].yPosition, notes[lastMeasured].yPosition);
+        int lowFirstLastY = std::min(notes[cacheFirst].yPosition, notes[lastMeasured].yPosition);
         slurOffset = std::min(0.f, yMin - lowFirstLastY) - 3;
     }
 }
@@ -386,34 +386,51 @@ void CacheBuilder::cacheStaff() {
     }
 }
 
-// note that this remaps beam position first/last from note indices to cache indices
+// map beam position note first/last to cache indices first/last
+// requires that cache entries sort order match note entries sort order (and beam pos sort order)
 void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
+    // start here
+    // see if beams are actually out of order and need resorting
+    if (!cache->beams.size()) {
+        return;
+    }
     array<TripletCandidate, CHANNEL_COUNT> tripStarts;
     tripStarts.fill(TripletCandidate());
     array<NoteCache* , CHANNEL_COUNT> lastCache;
     lastCache.fill(nullptr);
     array<unsigned , CHANNEL_COUNT> beamIds;
     beamIds.fill(INT_MAX);
-    auto beamPtr = &cache->beams.front();
-    for (auto& entry : cache->notes) {
-        if (!entry.staff) {
-            continue;
+    vector<BeamPosition* > beamPtrs;
+    beamPtrs.reserve(cache->beams.size());
+    for (auto& b : cache->beams) {
+        beamPtrs.push_back(&b);
+    }
+    std::sort(beamPtrs.begin(), beamPtrs.end(),
+            [](const BeamPosition* left, const BeamPosition* right) {
+        return left->noteFirst < right->noteFirst;
+    });
+    // sort beam positions
+    auto beamPtr = beamPtrs.front();
+    for (unsigned cacheIndex = 0; cacheIndex < cache->notes.size(); ++cacheIndex) {
+        auto& entry = cache->notes[cacheIndex];
+        if (!entry.staff) { // to do : what about triplet whole notes?
+            continue;       //  this is overloading 'draw staff' with 'member of chord'
         }
         int chan = entry.channel;
         unsigned noteIndex = entry.note - &notes->notes.front();
         entry.tripletPosition = tuplets[noteIndex];
         if (PositionType::left == entry.tripletPosition) {
-            while (!beamPtr->outsideStaff || beamPtr->first < noteIndex) {
+            while (!beamPtr->outsideStaff || beamPtr->noteFirst < noteIndex) {
                 ++beamPtr;
-                SCHMICKLE(beamPtr <= &cache->beams.back());
+                SCHMICKLE(beamPtr <= beamPtrs.back());
             }
-            if (beamPtr->first != noteIndex) {
-                DEBUG("%s beamPtr->first %u noteIndex cache: [%u] %s note: [%u] %s", __func__,
-                        beamPtr->first, &entry - &cache->notes.front(), entry.debugString().c_str(),
-                        noteIndex, entry.note->debugString().c_str());
+            if (beamPtr->noteFirst != noteIndex) {
+                DEBUG("%s beamPtr->noteFirst %u cache: [%u] %s note: [%u] %s", __func__,
+                        beamPtr->noteFirst, cacheIndex,
+                        entry.debugString().c_str(), noteIndex, entry.note->debugString().c_str());
             }
-            SCHMICKLE(beamPtr->first == noteIndex);
-            beamPtr->first = &entry - &cache->notes.front(); 
+            SCHMICKLE(beamPtr->noteFirst == noteIndex);
+            beamPtr->cacheFirst = cacheIndex; 
             beamIds[chan] = beamPtr - &cache->beams.front();
         }
         if (INT_MAX != beamIds[chan]) {
@@ -427,8 +444,8 @@ void CacheBuilder::cacheTuplets(const vector<PositionType>& tuplets) {
                 lastCache[chan]->tripletPosition = PositionType::mid;
                 SCHMICKLE(INT_MAX != beamIds[chan]);
                 auto rightBeamPtr = &cache->beams[beamIds[chan]];
-                SCHMICKLE(rightBeamPtr->last == noteIndex);
-                rightBeamPtr->last = &entry - &cache->notes.front();
+                SCHMICKLE(rightBeamPtr->noteLast == noteIndex);
+                rightBeamPtr->cacheLast = cacheIndex;
                 beamIds[chan] = INT_MAX;
             }
         }
@@ -675,8 +692,15 @@ void CacheBuilder::updateXPosition() {
     nvgFontSize(vg, NOTE_FONT_SIZE);
     nvgTextAlign(vg, NVG_ALIGN_LEFT);
     cache->beams.clear();
+    int ppq = this->notes->ppq;
+    // to do : what if ppq is weirdly small?
+    int third = ppq / 3;
+    // to do : only triplets for now / ppq must be power of 2 * 3
+    bool testForTriplets = third * 3 == ppq && !(third & third - 1);  // check if only top bit set
     vector<PositionType> tuplets;
-    notes->findTriplets(&tuplets, cache);
+    if (testForTriplets) {
+        notes->findTriplets(&tuplets, cache);
+    }
     cache->notes.clear();
     cache->notes.reserve(notes->notes.size());
     this->setDurations(tuplets);  // adds cache per tied note part, sets its duration and note index
@@ -687,8 +711,7 @@ void CacheBuilder::updateXPosition() {
     this->cacheStaff();  // set staff flag if note owns shared staff
     SCHMICKLE(notes->notes.front().cache == &cache->notes.front());
     SCHMICKLE(cache->notes.front().note == &notes->notes.front());
-    int ppq = this->notes->ppq;
-    if (!(ppq % 3)) {  // to do : only triplets for now
+    if (testForTriplets) {  
         this->cacheTuplets(tuplets);
     }
     for (auto& noteCache : cache->notes) {
@@ -736,8 +759,8 @@ void CacheBuilder::updateXPosition() {
         noteCache.xPosition = (int) std::ceil((stdStart + bars * BAR_WIDTH)
                 * xAxisScale + pos);
 #if DEBUG_POS
-        if (debugVerbose) DEBUG("vStartTime %d n.ppq %d bars %d xPos %d pos %g",
-                noteCache.vStartTime, ppq, bars, noteCache.xPosition, pos);
+        if (debugVerbose) DEBUG("vStartTime %d ppq %d bars %d xPos %d pos %g",
+                noteCache. vStartTime, ppq, bars, noteCache.xPosition, pos);
 #endif
         if (noteCache.accidentalSpace) {
             noteCache.xPosition += 8;  // space for possible accidental

@@ -144,14 +144,13 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
             if (candidate->startIndex >= notes.size()) {
                 return;
             }
-            if (PositionType::right == (*tuplets)[candidate->lastIndex]) {
-                return;
-            }
-            for (unsigned index = candidate->startIndex; index <= candidate->lastIndex; ++index) {
-                if (channel != notes[index].channel) {
-                    continue;
+            if (PositionType::right != (*tuplets)[candidate->lastIndex]) {
+                for (unsigned index = candidate->startIndex; index <= candidate->lastIndex; ++index) {
+                    if (channel != notes[index].channel) {
+                        continue;
+                    }
+                    (*tuplets)[index] = PositionType::none;
                 }
-                (*tuplets)[index] = PositionType::none;
             }
             *candidate = TripletCandidate();
     };
@@ -224,6 +223,7 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
         noteTripletDebug("right", &noteTuplet, note);
         // note indices are replaced with cache indices in cache builder cache tuplets
         beams->emplace_back(candidate.startIndex, rightIndex, true);
+        candidate = TripletCandidate();
     }
     for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
         clearTriplet(&tripStarts[chan], chan);

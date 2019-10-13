@@ -58,8 +58,10 @@ std::string BeamPosition::debugString() const {
     s += " yOffset:"  + std::to_string(yOffset) + " slurOffset:" + std::to_string(slurOffset);
     s += " sx:" + std::to_string(sx) + " ex:" + std::to_string(ex);
     s += " yStemExtend:" + std::to_string(yStemExtend) + "y:" + std::to_string(y);
-    s += " yLimit:" + std::to_string(yLimit) + " first:" + std::to_string(first);
-    s += " last:" + std::to_string(last) + " outsideStaff:" + std::to_string(outsideStaff);
+    s += " yLimit:" + std::to_string(yLimit);
+    s += " noteFirst:" + std::to_string(noteFirst) + " cacheFirst:" + std::to_string(cacheFirst);
+    s += " noteLast:" + std::to_string(noteLast) + " cacheLast:" + std::to_string(cacheLast);
+    s += " outsideStaff:" + std::to_string(outsideStaff);
     return s;
 }
 

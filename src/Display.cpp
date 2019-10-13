@@ -1372,7 +1372,7 @@ void NoteTakerDisplay::drawSlur(unsigned first, unsigned char alpha) const {
     SCHMICKLE(PositionType::left == cacheNotes[first].slurPosition);
     SCHMICKLE(cacheNotes[first].beamId < this->cache()->beams.size());
     const BeamPosition& bp = this->cache()->beams[cacheNotes[first].beamId];
-    unsigned last = bp.last;
+    unsigned last = bp.cacheLast;
     int chan = cacheNotes[first].channel;
     auto& slurRight = cacheNotes[last];
     if (DEBUG_SLUR_TEST && PositionType::right != slurRight.slurPosition) {
@@ -1613,7 +1613,7 @@ void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
     }
     const BeamPosition& bp = this->cache()->beams[notes[first].beamId];
     int chan = notes[first].channel;
-    unsigned last = bp.last;
+    unsigned last = bp.cacheLast;
     if (PositionType::right != notes[last].tiePosition
             && PositionType::mid != notes[last].tiePosition) {
         // to do : reenable this to debug : disable for now because it outputs continuously
@@ -1651,17 +1651,17 @@ void NoteTakerDisplay::drawTuple(unsigned first, unsigned char alpha, bool drewB
     }
     SCHMICKLE(PositionType::left == cacheNotes[first].tripletPosition);
     const BeamPosition& bp = this->cache()->beams[cacheNotes[first].beamId];
-    if (DEBUG_TRIPLET_TEST && PositionType::right != cacheNotes[bp.last].tripletPosition) {
-        auto& tupletRight = cacheNotes[bp.last];
+    if (DEBUG_TRIPLET_TEST && PositionType::right != cacheNotes[bp.cacheLast].tripletPosition) {
+        auto& tupletRight = cacheNotes[bp.cacheLast];
         DEBUG("PositionType::right != cache[%d].tripletPosition (%s) tupletId %d cache[%u]: %s"
                 " note[%u]: %s",
-                bp.last, debugPositionType[(int) tupletRight.tripletPosition],
-                cacheNotes[bp.last].beamId, bp.last,
+                bp.cacheLast, debugPositionType[(int) tupletRight.tripletPosition],
+                cacheNotes[bp.cacheLast].beamId, bp.cacheLast,
                 tupletRight.debugString().c_str(), tupletRight.note - &notes.front(),
                 tupletRight.note->debugString().c_str());
-        debugDump(first, bp.last);
+        debugDump(first, bp.cacheLast);
     }
-    SCHMICKLE(PositionType::right == cacheNotes[bp.last].tripletPosition);
+    SCHMICKLE(PositionType::right == cacheNotes[bp.cacheLast].tripletPosition);
     auto vg = state.vg;
     SetNoteColor(vg, chan, alpha);
     // draw '3' at center of notes above or below staff
