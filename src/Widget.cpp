@@ -217,7 +217,7 @@ struct NoteTakerMidiItem : MenuItem {
 	NoteTakerWidget* widget;
     std::string directory;
 
-	void onAction(const event::Action& e) override {
+	void onAction(const event::Action& ) override {
         auto slot = widget->activeSlot();
         slot->directory = directory;
         slot->filename = text;
@@ -312,7 +312,7 @@ struct NoteTakerSaveItem : MenuItem {
 
 struct NoteTakerMapItem : MenuItem {
 
-	void onAction(const event::Action& e) override {
+	void onAction(const event::Action& ) override {
         groupByGMInstrument ^= true;
 	}
 };
@@ -383,7 +383,7 @@ struct NoteTakerDebugCaptureItem : MenuItem {
 struct NoteTakerDebugDumpItem : MenuItem {
 	NoteTakerWidget* widget;
 
-	void onAction(const event::Action& e) override {
+	void onAction(const event::Action& ) override {
         widget->debugDump();
 	}
 };

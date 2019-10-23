@@ -52,17 +52,46 @@ std::string TrimmedFloat(float f) {
     return str;
 }
 
+static std::string uint_str(unsigned int v) {
+    return INT_MAX == v ? "INT_MAX" : std::to_string(v);
+}
+
+static std::string float_str(float v) {
+    return 0 == v ? "0" : std::to_string(v);
+}
+
 std::string BeamPosition::debugString() const {
     std::string s;
-    s += "beamMin:" + std::to_string(beamMin) + " xOffset:" + std::to_string(xOffset);
-    s += " yOffset:"  + std::to_string(yOffset) + " slurOffset:" + std::to_string(slurOffset);
-    s += " sx:" + std::to_string(sx) + " ex:" + std::to_string(ex);
-    s += " yStemExtend:" + std::to_string(yStemExtend) + "y:" + std::to_string(y);
+    s += "beamMin:" + uint_str(beamMin);
+    s += " xOffset:" + float_str(xOffset);
+    s += " yOffset:"  + std::to_string(yOffset) + " slurOffset:" + float_str(slurOffset);
+    s += " sx:" + float_str(sx) + " ex:" + float_str(ex);
+    s += " yStemExtend:" + std::to_string(yStemExtend) + " y:" + std::to_string(y);
     s += " yLimit:" + std::to_string(yLimit);
-    s += " noteFirst:" + std::to_string(noteFirst) + " cacheFirst:" + std::to_string(cacheFirst);
-    s += " noteLast:" + std::to_string(noteLast) + " cacheLast:" + std::to_string(cacheLast);
+    s += " noteFirst:" + uint_str(noteFirst) + " cacheFirst:" + uint_str(cacheFirst);
+    s += " noteLast:" + uint_str(noteLast) + " cacheLast:" + uint_str(cacheLast);
     s += " outsideStaff:" + std::to_string(outsideStaff);
     return s;
+}
+
+void DisplayCache::validateNotes(const Notes* xnotes) const {
+#if DEBUG_CACHE
+    DEBUG("%s", __func__);
+    const NoteCache* debugStart = nullptr;
+    for (auto& n : notes) {
+        int c = n.channel;
+        SCHMICKLE(c == n.note->channel);
+        if (debugStart) {
+            if (!(*debugStart < n)) {
+                DEBUG("%s debugNote %s >\n                              n.note %s", __func__,
+                        debugStart->note->debugString(xnotes->notes, &notes, nullptr).c_str(),
+                        n.note->debugString(xnotes->notes, &notes, nullptr).c_str());
+            }
+            SCHMICKLE(*debugStart < n);
+        }
+        debugStart = &n;
+    }
+#endif
 }
 
 std::string NoteCache::debugString() const {
@@ -73,9 +102,7 @@ std::string NoteCache::debugString() const {
     if (PositionType::none != beamPosition || beamCount) {
         s += "b" + PosAsStr(beamPosition) + std::to_string(beamCount) + " ";
     }
-    if (channel) {
-        s += "[" + std::to_string(channel) + "] ";
-    }
+    s += "[" + std::to_string(channel) + "] ";
     if (PositionType::none != slurPosition) {
         s += "s" + PosAsStr(slurPosition) + " ";
     }
@@ -92,7 +119,8 @@ std::string NoteCache::debugString() const {
         s += std::to_string(pitchPosition) + " ";
     }
     s += std::to_string(symbol) +  (accidentalSpace ? "#" : "")
-            + (endsOnBeat ? "B" : "") + StemAsStr(stemDirection) + (staff ? "s" : "");
+            + (endsOnBeat ? "B" : "") + StemAsStr(stemDirection) + (drawStaff ? "s" : "")
+            + (chord ? "c" : "");
     return s;
 }
 
@@ -103,6 +131,9 @@ std::string DisplayNote::debugString() const {
         s += "/" + std::to_string(voice);
     }
     s += "] " + std::to_string(duration);
+    if (PositionType::none != triplet) {
+        s += " 3" + PosAsStr(triplet);
+    }
     switch (type) {
         case NOTE_ON:
             s += " pitch=" + std::to_string(this->pitch());
@@ -148,6 +179,30 @@ std::string DisplayNote::debugString() const {
     return s;
 }
 
+std::string DisplayNote::debugString(const vector<DisplayNote>& notes,
+        const vector<NoteCache>* noteCache, const NoteCache* entry, const NoteCache* last,
+        std::string angleStart, std::string angleEnd) const {
+    std::string cacheIndex;
+    std::string cacheDump;
+    if (noteCache && entry) {
+        cacheIndex = std::to_string(entry - &noteCache->front()) + "/";
+        cacheDump = " " + entry->debugString();
+    }
+    std::string result;
+    if (noteCache && last) {
+        SCHMICKLE(&noteCache->front() <= last && last <= &noteCache->back());
+        SCHMICKLE(last < cache);
+        while (++last < cache) {
+            result += std::to_string(last - &noteCache->front()) + "/"
+                    + std::to_string(this - &notes.front()) + " "
+                    + last->debugString() + "\n                              ";
+        }
+    }
+    result += angleStart + cacheIndex + std::to_string(this - &notes.front())
+            + cacheDump + " " + this->debugString();
+    return result + angleEnd;
+}
+
 void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
     auto& cacheNotes = this->cache()->notes;
     auto& notes = slot->n.notes;
@@ -158,7 +213,7 @@ void NoteTakerDisplay::debugDump(unsigned cacheStart, unsigned cacheEnd) const {
 
 void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
     auto& n = this->n();
-#if 1 // def DEBUGGING_STORAGE // not normally defined
+#if DEBUG_STORAGE
     for (auto& entry : storage.slots) {
         if (entry.directory.empty() && entry.filename.empty() && entry.n.notes.size() < 2) {
             continue;
@@ -222,27 +277,13 @@ void Notes::DebugDump(const vector<DisplayNote>& notes, unsigned start, unsigned
         SCHMICKLE(i == typeNames[i].type);
     }
     DEBUG("notes: %d cache: %d", notes.size(), cache ? cache->size() : 0);
-    unsigned lastC = INT_MAX;
+    const NoteCache* last = nullptr;
     for (unsigned index = start; index < end; ++index) {
         const DisplayNote& note = notes[index];
         std::string angleStart = INT_MAX != selectStart && &note == &notes[selectStart] ? "< " : "";
-        std::string cacheIndex;
-        std::string cacheDump;
-        if (cache && note.cache) {
-            unsigned nextC = note.cache - &cache->front();
-            while (++lastC < nextC) {
-                const auto& c = (*cache)[lastC];
-                DEBUG("%s%d/%d %s", angleStart.c_str(), lastC, c.note - &notes.front(),
-                        c.debugString().c_str());
-                angleStart.clear();  
-            }
-            cacheDump = " " + (*cache)[nextC].debugString();
-            cacheIndex = std::to_string(nextC) + "/";
-            lastC = nextC;
-        }
         std::string angleEnd = INT_MAX != selectEnd && &note == &notes[selectEnd - 1] ? " >" : "";
-        DEBUG("%s%s%u%s %s%s", angleStart.c_str(), cacheIndex.c_str(), index,
-                cacheDump.c_str(), note.debugString().c_str(), angleEnd.c_str());
+        DEBUG("%s", note.debugString(notes, cache, note.cache, last, angleStart, angleEnd).c_str());
+        last = note.cache;
     }
 }
 

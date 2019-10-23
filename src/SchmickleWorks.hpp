@@ -97,14 +97,16 @@ extern int midiQuantizer;
 #define DEBUG_BAR 0
 #define DEBUG_BAR_ADD_POS (DEBUG_BAR && 0)
 #define DEBUG_BEAM 0
+#define DEBUG_CACHE 1
 #define DEBUG_DISPLAY_RANGE 0
-#define DEBUG_DURATIONS 0
+#define DEBUG_DURATIONS 01
 #define DEBUG_EDIT 0
 #define DEBUG_GATES 0
 #define DEBUG_PARSE 0
 #define DEBUG_POS 01
 #define DEBUG_RUN_TIME 0
 #define DEBUG_STAFF 0
+#define DEBUG_STORAGE 0
 #define DEBUG_SLUR 0
 #define DEBUG_SLUR_TEST (DEBUG_SLUR && debugVerbose)
 #define DEBUG_VOICE_COUNT 0

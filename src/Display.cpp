@@ -632,7 +632,7 @@ float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
     }
     float bounds[4]; 
     auto& symbols = REST_TYPE == noteCache.note->type ? restSymbols :
-            PositionType::none != noteCache.beamPosition || !noteCache.staff ?
+            PositionType::none != noteCache.beamPosition || noteCache.chord ?
             StemType::up == noteCache.stemDirection ? upBeamNoteSymbols : downBeamNoteSymbols :
             StemType::up == noteCache.stemDirection ? upFlagNoteSymbols : downFlagNoteSymbols;
     nvgTextBounds(vg, 0, 0, symbols[noteCache.symbol], nullptr, bounds);
@@ -872,11 +872,11 @@ void NoteTakerDisplay::drawBeam(unsigned start, unsigned char alpha) const {
     const NoteCache* noteCache = nullptr;
     do {
         SCHMICKLE(chan == notes[index].channel);
-        SCHMICKLE(notes[index].staff);
+        SCHMICKLE(!notes[index].chord);
         prev = noteCache;
         noteCache = &notes[index];
         while (++index < notes.size()
-                && (chan != notes[index].channel || !notes[index].staff)) {
+                && (chan != notes[index].channel || notes[index].chord)) {
             ;
         }
         if (index == notes.size()) {
@@ -934,7 +934,6 @@ void NoteTakerDisplay::drawFreeNote(const DisplayNote& note, NoteCache* noteCach
     noteCache->yPosition = YPos(pitch.position);
     noteCache->vDuration = n.ppq;
     noteCache->stemDirection = StemType::up;
-    noteCache->staff = true;
     noteCache->setDurationSymbol(n.ppq);
     this->drawNote((Accidental) pitchMap[note.pitch()].accidental, *noteCache, alpha, 24);
 }
@@ -1025,7 +1024,7 @@ void NoteTakerDisplay::drawNote(Accidental accidental,
         nvgText(vg, xPos - 6 - (SHARP_ACCIDENTAL == accidental), yPos + 1,
                 &accidents[accidental], &accidents[accidental + 1]);
     }
-    auto& symbols = PositionType::none != noteCache.beamPosition || !noteCache.staff ?
+    auto& symbols = PositionType::none != noteCache.beamPosition || noteCache.chord ?
             StemType::up == noteCache.stemDirection ? upBeamNoteSymbols : downBeamNoteSymbols :
             StemType::up == noteCache.stemDirection ? upFlagNoteSymbols : downFlagNoteSymbols; 
     const char* noteStr = symbols[noteCache.symbol];
@@ -1062,7 +1061,7 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
                 }
                 if ((PositionType::left == noteCache.tiePosition
                         || PositionType::mid == noteCache.tiePosition)
-                        && INT_MAX != noteCache.beamId) {
+                        && INT_MAX != noteCache.tieId) {
                     this->drawTie(index, alpha);
                 }
             } break;
@@ -1370,8 +1369,8 @@ void NoteTakerDisplay::drawSlur(unsigned first, unsigned char alpha) const {
     auto& cacheNotes = this->cache()->notes;
     auto& notes = ntw()->n().notes;
     SCHMICKLE(PositionType::left == cacheNotes[first].slurPosition);
-    SCHMICKLE(cacheNotes[first].beamId < this->cache()->beams.size());
-    const BeamPosition& bp = this->cache()->beams[cacheNotes[first].beamId];
+    SCHMICKLE(cacheNotes[first].tieId < this->cache()->beams.size());
+    const BeamPosition& bp = this->cache()->beams[cacheNotes[first].tieId];
     unsigned last = bp.cacheLast;
     int chan = cacheNotes[first].channel;
     auto& slurRight = cacheNotes[last];
@@ -1604,14 +1603,14 @@ void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
     auto& notes = this->cache()->notes;
     SCHMICKLE(PositionType::left == notes[first].tiePosition
             || PositionType::mid == notes[first].tiePosition);
-    if (notes[first].beamId >= this->cache()->beams.size()) {
-        if (debugVerbose) DEBUG("** %s beamId out of range; cache: [%d] %s note: [%d] %s  beams size: %u ",
+    if (notes[first].tieId >= this->cache()->beams.size()) {
+        if (debugVerbose) DEBUG("** %s tieId out of range; cache: [%d] %s note: [%d] %s  beams size: %u ",
                 __func__, first, notes[first].debugString().c_str(),
                 notes[first].note - &ntw()->n().notes.front(),
                 notes[first].note->debugString().c_str(), this->cache()->beams.size());
         return;
     }
-    const BeamPosition& bp = this->cache()->beams[notes[first].beamId];
+    const BeamPosition& bp = this->cache()->beams[notes[first].tieId];
     int chan = notes[first].channel;
     unsigned last = bp.cacheLast;
     if (PositionType::right != notes[last].tiePosition
@@ -1629,47 +1628,41 @@ void NoteTakerDisplay::drawTie(unsigned first, unsigned char alpha) const {
 // to do : share code with draw slur, draw beam ?
 void NoteTakerDisplay::drawTuple(unsigned first, unsigned char alpha, bool drewBeam) const {
     auto& cacheNotes = this->cache()->notes;
-    auto& notes = ntw()->n().notes;
-    if (INT_MAX == cacheNotes[first].beamId) {
-        auto& entry = cacheNotes[first];
+    auto& tupletLeft = cacheNotes[first];
+    if (INT_MAX == tupletLeft.tripletId) {
         // to do : figure out why this happens, sometimes
-        DEBUG("%s missing cache entry [%d] %d note [%d] %s", __func__, first,
-                entry.debugString().c_str(), entry.note - &notes.front(),
-                entry.note->debugString().c_str());
+        DEBUG("%s missing cache entry %s", __func__,
+                tupletLeft.note->debugString(ntw()->n().notes, &cacheNotes, &tupletLeft).c_str());
         return;
     }
-    int chan = notes[first].channel;
-    if (DEBUG_TRIPLET_TEST && PositionType::left != cacheNotes[first].tripletPosition) {
-        auto& tupletLeft = cacheNotes[first];
-        DEBUG("PositionType::left != cache[%u].tripletPosition (%s) tupletId %d cache[%u]: %s"
+    const BeamPosition& bp = this->cache()->beams[tupletLeft.tripletId];
+    if (PositionType::left != tupletLeft.tripletPosition) {
+        DEBUG("PositionType::left != cache[%u].tripletPosition (%s) bp: [%u] %s note: %s"
                 " note[%u]: %s",
                 first, debugPositionType[(int) tupletLeft.tripletPosition],
-                cacheNotes[first].beamId, first,
-                tupletLeft.debugString().c_str(), tupletLeft.note - &notes.front(),
-                tupletLeft.note->debugString().c_str());
+                tupletLeft.tripletId, bp.debugString().c_str(),
+                tupletLeft.note->debugString(ntw()->n().notes, &cacheNotes, &tupletLeft).c_str());
         debugDump(first, first + 1);
     }
-    SCHMICKLE(PositionType::left == cacheNotes[first].tripletPosition);
-    const BeamPosition& bp = this->cache()->beams[cacheNotes[first].beamId];
-    if (DEBUG_TRIPLET_TEST && PositionType::right != cacheNotes[bp.cacheLast].tripletPosition) {
-        auto& tupletRight = cacheNotes[bp.cacheLast];
-        DEBUG("PositionType::right != cache[%d].tripletPosition (%s) tupletId %d cache[%u]: %s"
+    SCHMICKLE(PositionType::left == tupletLeft.tripletPosition);
+    auto& tupletRight = cacheNotes[bp.cacheLast];
+    if (PositionType::right != tupletRight.tripletPosition) {
+        DEBUG("PositionType::right != cache[%d].tripletPosition (%s) bp: [%u] %s note: %s"
                 " note[%u]: %s",
                 bp.cacheLast, debugPositionType[(int) tupletRight.tripletPosition],
-                cacheNotes[bp.cacheLast].beamId, bp.cacheLast,
-                tupletRight.debugString().c_str(), tupletRight.note - &notes.front(),
-                tupletRight.note->debugString().c_str());
+                tupletLeft.tripletId, bp.debugString().c_str(),
+                tupletRight.note->debugString(ntw()->n().notes, &cacheNotes, &tupletRight).c_str());
         debugDump(first, bp.cacheLast);
     }
-    SCHMICKLE(PositionType::right == cacheNotes[bp.cacheLast].tripletPosition);
+    SCHMICKLE(PositionType::right == tupletRight.tripletPosition);
     auto vg = state.vg;
-    SetNoteColor(vg, chan, alpha);
+    SetNoteColor(vg, tupletLeft.channel, alpha);
     // draw '3' at center of notes above or below staff
     nvgFontFaceId(vg, ntw()->musicFont());
     nvgFontSize(vg, 16);
     nvgTextAlign(vg, NVG_ALIGN_CENTER);
     float centerX = (bp.sx + bp.ex) / 2;
-    bool stemUp = StemType::up == cacheNotes[first].stemDirection;
+    bool stemUp = StemType::up == tupletLeft.stemDirection;
     float yOffset = stemUp ? -1 : 7.5;
     nvgText(vg, centerX, bp.y + yOffset, "3", NULL);
     // to do : if !drew beam, draw square brackets on either side of '3'

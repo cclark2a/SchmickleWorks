@@ -47,7 +47,7 @@ struct Notes {
         return _schmickle_false();  // should have hit track end
     }
 
-    void findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCache);
+    void findTriplets(DisplayCache* displayCache);
     static void DebugDump(const vector<DisplayNote>& , unsigned start = 0,
             unsigned end = INT_MAX, const vector<NoteCache>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);

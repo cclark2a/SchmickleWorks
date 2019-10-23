@@ -124,45 +124,37 @@ std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
 // to do : if too few notes are of the right duration, they (probably) need to be drawn as ties --
 // 2/3rds of 1/4 note is 1/6 (.167) which could be 1/8 + 1/32 (.156)
 // This adds beam position records for each triplet and keep that index rather than trip id.
-void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCache) {
+void Notes::findTriplets(DisplayCache* displayCache) {
 #if DEBUG_TRIPLET_DRAW
     DEBUG("%s", __func__);
-    auto tripletDrawDebug = [=](const char* str, const DisplayNote& note) {
-        DEBUG("findTriplets %s [%d] %s" , str, &note - &notes.front(),
-                note.debugString().c_str());
-    };
-    auto noteTripletDebug = [=](const char* str, PositionType* tuplet, const DisplayNote& note) {
-        DEBUG("findTriplets %s [%d] pos %d [%d] %s" , str, tuplet - &tuplets->front(),
-                (int) *tuplet, &note - &notes.front(), note.debugString().c_str());
+    auto noteTripletDebug = [=](const char* str, const DisplayNote& note) {
+        DEBUG("findTriplets %s %s" , str, note.debugString(notes, nullptr, nullptr).c_str());
     };
 #else
-    auto tripletDrawDebug = [](const char* , const DisplayNote& ) {};
-    auto noteTripletDebug = [](const char* , PositionType* , const DisplayNote& ) {};
+    auto noteTripletDebug = [](const char* , const DisplayNote& ) {};
 #endif
     // if clearing one or all, clear tuplets as needed, but only if tuplet isn't closed
     auto clearTriplet = [=](TripletCandidate* candidate, unsigned channel) {
             if (candidate->startIndex >= notes.size()) {
                 return;
             }
-            if (PositionType::right != (*tuplets)[candidate->lastIndex]) {
+            if (PositionType::right != notes[candidate->lastIndex].triplet) {
                 for (unsigned index = candidate->startIndex; index <= candidate->lastIndex; ++index) {
                     if (channel != notes[index].channel) {
                         continue;
                     }
-                    (*tuplets)[index] = PositionType::none;
+                    notes[index].triplet = PositionType::none;
                 }
             }
             *candidate = TripletCandidate();
     };
     vector<BeamPosition>* beams = &displayCache->beams;
-    tuplets->resize(notes.size());
     array<TripletCandidate, CHANNEL_COUNT> tripStarts;  // first index in notes (not cache) of triplet
     tripStarts.fill(TripletCandidate());
     for (unsigned index = 0; index < notes.size(); ++index) {
         DisplayNote& note = notes[index];
-        (*tuplets)[index] = PositionType::none;
         if (!note.isNoteOrRest()) {
-            tripletDrawDebug("not note or rest", note);
+            noteTripletDebug("not note or rest", note);
             for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
                 clearTriplet(&tripStarts[chan], chan);
             }
@@ -171,24 +163,39 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
         auto& candidate = tripStarts[note.channel];
         if (!NoteDurations::TripletPart(note.duration, ppq)
                 || NoteDurations::Dotted(note.duration, ppq)) {
-            tripletDrawDebug("not triplet part, or is dotted", note);
+            noteTripletDebug("not triplet part, or is dotted", note);
             clearTriplet(&candidate, note.channel);
             continue;
         }
-        if (INT_MAX != candidate.lastIndex
-                && notes[candidate.lastIndex].startTime >= note.startTime) {
-            tripletDrawDebug("chord part", note);
-            continue;  // ignore other notes on chord
+        ;
+        if (INT_MAX != candidate.lastIndex) {
+            DisplayNote* last = &notes[candidate.lastIndex];
+            // if chord notes overlap or are of different lengths, don't look for triplets
+            if (last->startTime == note.startTime)  {
+                if (last->duration != note.duration) {
+                    noteTripletDebug("unequal duration", note);
+                    clearTriplet(&candidate, note.channel);
+                }
+                noteTripletDebug("chord part", note);
+                continue;
+            } else {
+                SCHMICKLE(last->startTime < note.startTime);
+                if (last->endTime() > note.startTime) {
+                    noteTripletDebug("overlapping", note);
+                    clearTriplet(&candidate, note.channel);
+                    continue;
+                }
+            }
         }
         candidate.lastIndex = index;
         candidate.atLeastOneNote |= NOTE_ON == note.type;
         if (INT_MAX == candidate.startIndex) {
-            tripletDrawDebug("triplet start", note);
+            noteTripletDebug("triplet start", note);
             candidate.startIndex = index;
             continue;
         }
         if (!candidate.atLeastOneNote) {
-            tripletDrawDebug("not one note", note);
+            noteTripletDebug("not one note", note);
             continue;
         }
         DisplayNote* test = &notes[candidate.startIndex];
@@ -196,13 +203,13 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
         if ((NoteDurations::InStd(totalDuration, ppq) % 3)) {
 #if DEBUG_TRIPLET_DRAW
             DEBUG("%s total duration %d ppq %d", __func__, totalDuration, ppq);
-            tripletDrawDebug("last candidate note", note);
+            noteTripletDebug("last candidate note", note);
 #endif
             continue;
         }
         // triplet in cache begins at can trip start time, ends at note end time
-        (*tuplets)[candidate.startIndex] = PositionType::left;
-        noteTripletDebug("left", &(*tuplets)[candidate.startIndex], *test);
+        notes[candidate.startIndex].triplet = PositionType::left;
+        noteTripletDebug("left", *test);
         int chan = test->channel;
         DisplayNote* last = test;
         while (++test < &note) {
@@ -213,14 +220,12 @@ void Notes::findTriplets(vector<PositionType>* tuplets, DisplayCache* displayCac
                 continue;
             }
             last = test;
-            auto& testTuplet = (*tuplets)[test - &notes.front()];
-            testTuplet = PositionType::mid;
-            noteTripletDebug("mid", &testTuplet, *test);
+            test->triplet = PositionType::mid;
+            noteTripletDebug("mid", *test);
         }
         unsigned rightIndex = &note - &notes.front();
-        auto& noteTuplet = (*tuplets)[rightIndex];
-        noteTuplet = PositionType::right;
-        noteTripletDebug("right", &noteTuplet, note);
+        note.triplet = PositionType::right;
+        noteTripletDebug("right", note);
         // note indices are replaced with cache indices in cache builder cache tuplets
         beams->emplace_back(candidate.startIndex, rightIndex, true);
         candidate = TripletCandidate();

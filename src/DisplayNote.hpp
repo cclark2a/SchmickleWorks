@@ -55,6 +55,7 @@ struct DisplayNote {
     int data[4] = { 0, 0, 0, 0}; // type-specific values / to do : make unsigned, can't serialize <0
     uint8_t channel;        // set to 0 if type doesn't have channel
     uint8_t voice = -1;     // poly voice assigned to note
+    PositionType triplet = PositionType::none;   // cache data conveniently stored here
     DisplayType type;
 
     DisplayNote(DisplayType t, int start = 0, int dur = 0, uint8_t chan = 0)
@@ -293,6 +294,9 @@ struct DisplayNote {
     json_t* dataToJson() const;
     void dataFromJson(json_t* rootJ);
 
+    std::string debugString(const vector<DisplayNote>& , const vector<NoteCache>* ,
+            const NoteCache* , const NoteCache* last = nullptr, std::string angleStart = "",
+            std::string angleEnd = "") const;
     std::string debugString() const;
 };
 
@@ -314,6 +318,8 @@ struct NoteCache {
     int vDuration = 0;  // visible duration, for symbol selection and triplet beams
     int bar = 0;
     unsigned beamId = INT_MAX;
+    unsigned tieId = INT_MAX;
+    unsigned tripletId = INT_MAX;
     PositionType beamPosition = PositionType::none;
     uint8_t beamCount = 0;
     uint8_t channel;
@@ -325,7 +331,8 @@ struct NoteCache {
     StemType stemDirection = StemType::unknown;
     bool accidentalSpace = false;
     bool endsOnBeat = false; // for beams
-    bool staff = false;  // set if note owns staff; for flags, tuplets, beaming, slurs, ties
+    bool drawStaff = false;  // set if note draws staff; for flags, tuplets, beaming, slurs, ties
+    bool chord = false;      // set if note is chorded with primary note (primary note is not true)
 
     NoteCache(const DisplayNote* n)
          : note(n)

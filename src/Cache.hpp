@@ -11,24 +11,24 @@ struct NoteTakerDisplay;
 
 struct BeamPosition {
     unsigned beamMin = INT_MAX;
-    float xOffset;
-    int yOffset;
-    float slurOffset;
-    float sx;
-    float ex;
-    int yStemExtend;
-    int y;
-    int yLimit;
-    unsigned noteFirst;
+    float xOffset = 0;
+    int yOffset = 0;
+    float slurOffset = 0;
+    float sx = 0;
+    float ex = 0;
+    int yStemExtend = 0;
+    int y = 0;
+    int yLimit = 0;
+    unsigned noteFirst = INT_MAX;
     unsigned cacheFirst = INT_MAX; // cache index
-    unsigned noteLast;
+    unsigned noteLast = INT_MAX;
     unsigned cacheLast = INT_MAX;  // cache index
     bool outsideStaff;  // set true for tuplet
 
     BeamPosition(unsigned first, unsigned last, bool os = false) 
-        : noteFirst(first)
-        , noteLast(last)
-        , outsideStaff(os) {
+        : outsideStaff(os) {
+        (os ? noteFirst : cacheFirst) = first;
+        (os ? noteLast : cacheLast) = last;
     }
 
     std::string debugString() const;
@@ -60,6 +60,8 @@ struct DisplayCache {
     int startXPos(unsigned start) const {
         return notes[start].xPosition;
     }
+
+    void validateNotes(const Notes* notes) const;
 };
 
 // drawing notes must line up with extra bar space added by updateXPosition
@@ -137,10 +139,10 @@ struct CacheBuilder {
     void cacheBeams();
     void cacheSlurs();
     void cacheStaff();
-    void cacheTuplets(const vector<PositionType>& tuplets);
+    void cacheTuplets();
     void closeBeam(unsigned* first, unsigned limit);
     void closeSlur(unsigned* first, unsigned limit);
-    void setDurations(const vector<PositionType>& );
+    void setDurations();
     void trackPos(std::list<PosAdjust>& posAdjust, float xOff, int endTime);
     void updateXPosition();
 };
