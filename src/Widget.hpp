@@ -89,10 +89,10 @@ struct Clipboard {
         playback.emplace_back();
     }
 
-    void fromJsonCompressed(json_t*);
-    void fromJsonUncompressed(json_t*);
+    bool fromJsonCompressed(json_t*, bool uncompressed);
+    bool fromJsonUncompressed(json_t*);
     json_t* playBackToJson() const;
-    void toJsonCompressed(json_t* root) const;
+    void notesToJson(json_t* root) const;
 };
 
 struct NoteTakerWidget : ModuleWidget {

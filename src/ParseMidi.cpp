@@ -598,7 +598,7 @@ bool NoteTakerParseMidi::parseMidi() {
         auto& note = parsedNotes[index];
         note.channel = reassign[note.channel];
     }
-    Notes::SortNotes(parsedNotes);
+    std::sort(parsedNotes.begin(), parsedNotes.end());
     if (trackEnd.startTime < 0) {
         trackEnd.startTime = midiTime;
     }
@@ -632,7 +632,7 @@ bool NoteTakerParseMidi::parseMidi() {
         ends[chan] = std::max(ends[chan], note.endTime());
     }
     if (withRests.size() > parsedNotes.size()) {
-        Notes::SortNotes(withRests);
+        std::sort(withRests.begin(), withRests.end());
     }
 #if DEBUG_PARSE
     if (debugVerbose) {

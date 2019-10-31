@@ -66,6 +66,7 @@ inline void string_from_json(const json_t* root, const char* key, std::string* d
     }
 }
 
+extern bool compressJsonNotes;
 extern bool debugCapture;
 extern bool debugVerbose;  // switch to permit user debugging in shipping code
 extern bool groupByGMInstrument;

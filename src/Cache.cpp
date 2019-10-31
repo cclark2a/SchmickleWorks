@@ -362,6 +362,7 @@ void CacheBuilder::cacheStaff() {
             bassChord += nextPitch >= MIDDLE_C;
         }
         if (bassChord <= 1 && trebleChord <= 1) {
+            first->drawStaff = true;  // if note is most extreme on stave, draw Staff
             first->stemDirection = stem_up(first->pitchPosition);
             // to do : more sophisticated tie breaker
             if (StemType::either == first->stemDirection) {
@@ -377,6 +378,8 @@ void CacheBuilder::cacheStaff() {
                 StemType::down : StemType::up;
         StemType bassStemDirection = (BASS_MID - highestBass) >= (lowestBass - BASS_MID) ?
                 StemType::down : StemType::up;
+        NoteCache* trebleExtreme = nullptr;
+        NoteCache* bassExtreme = nullptr;
         for (NoteCache* entry = first; entry < next; ++entry) {
             if (StemType::unknown != entry->stemDirection) {
                 continue;
@@ -384,9 +387,18 @@ void CacheBuilder::cacheStaff() {
             if (duration != entry->vDuration) {
                 continue;
             }
-            entry->stemDirection = entry->pitchPosition < MIDDLE_C
-                    || (entry->pitchPosition == MIDDLE_C && trebleChord > 1) ? trebleStemDirection :
-                    bassStemDirection;
+            bool trebleClef = entry->pitchPosition < MIDDLE_C
+                    || (entry->pitchPosition == MIDDLE_C && trebleChord > 1);
+            entry->stemDirection = trebleClef ? trebleStemDirection : bassStemDirection;
+            // if note is most extreme on stave, set drawStaff true 
+            NoteCache*& extreme = trebleClef ? trebleExtreme : bassExtreme;
+            if (!extreme || trebleClef == (extreme->pitchPosition > entry->pitchPosition)) {
+                if (extreme) {
+                    extreme->drawStaff = false;
+                }
+                extreme = entry;
+                extreme->drawStaff = true;
+            }
         }
     }
 }
@@ -611,6 +623,12 @@ void CacheBuilder::setDurations() {
     int ppq = notes->ppq;
     for (unsigned index = 0; index < notes->notes.size(); ++index) {
         const DisplayNote& note = notes->notes[index];
+        if (REST_TYPE == note.type) {
+            if (!note.isSelectable(state.selectedChannels)) {
+                continue;
+            }
+            
+        }
         cache->notes.emplace_back(&note);
         NoteCache& cacheEntry = cache->notes.back();
         cacheEntry.bar = bar.count(cacheEntry);
@@ -759,7 +777,7 @@ void CacheBuilder::updateXPosition() {
         notes->findTriplets(cache);
     }
     cache->notes.clear();
-    cache->notes.reserve(notes->notes.size());
+    cache->notes.reserve(notes->notes.size());  // just a guess
     this->setDurations();  // adds cache per tied note part, sets its duration and note index
     // to do : If a pair of notes landed at the same place at the same time, but have different
     //         pitches, flip the notes' accidentals to move them to different staff fines.

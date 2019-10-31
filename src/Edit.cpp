@@ -358,6 +358,8 @@ void NoteTakerWidget::updateHorizontal() {
         if (Wheel::vertical == edit.wheel) {
             edit.clear();
             edit.init(n, selectChannels);
+        } else {
+            edit.restore(&n);
         }
         edit.wheel = Wheel::horizontal;
         SCHMICKLE((unsigned) wheelValue < NoteDurations::Count());
@@ -371,48 +373,47 @@ void NoteTakerWidget::updateHorizontal() {
         auto* note = &n.notes[n.selectStart];
         for (unsigned index = edit.base.selectStart; index < edit.base.selectEnd; ++index) {
             const auto& test = edit.base.notes[index];
-            if (!test.isSelectable(selectChannels)) {
-                maxEnd = std::max(maxEnd, test.endTime());
-                continue;
-            }
-            int startDiff = test.startTime - startTime;
-            if (startDiff) {
-                if (dbgOut) DEBUG("old note start %s", note->debugString().c_str());
-                if (wheelChange) {
-                    int index = NoteDurations::FromMidi(startDiff, n.ppq);
-                    note->startTime = startTime + NoteDurations::ToMidi(index + wheelChange, n.ppq);
-                } else {
-                    note->startTime = test.startTime;
+            if (test.isSelectable(selectChannels)) {
+                int startDiff = test.startTime - startTime;
+                if (startDiff) {
+                    if (dbgOut) DEBUG("old note start %s", note->debugString().c_str());
+                    if (wheelChange) {
+                        int index = NoteDurations::FromMidi(startDiff, n.ppq);
+                        note->startTime = startTime + NoteDurations::ToMidi(index + wheelChange, n.ppq);
+                    } else {
+                        note->startTime = test.startTime;
+                    }
+                    if (dbgOut) DEBUG("new note start %s", note->debugString().c_str());
                 }
-                if (dbgOut) DEBUG("new note start %s", note->debugString().c_str());
-            }
-            if (test.isNoteOrRest()) {
-                if (dbgOut) DEBUG("old note duration %s", note->debugString().c_str());
-                if (wheelChange) {
-                    int oldDurationIndex = NoteDurations::FromMidi(test.duration, n.ppq);
-                    note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
-                } else {
-                    note->duration = test.duration;
+                if (test.isNoteOrRest()) {
+                    if (dbgOut) DEBUG("old note duration %s", note->debugString().c_str());
+                    if (wheelChange) {
+                        int oldDurationIndex = NoteDurations::FromMidi(test.duration, n.ppq);
+                        note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
+                    } else {
+                        note->duration = test.duration;
+                    }
+                    if (dbgOut) DEBUG("new note duration %s", note->debugString().c_str());
+                    if (edit.voice) {
+                        n.setDuration(note);
+                    } else if (test.endTime() > edit.selectMaxEnd) {
+                        overlaps.emplace_back(std::pair<int, int>(test.endTime(), note->endTime()));
+                        if (dbgOut) DEBUG("add overlap base %d note %d",
+                                test.endTime(), note->endTime());
+                    }
                 }
-                if (dbgOut) DEBUG("new note duration %s", note->debugString().c_str());
-                if (edit.voice) {
-                    n.setDuration(note);
-                } else if (test.endTime() > edit.selectMaxEnd) {
-                    overlaps.emplace_back(std::pair<int, int>(test.endTime(), note->endTime()));
-                    if (dbgOut) DEBUG("add overlap base %d note %d",
-                            test.endTime(), note->endTime());
+                if (test.endTime() <= edit.nextStart) {
+                    if (dbgOut) DEBUG("selectMaxEnd %d note end time %d", selectMaxEnd,
+                            note->endTime());
+                    selectMaxEnd = std::max(selectMaxEnd, note->endTime());
                 }
             }
-            if (test.endTime() <= edit.nextStart) {
-                if (dbgOut) DEBUG("selectMaxEnd %d note end time %d", selectMaxEnd,
-                        note->endTime());
-                selectMaxEnd = std::max(selectMaxEnd, note->endTime());
-            }
-            if (dbgOut) DEBUG("maxEnd %d note end time %d", maxEnd, note->endTime());
-            maxEnd = std::max(maxEnd, note->endTime());
-            // because sorting may change edit base and note order, advance note separately
-            while (++note < &n.notes.back() && !note->isSelectable(selectChannels))
-                ;
+            do {
+                if (dbgOut) DEBUG("maxEnd %d note end time %d", maxEnd, note->endTime());
+                maxEnd = std::max(maxEnd, note->endTime());
+                // because sorting may change edit base and note order, advance note separately
+                // (each selectable note is still ordered the same as each saved base note, though)
+            } while (++note < &n.notes.back() && !note->isSelectable(selectChannels));
         }
         overlaps.emplace_back(std::pair<int, int>(edit.selectMaxEnd, selectMaxEnd));
         if (!edit.voice) {
@@ -452,7 +453,8 @@ void NoteTakerWidget::updateHorizontal() {
         SCHMICKLE(TRACK_END == n.notes.back().type);
         n.notes.back().startTime = maxEnd;
         inval = Inval::note;
-        n.sort();
+        n.sort();   // to do : don't call this directly; storage function should sort and invalidate
+        storage.invalidate();
     } else {
         unsigned start, end;
         edit.voice = false;

@@ -110,6 +110,10 @@ struct NoteTakerEdit {
         if (debugVerbose) DEBUG("edit init nextStart %d selectMaxEnd %d", nextStart, selectMaxEnd);
     }
 
+    void restore(Notes* n) const {
+        *n = base;
+    }
+
     json_t *toJson() const {
         json_t* root = json_object();
         json_object_set_new(root, "voice", json_boolean(voice));

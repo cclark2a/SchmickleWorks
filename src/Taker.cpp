@@ -475,8 +475,8 @@ void NoteTaker::setPlayStart() {
     playStart = this->ntw()->edit.voice ? n.selectStart : 0;
     unsigned lastNote = (this->isRunning() ? n.notes.size() : n.selectEnd) - 1;
     midiEndTime = n.notes[lastNote].endTime();
-    if (debugVerbose) DEBUG("setPlayStart %u lastNote %u midiEndTime %d",
-            playStart, lastNote, midiEndTime);
+    if (debugVerbose) DEBUG("setPlayStart playStart %u midiEndTime %d lastNote %s", playStart,
+            midiEndTime, n.notes[lastNote].debugString(n.notes, nullptr, nullptr).c_str());
 }
 
 // to do : output debug data to show what set voice count did

@@ -210,14 +210,25 @@ struct EditLEDButton : EditButton {
     void onDragEnd(const event::DragEnd &e) override;
 };
 
+enum class AddToChannels {
+    all,
+    selected,
+};
+
 // shared by time signature and rest, but not insert
 struct AdderButton : EditButton {
+
+    AdderButton(AddToChannels a) 
+        : addToChannels(a) {
+    }
+
     // locals are not read/written to json; in a struct as a convenience, not persistent
     unsigned insertLoc;
     unsigned shiftLoc;
     int startTime;
     int shiftTime;
     int duration; 
+    AddToChannels addToChannels;
 
     void onDragEndPreamble(const event::DragEnd &e);
     void onDragEnd(const event::DragEnd &e) override;
@@ -365,6 +376,9 @@ struct InsertButtonToolTip : WidgetToolTip<InsertButton> {
 };
 
 struct KeyButton : AdderButton {
+    KeyButton() : AdderButton(AddToChannels::all) {
+    }
+
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
 };
@@ -402,6 +416,9 @@ struct PartButtonToolTip : WidgetToolTip<PartButton> {
 // if insertion, insert/delete rest
 // if duration, horizontal changes rest size, vertical has no effect
 struct RestButton : AdderButton {
+    RestButton() : AdderButton(AddToChannels::selected) {
+    }
+
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
 };
@@ -596,6 +613,9 @@ struct SustainButtonToolTip : WidgetToolTip<SustainButton> {
 };
 
 struct TempoButton : AdderButton {
+    TempoButton() : AdderButton(AddToChannels::all) {
+    }
+
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
 };
@@ -654,6 +674,9 @@ struct TieButtonToolTip : WidgetToolTip<TieButton> {
 };
 
 struct TimeButton : AdderButton {
+    TimeButton() : AdderButton(AddToChannels::all) {
+    }
+
     void draw(const DrawArgs& ) override;
     void onDragEnd(const event::DragEnd &e) override;
 };

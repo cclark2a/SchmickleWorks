@@ -55,8 +55,8 @@ struct Notes {
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
     static std::string FlatName(unsigned midiPitch);
     void fromJson(json_t* root);
-    static bool FromJsonCompressed(json_t* , vector<DisplayNote>* , int* ppq);
-    static void FromJsonUncompressed(json_t* , vector<DisplayNote>* );
+    static bool FromJsonCompressed(json_t* , vector<DisplayNote>* , int* ppq, bool uncompressed);
+    static bool FromJsonUncompressed(json_t* , vector<DisplayNote>* );
     static std::string FullName(int duration, int ppq);
     vector<unsigned> getVoices(unsigned selectChannels, bool atStart) const;
     // static void HighestOnly(vector<DisplayNote>& );
@@ -204,37 +204,19 @@ struct Notes {
         return sortResult;
    }
 
-    // don't use std::sort function; use insertion sort to minimize reordering
-     void sort() {
+    void sort() {
         if (debugVerbose) DEBUG("sort notes");
-        DisplayType start = SELECT_START;
-        DisplayType end = SELECT_END;
-        SCHMICKLE(selectStart < selectEnd);
-        SCHMICKLE(selectEnd < notes.size());
-        std::swap(start, notes[selectStart].type);
-        std::swap(end, notes[selectEnd].type);
-        Notes::SortNotes(notes);
+        const auto& first = notes[selectStart];
+        const auto& last = notes[selectEnd - 1];
+        std::sort(notes.begin(), notes.end());
         // sort may move selection end (and maybe start?)
         // set up select start / end after sorting to where they landed
-        for (auto& note : notes) {
-            if (SELECT_START == note.type) {
-                selectStart = &note - &notes.front();
-                std::swap(start, note.type);
-            }
-            if (SELECT_END == note.type) {
-                selectEnd = &note - &notes.front();
-                std::swap(end, note.type);
-            }
-        }
-        SCHMICKLE(SELECT_START == start);
-        SCHMICKLE(SELECT_END == end);
-    }
-
-    static void SortNotes(vector<DisplayNote>& notes) {
-        for (auto it = notes.begin(), end = notes.end(); it != end; ++it) {
-            auto const insertion_point = std::upper_bound(notes.begin(), it, *it);
-            std::rotate(insertion_point, it, it + 1);
-        }
+        auto firstIter = std::lower_bound(notes.begin(), notes.end(), first);
+        SCHMICKLE(firstIter != notes.end() && !(first < *firstIter));
+        selectStart = firstIter - notes.begin();
+        auto lastIter = std::lower_bound(notes.begin(), notes.end(), last);
+        SCHMICKLE(lastIter != notes.end() && !(last < *lastIter));
+        selectEnd = lastIter - notes.begin() + 1;
     }
 
     static std::string TSDenom(const DisplayNote* , int ppq);

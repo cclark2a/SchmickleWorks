@@ -16,7 +16,8 @@ void AdderButton::onDragEnd(const event::DragEnd& e) {
     auto ntw = this->ntw();
     auto& n = ntw->n();
     if (shiftTime) {
-        n.shift(shiftLoc, shiftTime);
+        n.shift(shiftLoc, shiftTime, AddToChannels::all == addToChannels ?
+                ALL_CHANNELS : this->ntw()->selectChannels);
     }
     n.sort();
     ntw->selectButton->setOff();
@@ -304,8 +305,9 @@ void InsertButton::getState() {
     if (!useClipboard || ntw->clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
         for (unsigned index = iStart; index < iEnd; ++index) {
             const auto& note = n.notes[index];
-            if (note.isSelectable(ntw->selectChannels)) {
+            if (note.isSelectable(ntw->selectChannels)) {   // use lambda for this pattern
                 span.push_back(note);
+                span.back().cache = nullptr;
             }
         }
         state = insertInPlace ? State::dupInPlace : selectButton->editStart() ?
@@ -321,6 +323,7 @@ void InsertButton::getState() {
             const auto& note = n.notes[index];
             if (NOTE_ON == note.type && note.isSelectable(ntw->selectChannels)) {
                 span.push_back(note);
+                span.back().cache = nullptr;
                 break;
             }
         }
@@ -330,6 +333,7 @@ void InsertButton::getState() {
             const auto& note = n.notes[index];
             if (NOTE_ON == note.type && note.isSelectable(ntw->selectChannels)) {
                 span.push_back(note);
+                span.back().cache = nullptr;
                 break;
             }
         }
@@ -403,7 +407,7 @@ void InsertButton::onDragEnd(const event::DragEnd& e) {
         } else {
             int nextStart = ntw->nextStartTime(insertLoc);
             if (Notes::ShiftNotes(span, 0, lastEndTime - span.front().startTime)) {
-                Notes::SortNotes(span);
+                std::sort(span.begin(), span.end());
             }
             n.notes.insert(n.notes.begin() + insertLoc, span.begin(), span.end());
             // include notes on other channels that fit within the start/end window

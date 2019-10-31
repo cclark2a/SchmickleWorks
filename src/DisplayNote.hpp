@@ -22,8 +22,6 @@ enum DisplayType : uint8_t {
     MIDI_TEMPO,         // B
     REST_TYPE,          // C
     TRACK_END,          // D
-    SELECT_START,       // used to maintain select start and end over sort, not persistent types
-    SELECT_END,
     NUM_TYPES
 };
 
@@ -91,7 +89,9 @@ struct DisplayNote {
 
     bool operator<(const DisplayNote& rhs) const {
         return startTime < rhs.startTime
-            || (startTime == rhs.startTime && duration < rhs.duration);
+            || (startTime == rhs.startTime && (duration < rhs.duration
+            || (duration == rhs.duration && (data[0] < rhs.data[0]
+            || (data[0] == rhs.data[0] && channel < rhs.channel)))));
     }
 
     void setChannel(uint8_t c) {

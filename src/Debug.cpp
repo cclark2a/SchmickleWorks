@@ -24,8 +24,6 @@ struct DisplayTypeNames {
     { MIDI_TEMPO, "midi tempo"},
     { REST_TYPE, "rest type"},
     { TRACK_END, "track end"},
-    { SELECT_START, "select start (sorting)"},
-    { SELECT_END, "select end (sorting)"},
 };
 
 std::string InvalDebugStr(Inval inval) {
@@ -184,18 +182,18 @@ std::string DisplayNote::debugString(const vector<DisplayNote>& notes,
         std::string angleStart, std::string angleEnd) const {
     std::string cacheIndex;
     std::string cacheDump;
+    std::string result;
     if (noteCache && entry) {
         cacheIndex = std::to_string(entry - &noteCache->front()) + "/";
         cacheDump = " " + entry->debugString();
-    }
-    std::string result;
-    if (noteCache && last) {
-        SCHMICKLE(&noteCache->front() <= last && last <= &noteCache->back());
-        SCHMICKLE(last < cache);
-        while (++last < cache) {
-            result += std::to_string(last - &noteCache->front()) + "/"
-                    + std::to_string(this - &notes.front()) + " "
-                    + last->debugString() + "\n                              ";
+        if (last) {
+            SCHMICKLE(&noteCache->front() <= last && last <= &noteCache->back());
+            SCHMICKLE(last < cache);
+            while (++last < cache) {
+                result += std::to_string(last - &noteCache->front()) + "/"
+                        + std::to_string(this - &notes.front()) + " "
+                        + last->debugString() + "\n                              ";
+            }
         }
     }
     result += angleStart + cacheIndex + std::to_string(this - &notes.front())

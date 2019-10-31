@@ -43,9 +43,8 @@ struct DisplayCache {
 
     unsigned next(unsigned index) const {
         const DisplayNote* base = notes[index].note;
-        while (base == notes[++index].note) {
+        while (base == notes[++index].note)
             ;
-        }
         return index;
     }
 

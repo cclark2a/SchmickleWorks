@@ -365,6 +365,13 @@ struct NoteTakerQuantizeItem : MenuItem {
 	}
 };
 
+struct NoteTakerCompressJsonItem : MenuItem {
+
+	void onAction(const event::Action& ) override {
+        compressJsonNotes ^= true;
+	}
+};
+
 struct NoteTakerDebugVerboseItem : MenuItem {
 
 	void onAction(const event::Action& ) override {
@@ -400,6 +407,8 @@ void NoteTakerWidget::appendContextMenu(Menu *menu) {
     auto quantizeItem = createMenuItem<NoteTakerQuantizeItem>("Quantize MIDI", RIGHT_ARROW);
     quantizeItem->widget = this;
     menu->addChild(quantizeItem);
+    menu->addChild(createMenuItem<NoteTakerCompressJsonItem>("Compress JSON notes",
+            CHECKMARK(compressJsonNotes)));
     menu->addChild(new MenuSeparator);
     menu->addChild(createMenuItem<NoteTakerDebugVerboseItem>("Verbose debugging",
             CHECKMARK(debugVerbose)));

@@ -16,13 +16,21 @@ json_t* Clipboard::playBackToJson() const {
     return root;
 }
 
-void Clipboard::toJsonCompressed(json_t* root) const {
-    Notes::ToJsonCompressed(notes, root, "clipboardCompressed");
+void Clipboard::notesToJson(json_t* root) const {
+    if (compressJsonNotes) {
+        Notes::ToJsonCompressed(notes, root, "clipboardCompressed");
+    } else {
+        Notes::ToJsonUncompressed(notes, root, "clipboardUncompressed");
+    }
 }
 
 json_t* Notes::toJson() const {
     json_t* root = json_object();
-    Notes::ToJsonCompressed(notes, root, "notesCompressed");
+    if (compressJsonNotes) {
+        Notes::ToJsonCompressed(notes, root, "notesCompressed");
+    } else {
+        Notes::ToJsonUncompressed(notes, root, "notesUncompressed");
+    }
     json_object_set_new(root, "selectStart", json_integer(selectStart));
     json_object_set_new(root, "selectEnd", json_integer(selectEnd));
     json_object_set_new(root, "ppq", json_integer(ppq));
@@ -75,7 +83,7 @@ json_t* NoteTakerSlot::toJson() const {
 json_t* NoteTakerWidget::toJson() {
     if (debugVerbose) n().validate();  // don't write invalid notes for the next reload
     json_t* root = ModuleWidget::toJson();
-    clipboard.toJsonCompressed(root);
+    clipboard.notesToJson(root);
     json_object_set_new(root, "clipboardSlots", clipboard.playBackToJson());
     // many of these are no-ops, but permits statefulness to change without recoding this block
     json_object_set_new(root, "display", display->range.toJson());
@@ -99,6 +107,7 @@ json_t* NoteTakerWidget::toJson() {
     // end of mostly no-op section
     json_object_set_new(root, "selectChannels", json_integer(selectChannels));
     json_object_set_new(root, "storage", storage.toJson());
+    json_object_set_new(root, "compressJsonNotes", json_integer(compressJsonNotes));
     json_object_set_new(root, "debugCapture", json_integer(debugCapture));
     json_object_set_new(root, "debugVerbose", json_integer(debugVerbose));
     json_object_set_new(root, "groupByGMInstrument", json_integer(groupByGMInstrument));
@@ -124,20 +133,22 @@ json_t* SlotArray::toJson() const {
     return root;
 }
 
-void Clipboard::fromJsonCompressed(json_t* root) {
-    if (!Notes::FromJsonCompressed(root, &notes, nullptr)) {
+bool Clipboard::fromJsonCompressed(json_t* root, bool uncompressed) {
+    if (!Notes::FromJsonCompressed(root, &notes, nullptr, uncompressed)) {
         this->resetNotes();
-    }
-    SlotArray::FromJson(root, &playback);
-}
-
-void Clipboard::fromJsonUncompressed(json_t* root) {
-    Notes::FromJsonUncompressed(root, &notes);
-}
-
-bool Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* ppq) {
-    if (!jNotes) {
         return false;
+    }
+    return true;
+}
+
+bool Clipboard::fromJsonUncompressed(json_t* root) {
+    return Notes::FromJsonUncompressed(root, &notes);
+}
+
+bool Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* ppq,
+        bool uncompressed) {
+    if (!jNotes) {
+        return uncompressed;
     }
     const char* encodedString = json_string_value(jNotes);
     vector<char> encoded(encodedString, encodedString + strlen(encodedString));
@@ -146,19 +157,20 @@ bool Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* 
     return Deserialize(midi, notes, ppq);    
 }
 
-void Notes::FromJsonUncompressed(json_t* jNotes, vector<DisplayNote>* notes) {
+bool Notes::FromJsonUncompressed(json_t* jNotes, vector<DisplayNote>* notes) {
     size_t index;
     json_t* value;
     notes->resize(json_array_size(jNotes), DisplayNote(UNUSED));
     json_array_foreach(jNotes, index, value) {
         (*notes)[index].dataFromJson(value);
     }
+    return (bool) jNotes;
 }
 
 void Notes::fromJson(json_t* root) {
-    FromJsonUncompressed(json_object_get(root, "notesUncompressed"), &notes);
+    bool uncompressed = FromJsonUncompressed(json_object_get(root, "notesUncompressed"), &notes);
     // compressed overrides if both present
-    if (!FromJsonCompressed(json_object_get(root, "notesCompressed"), &notes, &ppq)) {
+    if (!FromJsonCompressed(json_object_get(root, "notesCompressed"), &notes, &ppq, uncompressed)) {
         Notes empty;
         notes = empty.notes;
     }
@@ -201,8 +213,12 @@ void NoteTakerSlot::fromJson(json_t* root) {
 
 void NoteTakerWidget::fromJson(json_t* root) {
     ModuleWidget::fromJson(root);
-    clipboard.fromJsonUncompressed(json_object_get(root, "clipboardUncompressed"));
-    clipboard.fromJsonCompressed(json_object_get(root, "clipboardCompressed"));
+    bool clipboardUncompressed = clipboard.fromJsonUncompressed(json_object_get(root,
+            "clipboardUncompressed"));
+    // compressed overrides if both present
+    clipboard.fromJsonCompressed(json_object_get(root, "clipboardCompressed"),
+        clipboardUncompressed);
+    SlotArray::FromJson(root, &clipboard.playback);
     // read back controls' state
     edit.fromJson(json_object_get(root, "edit"));
     cutButton->fromJson(json_object_get(root, "cutButton"));
@@ -234,6 +250,7 @@ void NoteTakerWidget::fromJson(json_t* root) {
     INT_FROM_JSON(selectChannels);
     storage.fromJson(json_object_get(root, "storage"));
     display->range.fromJson(json_object_get(root, "display"));
+    INT_FROM_JSON(compressJsonNotes);
     INT_FROM_JSON(debugCapture);
     INT_FROM_JSON(debugVerbose);
 #if DEBUG_SLUR

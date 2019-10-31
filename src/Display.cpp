@@ -432,10 +432,12 @@ void DisplayControl::drawTriplet(int position, unsigned index) const {
     nvgRestore(vg);
 }
 
-DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicFnt)
+DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicFnt,
+        unsigned selChan)
     : fb(frameBuffer)
     , xAxisScale(xas)
-    , musicFont(musicFnt){
+    , musicFont(musicFnt)
+    , selectedChannels(selChan) {
     if (debugVerbose) DEBUG("DisplayState fb %p", fb);
 }
 
@@ -564,7 +566,7 @@ NoteTakerDisplay::NoteTakerDisplay(const Vec& pos, const Vec& size, FramebufferW
     : mainWidget(ntw)
     , slot(&ntw->storage.slots[0])
     , range(state, size.x)
-    , state(range.xAxisScale, fb, ntw->musicFont())
+    , state(range.xAxisScale, fb, ntw->musicFont(), ntw->selectChannels)
     , pitchMap(sharpMap)
 {
     box.pos = pos;
@@ -1024,9 +1026,9 @@ void NoteTakerDisplay::drawNote(Accidental accidental,
         nvgText(vg, xPos - 6 - (SHARP_ACCIDENTAL == accidental), yPos + 1,
                 &accidents[accidental], &accidents[accidental + 1]);
     }
-    auto& symbols = PositionType::none != noteCache.beamPosition || noteCache.chord ?
-            StemType::up == noteCache.stemDirection ? upBeamNoteSymbols : downBeamNoteSymbols :
-            StemType::up == noteCache.stemDirection ? upFlagNoteSymbols : downFlagNoteSymbols; 
+    auto& symbols = PositionType::none == noteCache.beamPosition && noteCache.drawStaff ?
+            StemType::up == noteCache.stemDirection ? upFlagNoteSymbols : downFlagNoteSymbols : 
+            StemType::up == noteCache.stemDirection ? upBeamNoteSymbols : downBeamNoteSymbols;
     const char* noteStr = symbols[noteCache.symbol];
     nvgText(vg, xPos, yPos, noteStr, nullptr);
 }
