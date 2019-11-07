@@ -561,6 +561,7 @@ void NoteTakerWidget::updateVertical() {
                 } else {
                     selectChannels |= 1 << part;
                 }
+                display->invalidateCache();
             }
         }
         if (verticalWheel->getValue() >= 8 && !display->upSelected) {
@@ -574,6 +575,7 @@ void NoteTakerWidget::updateVertical() {
                 } else {
                     selectChannels &= ~(1 << part);
                 }
+                display->invalidateCache();
             }
         }
         return;

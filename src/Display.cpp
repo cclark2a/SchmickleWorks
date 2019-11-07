@@ -499,7 +499,7 @@ void DisplayRange::updateRange(const Notes& n, const DisplayCache* cache, bool e
         // compute xAxisOffset first; then use that and boxWidth to figure displayStart, displayEnd
         float oldX = xAxisOffset;
         if (n.selectEnd != oldEnd && n.selectStart == oldStart) { // only end moved
-            const NoteCache* last = n.notes[n.selectEnd].cache - 1;
+            const NoteCache* last = n.lastCache(n.selectEnd);
             xAxisOffset = (NoteTakerDisplay::CacheWidth(*last, state.vg) > boxWidth ?
                 n.xPosAtEndStart() :  // show beginning of end
                 selectEndXPos - boxWidth) + displayEndMargin;  // show all of end
@@ -656,6 +656,7 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
         }
     }
     auto vg = state.vg = args.vg;
+    state.selectedChannels = ntw->selectChannels;
     if (false && stagedSlot) {
         if (debugVerbose) DEBUG("stagedSlot %s",
                 stagedSlot->debugString(stagedSlot - &ntw->storage.slots.front()).c_str());
@@ -1119,8 +1120,11 @@ void NoteTakerDisplay::drawSelectionRect() {
     auto ntw = this->ntw();
     const auto& n = *this->notes();
     unsigned start = n.selectEndPos(n.selectStart);
-    auto& startNote = n.notes[start];
-    auto noteCache = startNote.cache;
+    const NoteCache* noteCache;
+    while (!(noteCache = n.notes[start].cache) && start < n.notes.size() - 1) {
+        ++start;
+    }
+    SCHMICKLE(noteCache);
     int xStart = noteCache->xPosition - (noteCache->accidentalSpace ? 10 : 2);
     int width = 4;
     int yTop = 0;
@@ -1167,7 +1171,11 @@ void NoteTakerDisplay::drawSelectionRect() {
         auto startCache = n.notes[n.selectStart].cache;
         xStart = startCache->xPosition - (startCache->accidentalSpace ? 8 : 0);
         unsigned selEndPos = n.selectEndPos(n.selectEnd - 1);
-        auto endCache = n.notes[selEndPos].cache;
+        const NoteCache* endCache;
+        while (!(endCache = n.notes[selEndPos].cache) && selEndPos < n.notes.size()) {
+            ++selEndPos;
+        }
+        SCHMICKLE(endCache);
         width = endCache->xPosition - (endCache->accidentalSpace ? 8 : 0) - xStart;
     }
     nvgBeginPath(vg);

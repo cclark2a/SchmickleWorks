@@ -51,7 +51,7 @@ struct DisplayState {
     const float xAxisScale;
     float callInterval = 1 / 70.f;
     const int musicFont;
-    const unsigned selectedChannels; 
+    unsigned selectedChannels; 
 
     DisplayState(float xAxisScale, FramebufferWidget* , int musicFont , unsigned selChan);
 

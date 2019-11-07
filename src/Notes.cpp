@@ -235,6 +235,20 @@ void Notes::findTriplets(DisplayCache* displayCache) {
     }
 }
 
+// cache may be null if note is rest and rest part is disabled
+const NoteCache* Notes::lastCache(unsigned index) const {
+    unsigned used = index;
+    while (used && !notes[used].cache) {
+        --used;
+    }
+    const NoteCache* result = notes[used].cache;
+    if (index == used && result) {
+        result -= 1;
+    }
+    SCHMICKLE(result);
+    return result;
+}
+
 // does not change note duration: make note duration overlap by one only when saving to midi
 // note that this allows slurs over tempo/key/time changes
 void Notes::setSlurs(unsigned selectChannels, bool condition) {
@@ -690,20 +704,39 @@ bool Notes::transposeSpan(vector<DisplayNote>& span) const {
 }
 
 int Notes::xPosAtEndStart() const {
-    return notes[selectEnd - 1].cache->xPosition;
+    unsigned endStart = selectEnd - 1;
+    while (!notes[endStart].cache) {
+        ++endStart;
+        SCHMICKLE(endStart < notes.size());
+    }
+    return notes[endStart].cache->xPosition;
 }
 
 int Notes::xPosAtEndEnd(const DisplayState& state) const {
-    const NoteCache* noteCache = notes[selectEnd - 1].cache;
+    unsigned endEnd = selectEnd - 1;
+    const NoteCache* noteCache;
+    while (!(noteCache = notes[endEnd].cache)) {
+        ++endEnd;
+        SCHMICKLE(endEnd < notes.size());
+    }
     return NoteTakerDisplay::XEndPos(*noteCache, state.vg);
 }
 
 int Notes::xPosAtStartEnd() const {
     unsigned startEnd = this->selectEndPos(selectStart);
+    while (!notes[startEnd].cache) {
+        ++startEnd;
+        SCHMICKLE(startEnd < notes.size());
+    }
     return notes[startEnd].cache->xPosition;
 }
 
 int Notes::xPosAtStartStart() const {
-    return notes[selectStart].cache->xPosition;
+    unsigned start = selectStart;
+    while (!notes[start].cache) {
+        ++start;
+        SCHMICKLE(start < notes.size());
+    }
+    return notes[start].cache->xPosition;
 }
 

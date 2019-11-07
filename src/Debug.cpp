@@ -72,6 +72,11 @@ std::string BeamPosition::debugString() const {
     return s;
 }
 
+#if DEBUG_STD
+    const BeamPosition& DisplayCache::b(unsigned index) const { return beams[index]; }
+    const NoteCache& DisplayCache::d(unsigned index) const { return notes[index]; }
+#endif
+
 void DisplayCache::validateNotes(const Notes* xnotes) const {
 #if DEBUG_CACHE
     DEBUG("%s", __func__);
@@ -260,6 +265,10 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
         this->n().validate();
     }
 }
+
+#if DEBUG_STD
+    const DisplayNote& Notes::d(unsigned index) const { return notes[index]; }
+#endif
 
 void Notes::DebugDump(const vector<DisplayNote>& notes, unsigned start, unsigned end,
         const vector<NoteCache>* cache, unsigned selectStart, unsigned selectEnd) {

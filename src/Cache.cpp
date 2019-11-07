@@ -622,9 +622,10 @@ void CacheBuilder::setDurations() {
 #endif
     int ppq = notes->ppq;
     for (unsigned index = 0; index < notes->notes.size(); ++index) {
-        const DisplayNote& note = notes->notes[index];
+        DisplayNote& note = notes->notes[index];
         if (REST_TYPE == note.type) {
-            if (!note.isSelectable(state.selectedChannels)) {
+            if (PositionType::none == note.triplet && !note.isSelectable(state.selectedChannels)) {
+                note.cache = nullptr;
                 continue;
             }
             

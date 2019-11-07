@@ -95,6 +95,7 @@ extern int midiQuantizer;
 #else
 #define DEBUG_TRIPLET_DRAW_DETAILS(noteCache)
 #endif
+#define DEBUG_STD 1
 #define DEBUG_BAR 0
 #define DEBUG_BAR_ADD_POS (DEBUG_BAR && 0)
 #define DEBUG_BEAM 0

@@ -41,6 +41,11 @@ struct DisplayCache {
     vector<BeamPosition> beams; // where beams/ties/slurs/triplets are drawn
     bool leadingTempo = false;
 
+#if DEBUG_STD
+    const BeamPosition& b(unsigned index) const;
+    const NoteCache& d(unsigned index) const;
+#endif
+
     unsigned next(unsigned index) const {
         const DisplayNote* base = notes[index].note;
         while (base == notes[++index].note)

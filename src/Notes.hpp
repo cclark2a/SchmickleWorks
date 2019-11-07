@@ -48,6 +48,9 @@ struct Notes {
     }
 
     void findTriplets(DisplayCache* displayCache);
+#if DEBUG_STD
+    const DisplayNote& d(unsigned index) const;
+#endif
     static void DebugDump(const vector<DisplayNote>& , unsigned start = 0,
             unsigned end = INT_MAX, const vector<NoteCache>* xPos = nullptr,
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
@@ -89,6 +92,7 @@ struct Notes {
 
     bool isEmpty(unsigned selectChannels) const;
     static std::string KeyName(int key, int minor);
+    const NoteCache* lastCache(unsigned index) const;
 
     static int LastEndTime(const vector<DisplayNote>& notes) {
         int result = 0;
