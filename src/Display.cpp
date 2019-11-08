@@ -705,7 +705,8 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
 #endif
     if (ntw->nt()) {
         float realT = (float) ntw->nt()->getRealSeconds();
-        state.callInterval = lastCall ? realT - lastCall : 1 / (float) settings::frameRateLimit;
+        state.callInterval = lastCall ? realT - lastCall :
+                settings::frameSwapInterval / APP->window->getMonitorRefreshRate();
         lastCall = realT;    
     }
     nvgSave(vg);
@@ -1168,7 +1169,7 @@ void NoteTakerDisplay::drawSelectionRect() {
         // to do : replace this with scissor to prevent drawing into display ui area
     }
     if (!selectButton->editStart() && n.selectEnd > 0) {
-        auto startCache = n.notes[n.selectStart].cache;
+        auto startCache = n.notes[start].cache;
         xStart = startCache->xPosition - (startCache->accidentalSpace ? 8 : 0);
         unsigned selEndPos = n.selectEndPos(n.selectEnd - 1);
         const NoteCache* endCache;
