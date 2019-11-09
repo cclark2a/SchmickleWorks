@@ -204,7 +204,8 @@ struct EditLEDButton : EditButton {
     }
 
     bool ledOn() const override {
-         return paramQuantity ? this->paramQuantity->getValue() : false;
+        return animationFrame;
+//        return paramQuantity ? this->paramQuantity->getValue() : false;
     }
 
     void onDragEnd(const event::DragEnd &e) override;
