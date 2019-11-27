@@ -18,8 +18,8 @@ struct DisplayNote;
 struct Voice {
     const DisplayNote* note = nullptr;  // the note currently playing on this channel
     double realStart = 0;   // real time when note started (used to recycle voice)
-    int gateLow = 0;        // midi time when gate goes low (start + sustain)
-    int noteEnd = 0;        // midi time when note expires (start + duration)
+//    int gateLow = 0;        // midi time when gate goes low (start + sustain)
+//    int noteEnd = 0;        // midi time when note expires (start + duration)
     // for super eight, also record last state of cv / gate/ velocity
     float cv = 0;
     float gate = 0;
@@ -37,7 +37,6 @@ struct Voices {
 // outside thread writes to buffer and then advances writer pointer when done
 // note taker thread reads from buffer and advances reader pointer when done
 enum class RequestType : unsigned {
-    nothingToDo,
     invalidateAndPlay,
     invalidateVoiceCount,
     onReset,
@@ -54,7 +53,6 @@ struct RequestRecord {
     std::string debugStr() const {
         std::string result;
         switch(type) {
-            case RequestType::nothingToDo: return "nothingToDo";
             case RequestType::invalidateAndPlay: return "invalidateAndPlay: "
                     + InvalDebugStr((Inval) data);
             case RequestType::invalidateVoiceCount: return "invalidateVoiceCount";
@@ -76,12 +74,14 @@ struct Requests {
     RequestRecord* reader;
     RequestRecord* writer;
 
+    bool empty() const {
+        return reader == writer;
+    }
+
     RequestRecord pop() {
+        SCHMICKLE(reader != writer);
         if (reader < writer) {
             writer = &buffer.front();
-        }
-        if (reader == writer) {
-            return {RequestType::nothingToDo, INT_MAX};
         }
         return *writer++;
     }
@@ -218,6 +218,9 @@ private:
         if (midiTime >= midiEndTime) {
             return false;
         }
+#if DEBUG_CPU_TIME
+        unsigned startPlayTime = playStart;
+#endif
         do {
             const auto& note = n().notes[playStart];
             if (midiTime < note.endTime()) {
@@ -235,6 +238,10 @@ private:
                     default:
                         ;
                 }
+#if DEBUG_CPU_TIME
+                if (debugVerbose) DEBUG("%d %s playTime %u to %u note %s end %d", midiTime, __func__,
+                        startPlayTime, playStart, note.debugString().c_str(), note.endTime());
+#endif
                 return true;
             }
             switch (note.type) {
@@ -258,6 +265,9 @@ private:
                     }
                     break;
                 case TRACK_END:
+#if DEBUG_CPU_TIME
+                if (debugVerbose) DEBUG("%s playTime %u to %u", __func__, startPlayTime, playStart);
+#endif
                     return false;
                 default:
                     ;
@@ -309,12 +319,29 @@ private:
         lights[CLIPBOARD_ON_LIGHT].setBrightness(brightness);
     }
 
+    void setExpiredGateLow(const DisplayNote& note) {
+        auto& c = channels[note.channel];
+        auto& v = c.voices[note.voice];
+//        SCHMICKLE(v.gateLow);
+//        v.gateLow = 0;
+        if (note.channel < CV_OUTPUTS) {
+            outputs[GATE1_OUTPUT + note.channel].setVoltage(0, note.voice);
+        } else {
+            channels[note.channel].voices[note.voice].gate = 0;
+        }
+//        v.noteEnd = 0;
+        SCHMICKLE(&note == v.note);
+        v.note = nullptr;
+    }
+
+#if 0
     void setExpiredGatesLow(int midiTime) {
 #if DEBUG_GATES
         static array<unsigned, CHANNEL_COUNT> debugVoiceCount;
 #endif
         bool hasExpander = rightExpander.module && modelSuper8 == rightExpander.module->model;
-        for (unsigned channel = 0; channel < CHANNEL_COUNT; ++channel) {
+        unsigned chanCount = hasExpander ? EXPANSION_OUTPUTS : CV_OUTPUTS;
+        for (unsigned channel = 0; channel < chanCount; ++channel) {
             auto& c = channels[channel];
 #if DEBUG_GATES
             if (debugVerbose && debugVoiceCount[channel] != c.voiceCount) {
@@ -327,8 +354,8 @@ private:
                 if (!voice.note) {
                     continue;
                 }
-                if (voice.gateLow && voice.gateLow < midiTime) {
-                    voice.gateLow = 0;
+//                if (voice.gateLow && voice.gateLow < midiTime) {
+//                    voice.gateLow = 0;
                     if (channel < CV_OUTPUTS) {
             #if DEBUG_GATES
                         if (debugVerbose) {
@@ -339,7 +366,7 @@ private:
                         }
             #endif
                         outputs[GATE1_OUTPUT + channel].setVoltage(0, index);
-                    } else if (channel < EXPANSION_OUTPUTS && hasExpander) {
+                    } else {
             #if DEBUG_GATES
                         if (debugVerbose) {
                             if (channels[channel].voices[index].gate) {
@@ -350,13 +377,14 @@ private:
             #endif
                         channels[channel].voices[index].gate = 0;
                     }
-                }
-                if (voice.noteEnd < midiTime) {
-                    voice.noteEnd = 0;
-                }
+//                }
+//                if (voice.noteEnd < midiTime) {
+//                    voice.noteEnd = 0;
+//                }
             }
         }
     }
+#endif
 
     void setPlayStart();
     void setOutputsVoiceCount();
@@ -370,7 +398,7 @@ private:
                 auto& voice = c.voices[inner];
                 voice.note = nullptr;
                 voice.realStart = 0;
-                voice.gateLow = voice.noteEnd = 0;
+//                voice.gateLow = voice.noteEnd = 0;
             }
         }
         for (unsigned index = 0; index < CV_OUTPUTS; ++index) {
@@ -381,9 +409,6 @@ private:
         if (rightExpander.module && modelSuper8 == rightExpander.module->model) {
             for (unsigned index = CV_OUTPUTS; index < EXPANSION_OUTPUTS; ++index) {
                 for (unsigned inner = 0; inner < channels[index].voiceCount; ++inner) {
-                    if (debugVerbose && 4 == index && 0 == inner) {
-                        DEBUG("zero gate [4][0] %p", &channels[index].voices[inner].gate);
-                    }
                     channels[index].voices[inner].gate = 0;
                 }
             }

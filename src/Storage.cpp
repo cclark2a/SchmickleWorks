@@ -41,7 +41,9 @@ void NoteTakerSlot::Decode(const vector<char>& encoded, vector<uint8_t>* midi) {
     }
     size_t index = midi->size();
     size_t wall = index >= 4 ? index - 4 : 0;
-    DEBUG("midi.size %u", index);
+#if DEBUG_STORAGE
+    if (debugVerbose) DEBUG("midi.size %u", index);
+#endif
     uint8_t test;
     while (index > wall) {
         test = (*midi)[--index];

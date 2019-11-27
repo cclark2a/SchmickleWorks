@@ -254,11 +254,13 @@ void InsertButton::getState() {
         return;
     }
     span.clear();
+    // all notes on pushed on span stack require note off to be added as well
     lastEndTime = 0;
     insertTime = 0;
     if (!n.noteCount(ntw->selectChannels) && ntw->clipboard.notes.empty()) {
         insertLoc = n.atMidiTime(0);
         span.push_back(ntw->middleC());
+        Notes::AddNoteOff(span);
         state = State::middleCShift;
         return;
     }
@@ -343,6 +345,7 @@ void InsertButton::getState() {
         span.push_back(midC);
         state = insertInPlace ? State::middleCInPlace : State::middleCShift;
     }
+    Notes::AddNoteOff(span);
 }
 
 void InsertButton::onDragEnd(const event::DragEnd& e) {

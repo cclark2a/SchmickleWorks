@@ -6,6 +6,7 @@
 struct BarPosition;
 struct BeamPositions;
 struct NoteTakerDisplay;
+struct NoteTakerWidget;
 
 enum Accidental : uint8_t {
     NO_ACCIDENTAL,

@@ -398,7 +398,9 @@ struct KeyButtonToolTip : WidgetToolTip<KeyButton> {
 // (no select) / part / choose channel / add or cut
 struct PartButton : EditLEDButton {
     PartButton() {
-        DEBUG("PartButton %p", this);
+#if DEBUG_BUTTON
+        if (debugVerbose) DEBUG("PartButton %p", this);
+#endif
     }
     
     void draw(const DrawArgs& ) override;

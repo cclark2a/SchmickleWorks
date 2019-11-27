@@ -8,7 +8,7 @@ const char* debugPositionType[] = {
     "right",
 };
 
-static_assert(((UNUSED << 4) | 0x80) == midiNoteOff, "note off mismatch");
+static_assert(((NOTE_OFF << 4) | 0x80) == midiNoteOff, "note off mismatch");
 static_assert(((NOTE_ON << 4) | 0x80) == midiNoteOn, "note on mismatch");
 static_assert(((KEY_PRESSURE << 4) | 0x80) == midiKeyPressure, "pressure mismatch");
 static_assert(((CONTROL_CHANGE << 4) | 0x80) == midiControlChange, "control mismatch");
@@ -19,6 +19,16 @@ static_assert(((MIDI_SYSTEM << 4) | 0x80) == midiSystem, "system mismatch");
 
 bool DisplayNote::isValid() const {
     switch (type) {
+        case NOTE_OFF:
+            if (channel > CHANNEL_COUNT) {
+                DEBUG("invalid note channel %d\n", channel);
+                return false;
+            }
+            if (0 > data[0] || data[0] > 127) {
+                DEBUG("invalid note pitch %d\n", data[0]);
+                return false;
+            }
+        break;
         case NOTE_ON:
             if (channel > CHANNEL_COUNT) {
                 DEBUG("invalid note channel %d\n", channel);

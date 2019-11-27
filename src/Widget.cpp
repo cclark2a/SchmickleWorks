@@ -454,16 +454,46 @@ void NoteTakerWidget::copyNotes() {
     if (MIDI_HEADER == n.notes[n.selectStart].type) {
         ++start;
     }
-    if (start < n.selectEnd) {
-        SCHMICKLE(TRACK_END != n.notes[n.selectEnd - 1].type);
-        clipboard.notes.assign(n.notes.begin() + start, n.notes.begin() + n.selectEnd);
-    }
+    // copy everything but note off in selection range, and corresponding note off
+    int endTime = n.notes[n.selectEnd].startTime;
+    int lastTime = endTime;
+    clipboard.notes.clear();
+    array<bool, CHANNEL_COUNT * 128> on;    // to do : worth it to make this bit array?
+    on.fill(false);
+    do {
+        const auto& src = n.notes[start];
+        if (src.startTime > lastTime) {
+            break;
+        }
+        if (TRACK_END == src.type) {
+            break;
+        }
+        bool& onRef = on[src.channel * 128 + src.pitch()];
+        if (NOTE_OFF != src.type) {
+            if (src.startTime >= endTime) {
+                continue;
+            }
+            if (NOTE_ON == src.type) {
+                SCHMICKLE(src.channel < CHANNEL_COUNT);
+                SCHMICKLE(0 <= src.pitch() && src.pitch() < 128);
+                onRef = true;
+            }
+            lastTime = std::max(lastTime, src.endTime());
+            clipboard.notes.push_back(src);
+            continue;
+        }
+        if (!onRef) {
+            continue;   // omit note off if it is associated with note on before selection start
+        }
+        onRef = false;
+        clipboard.notes.push_back(src);
+    } while (true);
     for (auto& note : clipboard.notes) {
         note.cache = nullptr;
     }
     clipboardInvalid = false;
     this->setClipboardLight();
-    // to do : iterate through parent and set all other note taker clipboards
+    // iterate through parent and set all other note taker clipboards
     for (auto child : parent->children) {
         auto taker = dynamic_cast<NoteTakerWidget*>(child);
         if (!taker || this == taker) {
@@ -590,6 +620,9 @@ bool NoteTakerWidget::extractClipboard(vector<DisplayNote>* span) const {
     bool locked = false;
     int channel = -1;
     for (auto& note : clipboard.notes) {
+        if (NOTE_OFF == note.type) {
+            continue;
+        }
         if (!note.isNoteOrRest()) {
             mono = false;
             locked |= selectChannels != ALL_CHANNELS;
@@ -689,7 +722,7 @@ bool NoteTakerWidget::menuButtonOn() const {
 DisplayNote NoteTakerWidget::middleC() const {
     auto& n = this->n();
     DisplayNote midC(NOTE_ON, 0, n.ppq, (uint8_t) this->unlockedChannel());
-    midC.setPitch(60);  // to do : const for middle C
+    midC.setPitchData(60);  // to do : const for middle C
     return midC;
 }
 
@@ -955,8 +988,10 @@ void NoteTakerWidget::step() {
     ReqRecord record;
     do {
         record = reqs.pop();
+#if DEBUG_REQUEST
         if (debugVerbose && ReqType::nothingToDo != record.type)
             DEBUG("%s pop %s", __func__, record.debugStr().c_str());
+#endif
         switch (record.type) {
             case ReqType::resetDisplayRange:
                 display->range.reset();

@@ -289,14 +289,14 @@ static void TestEncode() {
     Notes n;
     n.notes.clear();
     int start = 0;
-    for (auto type : { MIDI_HEADER, KEY_SIGNATURE, TIME_SIGNATURE, MIDI_TEMPO, NOTE_ON,
+    for (auto type : { MIDI_HEADER, KEY_SIGNATURE, TIME_SIGNATURE, MIDI_TEMPO, NOTE_ON, NOTE_OFF,
             REST_TYPE, TRACK_END }) {
         DisplayNote note(type, start);
         if (note.isNoteOrRest()) {
             note.duration = n.ppq;
-            if (NOTE_ON == note.type) {
-                note.setPitch(60);
-            }
+        }
+        if (NOTE_OFF == note.type || NOTE_ON == note.type) {
+            note.setPitchData(60);
         }
         start += note.duration;
         n.notes.push_back(note);

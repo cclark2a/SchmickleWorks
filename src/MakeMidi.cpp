@@ -13,7 +13,7 @@ const NoteTakerChannel::Limit NoteTakerChannelLimits[] = {
 
 void NoteTakerMakeMidi::createEmpty(vector<uint8_t>& midi) {
     this->standardHeader(midi, stdTimePerQuarterNote);
-    DisplayNote dummy(UNUSED);
+    DisplayNote dummy(NOTE_OFF);
     int last = 0;
     add_track_end(dummy, last);
     this->standardTrailer(midi);
@@ -74,6 +74,7 @@ void NoteTakerMakeMidi::createFromNotes(const NoteTakerSlot& slot, vector<uint8_
     int lastTime = 0;
     for (auto& n : slot.n.notes) {
         switch(n.type) {
+            case NOTE_OFF:  // to do : use note off information rather than note on 
             case MIDI_HEADER:
                 break;
             case NOTE_ON:

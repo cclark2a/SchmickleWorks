@@ -29,6 +29,8 @@ struct Notes {
         notes.emplace_back(TRACK_END);
     }
 
+    static void AddNoteOff(vector<DisplayNote>& notes);
+
     void clear() {
         notes.clear();
         selectStart = 0;
@@ -56,6 +58,8 @@ struct Notes {
             unsigned selectStart = INT_MAX, unsigned selectEnd = INT_MAX);
     static bool Deserialize(const vector<uint8_t>& , vector<DisplayNote>* , int* ppq);
     void eraseNotes(unsigned start, unsigned end, unsigned selectChannels);
+    // truncates / expands duration preventing note from colliding with same pitch later on 
+    void fixCollisionDuration(DisplayNote* );
     static std::string FlatName(unsigned midiPitch);
     void fromJson(json_t* root);
     static bool FromJsonCompressed(json_t* , vector<DisplayNote>* , int* ppq, bool uncompressed);
@@ -90,6 +94,7 @@ struct Notes {
         return false;
     }
 
+    void insertNote(unsigned insertLoc, int startTime, int duration, unsigned channel, int pitch);
     bool isEmpty(unsigned selectChannels) const;
     static std::string KeyName(int key, int minor);
     const NoteCache* lastCache(unsigned index) const;
@@ -151,6 +156,9 @@ struct Notes {
     static bool PitchCollision(const vector<DisplayNote>& notes, const DisplayNote& , int pitch,
             vector<const DisplayNote*>* overlaps);
     bool pitchCollision(const DisplayNote& , int newPitch) const;
+    // set duration, pitch here because editing note on needs to edit note off as well
+    void setDuration(DisplayNote* note, int duration);
+    void setPitch(DisplayNote* note, int pitch);
     void setSlurs(unsigned selectChannels, bool condition);
     void setTriplets(unsigned selectChannels, bool condition);
     bool slursOrTies(unsigned selectChannels, HowMany , bool* atLeastOneSlur) const;
@@ -169,8 +177,6 @@ struct Notes {
     // to do : move notetaker sort here?
 
     static void Serialize(const vector<DisplayNote>& , vector<uint8_t>& );
-    // truncates / expands duration preventing note from colliding with same pitch later on 
-    void setDuration(DisplayNote* );
 
     void shift(unsigned start, int diff, unsigned selectChannels = ALL_CHANNELS) {
         if (Notes::ShiftNotes(notes, start, diff, selectChannels)) {
@@ -223,10 +229,12 @@ struct Notes {
         selectEnd = lastIter - notes.begin() + 1;
     }
 
+    void sortOffNote(const DisplayNote* note, const DisplayNote& oldOff, const DisplayNote& newOff);
+
     static std::string TSDenom(const DisplayNote* , int ppq);
     static std::string TSNumer(const DisplayNote* , int ppq);
     static std::string TSUnit(const DisplayNote* , int count, int ppq);
-    bool transposeSpan(vector<DisplayNote>& span) const;
+    bool transposeSpan(vector<DisplayNote>& span);
     bool triplets(unsigned selectChannels, HowMany ) const;
     json_t* toJson() const;
     static void ToJsonCompressed(const vector<DisplayNote>& , json_t* , std::string );

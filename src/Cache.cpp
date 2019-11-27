@@ -163,6 +163,9 @@ void CacheBuilder::cacheBeams() {
         NoteCache& noteCache = notes[cacheIndex];
         const DisplayNote& note = *noteCache.note;
         if (NOTE_ON != note.type) {
+            if (NOTE_OFF == note.type) {
+                continue;
+            }
             for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
                 if (255 != noteCache.channel && chan != noteCache.channel) {
                     continue;
@@ -235,9 +238,11 @@ void CacheBuilder::cacheSlurs() {
         const DisplayNote* note = noteCache.note;
         SCHMICKLE(noteCache.channel == note->channel);
         if (NOTE_ON != note->type) {
+            if (NOTE_OFF == note->type) {
+                continue;
+            }
             if (REST_TYPE == note->type) {
                 this->closeSlur(&slurStarts[noteCache.channel], cacheIndex);
-
             } else {
                 for (auto& slurStart : slurStarts) {
                     this->closeSlur(&slurStart, cacheIndex);
@@ -334,6 +339,7 @@ void CacheBuilder::cacheStaff() {
             if (StemType::unknown != next->stemDirection) {
                 continue;
             }
+            SCHMICKLE(NOTE_OFF != next->note->type);
             if (NOTE_ON != next->note->type) {
                 break;
             }
@@ -623,9 +629,13 @@ void CacheBuilder::setDurations() {
     int ppq = notes->ppq;
     for (unsigned index = 0; index < notes->notes.size(); ++index) {
         DisplayNote& note = notes->notes[index];
+        if (NOTE_OFF == note.type) {
+            SCHMICKLE(!note.cache);
+            continue;
+        }
         if (REST_TYPE == note.type) {
             if (PositionType::none == note.triplet && !note.isSelectable(state.selectedChannels)) {
-                note.cache = nullptr;
+                SCHMICKLE(!note.cache);
                 continue;
             }
             
@@ -915,13 +925,19 @@ void CacheBuilder::updateXPosition() {
         }
     }
     this->cacheSlurs();
-    Notes::DebugDump(notes->notes, 0, notes->notes.size() - 1, &cache->notes);
+#if DEBUG_CACHE
+    if (debugVerbose) {
+        Notes::DebugDump(notes->notes, 0, notes->notes.size() - 1, &cache->notes);
+    }
+#endif
 #if DEBUG_TRIPLET_DRAW
     unsigned index = 0;
 #endif
     for (auto& beam : cache->beams) {
 #if DEBUG_TRIPLET_DRAW
-        DEBUG("%s [%u] %s", __func__, index++, beam.debugString().c_str());
+        if (debugVerbose) {
+            DEBUG("%s [%u] %s", __func__, index++, beam.debugString().c_str());
+        }
 #endif
         beam.set(cache->notes);
     }

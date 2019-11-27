@@ -96,8 +96,10 @@ struct NoteTakerEdit {
             if (!horizontalNote && test.isNoteOrRest()) {
                 horizontalNote = &test;
                 horizontalValue = NoteDurations::FromMidi(test.duration, n.ppq);
+#if DEBUG_EDIT
                 if (debugVerbose) DEBUG("edit init horizontalValue %d horizontalNote %s",
                         horizontalValue, horizontalNote->debugString().c_str());
+#endif
                 if (NOTE_ON == test.type) {
                     verticalNote = &test;
                     verticalValue = test.pitch();
@@ -107,7 +109,9 @@ struct NoteTakerEdit {
                 }
             }
         }
+#if DEBUG_EDIT
         if (debugVerbose) DEBUG("edit init nextStart %d selectMaxEnd %d", nextStart, selectMaxEnd);
+#endif
     }
 
     void restore(Notes* n) const {

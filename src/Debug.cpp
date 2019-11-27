@@ -10,7 +10,7 @@ struct DisplayTypeNames {
     DisplayType type;
     const char* name;
  } typeNames[] = {
-    { UNUSED, "note off"},
+    { NOTE_OFF, "note off"},
     { NOTE_ON, "note on"},
     { KEY_PRESSURE, "key pressure"},
     { CONTROL_CHANGE, "control change"},
@@ -152,6 +152,7 @@ std::string DisplayNote::debugString() const {
 #endif
             break;
         case NOTE_OFF:
+            s += " pitch=" + std::to_string(this->pitch());
             break;
         case REST_TYPE:
             break;
@@ -330,6 +331,7 @@ bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure, boo
     bool sawHeader = !headerTrailer;
     bool sawTrailer = false;
     bool malformed = false;
+    vector<unsigned> notesOn;
     for (const auto& note : notes) {
         note.assertValid(note.type);
         switch (note.type) {
@@ -340,6 +342,7 @@ bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure, boo
                 }
                 sawHeader = true;
                 break;
+            case NOTE_OFF:
             case NOTE_ON:
             case REST_TYPE: {
                 if (!sawHeader) {
@@ -355,6 +358,24 @@ bool Notes::Validate(const vector<DisplayNote>& notes, bool assertOnFailure, boo
                     malformed = true;
                 }
                 time = note.startTime;
+                if (NOTE_OFF == note.type) {
+                    bool foundNoteOn = false;
+                    for (auto iter = notesOn.rbegin(); iter != notesOn.rend(); ++iter) {
+                        const auto& noteOn = notes[*iter];
+                        if (noteOn.pitch() == note.pitch() && noteOn.channel == note.channel) {
+                            notesOn.erase(std::next(iter).base());
+                            foundNoteOn = true;
+                            break;
+                        }
+                    }
+                    if (!foundNoteOn) {
+                        DEBUG("note off missing note on %S", note.debugString().c_str());
+                        malformed = true;
+                    }
+                    break;
+                } else if (NOTE_ON == note.type) {
+                    notesOn.push_back(&note - &notes.front());
+                }
                 auto& times = channelTimes[note.channel];
                 auto iter = times.begin();
                 while (iter != times.end()) {

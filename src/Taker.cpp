@@ -58,10 +58,14 @@ bool NoteTaker::isRunning() const {
 
 // don't change other threads data here (display)
 void NoteTaker::invalidateAndPlay(Inval inval) {
-    DEBUG("invalidateAndPlay %s", InvalDebugStr(inval).c_str());
+#if DEBUG_RUN
+    if (debugVerbose) DEBUG("invalidateAndPlay %s", InvalDebugStr(inval).c_str());
+#endif
     if (Inval::note == inval || Inval::load == inval || Inval::change == inval) {
         invalidVoiceCount = true;
-        DEBUG("invalidVoiceCount true");
+#if DEBUG_RUN
+        if (debugVerbose) DEBUG("invalidVoiceCount true");
+#endif
     }
     if (Inval::load == inval) {
         this->resetRun();
@@ -118,30 +122,46 @@ void NoteTaker::playSelection() {
         eosBase = midiEndTime;
         repeat = this->isRunning() ? INT_MAX : 1;
     }
+#if DEBUG_RUN
     if (debugVerbose) DEBUG("%s playStart %d midiTime %d midiEndTime %d",
             __func__, playStart, midiTime, midiEndTime);
+#endif
     this->advancePlayStart(midiTime, midiEndTime);
+#if DEBUG_RUN
     if (debugVerbose) DEBUG("%s advance playStart %d", __func__, playStart);
+#endif
 }
+
+#if DEBUG_CPU_TIME
+static double worstTime = 0;
+static double lastTime = 0;
+static bool reportWorstLater = false;
+static int reported = 0;
+#endif
 
 // since this runs on a high frequency thread, avoid state except to play notes
 // to do : while !running but notes are playing, disallow edits to notes and slots 
 //         (by ignoring button presses / wheel changes)
 void NoteTaker::process(const ProcessArgs &args) {
+#if DEBUG_CPU_TIME
+    double startTime = system::getThreadTime();
+#endif
     realSeconds += args.sampleTime;
-    outputs[CLOCK_OUTPUT].setVoltage(clockPulse.process(args.sampleTime) ? 10 : 0);
-    outputs[EOS_OUTPUT].setVoltage(clockPulse.process(args.sampleTime) ? 10 : 0);
-    bool ignoreClock = 0.001f > resetTimer.process(args.sampleTime);
 #if RUN_UNIT_TEST
     if (mainWidget->runUnitTest) {
         return;
     }
 #endif
-    RequestRecord record;
-    do {
-        record = requests.pop();
-        if (debugVerbose && RequestType::nothingToDo != record.type)
-                DEBUG("%s pop %s", __func__, record.debugStr().c_str());
+    outputs[CLOCK_OUTPUT].setVoltage(clockPulse.process(args.sampleTime) ? 10 : 0);
+    outputs[EOS_OUTPUT].setVoltage(eosPulse.process(args.sampleTime) ? 10 : 0);
+    bool ignoreClock = 0.001f > resetTimer.process(args.sampleTime);
+    while (!requests.empty()) {
+        RequestRecord record = requests.pop();
+#if DEBUG_REQUEST
+        if (debugVerbose) {
+            DEBUG("%s pop %s", __func__, record.debugStr().c_str());
+        }
+#endif
         switch (record.type) {
             case RequestType::invalidateAndPlay:
                 this->invalidateAndPlay((Inval) record.data);
@@ -168,9 +188,9 @@ void NoteTaker::process(const ProcessArgs &args) {
                 this->setPlayStart();
                 break;
             default:
-                assert(RequestType::nothingToDo == record.type);
+                assert(0);
         }
-    } while (RequestType::nothingToDo != record.type);
+    }
     auto& n = this->n();
     bool running = this->isRunning();
     int localTempo = tempo;
@@ -203,9 +223,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                 unsigned insertLoc = !n.noteCount(ntw()->selectChannels) ? n.atMidiTime(0) :
                         !n.selectStart ? mainWidget->wheelToNote(1) : n.selectEnd;
                 int startTime = n.notes[insertLoc].startTime;
-                DisplayNote note(NOTE_ON, startTime, duration, (uint8_t) mainWidget->unlockedChannel());
-                note.setPitch(midiNote);
-                n.notes.insert(n.notes.begin() + insertLoc, note);
+                n.insertNote(insertLoc, startTime, duration, mainWidget->unlockedChannel(), midiNote);
                 mainWidget->insertFinal(duration, insertLoc, 1);
             } else {
                 localTempo = this->externalTempo();
@@ -224,6 +242,9 @@ void NoteTaker::process(const ProcessArgs &args) {
     bool playNotes = (bool) playStart;
     int midiTime = 0;
     const auto& storage = ntw()->storage;
+#if DEBUG_CPU_TIME
+    double mid1 = system::getThreadTime();
+#endif
     if (playNotes) {
         // read data from display notes to determine pitch
         // note on event start changes cv and sets gate high
@@ -248,7 +269,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             }
         }
         this->setOutputsVoiceCount();
-        this->setExpiredGatesLow(midiTime);
+//        this->setExpiredGatesLow(midiTime);
         bool slotOn = ntw()->slotButton->ledOn();
         // if eos input is high, end song on slot ending condition
         if (eosTrigger.process(inputs[EOS_INPUT].getVoltage()) && INT_MAX != eosBase) {
@@ -283,24 +304,14 @@ void NoteTaker::process(const ProcessArgs &args) {
                 this->advancePlayStart(0, INT_MAX);
             }
             if (!running) {
-                this->setExpiredGatesLow(INT_MAX);
+                this->zeroGates();
             }
-#if DEBUG_GATES
-            if (debugVerbose) {
-                static float last = 0;
-                static const float* lastAddr = nullptr;
-                auto* gatePtr = &channels[4].voices[0].gate;
-                if (last != *gatePtr && lastAddr != gatePtr) {
-                    DEBUG("[%g] setExpiredGatesLow gate %g %p running %d",
-                            realSeconds, *gatePtr, gatePtr, running);
-                    last = *gatePtr;
-                    lastAddr = gatePtr;
-                }
-            }
-#endif
             playNotes = false;
         }
     }
+#if DEBUG_CPU_TIME
+    double mid2 = system::getThreadTime();
+#endif
     // if connected, set up all super eight outputs to last state before overwriting with new state
     if (rightExpander.module && rightExpander.module->model == modelSuper8) {
         Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
@@ -327,13 +338,25 @@ void NoteTaker::process(const ProcessArgs &args) {
             }
         }
     }
+#if DEBUG_CPU_TIME
+    double mid3 = system::getThreadTime();
+#endif
+    int debugIterations = 0;
+    int debugNotesSet = 0;
+    int debugNotesPlay = 0;
+    int debugNotesBias = 0;
     if (playNotes) {
-        unsigned start = playStart - 1;
+//        unsigned start = playStart - 1;
+        --playStart;
         unsigned sStart = INT_MAX;
         do {
-            const auto& note = n.notes[++start];
+            ++debugIterations;
+            const auto& note = n.notes[++playStart];
             if (note.startTime > midiTime) {
                 break;
+            }
+            if (NOTE_OFF == note.type) {
+                this->setExpiredGateLow(note);
             }
             if (NOTE_ON != note.type) {
                 continue;
@@ -342,44 +365,42 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (endTime <= midiTime) {
                 continue;
             }
+            ++debugNotesPlay;
             auto& channelInfo = channels[note.channel];
             SCHMICKLE((uint8_t) -1 != note.voice);
             unsigned voiceIndex = note.voice;
             auto& voice = channelInfo.voices[voiceIndex];
             if (&note == voice.note) {
-                if (midiTime < voice.noteEnd) {
-                    continue;
+                continue;
+            }
+            ++debugNotesSet;
+            voice.note = &note;
+            voice.realStart = realSeconds;
+            // to do : gate low should be set to sustain if slur is last note of non-running selection
+//                voice.gateLow = note.slurStart() ? INT_MAX : 
+//                        note.startTime + storage.current().channels[note.channel].sustain(note.duration);
+//                voice.noteEnd = endTime;
+            if (note.channel < CV_OUTPUTS) {
+                outputs[GATE1_OUTPUT + note.channel].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE, voiceIndex);
+            } else if (note.channel < EXPANSION_OUTPUTS
+                    && rightExpander.module && rightExpander.module->model == modelSuper8) {
+                Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
+        #if DEBUG_GATES
+                if (debugVerbose && DEFAULT_GATE_HIGH_VOLTAGE
+                        != channels[note.channel].voices[voiceIndex].gate) {
+                    DEBUG("[%g] chan %d gate %d from %g to DEFAULT_GATE_HIGH_VOLTAGE", realSeconds,
+                            note.channel, voiceIndex, channels[note.channel].voices[voiceIndex].gate);
                 }
-            } else {
-                voice.note = &note;
-                voice.realStart = realSeconds;
-                // to do : gate low should be set to sustain if slur is last note of non-running selection
-                voice.gateLow = note.slurStart() ? INT_MAX : 
-                        note.startTime + storage.current().channels[note.channel].sustain(note.duration);
-                voice.noteEnd = endTime;
-                if (note.channel >= CV_OUTPUTS && note.channel < EXPANSION_OUTPUTS
-                        && rightExpander.module && rightExpander.module->model == modelSuper8) {
-                    Super8Data *message = (Super8Data*) rightExpander.module->leftExpander.producerMessage;
-            #if DEBUG_GATES
-                    if (debugVerbose && DEFAULT_GATE_HIGH_VOLTAGE
-                            != channels[note.channel].voices[voiceIndex].gate) {
-                        DEBUG("[%g] chan %d gate %d from %g to DEFAULT_GATE_HIGH_VOLTAGE", realSeconds,
-                                note.channel, voiceIndex, channels[note.channel].voices[voiceIndex].gate);
-                    }
-            #endif
-                    channels[note.channel].voices[voiceIndex].gate = DEFAULT_GATE_HIGH_VOLTAGE;
-                    message->exGate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
-                    // to do : to get sensible output, need two deep buffer to avoid showing all values
-                }
-                if (note.channel < CV_OUTPUTS) {
-                    outputs[GATE1_OUTPUT + note.channel].setVoltage(DEFAULT_GATE_HIGH_VOLTAGE, voiceIndex);
-                }
+        #endif
+                channels[note.channel].voices[voiceIndex].gate = DEFAULT_GATE_HIGH_VOLTAGE;
+                message->exGate[note.channel - CV_OUTPUTS][voiceIndex] = DEFAULT_GATE_HIGH_VOLTAGE;
             }
             if (running) {
-                sStart = std::min(sStart, start);
+                sStart = std::min(sStart, playStart);
             }
             // recompute pitch all the time to prepare for tremelo / vibrato / slur / etc
             if (note.channel < EXPANSION_OUTPUTS) {
+                ++debugNotesBias;
                 float bias = -60.f / 12;  // MIDI middle C converted to 1 volt/octave
                 const auto verticalWheel = ntw()->verticalWheel;
                 if (mainWidget->runningWithButtonsOff()) {
@@ -427,6 +448,25 @@ void NoteTaker::process(const ProcessArgs &args) {
         }
         rightExpander.module->leftExpander.messageFlipRequested = true;
     }
+#if DEBUG_CPU_TIME
+    double endTime = system::getThreadTime();
+    double elapsed = endTime - startTime;
+    if (elapsed > worstTime) {
+        if (++reported > 1) {
+            worstTime = elapsed;
+            reportWorstLater = true;
+        }
+    }
+    if (1) reportWorstLater = true; // to do : remove this, debug debugging
+    if (reportWorstLater && endTime - lastTime > 0.3) {
+        DEBUG("worst time %g elapsed %g parts %g %g %g %g iter %d play %d set %d bias %d",
+                 worstTime, elapsed,
+                mid1 - startTime, mid2 - mid1, mid3 - mid2, endTime - mid3,
+                debugIterations, debugNotesPlay, debugNotesSet, debugNotesBias);
+        reportWorstLater = false;
+        lastTime = endTime;
+    }
+#endif
 }
 
 void NoteTaker::onReset() {
@@ -435,7 +475,9 @@ void NoteTaker::onReset() {
 }
 
 void NoteTaker::resetState(bool pushRequest) {
+#if DEBUG_RUN
     if (debugVerbose) DEBUG("notetaker reset");
+#endif
     for (auto& c : channels) {
         c.voiceCount = 0;
     }
@@ -460,6 +502,7 @@ void NoteTaker::resetRun(bool pushRequest) {
     }
 }
 
+// to do : add bool to note that some voice count has changed to skip this if there's nothing new
 void NoteTaker::setOutputsVoiceCount() {
     for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
         outputs[CV1_OUTPUT + chan].setChannels(channels[chan].voiceCount);
@@ -475,14 +518,18 @@ void NoteTaker::setPlayStart() {
     playStart = this->ntw()->edit.voice ? n.selectStart : 0;
     unsigned lastNote = (this->isRunning() ? n.notes.size() : n.selectEnd) - 1;
     midiEndTime = n.notes[lastNote].endTime();
+#if DEBUG_RUN
     if (debugVerbose) DEBUG("setPlayStart playStart %u midiEndTime %d lastNote %s", playStart,
             midiEndTime, n.notes[lastNote].debugString(n.notes, nullptr, nullptr).c_str());
+#endif
 }
 
 // to do : output debug data to show what set voice count did
 void NoteTaker::setVoiceCount() {
     auto& n = this->n();
+#if DEBUG_RUN
     DEBUG("setVoiceCount invalidVoiceCount %d", invalidVoiceCount);
+#endif
     if (!invalidVoiceCount) {
         return;
     }

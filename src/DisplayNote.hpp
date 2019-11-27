@@ -6,8 +6,7 @@ struct NoteCache;
 
 enum DisplayType : uint8_t {
 // enums below match MIDI channel voice message high nybble order
-    UNUSED,
-    NOTE_OFF = UNUSED,  // 0
+    NOTE_OFF,           // 0
     NOTE_ON,            // 1
     KEY_PRESSURE,       // 2
     CONTROL_CHANGE,     // 3
@@ -65,6 +64,8 @@ struct DisplayNote {
             case KEY_SIGNATURE:
                 this->setKey(0);
                 break;
+            case NOTE_OFF:
+                break;
             case NOTE_ON:
                 this->setOnVelocity(stdKeyPressure);
                 this->setOffVelocity(stdKeyPressure);
@@ -94,25 +95,20 @@ struct DisplayNote {
             || (data[0] == rhs.data[0] && channel < rhs.channel)))));
     }
 
-    void setChannel(uint8_t c) {
-        SCHMICKLE(c <= 0x0F);
-        channel = c;
-        assertValid(NOTE_ON == type ? NOTE_ON : REST_TYPE);
-    }
+#if 0  // never called; if needed, add Notes setchannel() to set note off channel as well
+    void setChannel(uint8_t c);
+#endif
 
     int pitch() const {
-        if (NOTE_OFF != type) {
-            assertValid(NOTE_ON);
-        }
+        assertValid(NOTE_OFF != type ? NOTE_ON : NOTE_OFF);
         return data[0];             // using MIDI note assignment
     }
 
-    void setPitch(int pitch) {
-        SCHMICKLE(pitch >= 0 && pitch <= 127);
+    
+// member accessor; to change pitch, call Notes setpitch() instead (which sets note off as well)
+    void setPitchData(int pitch) {
         data[0] = pitch;
-        if (NOTE_OFF != type) {
-            assertValid(NOTE_ON);
-        }
+        assertValid(NOTE_OFF != type ? NOTE_ON : NOTE_OFF);
     }
 
     int format() const {

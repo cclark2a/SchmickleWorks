@@ -137,7 +137,9 @@ struct NoteTakerWheel : app::SliderKnob {
     }
 
     void setValue(float value) {
+#if DEBUG_WHEEL
         if (debugVerbose) DEBUG("%s value %g last %d", __func__, value, lastValue);
+#endif
         if (paramQuantity) {
             paramQuantity->setValue(value);
         }
@@ -151,7 +153,9 @@ struct NoteTakerWheel : app::SliderKnob {
 
 struct HorizontalWheel : NoteTakerWheel {
     HorizontalWheel() {
-        DEBUG("HorizontalWheel init");
+#if DEBUG_WHEEL
+        if (debugVerbose) DEBUG("HorizontalWheel init");
+#endif
         shadow = 3;
         horizontal = true;
         this->setValue(0);

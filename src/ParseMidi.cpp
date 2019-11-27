@@ -29,7 +29,9 @@ static void AddTrackName(std::string* dest, std::string add) {
 }
 
 bool NoteTakerParseMidi::parseMidi() {
+#if DEBUG_PARSE
     if (debugVerbose) DEBUG("parseMidi start");
+#endif
     array<NoteTakerChannel, CHANNEL_COUNT> parsedChannels;
     array<uint8_t, CHANNEL_COUNT> reassign;
     for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
@@ -93,7 +95,9 @@ bool NoteTakerParseMidi::parseMidi() {
         parsedTracks.emplace_back();
         auto curTrack = &parsedTracks.back();
         midiTime = 0;
+#if DEBUG_PARSE
         if (debugVerbose) DEBUG("trackLength %d", trackLength);
+#endif
         unsigned lowNibble;
         unsigned runningStatus = -1;
         unsigned defaultChannel = 0;
@@ -135,7 +139,7 @@ bool NoteTakerParseMidi::parseMidi() {
                 if (!midi_check7bits(iter, "pitch", midiTime)) {
                     return false;
                 }
-                displayNote.setPitch(*iter++);
+                displayNote.setPitchData(*iter++);
                 if (!midi_check7bits(iter, "velocity", midiTime)) {
                     return false;
                 }
@@ -192,8 +196,8 @@ bool NoteTakerParseMidi::parseMidi() {
                         }
                     }
                     trackLength -= iter - messageStart;
-                    continue;  // do not store note off
-                };
+                }
+                break;
                 case NOTE_ON: {
                     auto noteOnIndex = pitched[displayNote.channel][displayNote.pitch()];
                     if (noteOnIndex) {
@@ -270,8 +274,10 @@ bool NoteTakerParseMidi::parseMidi() {
                         return false;
                     }
                     displayNote.data[0] = *iter++;
+#if DEBUG_PARSE
                     if (debugVerbose) DEBUG("channel pressure [chan %d] %d", displayNote.channel,
                             displayNote.data[0]);
+#endif
                 break;
                 case MIDI_SYSTEM:
                     if (debugVerbose) DEBUG("system message 0x%02x", lowNibble);
@@ -317,7 +323,9 @@ bool NoteTakerParseMidi::parseMidi() {
                                 DEBUG("expected meta event length");
                                 return false;
                             }
+#if DEBUG_PARSE
                             if (debugVerbose) DEBUG("meta event 0x%02x", displayNote.data[0]);
+#endif
                             switch (displayNote.data[0]) {
                                 case 0x00:  // sequence number: 
                                             // http://midi.teragonaudio.com/tech/midifile/seq.htm                                   
@@ -659,12 +667,16 @@ bool NoteTakerParseMidi::parseMidi() {
         }
         lastTime = note.startTime;
     }
+#if DEBUG_PARSE
     if (debugVerbose) Notes::DebugDump(withRests);
+#endif
     displayNotes->swap(withRests);
     if (ntPpq) {
         *ntPpq = ppq;
     }
+#if DEBUG_PARSE
     if (debugVerbose && ntPpq) DEBUG("ntPpq %d", *ntPpq);
+#endif
     return true;
 }
 

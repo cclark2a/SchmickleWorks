@@ -175,6 +175,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
             verticalWheel->setValue(edit.verticalValue);
         } else {
             const DisplayNote* note = &n.notes[n.selectStart];
+            SCHMICKLE(NOTE_OFF != note->type);
             if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
                 switch (note->type) {
                     case KEY_SIGNATURE:
@@ -216,6 +217,7 @@ void NoteTakerWidget::setVerticalWheelRange() {
             } else {
                 SCHMICKLE(edit.voices[0] < n.notes.size());
                 const DisplayNote& note = n.notes[edit.voices[0]];
+                SCHMICKLE(NOTE_OFF != note.type);
                 verticalWheel->setValue(NOTE_ON == note.type ? note.pitch() : 60); // to do : add const
             }
         }
@@ -387,15 +389,17 @@ void NoteTakerWidget::updateHorizontal() {
                 }
                 if (test.isNoteOrRest()) {
                     if (dbgOut) DEBUG("old note duration %s", note->debugString().c_str());
+                    int duration;
                     if (wheelChange) {
                         int oldDurationIndex = NoteDurations::FromMidi(test.duration, n.ppq);
-                        note->duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
+                        duration = NoteDurations::ToMidi(oldDurationIndex + wheelChange, n.ppq);
                     } else {
-                        note->duration = test.duration;
+                        duration = test.duration;
                     }
+                    n.setDuration(note, duration);
                     if (dbgOut) DEBUG("new note duration %s", note->debugString().c_str());
                     if (edit.voice) {
-                        n.setDuration(note);
+                        n.fixCollisionDuration(note);
                     } else if (test.endTime() > edit.selectMaxEnd) {
                         overlaps.emplace_back(std::pair<int, int>(test.endTime(), note->endTime()));
                         if (dbgOut) DEBUG("add overlap base %d note %d",
@@ -674,18 +678,23 @@ void NoteTakerWidget::updateVertical() {
                     int value = edit.base.notes[index].pitch() + wheelValue - edit.verticalValue;
                     value = std::max(0, std::min(127, value));
                     if (!n.pitchCollision(note, value)) {
-                        note.setPitch(value);
+                        n.setPitch(&note, value);
                         // if changing the pitch causes the this pitch to run into the same
                         // pitch on the same channel later, shorten its duration. But, restore the
                         // duration if there is no longer a pitch collision
                         const DisplayNote& base = edit.base.notes[index];
-                        note.duration = base.duration;
-                        n.setDuration(&note);
+                        n.setDuration(&note, base.duration);
+                        n.fixCollisionDuration(&note);
                         playNotes = true;
                     }
                 }
+                case NOTE_OFF:
+                case MIDI_HEADER:
+                case REST_TYPE:
+                case TRACK_END:
+                    break;
                 default:
-                    ;
+                    _schmickled();  // unhandled
             }
         }
         if (playNotes) {
@@ -708,7 +717,11 @@ void NoteTakerWidget::updateVertical() {
     } else {
         SCHMICKLE(selectButton->editStart());
         for (unsigned index = n.selectStart; index < n.selectEnd; ++index) {
-            if (NOTE_ON != n.notes[index].type) {
+            const auto& note = n.notes[index];
+            if (NOTE_OFF == note.type) {
+                continue;
+            }
+            if (NOTE_ON != note.type) {
                 return;  // give up early if selection contains something other than a note
             }
         }
@@ -716,8 +729,9 @@ void NoteTakerWidget::updateVertical() {
         const DisplayNote* base = nullptr;
         for (unsigned i : edit.voices) {  // skipping existing notes
             const auto& test = n.notes[i];
+            SCHMICKLE(NOTE_OFF != test.type);
             if (!base) {
-                base = &n.notes[i];
+                base = &test;
             } else if (test.startTime > base->startTime) {
                 break;
             }
@@ -728,15 +742,11 @@ void NoteTakerWidget::updateVertical() {
         if (!edit.voice) {
             int duration = base ? base->duration : n.ppq;
             int startTime = base ? base->startTime : n.notes[n.selectStart].startTime;
-            DisplayNote iNote(NOTE_ON, startTime, duration, (uint8_t) this->unlockedChannel());
-            iNote.setPitch(pitch);
-            n.selectStart += 1;
-            n.selectEnd = n.selectStart + 1;
-            n.notes.insert(n.notes.begin() + n.selectStart, iNote);
+            n.insertNote(n.selectStart, startTime, duration, this->unlockedChannel(), pitch);
             edit.voice = true;
             this->invalAndPlay(Inval::note);
         } else {
-            n.notes[n.selectStart].setPitch(pitch);
+            n.setPitch(&n.notes[n.selectStart], pitch);
             this->invalAndPlay(Inval::change);
         }
     }

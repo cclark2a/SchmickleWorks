@@ -120,6 +120,21 @@ std::string Notes::TSUnit(const DisplayNote* note, int count, int ppq) {
     return result;
 }
 
+void Notes::AddNoteOff(vector<DisplayNote>& notes) {
+    vector<DisplayNote> add;
+    for (unsigned index = 0; index < notes.size(); ++index) {
+        const auto& note = notes[index];
+        SCHMICKLE(NOTE_OFF != note.type);
+        if (NOTE_ON == note.type) {
+            add.emplace_back(DisplayNote(NOTE_OFF, note.endTime(), 0, note.channel));
+            add.back().setPitchData(note.pitch());
+            add.back().voice = note.voice;
+        }
+    }
+    notes.insert(notes.end(), add.begin(), add.end());
+    std::sort(notes.begin(), notes.end());
+}
+
 // only mark triplets if notes are the right duration and collectively a multiple of three
 // to do : if too few notes are of the right duration, they (probably) need to be drawn as ties --
 // 2/3rds of 1/4 note is 1/6 (.167) which could be 1/8 + 1/32 (.156)
@@ -153,6 +168,9 @@ void Notes::findTriplets(DisplayCache* displayCache) {
     tripStarts.fill(TripletCandidate());
     for (unsigned index = 0; index < notes.size(); ++index) {
         DisplayNote& note = notes[index];
+        if (NOTE_OFF == note.type) {
+            continue;
+        }
         if (!note.isNoteOrRest()) {
             noteTripletDebug("not note or rest", note);
             for (unsigned chan = 0; chan < CHANNEL_COUNT; ++chan) {
@@ -235,6 +253,21 @@ void Notes::findTriplets(DisplayCache* displayCache) {
     }
 }
 
+void Notes::insertNote(unsigned insertLoc, int startTime, int duration, unsigned channel, int pitch) {
+    DisplayNote iNote(NOTE_ON, startTime, duration, (uint8_t) channel);
+    iNote.setPitchData(pitch);
+    selectStart += 1;
+    selectEnd = selectStart + 1;
+    notes.insert(notes.begin() + insertLoc, iNote);
+    DisplayNote noteOff(NOTE_OFF, startTime + duration, 0, (uint8_t) channel);
+    noteOff.setPitchData(pitch);
+    auto iter = notes.begin() + insertLoc;
+    while (*iter < noteOff) {
+        ++iter;
+    }
+    notes.insert(iter, noteOff);
+}
+
 // cache may be null if note is rest and rest part is disabled
 const NoteCache* Notes::lastCache(unsigned index) const {
     unsigned used = index;
@@ -247,6 +280,29 @@ const NoteCache* Notes::lastCache(unsigned index) const {
     }
     SCHMICKLE(result);
     return result;
+}
+
+void Notes::setDuration(DisplayNote* note, int duration) {
+    int oldEnd = note->endTime();
+    note->duration = duration;
+    note->assertValid(NOTE_ON);
+    // locate current note off and its new location
+    DisplayNote oldOff(NOTE_OFF, oldEnd, 0, note->channel);
+    oldOff.data[0] = note->pitch();
+    DisplayNote newOff(NOTE_OFF, note->endTime(), 0, note->channel);
+    newOff.data[0] = note->pitch();
+    this->sortOffNote(note, oldOff, newOff);
+}
+
+void Notes::setPitch(DisplayNote* note, int pitch) {
+    int oldPitch = note->data[0];
+    note->data[0] = pitch;
+    note->assertValid(NOTE_ON);
+    DisplayNote oldOff(NOTE_OFF, note->endTime(), 0, note->channel);
+    oldOff.data[0] = oldPitch;
+    DisplayNote newOff(NOTE_OFF, note->endTime(), 0, note->channel);
+    newOff.data[0] = pitch;
+    this->sortOffNote(note, oldOff, newOff);
 }
 
 // does not change note duration: make note duration overlap by one only when saving to midi
@@ -286,46 +342,6 @@ void Notes::setSlurs(unsigned selectChannels, bool condition) {
         }
         last[note.channel] = &note;
     }
-}
-
-// at least one can be set, or at least one can be cleared; and at least one slur
-bool Notes::slursOrTies(unsigned selectChannels, HowMany howMany, bool* atLeastOneSlur) const {
-    array<const DisplayNote*, CHANNEL_COUNT> last;
-    last.fill(nullptr);
-    if (atLeastOneSlur) {
-        *atLeastOneSlur = false;
-    }
-    bool condition = HowMany::set == howMany;
-    bool result = false;
-    for (unsigned index = selectStart; index < selectEnd; ++index) {
-        auto& note = notes[index];
-        if (!note.isSelectable(selectChannels)) {
-            continue;
-        }
-        if (REST_TYPE == note.type) {
-            last[note.channel] = nullptr;
-            continue;
-        }
-        if (NOTE_ON != note.type) {
-            last.fill(nullptr);
-            continue;
-        }
-        auto lastOne = last[note.channel];
-        if (lastOne) {
-            if (lastOne->startTime >= note.startTime) {
-                continue;  // ignore other notes on chord
-            }
-            if (condition != note.slurEnd()) {
-                SCHMICKLE(condition != lastOne->slurStart());
-                if (atLeastOneSlur) {
-                    *atLeastOneSlur |= lastOne->pitch() != note.pitch();
-                }
-                result = true;
-            }
-        }
-        last[note.channel] = &note;
-    }
-    return result;
 }
 
 // note : adjusts totalDuration by ppq
@@ -385,6 +401,94 @@ void Notes::setTriplets(unsigned selectChannels, bool condition) {
     this->sort();
 }
 
+// at least one can be set, or at least one can be cleared; and at least one slur
+bool Notes::slursOrTies(unsigned selectChannels, HowMany howMany, bool* atLeastOneSlur) const {
+    array<const DisplayNote*, CHANNEL_COUNT> last;
+    last.fill(nullptr);
+    if (atLeastOneSlur) {
+        *atLeastOneSlur = false;
+    }
+    bool condition = HowMany::set == howMany;
+    bool result = false;
+    for (unsigned index = selectStart; index < selectEnd; ++index) {
+        auto& note = notes[index];
+        if (!note.isSelectable(selectChannels)) {
+            continue;
+        }
+        if (REST_TYPE == note.type) {
+            last[note.channel] = nullptr;
+            continue;
+        }
+        if (NOTE_ON != note.type) {
+            last.fill(nullptr);
+            continue;
+        }
+        auto lastOne = last[note.channel];
+        if (lastOne) {
+            if (lastOne->startTime >= note.startTime) {
+                continue;  // ignore other notes on chord
+            }
+            if (condition != note.slurEnd()) {
+                SCHMICKLE(condition != lastOne->slurStart());
+                if (atLeastOneSlur) {
+                    *atLeastOneSlur |= lastOne->pitch() != note.pitch();
+                }
+                result = true;
+            }
+        }
+        last[note.channel] = &note;
+    }
+    return result;
+}
+
+void Notes::sortOffNote(const DisplayNote* note, const DisplayNote& oldOff,
+        const DisplayNote& newOff) {
+    vector<DisplayNote>::iterator oldOffLoc = notes.end();
+    vector<DisplayNote>::iterator newOffLoc = notes.end();
+    for (auto iter = notes.begin() + (note - &notes.front()); iter != notes.end(); ++iter) {
+        bool oldLarger = *iter < oldOff;
+        if (oldLarger) {
+            oldOffLoc = iter;
+        }
+        if (*iter < newOff) {
+            newOffLoc = iter;
+        } else if (!oldLarger) {
+            break;
+        }
+    }
+    SCHMICKLE(notes.end() != oldOffLoc);
+    SCHMICKLE(notes.end() != newOffLoc);
+    // slide notes if needed
+    /*
+    note on           old off
+     ----- ----- ----- ----- ----- -----
+    |  a  |  b  |  c  |  d  |  e  |  f  |
+     ----- ----- ----- ----- ----- -----
+
+    old off loc == c        rightmost note where iter is less than old off
+
+    new off loc == b        copy b + 1 through c (c) to b + 2 (d) ; copy new off to b + 1
+                == c        copy c + 1 through c (-) to c + 2 (e) ; copy new off to c + 1 (d)
+                == d        copy d + 1 through d + 1 (-) to d     ; copy new off to d
+                == e        copy d + 1 through e + 1 (e) to d     ; copy new off to e
+    */
+    if (newOffLoc <= oldOffLoc) {           // for new off loc == b, b <= c /  == c, c <= c
+        auto copyIter = oldOffLoc;          // = c                          /  = c
+        while (copyIter > newOffLoc) {      // c > b                        / ! (c > c)
+            *(copyIter + 1) = *copyIter;    // d = c
+            copyIter -= 1;                  // b
+        }
+        *(copyIter + 1) = newOff;           // c = new off                  / d = new off
+    } else {                                // for new off loc == d         / == e
+        auto copyIter = oldOffLoc + 1;      // = d                          / = d
+        while (copyIter < newOffLoc) {      // ! (d < d)                    / d < e 
+            *copyIter = *(copyIter + 1);    //                              / d = e
+            copyIter += 1;                  //                              / e
+        }
+        *copyIter = newOff;                 // d = new off                  / e = new off
+    }
+}
+
 // more precisely: all notes and rests that can be triplets, are
 // Note that dotted notes are disallowed as triplet parts.
 // This is because 2/3rds of the dotted note is the undotted note, making it indistinguishable
@@ -434,7 +538,7 @@ bool Notes::triplets(unsigned selectChannels, HowMany howMany) const {
 bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* notes, int* ppq) {
     NoteTakerParseMidi midiParser(storage, notes, ppq, nullptr);
     vector<uint8_t>::const_iterator iter = midiParser.midi.begin();
-    DisplayNote note(UNUSED);
+    DisplayNote note(NOTE_OFF);
     int lastSuccess = 0;
     notes->clear();
     do {
@@ -505,6 +609,9 @@ vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
 void Notes::HighestOnly(vector<DisplayNote>& span) {
     vector<DisplayNote> highest;
     for (auto& note : span) {
+        if (NOTE_OFF == note.type) {
+            continue;
+        }
         if (NOTE_ON != note.type) {
             highest.push_back(note);
             continue;
@@ -624,7 +731,8 @@ bool Notes::pitchCollision(const DisplayNote& note, int newPitch) const {
     return Notes::PitchCollision(notes, note, newPitch, nullptr);
 }
 
-void Notes::setDuration(DisplayNote* note) {
+// this checks for pitch collision and edits the durations if they are detected
+void Notes::fixCollisionDuration(DisplayNote* note) {
     vector<const DisplayNote*> overlaps;
     if (!Notes::PitchCollision(notes, *note, note->pitch(), &overlaps)) {
         return;
@@ -632,7 +740,7 @@ void Notes::setDuration(DisplayNote* note) {
     for (auto test : overlaps) {
         if (note->endTime() > test->startTime) {
             if (test->pitch() == note->pitch()) {
-                note->duration = test->startTime - note->startTime;
+                this->setDuration(note, test->startTime - note->startTime);
             }
         }
     }
@@ -654,14 +762,13 @@ void Notes::Serialize(const vector<DisplayNote>& notes, vector<uint8_t>& storage
             midiMaker.add_size8(note.data[index]);
         }
         // MIDI-like: pack type and channel into first byte
-        uint8_t chan = note.isNoteOrRest() ? note.channel : 0;
-        uint8_t byte = (note.type << 4) + chan;
+        uint8_t byte = (note.type << 4) + (note.channel & 0xF);
         midiMaker.add_one(byte);
     }
 }
 
 // transpose the span up by approx. one score line (major/aug third) avoiding existing notes
-bool Notes::transposeSpan(vector<DisplayNote>& span) const {
+bool Notes::transposeSpan(vector<DisplayNote>& span) {
     vector<DisplayNote> transposed;
     int newPitch = -1;
     for (auto& note : span) {
@@ -697,7 +804,7 @@ bool Notes::transposeSpan(vector<DisplayNote>& span) const {
                 return false;   // fail, tell caller new notes can't be transposed and added
             }
         }
-        note.setPitch(newPitch);
+        this->setPitch(&note, newPitch);
         transposed.push_back(note);
     }
     return true;

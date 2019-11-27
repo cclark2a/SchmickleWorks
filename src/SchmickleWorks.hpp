@@ -72,7 +72,7 @@ extern bool debugVerbose;  // switch to permit user debugging in shipping code
 extern bool groupByGMInstrument;
 extern int midiQuantizer;
 
-#define RUN_UNIT_TEST 1 // to do : set to zero for shipping code
+#define RUN_UNIT_TEST 01 // to do : set to zero for shipping code
 
 #if RUN_UNIT_TEST
     enum class TestType {
@@ -85,7 +85,7 @@ extern int midiQuantizer;
     void UnitTest(struct NoteTakerWidget* , TestType );
 #endif
 
-#define DEBUG_TRIPLET_DRAW 01
+#define DEBUG_TRIPLET_DRAW 0
 #define DEBUG_TRIPLET_TEST (DEBUG_TRIPLET_DRAW && debugVerbose)
 #define DEBUG_TRIPLET_DRAW_SHOW_DETAILS 0
 #if DEBUG_TRIPLET_DRAW_SHOW_DETAILS
@@ -95,23 +95,29 @@ extern int midiQuantizer;
 #else
 #define DEBUG_TRIPLET_DRAW_DETAILS(noteCache)
 #endif
-#define DEBUG_STD 1
+#define DEBUG_STD 0
 #define DEBUG_BAR 0
 #define DEBUG_BAR_ADD_POS (DEBUG_BAR && 0)
 #define DEBUG_BEAM 0
-#define DEBUG_CACHE 1
+#define DEBUG_BUTTON 0
+#define DEBUG_CACHE 0
+#define DEBUG_CPU_TIME 0
 #define DEBUG_DISPLAY_RANGE 0
-#define DEBUG_DURATIONS 01
+#define DEBUG_DURATIONS 0
 #define DEBUG_EDIT 0
 #define DEBUG_GATES 0
 #define DEBUG_PARSE 0
-#define DEBUG_POS 01
+#define DEBUG_POS 0
+#define DEBUG_RANGE 0
+#define DEBUG_REQUEST 0
+#define DEBUG_RUN 0
 #define DEBUG_RUN_TIME 0
 #define DEBUG_STAFF 0
 #define DEBUG_STORAGE 0
 #define DEBUG_SLUR 0
 #define DEBUG_SLUR_TEST (DEBUG_SLUR && debugVerbose)
 #define DEBUG_VOICE_COUNT 0
+#define DEBUG_WHEEL 0
 
 struct Super8Data {
     float exCv[4][16] = {};

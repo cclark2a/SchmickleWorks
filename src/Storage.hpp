@@ -92,7 +92,9 @@ struct SlotArray {
     void fromJson(json_t* root);
 
     void invalidate() {
+#if DEBUG_STORAGE
         if (debugVerbose) DEBUG("%s slotStart:%u", __func__, slotStart);
+#endif
         slots[slotStart].invalid = true;
     }
 

@@ -438,13 +438,17 @@ DisplayState::DisplayState(float xas, FramebufferWidget* frameBuffer, int musicF
     , xAxisScale(xas)
     , musicFont(musicFnt)
     , selectedChannels(selChan) {
+#if DEBUG_RANGE
     if (debugVerbose) DEBUG("DisplayState fb %p", fb);
+#endif
 }
 
 DisplayRange::DisplayRange(DisplayState& ds, float boxWidth)
     : state(ds)
     , bw(boxWidth) {
+#if DEBUG_RANGE
         if (debugVerbose) DEBUG("DisplayRange bw %g xAxisOffset %g", bw, xAxisOffset);
+#endif
 }
 
 void DisplayRange::scroll() {
@@ -626,6 +630,7 @@ const DisplayCache* NoteTakerDisplay::cache() const {
 }
 
 float NoteTakerDisplay::CacheWidth(const NoteCache& noteCache, NVGcontext* vg) {
+    SCHMICKLE(NOTE_OFF != noteCache.note->type);
     if (!noteCache.note->isNoteOrRest()) {
         if (TRACK_END == noteCache.note->type) {
             return 0;
@@ -665,7 +670,9 @@ void NoteTakerDisplay::draw(const DrawArgs& args) {
     }
     auto cache = &slot->cache;
     if (slot->invalid) {
+#if DEBUG_CACHE
         if (debugVerbose) DEBUG("%s slot invalid", __func__);
+#endif
         CacheBuilder builder(state, n, cache);
         builder.updateXPosition();
         slot->invalid = false;
@@ -1107,6 +1114,7 @@ void NoteTakerDisplay::drawNotes(BarPosition& bar) {
                 this->drawTempo(noteCache.xPosition, note.tempo(), 0xFF);
                 bar.setMidiEnd(noteCache);
             break;
+            case NOTE_OFF:
             case TRACK_END:
             break;
             default:
@@ -1244,7 +1252,7 @@ void NoteTakerDisplay::drawDynamicPitchTempo() {
         note.duration = n.ppq;
         NoteCache noteCache(&note);
         note.cache = &noteCache;
-        note.setPitch((int) ntw->verticalWheel->getValue());
+        note.setPitchData((int) ntw->verticalWheel->getValue());    // pitch : to do, add setter ?
         nvgBeginPath(vg);
         nvgRect(vg, box.size.x - 10, 2, 10, box.size.y - 4);
         nvgFillColor(vg, nvgRGBA(0xFF, 0xFF, 0xFF, dynamicPitchAlpha));
@@ -1828,7 +1836,14 @@ void NoteTakerDisplay::setUpAccidentals(BarPosition& bar) {
             case TIME_SIGNATURE:
                 (void) bar.setSignature(note, n.ppq);
                 break;
+            case NOTE_OFF:
+            case MIDI_HEADER:
+            case MIDI_TEMPO:
+            case REST_TYPE:
+            case TRACK_END:
+                break;
             default:
+                _schmickled();  // unhandled
                 ;
         }
     }

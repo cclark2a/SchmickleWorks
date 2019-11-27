@@ -160,7 +160,7 @@ bool Notes::FromJsonCompressed(json_t* jNotes, vector<DisplayNote>* notes, int* 
 bool Notes::FromJsonUncompressed(json_t* jNotes, vector<DisplayNote>* notes) {
     size_t index;
     json_t* value;
-    notes->resize(json_array_size(jNotes), DisplayNote(UNUSED));
+    notes->resize(json_array_size(jNotes), DisplayNote(NOTE_OFF));
     json_array_foreach(jNotes, index, value) {
         (*notes)[index].dataFromJson(value);
     }
