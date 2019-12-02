@@ -271,17 +271,16 @@ void InsertButton::getState() {
     //   Insert loc is select start; existing notes are not shifted, insert is transposed
     bool insertInPlace = selectButton->editEnd();
     unsigned iStart = n.selectStart;
-    unsigned iEnd = n.selectEnd;
     if (!iStart) {
         iStart = insertLoc = ntw->wheelToNote(1);
     } else if (insertInPlace) {
-        insertLoc = iStart;
+        insertLoc = n.selectStart;
     } else {
-        insertLoc = iEnd;
+        insertLoc = n.selectEnd;
     // A prior edit (e.g., changing a note duration) may invalidate using select end as the
     //   insert location. Use select end to determine the last active note to insert after,
     //   but not the location to insert after.
-        for (unsigned index = 0; index < iEnd; ++index) {
+        for (unsigned index = 0; index < n.selectEnd; ++index) {
             const auto& note = n.notes[index];
             if (note.isSelectable(ntw->selectChannels)) {
                 lastEndTime = std::max(lastEndTime, note.endTime());
@@ -291,6 +290,9 @@ void InsertButton::getState() {
                 insertLoc = index;
             }
         }
+    }
+    while (NOTE_OFF == n.notes[insertLoc].type) {
+        ++insertLoc;
     }
     insertTime = n.notes[insertLoc].startTime;
     if (!insertInPlace) {
@@ -305,7 +307,7 @@ void InsertButton::getState() {
         }
     }
     if (!useClipboard || ntw->clipboard.notes.empty() || !ntw->extractClipboard(&span)) {
-        for (unsigned index = iStart; index < iEnd; ++index) {
+        for (unsigned index = iStart; index < n.selectEnd; ++index) {
             const auto& note = n.notes[index];
             if (note.isSelectable(ntw->selectChannels)) {   // use lambda for this pattern
                 span.push_back(note);
@@ -345,7 +347,9 @@ void InsertButton::getState() {
         span.push_back(midC);
         state = insertInPlace ? State::middleCInPlace : State::middleCShift;
     }
-    Notes::AddNoteOff(span);
+    if (1 == span.size()) {
+        Notes::AddNoteOff(span);
+    }
 }
 
 void InsertButton::onDragEnd(const event::DragEnd& e) {

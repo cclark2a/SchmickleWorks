@@ -198,8 +198,7 @@ struct Notes {
         }
         for (unsigned index = start; index < notes.size(); ++index) {
             DisplayNote& note = notes[index];
-            if ((note.isSignature() && ALL_CHANNELS == selectChannels)
-                    || note.isSelectable(selectChannels)) {
+            if (note.isEnabled(selectChannels)) {
                 note.startTime += diff;
             } else {
                 sortResult = true;

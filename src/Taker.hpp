@@ -245,6 +245,9 @@ private:
                 return true;
             }
             switch (note.type) {
+                case NOTE_OFF:
+                    this->setExpiredGateLow(note);
+                    break;
                 case MIDI_TEMPO:
                     if (this->isRunning()) {
                         tempo = note.tempo();
@@ -320,18 +323,25 @@ private:
     }
 
     void setExpiredGateLow(const DisplayNote& note) {
-        auto& c = channels[note.channel];
-        auto& v = c.voices[note.voice];
-//        SCHMICKLE(v.gateLow);
-//        v.gateLow = 0;
-        if (note.channel < CV_OUTPUTS) {
-            outputs[GATE1_OUTPUT + note.channel].setVoltage(0, note.voice);
-        } else {
-            channels[note.channel].voices[note.voice].gate = 0;
+        auto c = note.channel;
+        SCHMICKLE(c < CHANNEL_COUNT);
+        auto& channel = channels[c];
+        auto v = note.voice;
+        if (v >= VOICE_COUNT) {
+            Notes::DebugDump(n().notes);
         }
-//        v.noteEnd = 0;
-        SCHMICKLE(&note == v.note);
-        v.note = nullptr;
+        SCHMICKLE(v < VOICE_COUNT);
+        auto& voice = channel.voices[v];
+        if (!voice.note) {
+            return;
+        }
+        if (c < CV_OUTPUTS) {
+            outputs[GATE1_OUTPUT + c].setVoltage(0, v);
+        } else {
+            channel.voices[v].gate = 0;
+        }
+        SCHMICKLE(&note == voice.note);
+        voice.note = nullptr;
     }
 
 #if 0

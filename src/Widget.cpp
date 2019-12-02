@@ -461,14 +461,13 @@ void NoteTakerWidget::copyNotes() {
     array<bool, CHANNEL_COUNT * 128> on;    // to do : worth it to make this bit array?
     on.fill(false);
     do {
-        const auto& src = n.notes[start];
+        const auto& src = n.notes[start++];
         if (src.startTime > lastTime) {
             break;
         }
         if (TRACK_END == src.type) {
             break;
         }
-        bool& onRef = on[src.channel * 128 + src.pitch()];
         if (NOTE_OFF != src.type) {
             if (src.startTime >= endTime) {
                 continue;
@@ -476,12 +475,13 @@ void NoteTakerWidget::copyNotes() {
             if (NOTE_ON == src.type) {
                 SCHMICKLE(src.channel < CHANNEL_COUNT);
                 SCHMICKLE(0 <= src.pitch() && src.pitch() < 128);
-                onRef = true;
+                on[src.channel * 128 + src.pitch()] = true;
             }
             lastTime = std::max(lastTime, src.endTime());
             clipboard.notes.push_back(src);
             continue;
         }
+        bool& onRef = on[src.channel * 128 + src.pitch()];
         if (!onRef) {
             continue;   // omit note off if it is associated with note on before selection start
         }
@@ -957,7 +957,6 @@ void NoteTakerWidget::shiftNotes(unsigned start, int diff) {
     auto& n = this->n();
     if (debugVerbose) DEBUG("shift notes start %u diff %d selectChannels 0x%02x", start, diff, selectChannels);
     n.shift(start, diff, selectChannels);
-    n.sort();
 }
 
 void NoteTakerWidget::stageSlot(unsigned slot) {

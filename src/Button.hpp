@@ -18,7 +18,9 @@ struct ButtonBuffer : Widget {
 };
 
 struct NoteTakerButton : Switch {
-    float lastTransform[6] = {};
+    // the problem it is trying to solve is redrawing the button while Rack is zooming
+    // instead, detect when zooming is underway and draw directly instead of using frame buffer
+    float lastTransform[6] = {};    // to do : remove, this doesn't work
     unsigned slotNumber = INT_MAX;
     int animationFrame = 0;
 
@@ -204,8 +206,8 @@ struct EditLEDButton : EditButton {
     }
 
     bool ledOn() const override {
-        return animationFrame;
-//        return paramQuantity ? this->paramQuantity->getValue() : false;
+//       return animationFrame;     // seems like this ought to work, but it doesn't
+         return (bool) this->getValue();
     }
 
     void onDragEnd(const event::DragEnd &e) override;
@@ -476,7 +478,8 @@ struct RunButton : NoteTakerButton {
     }
 
     bool ledOn() const override {
-         return paramQuantity ? this->paramQuantity->getValue() : false;
+        return animationFrame;
+//         return paramQuantity ? this->paramQuantity->getValue() : false;
     }
 
     void onDragEnd(const event::DragEnd &e) override;

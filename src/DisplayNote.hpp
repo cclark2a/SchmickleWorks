@@ -91,8 +91,9 @@ struct DisplayNote {
     bool operator<(const DisplayNote& rhs) const {
         return startTime < rhs.startTime
             || (startTime == rhs.startTime && (duration < rhs.duration
-            || (duration == rhs.duration && (data[0] < rhs.data[0]
-            || (data[0] == rhs.data[0] && channel < rhs.channel)))));
+            || (duration == rhs.duration && (type < rhs.type
+            || (type == rhs.type && (data[0] < rhs.data[0]
+            || (data[0] == rhs.data[0] && channel < rhs.channel)))))));
     }
 
 #if 0  // never called; if needed, add Notes setchannel() to set note off channel as well
@@ -265,6 +266,11 @@ struct DisplayNote {
 
     bool isActive(int midiTime) const {
         return startTime <= midiTime && endTime() > midiTime;
+    }
+
+    bool isEnabled(unsigned selectChannels) const {
+        return (isSignature() && ALL_CHANNELS == selectChannels)
+                || ((isNoteOrRest() || NOTE_OFF == type) && (selectChannels & (1 << channel)));
     }
 
     bool isSelectable(unsigned selectChannels) const {

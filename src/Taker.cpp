@@ -545,9 +545,23 @@ void NoteTaker::setVoiceCount() {
     overlaps.resize(CHANNEL_COUNT * VOICE_COUNT);
     overlaps.clear();
     --count;
+    if (TRACK_END != n.notes[count].type) {
+        Notes::DebugDump(n.notes);
+    }
     SCHMICKLE(TRACK_END == n.notes[count].type);
+    array<unsigned, CHANNEL_COUNT * 128> onVoice;
+    onVoice.fill((unsigned) -1);
     for (unsigned index = 0; index < count; ++index) {
         auto& note = n.notes[index];
+        if (NOTE_OFF == note.type) {
+            if ((unsigned) -1 == onVoice[note.channel * 128 + note.pitch()]) {
+                Notes::DebugDump(n.notes);
+            }
+            SCHMICKLE((unsigned) -1 != onVoice[note.channel * 128 + note.pitch()]);
+            note.voice = onVoice[note.channel * 128 + note.pitch()];
+            onVoice[note.channel * 128 + note.pitch()] = (unsigned) -1;
+            continue;
+        }
         if (NOTE_ON != note.type) {
             continue;
         }
@@ -593,6 +607,7 @@ void NoteTaker::setVoiceCount() {
         channels[chan].voiceCount =
                 std::max(channels[chan].voiceCount, vCount);
         note.voice = over - overStart;
+        onVoice[note.channel * 128 + note.pitch()] = note.voice;
 #if DEBUG_VOICE_COUNT
         DEBUG("%u vCount %d chan %d %s", index, vCount, chan, note.debugString().c_str());
 #endif

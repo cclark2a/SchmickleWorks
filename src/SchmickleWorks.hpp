@@ -72,7 +72,7 @@ extern bool debugVerbose;  // switch to permit user debugging in shipping code
 extern bool groupByGMInstrument;
 extern int midiQuantizer;
 
-#define RUN_UNIT_TEST 01 // to do : set to zero for shipping code
+#define RUN_UNIT_TEST 0 // to do : set to zero for shipping code
 
 #if RUN_UNIT_TEST
     enum class TestType {
@@ -104,7 +104,7 @@ extern int midiQuantizer;
 #define DEBUG_CPU_TIME 0
 #define DEBUG_DISPLAY_RANGE 0
 #define DEBUG_DURATIONS 0
-#define DEBUG_EDIT 0
+#define DEBUG_EDIT 01
 #define DEBUG_GATES 0
 #define DEBUG_PARSE 0
 #define DEBUG_POS 0

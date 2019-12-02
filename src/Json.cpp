@@ -253,9 +253,6 @@ void NoteTakerWidget::fromJson(json_t* root) {
     INT_FROM_JSON(compressJsonNotes);
     INT_FROM_JSON(debugCapture);
     INT_FROM_JSON(debugVerbose);
-#if DEBUG_SLUR
-    debugVerbose = true;
-#endif
     INT_FROM_JSON(groupByGMInstrument);
     INT_FROM_JSON(midiQuantizer);
     // update display cache
