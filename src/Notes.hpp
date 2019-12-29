@@ -13,6 +13,7 @@ struct TripletCandidate {
 };
 
 // break out notes and range so that preview can draw notes without instantiated module
+// to do : add dirty bit and cache serialized form for autosave (make notes private?)
 struct Notes {
     vector<DisplayNote> notes;
     unsigned selectStart = 0;           // index into notes of first selected (any channel)
@@ -131,6 +132,9 @@ struct Notes {
         }
         for (unsigned index = start; index < notes.size(); ++index) {
             const DisplayNote& note = notes[index];
+            if (NOTE_OFF == note.type) {
+                continue;
+            }
             if (note.isSignature() || note.startTime > startTime) {
                 return index;
             }
@@ -169,12 +173,10 @@ struct Notes {
         const DisplayNote* test;
         do {
             test = &notes[++select];
-        } while (first.isNoteOrRest() && test->isNoteOrRest()
-                && first.startTime == test->startTime);
+        } while (NOTE_OFF == test->type || (first.isNoteOrRest() && test->isNoteOrRest()
+                && first.startTime == test->startTime));
         return select;
     }
-
-    // to do : move notetaker sort here?
 
     static void Serialize(const vector<DisplayNote>& , vector<uint8_t>& );
 
@@ -212,6 +214,8 @@ struct Notes {
         }
         return sortResult;
    }
+
+    // to do : move notetaker sort here?
 
     void sort() {
         if (debugVerbose) DEBUG("sort notes");

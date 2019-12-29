@@ -322,27 +322,7 @@ private:
         lights[CLIPBOARD_ON_LIGHT].setBrightness(brightness);
     }
 
-    void setExpiredGateLow(const DisplayNote& note) {
-        auto c = note.channel;
-        SCHMICKLE(c < CHANNEL_COUNT);
-        auto& channel = channels[c];
-        auto v = note.voice;
-        if (v >= VOICE_COUNT) {
-            Notes::DebugDump(n().notes);
-        }
-        SCHMICKLE(v < VOICE_COUNT);
-        auto& voice = channel.voices[v];
-        if (!voice.note) {
-            return;
-        }
-        if (c < CV_OUTPUTS) {
-            outputs[GATE1_OUTPUT + c].setVoltage(0, v);
-        } else {
-            channel.voices[v].gate = 0;
-        }
-        SCHMICKLE(&note == voice.note);
-        voice.note = nullptr;
-    }
+    void setExpiredGateLow(const DisplayNote& note);
 
 #if 0
     void setExpiredGatesLow(int midiTime) {
@@ -401,7 +381,9 @@ private:
     void setVoiceCount();
 
     void zeroGates() {
+#if DEBUG_GATES
         if (debugVerbose) DEBUG("zero gates");
+#endif
         for (unsigned index = 0; index < CHANNEL_COUNT; ++index) {
             auto& c = channels[index];
             for (unsigned inner = 0; inner < c.voiceCount; ++inner) {

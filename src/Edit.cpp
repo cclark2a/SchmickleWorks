@@ -175,6 +175,9 @@ void NoteTakerWidget::setVerticalWheelRange() {
             verticalWheel->setValue(edit.verticalValue);
         } else {
             const DisplayNote* note = &n.notes[n.selectStart];
+            if (NOTE_OFF == note->type) {
+                debugDump(false, true);
+            }
             SCHMICKLE(NOTE_OFF != note->type);
             if (n.selectStart + 1 == n.selectEnd && note->isSignature()) {
                 switch (note->type) {
@@ -201,24 +204,52 @@ void NoteTakerWidget::setVerticalWheelRange() {
         }
     } else if (edit.verticalNote) {
         SCHMICKLE(selectButton->editStart() || selectButton->editEnd());
-        bool atStart = selectButton->editStart();
-        edit.voices = n.getVoices(selectChannels, atStart);
-        int vCount = edit.voices.size();
+        edit.voices = n.getVoices(selectChannels, selectButton->editStart());
+        const int vCount = edit.voices.size();
         edit.originalStart = n.selectStart;
         edit.originalEnd = n.selectEnd;
-        if (!atStart) {
+        if (selectButton->editEnd()) {
             SCHMICKLE(selectButton->editEnd());
             verticalWheel->setLimits(0, vCount + .999f); // 0 : select all ; > 0 : select one
             verticalWheel->setValue(0);
+            edit.voice = false;
         } else {
-            verticalWheel->setLimits(0, 127.999f - vCount);  // allow inserting at any unoccupied pitch
+            start here;
+            SCHMICKLE(selectButton->editStart());
+            // if selectStart and 1 voice chosen, changes 1 pitch : else vert adds note
+            // checks channel so that only notes on select start's channel are skipped
+            int used = std::max(0, vCount - 1);
+            verticalWheel->setLimits(0, 127.999f - used);  // allow inserting at any unoccupied pitch
             if (!vCount) {
                 verticalWheel->setValue(60); // to do : add const for c4 (middle c)
             } else {
+                // match update vertical and set initial value to selectStart pitch
+                // less the number of editable notes with pitches that are lower
                 SCHMICKLE(edit.voices[0] < n.notes.size());
-                const DisplayNote& note = n.notes[edit.voices[0]];
-                SCHMICKLE(NOTE_OFF != note.type);
-                verticalWheel->setValue(NOTE_ON == note.type ? note.pitch() : 60); // to do : add const
+                // check if select start note is also a current edit voice
+                int skipped = 0;
+#if DEBUG_SCHMICKLE
+                bool debugFound = false;
+#endif
+                const DisplayNote& note = n.notes[n.selectStart];
+                for (auto testIndex : edit.voices) {
+                    if (n.selectStart == testIndex) {
+#if DEBUG_SCHMICKLE
+                        debugFound = true;
+#endif
+                        break;
+                    }
+                    const DisplayNote& test = n.notes[testIndex];
+                    SCHMICKLE(test.pitch() <= note.pitch());
+                    if (test.channel != note.channel) {
+                        continue;
+                    }
+                    ++skipped;
+                }
+                SCHMICKLE(debugFound);
+                SCHMICKLE(NOTE_ON == note.type);
+                int value = note.pitch() - skipped; // skip voices lower than select start
+                verticalWheel->setValue(value);
             }
         }
     } else {
@@ -548,7 +579,7 @@ void NoteTakerWidget::updateVertical() {
     if (this->menuButtonOn()) {
         displayBuffer->redraw();
     }
-    const int wheelValue = verticalWheel->wheelValue();
+    const int wheelValue = (int) verticalWheel->getValue();
     if (fileButton->ledOn() || partButton->ledOn()) {
         if (verticalWheel->getValue() <= 2 && !display->downSelected) {
             display->downSelected = true;
@@ -706,12 +737,14 @@ void NoteTakerWidget::updateVertical() {
             edit.voice = false;
             n.selectStart = edit.originalStart;
             n.selectEnd = edit.originalEnd;
-            DEBUG("selStart %u / selEnd %u", n.selectStart, n.selectEnd);
+            DEBUG("selStart %u / selEnd %u raw %g", n.selectStart, n.selectEnd,
+                    verticalWheel->getValue());
         } else {
             edit.voice = true;
             n.selectStart = edit.voices[wheelValue - 1];
             n.selectEnd = n.selectStart + 1;
-            DEBUG("selStart %u / selEnd %u wheel %d", n.selectStart, n.selectEnd, wheelValue);
+            DEBUG("selStart %u / selEnd %u wheel %d raw %g", n.selectStart, n.selectEnd, wheelValue,
+                    verticalWheel->getValue());
         }
         this->invalAndPlay(Inval::display);
     } else {
@@ -726,19 +759,28 @@ void NoteTakerWidget::updateVertical() {
             }
         }
         int pitch = wheelValue;
+        int pitchOffset = 0;
         const DisplayNote* base = nullptr;
         for (unsigned i : edit.voices) {  // skipping existing notes
             const auto& test = n.notes[i];
             SCHMICKLE(NOTE_OFF != test.type);
+            if (n.selectStart == i) {
+                continue;
+            }
             if (!base) {
                 base = &test;
             } else if (test.startTime > base->startTime) {
                 break;
             }
             if (test.pitch() <= pitch) {
-                ++pitch;
+                ++pitchOffset;
             }
         }
+        pitch += pitchOffset;
+        start here;
+        // get rid of edit.voice
+        // after insert note: turn off select button so vert changes pitch of selection
+        // also fix collision duration (see above)
         if (!edit.voice) {
             int duration = base ? base->duration : n.ppq;
             int startTime = base ? base->startTime : n.notes[n.selectStart].startTime;

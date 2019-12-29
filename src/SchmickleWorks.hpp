@@ -106,17 +106,19 @@ extern int midiQuantizer;
 #define DEBUG_DURATIONS 0
 #define DEBUG_EDIT 01
 #define DEBUG_GATES 0
-#define DEBUG_PARSE 0
+#define DEBUG_PARSE 01
 #define DEBUG_POS 0
 #define DEBUG_RANGE 0
 #define DEBUG_REQUEST 0
 #define DEBUG_RUN 0
 #define DEBUG_RUN_TIME 0
+#define DEBUG_SCHMICKLE 1
+#define DEBUG_SELECTION_RECT 0
 #define DEBUG_STAFF 0
 #define DEBUG_STORAGE 0
 #define DEBUG_SLUR 0
 #define DEBUG_SLUR_TEST (DEBUG_SLUR && debugVerbose)
-#define DEBUG_VOICE_COUNT 0
+#define DEBUG_VOICE_COUNT 01
 #define DEBUG_WHEEL 0
 
 struct Super8Data {
@@ -136,17 +138,24 @@ struct WidgetToolTip : ParamQuantity {
 
 // note: when implemented as inline c++ functions, stack and assert line # was out of line
 // to do : remove assert from production, so that innoculous asserts don't cause a crash?
-#define _schmickled() \
-    (DEBUG("%s", system::getStackTrace().c_str()), assert(0))
+#if DEBUG_SCHMICKLE
+    #define _schmickled() \
+        (DEBUG("%s", system::getStackTrace().c_str()), assert(0))
 
-#define _schmickle_false() \
-    _schmickled(), false
+    #define _schmickle_false() \
+        _schmickled(), false
 
-#define _schmickle(cond, condStr) \
-    if (!(cond)) { \
-        DEBUG("%s", condStr); \
-        _schmickled(); \
-    }
+    #define _schmickle(cond, condStr) \
+        if (!(cond)) { \
+            DEBUG("%s", condStr); \
+            _schmickled(); \
+        }
 
-#define SCHMICKLE(x) \
-    _schmickle(x, #x)
+    #define SCHMICKLE(x) \
+        _schmickle(x, #x)
+#else
+    #define _schmickled()
+    #define _schmickle_false() false
+    #define _schmickle(cond, condStr)
+    #define SCHMICKLE(x)
+#endif

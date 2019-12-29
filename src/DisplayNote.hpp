@@ -96,6 +96,12 @@ struct DisplayNote {
             || (data[0] == rhs.data[0] && channel < rhs.channel)))))));
     }
 
+    bool operator==(const DisplayNote& rhs) const {
+        return startTime == rhs.startTime && duration == rhs.duration
+                && type == rhs.type && data[0] == rhs.data[0]
+                && channel == rhs.channel;
+    }
+
 #if 0  // never called; if needed, add Notes setchannel() to set note off channel as well
     void setChannel(uint8_t c);
 #endif

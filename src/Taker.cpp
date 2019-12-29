@@ -179,7 +179,7 @@ void NoteTaker::process(const ProcessArgs &args) {
                 break;
             case RequestType::resetPlayStart:
                 playStart = 0;
-                this->zeroGates();
+                this->zeroGates();  // to do : don't do this so score can loop (last notes overlap first)
                 break;
             case RequestType::setClipboardLight:
                 this->setClipboardLight((float) record.data / 256.f);
@@ -355,6 +355,10 @@ void NoteTaker::process(const ProcessArgs &args) {
             if (note.startTime > midiTime) {
                 break;
             }
+            // if not running, only play note on if it is in selection
+            if (!running && playStart >= n.selectEnd) {
+                break;
+            }
             if (NOTE_OFF == note.type) {
                 this->setExpiredGateLow(note);
             }
@@ -457,7 +461,7 @@ void NoteTaker::process(const ProcessArgs &args) {
             reportWorstLater = true;
         }
     }
-    if (1) reportWorstLater = true; // to do : remove this, debug debugging
+    if (0) reportWorstLater = true; // to do : remove this, debug debugging
     if (reportWorstLater && endTime - lastTime > 0.3) {
         DEBUG("worst time %g elapsed %g parts %g %g %g %g iter %d play %d set %d bias %d",
                  worstTime, elapsed,
@@ -502,6 +506,32 @@ void NoteTaker::resetRun(bool pushRequest) {
     }
 }
 
+
+void NoteTaker::setExpiredGateLow(const DisplayNote& note) {
+    auto c = note.channel;
+    SCHMICKLE(c < CHANNEL_COUNT);
+    auto& channel = channels[c];
+    auto v = note.voice;
+    if (v >= VOICE_COUNT) {
+        Notes::DebugDump(n().notes);
+    }
+    SCHMICKLE(v < VOICE_COUNT);
+    auto& voice = channel.voices[v];
+    if (!voice.note) {
+        return;
+    }
+    if (c < CV_OUTPUTS) {
+        outputs[GATE1_OUTPUT + c].setVoltage(0, v);
+    } else {
+        channel.voices[v].gate = 0;
+    }
+    SCHMICKLE(voice.note);
+    SCHMICKLE(voice.note->endTime() == note.startTime);
+    SCHMICKLE(voice.note->pitch() == note.pitch());
+    SCHMICKLE(voice.note->channel == note.channel);
+    voice.note = nullptr;
+}
+    
 // to do : add bool to note that some voice count has changed to skip this if there's nothing new
 void NoteTaker::setOutputsVoiceCount() {
     for (unsigned chan = 0; chan < CV_OUTPUTS; ++chan) {
@@ -516,8 +546,18 @@ void NoteTaker::setPlayStart() {
     this->setVoiceCount();
     auto& n = this->n();
     playStart = this->ntw()->edit.voice ? n.selectStart : 0;
-    unsigned lastNote = (this->isRunning() ? n.notes.size() : n.selectEnd) - 1;
-    midiEndTime = n.notes[lastNote].endTime();
+    // if not running, midi end time is end time of longest note on in selection
+    if (this->isRunning() || n.selectEnd == n.notes.size()) {
+        midiEndTime = n.notes[n.notes.size() - 1].endTime();
+    } else {
+        midiEndTime = n.notes[n.selectStart].endTime();
+        for (unsigned index = n.selectStart + 1; index < n.selectEnd; ++index) {
+            auto& note = n.notes[index];
+            if (NOTE_ON == note.type) {
+                midiEndTime = std::max(midiEndTime, note.endTime());
+            }
+        }
+    }
 #if DEBUG_RUN
     if (debugVerbose) DEBUG("setPlayStart playStart %u midiEndTime %d lastNote %s", playStart,
             midiEndTime, n.notes[lastNote].debugString(n.notes, nullptr, nullptr).c_str());

@@ -173,9 +173,22 @@ void CutButton::onDragEnd(const rack::event::DragEnd& e) {
             SCHMICKLE(State::cutAndShift == state || State::insertCutAndShift == state);
         }
         // set selection to previous selectable note, or zero if none
-        int wheel = ntw->noteToWheel(start);
-        unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
-        ntw->setSelect(previous, previous < start ? start : previous + 1);
+        int vWheel = (int) ntw->verticalWheel->getValue();
+        if (vWheel) {
+            float lo, hi;
+            ntw->verticalWheel->getLimits(&lo, &hi);
+            if (vWheel == (int) hi - 1) {
+                --vWheel;
+            }
+        }
+        if (vWheel)  {
+            unsigned selStart = ntw->edit.voices[vWheel - 1];
+            ntw->setSelect(selStart, selStart + 1);
+        } else {
+            int wheel = ntw->noteToWheel(start);
+            unsigned previous = ntw->wheelToNote(std::max(0, wheel - 1));
+            ntw->setSelect(previous, previous < start ? start : previous + 1);
+        }
         n.eraseNotes(start, end, ntw->selectChannels);
         if (shiftTime) {
             ntw->shiftNotes(start, shiftTime);

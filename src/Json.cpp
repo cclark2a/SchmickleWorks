@@ -47,6 +47,9 @@ void Notes::ToJsonUncompressed(const vector<DisplayNote>& notes, json_t* root,
     json_object_set_new(root, jsonName.c_str(), _notes);
 }
 
+// to do : add dirty bit to notes so that serialize can be cached
+// to do : add debugging to time this; if it is causing stutter, add alternative to 
+//         write file name only so that autosave never takes too long
 void Notes::ToJsonCompressed(const vector<DisplayNote>& notes, json_t* root, std::string jsonName) {
     vector<uint8_t> midi;
     Serialize(notes, midi);

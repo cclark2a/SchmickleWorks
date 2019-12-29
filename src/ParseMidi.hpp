@@ -14,7 +14,7 @@ struct NoteTakerParseMidi {
         , displayNotes(notes)
         , channels(chans)
         , ntPpq(ppq) {
-        if (false && debugVerbose) DebugDumpRawMidi(m);
+        if (debugVerbose) DebugDumpRawMidi(m);
     }
 
     bool parseMidi();

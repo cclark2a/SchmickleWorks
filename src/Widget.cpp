@@ -910,6 +910,7 @@ void NoteTakerWidget::setSelect(unsigned start, unsigned end) {
         this->enableInsertSignature(end);  // disable buttons that already have signatures in score
     }
 #if DEBUG_RUN_TIME
+    if (debugVerbose) DEBUG("%s", system::getStackTrace().c_str());
     if (debugVerbose) DEBUG("setSelect old %u %u new %u %u", n.selectStart, n.selectEnd, start, end);
 #endif
     n.selectStart = start;

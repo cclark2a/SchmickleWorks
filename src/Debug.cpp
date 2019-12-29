@@ -234,9 +234,13 @@ void NoteTakerWidget::debugDump(bool validatable, bool inWheel) const {
             selectChannels, 
             this->unlockedChannel(), nt() ? nt()->getTempo() : 0, n.ppq, edit.voice);
     auto& slot = storage.current();
-    DEBUG("slot %p notes %p cache %p ", &slot, &n.notes.front(), slot.cache.notes.front());
-    Notes::DebugDump(n.notes, 0, INT_MAX, slot.invalid ? nullptr : &slot.cache.notes,
-            n.selectStart, n.selectEnd);
+    if (!slot.invalid) {
+        DEBUG("slot %p notes %p cache %p ", &slot, &n.notes.front(), slot.cache.notes.front());
+        Notes::DebugDump(n.notes, 0, INT_MAX, slot.invalid ? nullptr : &slot.cache.notes,
+                n.selectStart, n.selectEnd);
+    } else {
+        DEBUG("slot invalid");
+    }
     DEBUG("clipboard");
     Notes::DebugDump(clipboard.notes);
     for (const auto& chan : slot.channels) {

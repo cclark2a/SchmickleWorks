@@ -1177,7 +1177,7 @@ void NoteTakerDisplay::drawSelectionRect() {
         // to do : replace this with scissor to prevent drawing into display ui area
     }
     if (!selectButton->editStart() && n.selectEnd > 0) {
-        auto startCache = n.notes[start].cache;
+        auto startCache = n.notes[n.selectStart].cache;
         xStart = startCache->xPosition - (startCache->accidentalSpace ? 8 : 0);
         unsigned selEndPos = n.selectEndPos(n.selectEnd - 1);
         const NoteCache* endCache;
@@ -1188,7 +1188,10 @@ void NoteTakerDisplay::drawSelectionRect() {
         width = endCache->xPosition - (endCache->accidentalSpace ? 8 : 0) - xStart;
     }
     nvgBeginPath(vg);
-    if (0 && debugVerbose) DEBUG("xStart %d yTop %d width %d yHeight %d", xStart, yTop, width, yHeight);
+#if DEBUG_SELECTION_RECT
+    if (debugVerbose) DEBUG("start %u xStart %d yTop %d width %d yHeight %d channel %u",
+            start, xStart, yTop, width, yHeight, channel);
+#endif
     nvgRect(vg, xStart, yTop, width, yHeight);
     SetSelectColor(vg, channel);
     nvgFill(vg);

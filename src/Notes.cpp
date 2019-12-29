@@ -582,6 +582,19 @@ bool Notes::Deserialize(const vector<uint8_t>& storage, vector<DisplayNote>* not
 void Notes::eraseNotes(unsigned start, unsigned end, unsigned selectChannels) {
     for (auto iter = notes.begin() + end; iter-- != notes.begin() + start; ) {
         if (iter->isSelectable(selectChannels)) {
+            if (NOTE_ON == iter->type) {
+                // find corresponding note off and erase it too
+                DisplayNote off(NOTE_OFF, iter->endTime(), 0, iter->channel);
+                off.setPitchData(iter->pitch());
+                auto offIter = iter;
+                while (*offIter < off) {
+                    ++offIter;
+                    SCHMICKLE(notes.end() != offIter);
+                }
+                SCHMICKLE(*offIter == off);
+                notes.erase(offIter);
+
+            }
             notes.erase(iter);
         }
     }
@@ -601,6 +614,15 @@ vector<unsigned> Notes::getVoices(unsigned selectChannels, bool atStart) const {
     std::sort(result.begin(), result.end(), [this](const unsigned& lhs, const unsigned& rhs) {
         return notes[lhs].pitch() < notes[rhs].pitch();
     });
+#if DEBUG_VOICE_COUNT
+    if (debugVerbose) {
+        std::string s(__func__);
+        for (auto v : result) {
+            s += " " + std::to_string(v);
+        }
+        DEBUG("%s", s.c_str());
+    }
+#endif
     return result;
 }
 
